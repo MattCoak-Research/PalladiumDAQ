@@ -1,0 +1,54 @@
+function ADR(coakView)
+%ADR - ADR preset for CoakView for the LG9 Adiabatic Demag Refrigerator cryostat.
+
+%Programmatically sets various parameters and GUI
+%preferences to suit a particular setup or experiment. 
+
+%Settings and values
+coakView.SetUpdateTime(0.5);
+
+
+%Add the Lakeshore 372 temperature controller and configure it - for now I
+%think 370 and 372 code is interchangable..
+ls372 = coakView.AddInstrument("Lakeshore372");
+ls372.Connection_Type = CoakView.Enums.ConnectionType.GPIB;
+ls372.GPIB_Address = 11;
+ls372.Ch_Name = "Sample Temperature (K)";
+
+%Add the Lakeshore 350 temperature controller and configure it
+ls350 = coakView.AddInstrument("Lakeshore350");
+ls350.Connection_Type = CoakView.Enums.ConnectionType.GPIB;
+ls350.GPIB_Address = 12;
+ls350.Ch_A_Name = "1K Plate Temperature (K)";
+ls350.Ch_B_Name = "Sorb Temperature (K)";
+ls350.ControlChannel = "B";
+
+%Add a Plotting Window for the lakeshore 370 and 350
+pltr = coakView.AddNewPlottingWindow(1, 1);
+pltr.SetDefaultXAxis("Time (mins)");
+pltr.SetDefaultYAxes("Sample Temperature (K)", "1K Plate Temperature (K)", [], []);
+
+%Add demag magnet power supply
+demagIPS = coakView.AddInstrument("Mercury120_10_IPS", Name = "Demag Magnet");
+demagIPS.Connection_Type = CoakView.Enums.ConnectionType.Serial;
+demagIPS.Serial_Address = "COM4";
+
+%Add sample magnet power supply
+sampleIPS = coakView.AddInstrument("Mercury120_IPS", Name = "Sample Magnet");
+sampleIPS.Connection_Type = CoakView.Enums.ConnectionType.GPIB;
+sampleIPS.GPIB_Address = 25;
+
+%Add a Plotting tab for the magnets
+pltr = coakView.AddNewPlottingTab(1, 1);
+pltr.SetDefaultXAxis("Time (mins)");
+pltr.SetDefaultYAxes("Demag Magnet - Field (T)", [], [], []);
+
+%Add a Plotting tab
+coakView.AddNewPlottingTab(1, 1);
+
+
+%Add a Plotting window
+%coakView.AddNewPlottingWindow(1, 1);
+
+end
+
