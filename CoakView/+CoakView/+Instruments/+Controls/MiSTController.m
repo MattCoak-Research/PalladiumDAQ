@@ -9,7 +9,6 @@ classdef MiSTController < CoakView.Core.InstrumentControlBase
 
     properties (Access = private)
         GUIViews;
-        Instrument;
     end
 
     properties (Access = private)

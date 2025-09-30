@@ -9,7 +9,6 @@ classdef MagnetController < CoakView.Core.InstrumentControlBase
 
     properties (Access = private)
         GUIView;
-        Instrument;
     end
     
     methods

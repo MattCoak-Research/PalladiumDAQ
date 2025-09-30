@@ -31,6 +31,20 @@ classdef CoakView_NoGUI < handle
             pltr = app.CreateNewPlotter(parent, size);
         end
 
+        %% AddNewSimplePlotter
+        function pltr = AddNewSimplePlotter(app, parent, size)
+            %This is used by things like Instrument Control creating GUIs
+            %and placing Plotters in exisiting Gridlayouts
+            arguments
+                app;
+                parent;
+                size = "Medium";
+            end
+
+            %Create the plotter
+            pltr = app.CreateNewSimplePlotter(parent, size);
+        end 
+
         %% AddNewPlottingTab
         function listOfPltrs = AddNewPlottingTab(this, rows, columns)
             listOfPltrs = [];
@@ -181,6 +195,20 @@ classdef CoakView_NoGUI < handle
             %Subscribe to events
             addlistener(pltr, 'AxesSelectionChange', @(src,evnt)this.PlotterAxesSelectionChange(src,evnt));
             addlistener(pltr, 'SavePlot', @(src,evnt)this.SavePlotPressed(src,evnt));
+        end
+
+        %% CreateNewSimplePlotter
+        function pltr = CreateNewSimplePlotter(app, parent, size)
+            %Create plotter component
+            pltr = CoakView.Components.SimplePlotterPanel(parent);
+
+            %Apply settings loaded from json file
+            plotterSettings = app.Controller.PlotterSettings;
+            plotterSettings.Size = size;
+            pltr.ApplySettings(plotterSettings);
+
+            %Subscribe to events
+            addlistener(pltr, 'SavePlot', @(src,evnt)app.SavePlotPressed(src,evnt));
         end
 
     end

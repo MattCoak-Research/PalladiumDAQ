@@ -16,14 +16,17 @@ classdef(Abstract) Instrument < handle
     end
 
     properties(Access = public) %Properties that will not get detected by the GUI and have buttons added for them
-        SweepController = [];
+        SweepController = [];  
+        LastFullDataRow = [];           %Each tick, the Controller will store the complete DataRow in each Instrument here. This is used when Instruments write their own data files, for things like independent sweeps
+        FullHeadersRow = [];            %On measurements start, this will get cached with the full array of headers for the whole setup - again, for instrument-driven data writing.
+        FileWriteDetails = [];
     end
 
     properties(Access = protected)
         SimulationMode = false;         %Set to true if testing code while not actually connected to a physical instrument - dummy data will be generated. Set via constructor of instance classes only.
         DeviceHandle = [];              %Reference to the instrument connection/session, set when calling Connect()     
         SettingsToApply = [];           %Either null, or a struct of all the settings to apply in the next Measure command (keep these calls synchronous, they come originally from events)
-
+      
         %Default Connection Settings - override individual settings in implementation class
         %constructors
         ConnectionSettings = struct('GPIB_BoardIndex', 0,...
@@ -286,29 +289,13 @@ classdef(Abstract) Instrument < handle
                 return;
             end
 
-            %Otherwise turn the struct into a human readable one-line
-            %string...
-            preInfStr = this.Name + " Settings: ";
-            stringLine = preInfStr;
-
             %Error checking
             assert(isstruct(result), "Return value of CollectMetadata is not Struct on Instrument " + this.Name);
 
-            %Get the field names of the struct
-            flds = fields(result);
-
-            %Unpack each property/field into a string, append it
-            for i = 1 : length(flds)
-                f = flds{i};
-                prop = result.(f);
-
-                stringLine = stringLine + string(f) + " = " + string(prop);
-
-                %Add a seperator if this is not the last property
-                if i ~= length(flds)
-                    stringLine = stringLine + " || ";
-                end
-            end
+            %Otherwise turn the struct into a human readable one-line
+            %string...
+            preInfStr = this.Name + " Settings: ";
+            stringLine = CoakView.DataWriting.DataWriter.BuildMetadataLineStringFromStruct(preInfStr, result);
         end
     end
 

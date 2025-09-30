@@ -11,6 +11,10 @@ classdef ZI_MFLI < CoakView.Core.Instrument
         MeasurementMode;                                            %Measuring voltage or current?
     end
 
+    properties(Access = public)
+        SweepControlPanel = [];
+    end
+
     properties(Access = private)
 
     end
@@ -66,6 +70,31 @@ classdef ZI_MFLI < CoakView.Core.Instrument
             end
         end
 
+        %% CollectMetadata
+        function metadataStruct = CollectMetaData(this)
+            %Does nothing by default - implementations of individual
+            %instruments can override this to give functionality.
+            %Delete this function if no metadata is desired for this
+            %instrument.
+            %If a struct is returned it will be parsed
+            %into a string and that added as a line in the data file
+            %header.
+            %Use this to record instrument settings and metadata like
+            %frequency, voltage, measurement mode, that will not change
+            %during the measurement and therefore don't merit logging each
+            %step
+            if(this.SimulationMode)
+                metadataStruct.Placeholder = "Simulated instrument - placeholder metadata";
+                return;
+            end
+
+            %Poll the instrument for all its settings.
+            zi_Params = this.GenerateFullSettingsSaveStruct();
+
+            %Pull them out neatly here - extend this as required
+            metadataStruct.Frequency_Hz = zi_Params.F;%TODO - fix with real example in the lab
+        end
+
         %% GetSupportedConnectionTypes
         function connectionTypes = GetSupportedConnectionTypes(this)
             connectionTypes = [...
@@ -73,6 +102,18 @@ classdef ZI_MFLI < CoakView.Core.Instrument
                 CoakView.Enums.ConnectionType.Ethernet,...
                 CoakView.Enums.ConnectionType.USB...
                 ];
+        end
+
+         %% GetAvailableControlOptions
+        function [controlDetailsStructs] = GetAvailableControlOptions(this)
+            %Tell the GUI what options for Control GUIs to create
+            controlDetailsStructs = [...
+                struct(...
+                "Name", "MFLI Sweep Control",...
+                "ControlClassFileName", "MFLI_SweepController",...
+                "TabName", "MFLI Sweep Control",...
+                "EnabledByDefault", false)...                
+                ];       
         end
 
         %% Connect to Instrument

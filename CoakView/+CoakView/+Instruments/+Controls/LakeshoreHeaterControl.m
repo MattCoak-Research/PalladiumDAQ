@@ -9,7 +9,6 @@ classdef LakeshoreHeaterControl < CoakView.Core.InstrumentControlBase
 
     properties (Access = private)
         GUIView;
-        Instrument;
         Plotter;
     end
     

@@ -168,6 +168,31 @@ classdef Controller < handle
                 this.HandleError("Error adding new plotter", err);
             end
         end
+
+        %% AddNewSimplePlotter
+        function pltr = AddNewSimplePlotter(this, parent, size)
+            %SimplePlotter is a barebones version of the Plotter class
+            %that doesn't have dropdowns and is not plugged into the 
+            %DataRow and update infrastructure. It can just take plot
+            %commands programmtically from whatever made it. 
+            %This is used by things like Instrument Control creating GUIs
+            %and placing Plotters in exisiting Gridlayouts
+            arguments
+                this;
+                parent;
+                size = "Medium";
+            end
+
+            try
+                %Pass through to View to handle GUI stuff
+                pltr = this.View.AddNewSimplePlotter(parent, size);
+                
+                %Simple plotters do not get registered for auto-updates.
+                %Whatever made them has to push data to them itself.
+            catch err
+                this.HandleError("Error adding new plotter", err);
+            end
+        end
         
         %% AddNewPlottingTab
         function listOfPltrs = AddNewPlottingTab(this, rows, cols)
@@ -829,6 +854,20 @@ classdef Controller < handle
                     end
                 end
             end
+
+            %Scan through all instruments and cache that full dataRow into
+            %their LastDataRow property, which they can use if doing
+            %independent data writing
+            for i = 1 : length(this.Instruments)
+                try
+                    this.Instruments{i}.LastFullDataRow = DataRow;
+                catch e
+                    %Just show a warning, do not halt execution
+                    reportStr = string(e.message);
+                    CoakView.Logging.Logger.Log("Warning", "Last dataRow update call to instrument " + this.Instruments{i}.Name + " failed in CollectMeasurement. Error message: " + reportStr);
+
+                end
+            end
         end
 
         %% CreateInstrumentControlTab
@@ -866,6 +905,21 @@ classdef Controller < handle
             HeadersString = '';
             for i= 1 : length(Headers)
                 HeadersString = sprintf('%s%s\t', HeadersString, Headers{i});
+            end
+
+            %Scan through all instruments and cache that full headers row into
+            %their FullHeadersRow property, which they can use if doing
+            %independent data writing
+            for i = 1 : length(this.Instruments)
+                try
+                    this.Instruments{i}.FullHeadersRow = Headers;
+                    this.Instruments{i}.FileWriteDetails = this.FileWriteDetails;
+                catch e
+                    %Just show a warning, do not halt execution
+                    reportStr = string(e.message);
+                    CoakView.Logging.Logger.Log("Warning", "Last dataRow update call to instrument " + this.Instruments{i}.Name + " failed in CollectMeasurement. Error message: " + reportStr);
+
+                end
             end
         end
 

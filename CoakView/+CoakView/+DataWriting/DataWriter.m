@@ -5,19 +5,87 @@ classdef DataWriter < handle
         FileWriteDetails;
         FileInfo = "<<< CoakView data file 3.0 >>>";
     end
+
+    properties (Constant)
+        END_METADATA_LINES_STRING = "<<< END METADATA LINES >>>";
+    end
     
     methods
+        %% Constructor
         function this = DataWriter(fileWriteDetails)
             this.FileWriteDetails = fileWriteDetails;
 
             this.ConstructPath();
-        end
+        end 
 
         %% ConstructPath
         function ConstructPath(this)
             this.FileWriteDetails.FilePath = fullfile(string(this.FileWriteDetails.Directory), string(this.FileWriteDetails.FileName) + string(this.FileWriteDetails.FileExtension));
         end
 
+        %% InsertMetadataLines
+        function InsertMetadataLines(this, stringLinesArray)
+            %Use at end of file writing, to insert an extra line of
+            %metadata into the header section of the file - inserts a new
+            %line before <<< END METADATA LINES >>>. stringLinesArray can
+            %be a singel string or an array of them (multilines) like
+            %["Walker", "747", "Holly"]
+            arguments
+                this;
+                stringLinesArray {mustBeText};
+            end
+
+            try
+                %This is the way to insert a line (??) - open the file,
+                %turn to a string array, then write those one by one, with
+                %the new one inserted into that array
+                fid = fopen(this.FileWriteDetails.FilePath);
+                scan = textscan(fid, '%s', 'Delimiter', '\n', 'CollectOutput', true);
+                lines = scan{1};
+                fclose(fid);
+
+                %Find which line is the END METADATA line
+                mask = strcmp(lines, CoakView.DataWriting.DataWriter.END_METADATA_LINES_STRING);
+                endLineIdx = find(mask);
+
+                %Error checking
+                if isempty(endLineIdx)
+                    error("Could not find end-of-metadata string in file");
+                end
+
+                %Check how many lines to insert
+                linesToInsert = length(stringLinesArray);
+                  
+
+                %Same file path - shoudl overwrite
+                fid = fopen(this.FileWriteDetails.FilePath, 'w');
+
+                %Print the lines before the one to be inserted
+                for i = 1 : endLineIdx - 1
+                    fprintf(fid, '%s\n', lines{i});
+                end
+
+                %Print the new line(s)
+                for i = 1 : linesToInsert
+                    fprintf( fid, '%s\n', stringLinesArray(i));
+                end
+
+                %Print the lines after
+                for i = endLineIdx : length(lines)
+                    fprintf(fid, '%s\n', lines{i});
+                end
+
+                %Close the file
+                fclose(fid);
+
+            catch err
+                warning("Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying...");
+                errMess = string(err.message);
+                warning(errMess);
+                CoakView.Logging.Logger.Log("Info", "Writing of file to " + this.FileWriteDetails.FilePath + " failed." + " Error message: " + errMess);
+            end
+        end
+        
         %% SaveFigure
         function SaveFigure(~, figure, directory, fileNameWithoutExtension)
             try
@@ -86,7 +154,7 @@ classdef DataWriter < handle
                 end
             end
 
-            fprintf(fid, '%s\r\n', "<<< END METADATA LINES >>>");
+            fprintf(fid, '%s\r\n', CoakView.DataWriting.DataWriter.END_METADATA_LINES_STRING);
             fprintf(fid, '%s\r\n', "");
             fprintf(fid, '%s\r\n', headers);
             fclose(fid);
@@ -112,6 +180,64 @@ classdef DataWriter < handle
             %If we got here, we tried N times to write to the file and it
             %didn't work - warn
             CoakView.Logging.Logger.Log("Warning", "Writing of file to " + this.FileWriteDetails.FilePath + " failed after " + num2str(numRetries) + " attempts. Data have been lost." + " Last error: " + errMess);
+        end
+    end
+
+    methods (Static)
+
+      %% BuildMetadataLineStringFromStruct
+        function stringLine = BuildMetadataLineStringFromStruct(initialString, strct)
+            %Take a struct of parameters and turn into a nicely formatted
+            %single line of text that can be written to file as
+            %human-readable metadata
+            stringLine = initialString;
+            
+            %Get the field names of the struct
+            flds = fields(strct);
+
+            %Unpack each property/field into a string, append it
+            for i = 1 : length(flds)
+                f = flds{i};
+                prop = strct.(f);
+
+                stringLine = stringLine + string(f) + " = " + string(prop);
+
+                %Add a seperator if this is not the last property
+                if i ~= length(flds)
+                    stringLine = stringLine + " || ";
+                end
+            end
+        end
+
+        %% BuildMetadataLineStringFromHeaderValuePair
+        function stringLine = BuildMetadataLineStringFromHeaderValuePair(initialString, headerRow, dataRow)
+            %Take a row of header strings and a row of data, and make into
+            %a nicely formatted string to log as a metadata line
+            stringLine = initialString;
+            
+            %Error checking
+            if isempty(dataRow)
+                warning("Data row empty in BuildMetadataLineStringFromHeaderValuePair, cannot log to file");
+                return;
+            end
+            if isempty(headerRow)
+                warning("Data row empty in BuildMetadataLineStringFromHeaderValuePair, cannot log to file");
+                return;
+            end
+            assert(length(dataRow) == length(headerRow), "Header and data row length not equal");
+
+            %Unpack each property/field into a string, append it
+            for i = 1 : length(headerRow)
+                h = headerRow{i};
+                prop = dataRow(i);
+
+                stringLine = stringLine + string(h) + " = " + string(prop);
+
+                %Add a seperator if this is not the last property
+                if i ~= length(headerRow)
+                    stringLine = stringLine + " || ";
+                end
+            end
         end
     end
 end
