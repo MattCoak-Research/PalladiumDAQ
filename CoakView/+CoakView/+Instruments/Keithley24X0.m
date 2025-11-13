@@ -103,6 +103,30 @@ classdef Keithley24X0 < CoakView.Core.Instrument
             this.SweepControlPanel.SweepComplete();
         end
 
+        %% GetAvailableControlOptions
+        function [controlDetailsStructs] = GetAvailableControlOptions(this)
+            %Tell the GUI what options for Control GUIs to create
+            controlDetailsStructs = struct(...
+                "Name", "Sweep Control",...
+                "ControlClassFileName", "SweepController_Stepped",...
+                "TabName", "Sweep Control",...
+                "EnabledByDefault", false);
+        end
+
+        %% GetSweepUnitsString
+        function [str, limits] = GetSweepUnitsString(this)
+            switch(this.SourceMode)
+                case(this.MeasType("Voltage"))
+                    str = "V";
+                    limits = [-50, 50];    %Need to check what these physical limits actually are and improve this
+                case(this.MeasType("Current"))
+                    str = "A";
+                    limits = [-1, 1]; %Need to check what these physical limits actually are and improve this
+                otherwise
+                    error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+            end
+        end
+
         %% GetHeaders
         function [Headers, Units] = GetHeaders(this)
             switch(this.MeasMode)
@@ -123,19 +147,18 @@ classdef Keithley24X0 < CoakView.Core.Instrument
         %% Measure
         function [dataRow] = Measure(this)
 
+            sweepActive =  ~isempty(this.SweepController) && this.SweepController.Running;
+
             %Update attached SweepController, if it exists
-            if ~isempty(this.SweepController)
-                [valueToSet, complete] = this.SweepController.Update();
+            if sweepActive
+                valueToSet = this.SweepController.Update();
 
                 %Set the source ouput to the new value
                 this.SetSourceLevel(valueToSet, true);
 
-                %Update the GUI
-                this.SweepControlPanel.StepComplete(valueToSet);
-
-                if(complete)
-                    this.SweepComplete();
-                end
+                %And now wait for the set Settle Time for that change
+                %to take place before measuring
+                this.SweepController.WaitSettleTime();
             end
 
             if(this.SimulationMode)
@@ -143,6 +166,15 @@ classdef Keithley24X0 < CoakView.Core.Instrument
                 resistance = 10 + 0.1*rand();
                 current = 5 + 0.01*rand();
                 voltage =1 + 0.01*rand;
+
+                if sweepActive
+                    switch(this.SourceMode)
+                        case(this.SourceType("Voltage"))
+                            voltage = valueToSet;
+                        case(this.SourceType("Current"))
+                            current = valueToSet;
+                    end
+                end
             else
                 %Query the source meter for latest measurement and get a string
                 %returned. example for a 184 kOhm resistor with 10 microA current: '+1.839736E+00,+9.999968E-06,+1.839742E+05,+6.482821E+04,+4.506000E+04'
@@ -178,11 +210,33 @@ classdef Keithley24X0 < CoakView.Core.Instrument
             switch(this.MeasMode)
                 case(this.MeasType("Resistance"))
                     dataRow = [resistance, current, voltage];
+                    %Update attached SweepController, if it exists
+                    if sweepActive
+                        switch(this.SourceMode)
+                            case(this.SourceType("Voltage"))
+                                this.SweepController.UpdateData(voltage, resistance);
+                            case(this.SourceType("Current"))
+                                this.SweepController.UpdateData(current, resistance);
+                        end
+                    end
+
                 case(this.MeasType("Voltage"))
                     dataRow = [current, voltage];
+
+                    %Update attached SweepController, if it exists
+                    if sweepActive
+                        this.SweepController.UpdateData(current, voltage);
+                    end
+
                 case(this.MeasType("Current"))
                     %Assign data to output data row
                     dataRow = [voltage, current];
+
+                    %Update attached SweepController, if it exists
+                    if sweepActive
+                        this.SweepController.UpdateData(voltage, current);
+                    end
+
                 otherwise
                     error("Mode must be Resistance, Voltage, or Current, this was " + this.MeasMode);
             end

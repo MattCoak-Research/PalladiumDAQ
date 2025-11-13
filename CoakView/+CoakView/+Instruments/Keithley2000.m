@@ -24,6 +24,7 @@ classdef Keithley2000 < CoakView.Core.Instrument
         %% Constructor
         function this = Keithley2000()
             this.GPIB_Address = this.DefaultGPIB_Address;
+            this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];
 
             %Make sure to set values for Properties of Categorical type
             %like these

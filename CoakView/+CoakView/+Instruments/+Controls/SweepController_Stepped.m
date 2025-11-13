@@ -10,6 +10,9 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
     properties (Access = private)
         StepNo = 0;
         TotalPoints;
+        Data;
+        Plotter;
+        DataWriter;
     end
     
     methods
@@ -96,19 +99,27 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
             %Set up the defaults and populate parameters 
             this.RefreshUnitsAndLimits();
 
-            %Add a plotter as well underneath
-            pltr = controller.AddNewPlotter(grid);
-            pltr.Layout.Row = [2 4];
-            pltr.Layout.Column = 3;
+            %Add a SIMPLE plotter as well, to the right
+            this.Plotter = controller.AddNewSimplePlotter(grid, "Medium");
+            this.Plotter.Layout.Row = [2 4];
+            this.Plotter.Layout.Column = 3;
 
-            %Set default displayed axes for the plotter
-            pltr.SetDefaultXAxis("Time (mins)");
-        end     
+        end  
 
-         %% OnSweepRun
+        %% OnSweepComplete
+        function OnSweepComplete(this)  
+           
+        end
+
+        %% OnSweepRun
         function OnSweepRun(this)
            %Reset the current step number
            this.StepNo = 0;
+           this.ClearData();
+
+           if this.ControlDetailsStruct.SweepDetails.SaveSweepFile
+               this.CreateDataFile();
+           end
         end
 
         %% RefreshUnitsAndLimits
@@ -153,11 +164,84 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
             this.GUIView.UpdateTimeRemainingDisplay(this.ControlDetailsStruct.SweepDetails.RemainingTimeMin);
         end
 
+        %% UpdateData
+        function UpdateData(this, x, y)
+            %Instrument calls this to add latest x and y values to be
+            %plotted and logged to file
+            this.Data.X = [this.Data.X; x];
+            this.Data.Y = [this.Data.Y; y];
+
+            this.Plotter.PlotData(this.Data.X, this.Data.Y);
+
+            if this.ControlDetailsStruct.SweepDetails.SaveSweepFile
+                this.DataWriter.WriteLine([x, y]);
+
+                if  ~this.Running
+                    %Add in an end-of sweep metadata line if this is the
+                    %last update
+                    this.InsertEndMetadataIntoFile(this.DataWriter);
+                end
+            end
+        end
+
+
         %% WaitSettleTime
         function WaitSettleTime(this)
             pauseTime = this.ControlDetailsStruct.SweepDetails.SettleTime;  %This is in seconds
             pause(pauseTime);
         end
+    end
+
+    methods (Access = private)
+
+        %% CreateDataFile
+        function CreateDataFile(this)
+            %Create or reset the data writer class
+            fileNameSuffix = this.ControlDetailsStruct.SweepDetails.FileName;
+            this.DataWriter = this.InitialiseDataWriter(fileNameSuffix);
+
+            %Built in functions in base class will write the data row of all instruments/diagnostics at the start
+            %of the sweep, for things like temperature, time
+            %Write the metadata string for this instrument - frequencies,
+            %voltages, settings etc
+
+            %Assemble some sweep metadata
+            sweepMetadataDescLine = "Sweep Parameters:";
+            sweepMetadataLine = this.CreateSweepMetaDataLine();
+
+            %Get headers for the sweep data - not the same as overall
+            %programme DataRow headers.
+            headers = this.GetHeaders();
+
+            %Create new file and write metadata and headers
+            extraMetadataLines = [sweepMetadataDescLine, sweepMetadataLine];
+            this.StartNewDataFile(this.DataWriter, headers, extraMetadataLines);
+        end
+
+        %% ClearData
+        function ClearData(this)
+            this.Data.X = [];
+            this.Data.Y = [];
+
+            this.Plotter.ClearData();
+        end
+
+        %% CreateSweepMetaDataLine
+        function stringLine = CreateSweepMetaDataLine(this)
+            stringLine = "Sweep metadata Placeholder";
+        end
+
+        %% GetHeaders
+        function headersString = GetHeaders(this)
+            headers = ["Sweep X", "Sweep Y"];
+
+            %Make a simple string of all these headers, tab seperated
+            headersString = '';
+            for i= 1 : length(headers)
+                headersString = sprintf('%s%s\t', headersString, headers{i});
+            end
+        end
+
     end
 
     methods (Static)

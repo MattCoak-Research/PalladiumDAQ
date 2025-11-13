@@ -126,10 +126,12 @@ classdef(Abstract) Instrument < handle
                     this.ConnectGPIB();
                 case(CoakView.Enums.ConnectionType.VISA)
                     this.ConnectVISA();
+                case(CoakView.Enums.ConnectionType.USB)
+                    this.ConnectUSB();
                 case(CoakView.Enums.ConnectionType.Serial)
                     this.ConnectSerial();
                 otherwise
-                    error("Unsupported connection type: " + this.ConnectionType + ". ConnectionType can be tcpip, gpib, serial, or visa.");
+                    error("Unsupported connection type: " + this.Connection_Type + ". ConnectionType can be tcpip, gpib, serial, usb, or visa.");
             end
         end
 
@@ -344,6 +346,11 @@ classdef(Abstract) Instrument < handle
                 this.DeviceHandle = tcpclient(char(this.IP_Address), this.ConnectionSettings.Port);
                 this.DeviceHandle.ByteOrder = "big-endian";
             end
+        end
+
+        %% ConnectUSB
+        function ConnectUSB(this)
+            this.ConnectVISA();
         end
 
         %% ConnectVISA

@@ -69,7 +69,7 @@ classdef SweepController < CoakView.Core.InstrumentControlBase
 
         %% SweepComplete
         function SweepComplete(this)
-            this.Running = false;    
+            this.Running = false;  
             this.TimeElapsed_s = 0;   
             this.GUIView.SweepComplete();
             this.OnSweepComplete();

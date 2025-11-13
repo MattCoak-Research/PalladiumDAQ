@@ -22,6 +22,8 @@ classdef Keithley2450 < CoakView.Core.Instrument
         %% Constructor
         function this = Keithley2450()
             this.GPIB_Address = this.DefaultGPIB_Address;
+            this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];
+            this.VISA_Address = 'USB0::0x05E6::0x2450::04602266::0::INSTR';
 
             %Make sure to set values for Properties of Categorical type
             %like these
@@ -91,18 +93,32 @@ classdef Keithley2450 < CoakView.Core.Instrument
 
         %% Measure
         function [dataRow] = Measure(this)
+            
+            sweepActive =  ~isempty(this.SweepController) && this.SweepController.Running;
+
             %Update the sweep controller, if one is added and a sweep is currently running, and apply its
             %latest target source level
-            if ~isempty(this.SweepController)
-                if this.SweepController.Running
-                    valueToSet = this.SweepController.Update();
-                    this.SetSourceLevel(valueToSet, true);
-                end
+            if sweepActive
+                valueToSet = this.SweepController.Update();
+
+                %Set the source ouput to the new value
+                this.SetSourceLevel(valueToSet, true);
+
+                %And now wait for the set Settle Time for that change
+                %to take place before measuring
+                this.SweepController.WaitSettleTime();
             end
 
             if(this.SimulationMode)
                 %Dummy values
-                dataRow = [500 0.1 nan];
+                current = rand(1)*1e-7 + 2e-6;
+                dataRow = [current 0.1];
+
+                %Update attached SweepController, if it exists
+                    if sweepActive
+                        this.SweepController.UpdateData(valueToSet, current);
+                    end
+
                 return;
             end
 
@@ -121,6 +137,12 @@ classdef Keithley2450 < CoakView.Core.Instrument
 
                     %Assign data to output data row
                     dataRow = [resistance, sourceLevel];
+
+                    %Update attached SweepController, if it exists
+                    if sweepActive
+                        this.SweepController.UpdateData(sourceLevel, resistance);
+                    end
+
                 case(this.MeasType("Voltage"))
                     %Get measurement values 
                     voltage = str2double(data);
@@ -128,6 +150,12 @@ classdef Keithley2450 < CoakView.Core.Instrument
 
                     %Assign data to output data row
                     dataRow = [voltage, current];
+
+                    %Update attached SweepController, if it exists
+                    if sweepActive
+                        this.SweepController.UpdateData(current, voltage);
+                    end
+                    
                 case(this.MeasType("Current"))
                     %Get measurement values 
                     voltage = this.GetSourceLevel();
@@ -135,6 +163,11 @@ classdef Keithley2450 < CoakView.Core.Instrument
 
                     %Assign data to output data row
                     dataRow = [current, voltage];
+
+                    %Update attached SweepController, if it exists
+                    if sweepActive
+                        this.SweepController.UpdateData(voltage, current);
+                    end
                 otherwise
                     error("Mode must be Resistance, Voltage, or Current, this was " + string(this.Mode));
             end
