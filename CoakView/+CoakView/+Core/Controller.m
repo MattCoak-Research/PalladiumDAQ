@@ -19,7 +19,7 @@ classdef Controller < handle
 
     %Get and Set properties
     properties(Dependent, Access = public)
-        ElapsedTime;
+      %  ElapsedTime;
     end
 
     properties(GetAccess = public, SetAccess = private)
@@ -1227,53 +1227,11 @@ classdef Controller < handle
             %keeps running, triggered async off a Timer object, until state
             %is changed to Pausing or Stopping by Pause or Stop events
 
-            try
-                %Collect Data
-                this.ShowStatus("Green", "Running");
-                dataRow = this.CollectMeasurement();
-            catch e
-                CatchMeasurementLoopError(this, e);
-                %Need to do something here to keep programme running when
-                %CollectMeasurement errors - set the dataRow to NaNs.
-                dataRow = nan([1, length(this.Headers)]);
-                this.Log("Warning", "Data Row set to NaN values due to error thrown in CollectMeasurements", "Yellow", "Data Row set to NaN values due to error thrown in CollectMeasurements");
-            end
+            %Process GUI events like button presses and force the async
+            %timer to check in with the GUI - get hangs without this if
+            %update time is set too short
+            drawnow();
 
-            try
-                %Write data to file
-                this.DataWriter.WriteLine(dataRow);
-            catch e
-                CatchMeasurementLoopError(this, e);
-            end
-
-            try
-                %Append data to array
-                this.AppendToDataTable(dataRow);
-            catch e
-                CatchMeasurementLoopError(this, e);
-            end
-
-            try
-                %Update data plots
-                this.PlotData(dataRow);
-            catch e
-                CatchMeasurementLoopError(this, e);
-            end
-
-            try
-                %Update any Big Number Display windows
-                this.UpdateBigNumberDisplays(dataRow);
-            catch e
-                CatchMeasurementLoopError(this, e);
-            end
-
-            try
-                %Update the time elapsed this frame in the GUI
-                elapsedTimeSinceLastTick_s = this.Timer.InstantPeriod;
-                this.View.DisplayUpdateTime(elapsedTimeSinceLastTick_s);
-            catch e
-                CatchMeasurementLoopError(this, e);
-            end
 
             try
                 %Check for exit conditions from the measurement loop - are we
@@ -1287,6 +1245,62 @@ classdef Controller < handle
             catch e
                 CatchMeasurementLoopError(this, e);
             end
+
+            switch(this.State)
+                case("Running")
+                    try
+                        %Collect Data
+                        this.ShowStatus("Green", "Running");
+                        dataRow = this.CollectMeasurement();
+                    catch e
+                        CatchMeasurementLoopError(this, e);
+                        %Need to do something here to keep programme running when
+                        %CollectMeasurement errors - set the dataRow to NaNs.
+                        dataRow = nan([1, length(this.Headers)]);
+                        this.Log("Warning", "Data Row set to NaN values due to error thrown in CollectMeasurements", "Yellow", "Data Row set to NaN values due to error thrown in CollectMeasurements");
+                    end
+
+                    try
+                        %Write data to file
+                        this.DataWriter.WriteLine(dataRow);
+                    catch e
+                        CatchMeasurementLoopError(this, e);
+                    end
+
+                    try
+                        %Append data to array
+                        this.AppendToDataTable(dataRow);
+                    catch e
+                        CatchMeasurementLoopError(this, e);
+                    end
+
+                    try
+                        %Update data plots
+                        this.PlotData(dataRow);
+                    catch e
+                        CatchMeasurementLoopError(this, e);
+                    end
+
+                    try
+                        %Update any Big Number Display windows
+                        this.UpdateBigNumberDisplays(dataRow);
+                    catch e
+                        CatchMeasurementLoopError(this, e);
+                    end
+
+                    try
+                        %Update the time elapsed this frame in the GUI
+                        elapsedTimeSinceLastTick_s = this.Timer.InstantPeriod;
+                        this.View.DisplayUpdateTime(elapsedTimeSinceLastTick_s);
+                    catch e
+                        CatchMeasurementLoopError(this, e);
+                    end
+                    
+                otherwise
+                    %Do nothing if not Running
+                    
+            end
+
 
             %Want to catch the error pretty locally, so the rest of the
             %stuff in the Update Loop still happens in the expected order
