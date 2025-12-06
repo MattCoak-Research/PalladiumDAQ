@@ -1215,9 +1215,20 @@ classdef Controller < handle
             %all instruments can be stopped.
 
             %Display a status message in the logger           
-            this.Log("Info", "Meausurement Loop Stopping...", "Yellow", "Stopping measurements");
+            this.Log("Info", "Measurement Loop Stopping...", "Yellow", "Stopping measurements");
 
-            this.State = "Stopping";
+            
+            if strcmp(this.State, "Paused") || strcmp(this.State, "Pausing")
+                %If we are currently paused, the timer is suspended and
+                %there will be no update calls, so Stop will never
+                %properly fire. Call it manually here.
+                this.State = "Stopping";
+                this.OnStopped();
+            else                
+                %Normal behaviour - mark the programme as due to stop on
+                %the next update tick
+                this.State = "Stopping";
+            end
         end
 
         %% Update
@@ -1231,7 +1242,6 @@ classdef Controller < handle
             %timer to check in with the GUI - get hangs without this if
             %update time is set too short
             drawnow();
-
 
             try
                 %Check for exit conditions from the measurement loop - are we
