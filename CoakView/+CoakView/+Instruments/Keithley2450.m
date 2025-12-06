@@ -55,10 +55,10 @@ classdef Keithley2450 < CoakView.Core.Instrument
                         otherwise
                             error("Invalid type");
                     end
-                case(this.MeasType("Voltage"))
+                case(this.MeasType("Current"))
                     Headers = [this.Name + " - Current_A", this.Name + " - Voltage_V"];
                     Units = ["A", "V"];
-                case(this.MeasType("Current"))
+                case(this.MeasType("Voltage"))
                     Headers = [this.Name + " - Voltage_V", this.Name + " - Current_A"];
                     Units = ["V", "A"];
                 otherwise
