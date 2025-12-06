@@ -66,7 +66,9 @@ classdef ZI_MFLI < CoakView.Core.Instrument
                 zi_Params.Info = 'Simulated Instrument';
             else
                 % Grab all the settings on the LI from LabOne
-                zi_Params = ziDAQ('get', ['/' this.DeviceID]);
+                strct = ziDAQ('get', ['/' this.DeviceID]);
+                flds = fields(strct);
+                zi_Params = strct.(flds{1});
             end
         end
 
@@ -92,7 +94,22 @@ classdef ZI_MFLI < CoakView.Core.Instrument
             zi_Params = this.GenerateFullSettingsSaveStruct();
 
             %Pull them out neatly here - extend this as required
-            metadataStruct.Frequency_Hz = zi_Params.F;%TODO - fix with real example in the lab
+            metadataStruct.DeviceID = this.DeviceID;
+            metadataStruct.FilterOrder = zi_Params.demods(1).order.value;
+            metadataStruct.Frequency_Hz = zi_Params.oscs(1).freq.value;
+            metadataStruct.SignalIn_AC_ = zi_Params.sigins(1).ac.value;
+            metadataStruct.SignalIn_Diff_ = zi_Params.sigins(1).diff.value;
+            metadataStruct.SignalIn_Float_ = zi_Params.sigins(1).float.value;
+            metadataStruct.SignalIn_Imp50_ = zi_Params.sigins(1).imp50.value;
+            metadataStruct.SignalIn_Range_ = zi_Params.sigins(1).range.value;
+            metadataStruct.SignalIn_Scaling_ = zi_Params.sigins(1).scaling.value;
+            metadataStruct.SignalOut_Amplitude_V = zi_Params.sigouts(1).amplitudes(2).value.value;
+            metadataStruct.SignalOut_Diff_Enabled_ = zi_Params.sigouts(1).diff.value;
+            metadataStruct.SignalOut_SineComponentEnabled_ = zi_Params.sigouts(1).enables(2).value.value;
+            metadataStruct.SignalOut_Imp50_Enabled_ = zi_Params.sigouts(1).imp50.value;
+            metadataStruct.SignalOut_Offset = zi_Params.sigouts(1).offset.value;
+            metadataStruct.SignalOut_On = zi_Params.sigouts(1).on.value;
+            metadataStruct.TimeConstant_s = zi_Params.demods(1).timeconstant.value;
         end
 
         %% GetSupportedConnectionTypes
@@ -2545,10 +2562,10 @@ classdef ZI_MFLI < CoakView.Core.Instrument
             ziDAQ('connect', server_address, port_number, apilevel);
             
             %Connect to the actual device
-            ziDAQ('connectDevice', device_serial, interface);
+            ziDAQ('connectDevice', char(device_serial), interface);
 
             % Determine the device identifier from it's serial/id
-            deviceHandle = lower(ziDAQ('discoveryFind', device_serial));
+            deviceHandle = lower(ziDAQ('discoveryFind', char(device_serial)));
         end
 
     end
