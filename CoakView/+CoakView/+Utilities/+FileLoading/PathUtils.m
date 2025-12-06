@@ -105,6 +105,19 @@ classdef PathUtils
             newPath = fileNameWithoutExt;
         end
 
+        %% GetPathOfFolderOnSearchPath
+        function dirPath = GetPathOfFolderOnSearchPath(dirName)
+            %See https://uk.mathworks.com/matlabcentral/answers/347892-get-full-path-of-directory-that-is-on-matlab-search-path
+            %Get the actual directory file path to a folder that is on the
+            %MATLAB search path
+
+            esctofind = regexptranslate('escape', dirName);   %in case it has special characters
+
+            dirs = regexp(path, pathsep,'split');          %cell of all individual paths
+            temp = unique(cellfun(@(P) strjoin(P(1:find(strcmp(esctofind, P),1,'last')),filesep), regexp(dirs,filesep,'split'), 'uniform', 0));    %don't let the blue smoke escape
+            dirPath = temp(~cellfun(@isempty,temp));     %non-empty results only
+        end
+
         %% IsDirectoryValid
         function valid = IsDirectoryValid(directory)
             valid = false;
