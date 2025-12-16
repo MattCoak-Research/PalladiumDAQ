@@ -151,7 +151,7 @@ classdef ZI_MFLI < CoakView.Core.Instrument
 
                 case(CoakView.Enums.ConnectionType.USB)
                     %Connect to instrument via ZI Matlab API
-                    this.DeviceHandle = this.ZIConnect(this.DeviceID, 'USB');
+                    this.DeviceHandle = this.ZIConnect(this.DeviceID, '1GbE'); %Don't tell it USB, keep it 1GbE instead - we actually connect to the dataserver on LocalHost (to allow connecting multiple instruments) - so USB errors out, even if the device is connected to the dataserver by USB. Let's hide the user from this, stop them panicking that USB is not a supported option
 
                 otherwise
                     error("Unsupported connection type: " + this.ConnectionType);
@@ -159,33 +159,7 @@ classdef ZI_MFLI < CoakView.Core.Instrument
 
         end
 
-        %% ZIConnect
-        function deviceHandle = ZIConnect(this, deviceID, interface)
-                      
-            % Check the ziDAQ MEX (DLL) and Utility functions can be found in Matlab's path.
-            if ~(exist('ziDAQ', 'file') == 3) && ~(exist('ziCreateAPISession', 'file') == 2)
-                fprintf('Failed to either find the ziDAQ mex file or ziDevices() utility.\n')
-                fprintf('Please configure your path using the ziDAQ function ziAddPath().\n')
-                fprintf('This can be found in the API subfolder of your LabOne installation.\n');
-                fprintf('On Windows this is typically:\n');
-                fprintf('C:\\Program Files\\Zurich Instruments\\LabOne\\API\\MATLAB2012\\\n');
-                return
-            end
-
-            % The API level 5 gives full functionality for an MFLI
-            % according to the ziDAQ.m metadata comments
-            supported_apilevel = 5;
-
-            %Connect to a dataserver if not already connected, then connect
-            %this device to that. Assumes LabOne is installed and running on
-            %the PC, not internally on the MFLI. See comments in ZI_HandleConnect_LabOneServerRunningOnPC
-            deviceHandle = CoakView.Instruments.ZI_MFLI.ZI_HandleConnect_LabOneServerRunningOnPC(deviceID, interface, supported_apilevel);
-
-            %Check the API and firmware are the same version. Not required but
-            %a nice error check
-            ziApiServerVersionCheck();
-
-        end      
+          
 
         %% GetHeaders
         function [Headers, Units] = GetHeaders(this)
@@ -2504,6 +2478,34 @@ classdef ZI_MFLI < CoakView.Core.Instrument
     end
 
     methods (Static, Access = private)
+
+        %% ZIConnect
+        function deviceHandle = ZIConnect(deviceID, interface)
+                      
+            % Check the ziDAQ MEX (DLL) and Utility functions can be found in Matlab's path.
+            if ~(exist('ziDAQ', 'file') == 3) && ~(exist('ziCreateAPISession', 'file') == 2)
+                fprintf('Failed to either find the ziDAQ mex file or ziDevices() utility.\n')
+                fprintf('Please configure your path using the ziDAQ function ziAddPath().\n')
+                fprintf('This can be found in the API subfolder of your LabOne installation.\n');
+                fprintf('On Windows this is typically:\n');
+                fprintf('C:\\Program Files\\Zurich Instruments\\LabOne\\API\\MATLAB2012\\\n');
+                return
+            end
+
+            % The API level 5 gives full functionality for an MFLI
+            % according to the ziDAQ.m metadata comments
+            supported_apilevel = 5;
+
+            %Connect to a dataserver if not already connected, then connect
+            %this device to that. Assumes LabOne is installed and running on
+            %the PC, not internally on the MFLI. See comments in ZI_HandleConnect_LabOneServerRunningOnPC
+            deviceHandle = CoakView.Instruments.ZI_MFLI.ZI_HandleConnect_LabOneServerRunningOnPC(deviceID, interface, supported_apilevel);
+
+            %Check the API and firmware are the same version. Not required but
+            %a nice error check
+            ziApiServerVersionCheck();
+
+        end    
 
         %% ZI_HandleConnect
         function device = ZI_HandleConnect(device_serial, maximum_supported_apilevel)
