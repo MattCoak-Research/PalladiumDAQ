@@ -28,7 +28,26 @@ classdef InstrumentControlBase < handle
         function name = GetName(this)
             name = this.ControlDetailsStruct.Name;
         end
+
+        %% MeasurementsStarted
+        function MeasurementsStarted(src, ~, ~)
         
+        end
+
+        %% MeasurementsPaused
+        function MeasurementsPaused(src, ~, ~)
+        
+        end
+        
+        %% MeasurementsResumed
+        function MeasurementsResumed(src, ~, ~)
+        
+        end 
+        
+        %% MeasurementsStopped
+        function MeasurementsStopped(src, ~, ~)
+        
+        end
     end
 
     methods (Access = protected)

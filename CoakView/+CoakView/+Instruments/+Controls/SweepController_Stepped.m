@@ -13,6 +13,8 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
         Data;
         Plotter;
         DataWriter;
+        XLabelStr = "X axis var";
+        YLabelStr = "Y axis var";
     end
     
     methods
@@ -124,10 +126,12 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
 
         %% RefreshUnitsAndLimits
         function RefreshUnitsAndLimits(this)
-            [unitsStr, limits] = this.Instrument.GetSweepUnitsString();
+            [unitsStr, limits, xlabelStr, ylabelStr] = this.Instrument.GetSweepUnitsString();
             this.GUIView.SetUnitsString(unitsStr);
             this.GUIView.SetLimits(limits(1), limits(2));
             this.GUIView.SetStartingValues(limits(1), (limits(1)+limits(2))/2, limits(2));
+            this.XLabelStr = xlabelStr;
+            this.YLabelStr = ylabelStr;
         end
 
         %% RemoveControl
@@ -141,6 +145,26 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
             this.GUIView = [];
         end
 
+        %% MeasurementsStarted
+        function MeasurementsStarted(this, src, ~, ~)
+            this.UnlockRunButton();            
+        end
+        
+        %% MeasurementsStopped
+        function MeasurementsStopped(this, src, ~, ~)
+            this.LockRunButton();
+        end
+
+        %% LockRunButton
+        function LockRunButton(this)
+            this.GUIView.LockRunButton();
+        end
+
+        %% UnlockRunButton
+        function UnlockRunButton(this)
+            this.GUIView.UnlockRunButton();
+        end
+        
         %% Update
         function valueToSet = Update(this)
             %Increment the step number
@@ -228,12 +252,27 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
 
         %% CreateSweepMetaDataLine
         function stringLine = CreateSweepMetaDataLine(this)
-            stringLine = "Sweep metadata Placeholder";
+            %Copy only the required properties into a new temporary struct
+            %for metadata writing
+            strct.MinVal = this.ControlDetailsStruct.SweepDetails.MinVal;
+            strct.MidVal = this.ControlDetailsStruct.SweepDetails.MidVal;
+            strct.MaxVal = this.ControlDetailsStruct.SweepDetails.MaxVal;
+
+            strct.TargetNumSteps = this.ControlDetailsStruct.SweepDetails.TargetNumSteps;
+            strct.StepSize = this.ControlDetailsStruct.SweepDetails.StepSize;
+            strct.StartSectionNo = this.ControlDetailsStruct.SweepDetails.StartSectionNo;
+            strct.EndSectionNo = this.ControlDetailsStruct.SweepDetails.EndSectionNo;
+
+            strct.SettleTime = this.ControlDetailsStruct.SweepDetails.SettleTime;
+            strct.TotalTimeMin = this.ControlDetailsStruct.SweepDetails.TotalTimeMin;
+
+            %Write the metadata to file
+            stringLine = CoakView.DataWriting.DataWriter.BuildMetadataLineStringFromStruct("", strct);
         end
 
         %% GetHeaders
         function headersString = GetHeaders(this)
-            headers = ["Sweep X", "Sweep Y"];
+            headers = [this.XLabelStr, this.YLabelStr];
 
             %Make a simple string of all these headers, tab seperated
             headersString = '';
