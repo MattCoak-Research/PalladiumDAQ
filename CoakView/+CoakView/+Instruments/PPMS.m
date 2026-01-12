@@ -5,9 +5,8 @@ classdef PPMS < CoakView.Core.Instrument
     %This uses the Quantum Design/PPMS Communication drivers library, which
     %has C# dll wrappers to allow MATLAB to interface with the QD server
     %Note that currently there is no way to UNload .NET assemblies in
-    %MATLAB, so to switch from Debug to real operation or vice versa, one
-    %must simply restart MATLAB to clear the loaded assembly (they have the same named namespace)..
-
+    %MATLAB, but this is not a practical issue in this version of the code.
+    
     properties(Access = public, SetObservable)
         FullName = 'PPMS';                                          %Full name, just for displaying on GUI
         Name = 'PPMS';                                              %Instrument name
