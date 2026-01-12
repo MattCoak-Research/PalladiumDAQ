@@ -150,7 +150,7 @@ classdef SweepController_Ramp < CoakView.Instruments.Controls.SweepController
 
         %% RefreshUnitsAndLimits
         function RefreshUnitsAndLimits(this)
-            [unitsStr, limits] = this.Instrument.GetSweepUnitsString();
+            [unitsStr, limits, xlabelStr, ylabelStr] = this.Instrument.GetSweepUnitsString();
             this.GUIView.SetUnitsString(unitsStr);
             this.GUIView.SetLimits(limits(1), limits(2));
             this.GUIView.SetStartingValues(limits(1), (limits(1)+limits(2))/2, limits(2));
