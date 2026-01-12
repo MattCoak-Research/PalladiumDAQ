@@ -114,17 +114,22 @@ classdef Keithley24X0 < CoakView.Core.Instrument
         end
 
         %% GetSweepUnitsString
-        function [str, limits] = GetSweepUnitsString(this)
+        function [str, limits, xlabelStr, ylabelStr] = GetSweepUnitsString(this)
             switch(this.SourceMode)
                 case(this.MeasType("Voltage"))
+                    xlabelStr = "Source Voltage (V)";
                     str = "V";
                     limits = [-50, 50];    %Need to check what these physical limits actually are and improve this
                 case(this.MeasType("Current"))
+                    xlabelStr = "Source Current (A)";
                     str = "A";
                     limits = [-1, 1]; %Need to check what these physical limits actually are and improve this
                 otherwise
                     error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
             end
+
+            hdrs = this.GetHeaders();
+            ylabelStr = hdrs(1);
         end
 
         %% GetHeaders

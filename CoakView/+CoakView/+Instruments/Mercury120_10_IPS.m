@@ -111,11 +111,13 @@ classdef Mercury120_10_IPS < CoakView.Core.Instrument
         end 
         
         %% GetSweepUnitsString
-        function [str, limits] = GetSweepUnitsString(this)
+        function [str, limits, xlabelStr, ylabelStr] = GetSweepUnitsString(this)
             %Tells the Sweep controller what the units and limits are of
             %the parameter it is sweeping
             str = "T";
             limits = [-6, 6];    
+            xlabelStr = "Time (mins)";
+            ylabelStr = "Field (T)";
         end
        
         %% Measure
