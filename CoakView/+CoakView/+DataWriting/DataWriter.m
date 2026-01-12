@@ -1,6 +1,6 @@
 classdef DataWriter < handle
     %DATAWRITER - Handles the writing of data files in CoakView
-    
+
     properties
         FileWriteDetails;
         FileInfo = "<<< CoakView data file 3.0 >>>";
@@ -9,14 +9,14 @@ classdef DataWriter < handle
     properties (Constant)
         END_METADATA_LINES_STRING = "<<< END METADATA LINES >>>";
     end
-    
+
     methods
         %% Constructor
         function this = DataWriter(fileWriteDetails)
             this.FileWriteDetails = fileWriteDetails;
 
             this.ConstructPath();
-        end 
+        end
 
         %% ConstructPath
         function ConstructPath(this)
@@ -55,7 +55,7 @@ classdef DataWriter < handle
 
                 %Check how many lines to insert
                 linesToInsert = length(stringLinesArray);
-                  
+
 
                 %Same file path - shoudl overwrite
                 fid = fopen(this.FileWriteDetails.FilePath, 'w');
@@ -85,18 +85,18 @@ classdef DataWriter < handle
                 CoakView.Logging.Logger.Log("Info", "Writing of file to " + this.FileWriteDetails.FilePath + " failed." + " Error message: " + errMess);
             end
         end
-        
+
         %% SaveFigure
         function SaveFigure(~, figure, directory, fileNameWithoutExtension)
             try
-                %Add a title to the plot 
+                %Add a title to the plot
                 title(strrep(fileNameWithoutExtension, '_', ' '));
 
                 %Add '-Fig' to the filename, and then any needed 00x
                 %numbers to prevent file overwriting if multiple figures
                 %were saved on this same filename
                 fileNameWithoutExtension = CoakView.Utilities.FileLoading.PathUtils.GetIncrementedFileName(fullfile(string(directory), string(fileNameWithoutExtension)) + "-Fig.fig");
-            
+
                 %Save a .fig and a .png
                 saveas(figure, fullfile(directory, fileNameWithoutExtension + ".fig"));
                 saveas(figure, fullfile(directory, fileNameWithoutExtension + ".png"));
@@ -104,7 +104,7 @@ classdef DataWriter < handle
                 CoakView.Utilities.ErrorHandling.ErrorHandler.HandleError('Error saving figure in DataWriter', e);
             end
         end
-        
+
         %% ValidateFilePath
         function newFileName = ValidateFilePath(this)
             newFileName = this.FileWriteDetails.FileName;
@@ -119,7 +119,7 @@ classdef DataWriter < handle
                     case('Append To File')
                         %No action needed
                     otherwise
-                     error("Unsupported file write option");
+                        error("Unsupported file write option");
                 end
             end
 
@@ -140,7 +140,7 @@ classdef DataWriter < handle
             if ((exist(this.FileWriteDetails.FilePath, 'file') == 2) && strcmp(this.FileWriteDetails.WriteMode, 'Append To File'))
                 return;
             end
-            
+
             %Otherwise, write away
             fid = fopen(this.FileWriteDetails.FilePath, 'w');
             fprintf(fid, '%s\r\n', this.FileInfo);
@@ -159,7 +159,31 @@ classdef DataWriter < handle
             fprintf(fid, '%s\r\n', headers);
             fclose(fid);
         end
-        
+
+         %% WriteData
+         function WriteData(this, data)
+             %Write multiple lines of data in a matrix all in one go
+             %Right now this is actually identical to WriteLine...
+             numRetries = 3; %Have seen in testing that (due to copying across of files?) we can get 'Permission denied' errors on the data file. These are infrequent. If we get them, just pause a short time, try writing again, and return if we fail after this many attempts
+             errMess = [];
+
+             for i = 1 : numRetries
+                 try
+                     writematrix(data, this.FileWriteDetails.FilePath, 'WriteMode', 'append', 'delimiter', '\t');
+                     return;
+                 catch err
+                     warning("Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying...");
+                     errMess = string(err.message);
+                     warning(errMess);
+                     CoakView.Logging.Logger.Log("Info", "Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying..." + " Error message: " + errMess);
+                 end
+             end
+
+             %If we got here, we tried N times to write to the file and it
+             %didn't work - warn
+             CoakView.Logging.Logger.Log("Warning", "Writing of file to " + this.FileWriteDetails.FilePath + " failed after " + num2str(numRetries) + " attempts. Data have been lost." + " Last error: " + errMess);
+         end
+
         %% WriteLine
         function WriteLine(this, data)
             numRetries = 3; %Have seen in testing that (due to copying across of files?) we can get 'Permission denied' errors on the data file. These are infrequent. If we get them, just pause a short time, try writing again, and return if we fail after this many attempts
@@ -185,13 +209,13 @@ classdef DataWriter < handle
 
     methods (Static)
 
-      %% BuildMetadataLineStringFromStruct
+        %% BuildMetadataLineStringFromStruct
         function stringLine = BuildMetadataLineStringFromStruct(initialString, strct)
             %Take a struct of parameters and turn into a nicely formatted
             %single line of text that can be written to file as
             %human-readable metadata
             stringLine = initialString;
-            
+
             %Get the field names of the struct
             flds = fields(strct);
 
@@ -200,7 +224,17 @@ classdef DataWriter < handle
                 f = flds{i};
                 prop = strct.(f);
 
-                stringLine = stringLine + string(f) + " = " + string(prop);
+                propValAsStr = string(prop);
+
+                if isempty(propValAsStr)
+                    propValAsStr = "[]";
+                end
+
+                if length(propValAsStr) > 1
+                    propValAsStr = strjoin(propValAsStr);
+                end
+
+                stringLine = stringLine + string(f) + " = " + string(propValAsStr);
 
                 %Add a seperator if this is not the last property
                 if i ~= length(flds)
@@ -214,7 +248,7 @@ classdef DataWriter < handle
             %Take a row of header strings and a row of data, and make into
             %a nicely formatted string to log as a metadata line
             stringLine = initialString;
-            
+
             %Error checking
             if isempty(dataRow)
                 warning("Data row empty in BuildMetadataLineStringFromHeaderValuePair, cannot log to file");
