@@ -1,5 +1,22 @@
 classdef ZI_MFLI < CoakView.Core.Instrument
     % ZI_MFLI - Zurich Instruments MFLI medium-frequency lockin, Instrument implementation
+    %The connection code allows multiple MFLI instruments to be connected
+    %at once. Due to how MFLIs run an on-instrument server as well as the
+    %option for PC-hosted more advanced ones (which are anyway more
+    %performant), this complicates install and operation. LabOne must be
+    %fully installed via downloadable exectuable, not just via plug and
+    %play of the instrument, before connecting. This gives the PC hosting -
+    %see the MFLI manual for more information. And then when launching
+    %LabOne in the browser on the PC, select Local Data Servers from the
+    %drop down when browsing connected instruments, before doing anything.
+    %Otherwise opening the instrument in LabOne will lock it into a state
+    %where this code cannot connect, it will keep showing as In Use and
+    %pretty much has to be power cycled to get it to connect again. LabOne
+    %will remember the Local selection between runs, so only need to select
+    %on first use then never change.
+    %LabOne can be running in the browser while this code is active, and
+    %indeed is intended to be used this way - complex settings and control are not
+    %duplicated here.
 
     properties(Access = public, SetObservable)
         Name = 'ZI MFLI';
@@ -142,6 +159,8 @@ classdef ZI_MFLI < CoakView.Core.Instrument
                     %Do not make a physical connection to a real instrument
                     %- this places the class into SimulationMode, for
                     %testing without a real piece of hardware connected
+                    disp("Connecting to simulated " + this.Name + " instrument....");
+                    pause(0.3);
                     disp("Connected to simulated " + this.Name + " instrument.");
                     this.SimulationMode = true;
 
@@ -222,6 +241,12 @@ classdef ZI_MFLI < CoakView.Core.Instrument
         function [dataRow] = Measure(this)
             %Query data on demodulator 0
             demodIndex = 0;
+           
+            %Update attached SweepController, if it exists 
+            sweepActive = ~isempty(this.SweepController) && this.SweepController.Running;
+            if sweepActive
+                this.SweepController.Update();
+            end
 
             %Retrieve frequency and voltage out levels
             output = this.GetSuppliedVoltageOrCurrentAndUnits();
@@ -1324,64 +1349,59 @@ classdef ZI_MFLI < CoakView.Core.Instrument
         end
 
 
-        %% Sweep Data
-        % Set up and execute a gate sweep of the DC Offset - applied through Aux Output 1
-        %% OffsetSweep_Initialise
-        function sweepHandle = OffsetSweep_Initialise(this, auxChannelName, SweepParams)
-            % OffsetSweep_Initialise(SweepName, SweepParams) - Function to initialise a sweep of the DC Aux
+        %% InitialiseSweep
+        function sweepHandle = InitialiseSweep(this, auxChannelName, SweepName, SweepParams)
+            % InitialiseSweep - Function to initialise a sweep of the DC Aux
             % Output 1 to produce a graph of demodulated amplitude R against the sweep parameter.
+            %This is for dI/dV sweeps. Loop back a coax wire from Aux1 out
+            %to Aux1 In, and set "Add" to true in the Output panel options
+            %in LabOne
+
+            % Measurement method is set to averaging - calculates average on each data set
+            % Sets the number of data samples per sweeper parameter point that is considered in the
+            % measurement.
             arguments
                 this;
-                auxChannelName {mustBeText} = 'Aux1'; % set default as Aux Output 1
+                auxChannelName {mustBeText} = "Aux1"; % set default as Aux Output 1
+                SweepName {mustBeText} = "Frequency";    % What parameter to sweep over (x axis units)
 
-                % define start and stop of sweep
-                SweepParams.Start       (1,1) double = -0.1; % start value of sweep in appropriate units e.g Hz or V
-                SweepParams.Stop        (1,1) double = 0.1;
-                SweepParams.NumberOfSteps  (1,1) {mustBeInteger} = 5;
+                SweepParams.Start           (1,1) double = -0.1; % start value of sweep in appropriate units e.g Hz or V
+                SweepParams.Stop            (1,1) double = 0.1;
+                SweepParams.NumberOfSteps   (1,1) {mustBeInteger} = 5;
+                SweepParams.LogScale        (1,1) logical = false;
+                
+                SweepParams.Bandwidth       (1,1) double  = 100; %In Hz Bandwith or Cutoff - determines sweep speed. A smaller BW will have a longer sweep time.
+                SweepParams.FilterOrder     (1,1) double  = 4;
 
-                % Cutoff - determines sweep speed. A smaller BW will have a longer sweep time.
-                SweepParams.Bandwidth       (1,1) double  = 100;
-                % Set filter order
-                SweepParams.FilterOrder   (1,1) double  = 4;
-
-                % Minimum wait time in seconds between a sweep parameter change and the recording
-                % of the next sweep point.
-                SweepParams.SettleTime      (1,1) double  = 7; % want 7 or larger
-                % Demodulator filter settling inaccuracy defines the wait time between a sweep parameter
-                % change and recording of the next sweep point.
-                SweepParams.SweepInaccuracy (1,1) double  = 10;
-                % Effective wait time is maximum between settling time and inaccuracy.
-
-                % Measurement method is set to averaging - calculates average on each data set
-                % Sets the number of data samples per sweeper parameter point that is considered in the
-                % measurement.
-                SweepParams.AveSample       (1,1) double  = 100;
-                % Sets the effective number of time constants per sweeper parameter point that is considered
-                % in the measurement.
-                SweepParams.AveTC           (1,1) double  = 0;
-                % Effective calculation time is the maximum between samples and number of time constants
-                % Usually set the Sample Count.
+                SweepParams.SettleTime      (1,1) double  = 0.1; % Minimum wait time in seconds between a sweep parameter change and the recording of the next sweep point.- want 7 or larger                
+                SweepParams.SweepInaccuracy (1,1) double  = 10; % Effective wait time is maximum between settling time and inaccuracy. Demodulator filter settling inaccuracy defines the wait time between a sweep parameter change and recording of the next sweep point.
+               
+                SweepParams.AveSample       (1,1) double  = 100; % Sets the effective number of samples (clock cycles) per sweeper parameter point that is considered in the measurement.
+                SweepParams.AveTC           (1,1) double  = 1;   % Effective calculation time is the maximum between samples and number of time constants. Usually set the Sample Count.
             end
 
             if(this.SimulationMode)
-                disp('Set up simulated MFLI frequency sweep');
+                disp("Set up simulated MFLI " + string(SweepName) + " sweep");
                 sweepHandle = []; % define empty sweepHandle
                 return;
             end
 
-            % un-comment if what to take sweep of different parameters:
+            %Select different parameters for the x axis of the sweep:
             % frequency, Aux Offset or Signal Output Offset
-            %             if(strcmp(SweepName, 'Frequency'))
-            %                 gridnode = ['oscs/' num2str(oscIndex) '/freq'] ;
-            %             elseif(strcmp(SweepName, 'AuxOutput1'))
-            %                 gridnode = ['auxouts/' num2str(auxIndex) '/offset'];
-            %                 this.SetAuxOutVoltage('Aux1', 0)
-            %             elseif(strcmp(SweepName, 'OutputOffset'))
-            %                 gridnode = ['sigouts/' num2str(sigoutIndex) '/offset'];
-            %             else
-            %                 error(['Invalid Sweep Parameter for function. ' ...
-            %                     'SweptParameter: Frequency, AuxOutput1, OutputOffset'])
-            %             end
+            switch(SweepName)
+                case("Frequency")
+                    gridnode = ['oscs/' num2str(oscIndex) '/freq'] ;
+                case("AuxOutput1")
+                    auxIndex = this.ConvertAuxChannelNameToChannelIndex(auxChannelName);
+                    gridnode = ['auxouts/' num2str(auxIndex) '/offset'];
+                    this.SetAuxOutVoltage(auxChannelName, 0)
+                case("OutputOffset")%Using Aux ouput and the Add toggle to add that onto the Signal Output port via a bias tee is reccomended by ZI over setting the offset on SO. This is because it lets you keep a small range setting for Sig Out while applying a large DC offset from the Aux. This is basically for dI/dV measurements
+                    sigoutIndex = 0;
+                    gridnode = ['sigouts/' num2str(sigoutIndex) '/offset'];
+                otherwise
+                    error(['Invalid Sweep Parameter for function. ' ...
+                        'SweptParameter: Frequency, AuxOutput1, OutputOffset'])
+            end
 
             % obtain time constant from BW and filter order defined
             time_constant = this.ConvertBWtoTC(SweepParams.Bandwidth, SweepParams.FilterOrder);
@@ -1389,24 +1409,24 @@ classdef ZI_MFLI < CoakView.Core.Instrument
 
             % set demodulator trigger to continuous data acquisition
             this.SetDemodTrigger()
-            % set Aux to manual and all parameters zero
-            this.SetAuxOutVoltage('Aux1', 0)
-
-            auxIndex = this.ConvertAuxChannelNameToChannelIndex(auxChannelName);
 
             % create sweep handle
             sweepHandle = ziDAQ('sweep');
 
             % configure all the parameters
             ziDAQ('set', sweepHandle, 'sweep/device', this.DeviceID);
-            ziDAQ('set', sweepHandle, 'sweep/gridnode', ['auxouts/' num2str(auxIndex) '/offset']); % sweep parameter
+            ziDAQ('set', sweepHandle, 'sweep/gridnode', gridnode); % sweep parameter
             ziDAQ('set', sweepHandle, 'sweep/start', SweepParams.Start);
             ziDAQ('set', sweepHandle, 'sweep/stop', SweepParams.Stop);
             ziDAQ('set', sweepHandle, 'sweep/endless', 0); % don't run sweep continuously
             ziDAQ('set', sweepHandle, 'sweep/samplecount', SweepParams.NumberOfSteps); % number of sweep points
 
             ziDAQ('set', sweepHandle, 'sweep/loopcount', 1); % number of sweeps to perform
-            ziDAQ('set', sweepHandle, 'sweep/xmapping', 0); % linear sweep - spacing between two values is linear
+            if SweepParams.LogScale
+                ziDAQ('set', sweepHandle, 'sweep/xmapping', 1);%Not yet tested
+            else
+                ziDAQ('set', sweepHandle, 'sweep/xmapping', 0); % 0 = linear sweep - spacing between two values is linear
+            end
             ziDAQ('set', sweepHandle, 'sweep/scan', 0); % sequential sweep - values change incrementally from small to large
 
             ziDAQ('set', sweepHandle, 'sweep/settling/time', settle_time);
@@ -1423,48 +1443,46 @@ classdef ZI_MFLI < CoakView.Core.Instrument
             ziDAQ('execute', sweepHandle);
         end
 
-        %% Sweep_Execute
-        function SweepData = Sweep_Execute(this, sweepHandle, demodIndex)
-            % Sweep_Execute(sweepHandle) - Execute a sweep previously set up by OffsetSweep_Initialise, which
-            % returns the required 'sweepHandle' object.
+        %% Sweep_Abort
+        function Sweep_Abort(this, sweepHandle)
+            %TOdo
+            disp("Sweep abort will be called here");
+        end
+
+        %% Sweep_Check_Completion_Poll_Data
+        function [SweepData, complete] = Sweep_Check_Completion_Poll_Data(this, sweepHandle, demodIndex)
             arguments
-                this; sweepHandle; demodIndex (1,1) double = 0;
+                this;
+                sweepHandle;
+                demodIndex (1,1) double = 0;
             end
 
+            SweepData = [];
+
             if(this.SimulationMode)
-                % Do basic simulation of sweep
-                SweepData.Frequency = linspace(500e6, 700e6, 100)';
-                g = 1e6 + 1e5 * rand();
-                f0 = 590e6 + rand()*5e6;
-                y = g.^2./((SweepData.Frequency-f0).^2 + g.^2);
-                y = (y-min(y))./(max(y)-min(y));
-                y = -43 -30.*y;
-                SweepData.Amplitude = QNano.Utils.ConversionUtils.Convert_dBm_AmplitudeTo_V_Pk(y, 50);
-                % offset sweep
-                SweepData.Offset = linspace(-1e-3, 1e-3, 100);
-                % randomise phase
+                pause(0.1);
+                % Do basic simulation of sweep, random values, and not the
+                % settings specified in the sweep handle, as we can't
+                % access that without a real instrument
+                SweepData.SweepValues = linspace(100, 1000, 100)';
+
+                SweepData.Amplitude = rand([100, 1])*1e-5+3e-5;
+                SweepData.X = rand([100, 1])*1e-5+2e-5;
+                SweepData.Y = rand([100, 1])*0.14e-5+0.2e-5;
                 SweepData.Phase = rand([100, 1])*360; % in degrees
+                
+                %Run a random (but reasonably small)  number of times.
+                %Doing anything fancier than everything here would mean
+                %passing info in to the instrument it doesn't need in
+                %non-debug world
+                complete = rand(1) > 0.85;
                 return;
             end
 
-            % execute handle
-            ziDAQ('execute', sweepHandle);
-            ziDAQ('trigger', sweepHandle');
-            % read and extract data
-            SweepData = [];
+            %Query whether the sweep is complete
+            complete = ziDAQ('finished', sweepHandle);
 
-            while ~ziDAQ('finished', sweepHandle)
-                pause(0.001);
-                tmp = ziDAQ('read', sweepHandle);
-                if ziCheckPathInData(tmp, ['/' this.DeviceID '/demods/' num2str(demodIndex) '/sample'])
-                    sample = tmp.(this.DeviceID).demods(1).sample{1};
-                    if ~isempty(sample)
-                        SweepData = tmp;
-                    end
-                end
-            end
-
-            % Read the data. This command can also be executed during the waiting (as above).
+            % Read the data.
             tmp = ziDAQ('read', sweepHandle);
 
             % Process any remaining data returned by read().
@@ -1475,11 +1493,41 @@ classdef ZI_MFLI < CoakView.Core.Instrument
                 end
             end
 
+            %Handle case of empty data so far
+            if isempty(SweepData)
+                SweepData.SweepValues = [];
+                SweepData.Amplitude = [];
+                SweepData.Phase = [];
+                SweepData.X = [];
+                SweepData.Y = [];
+                return;
+            end
+
             % Extract useful values from within the struct
             SweepData.SweepValues = SweepData.(this.DeviceID).demods.sample{1,1}.grid; % x axis values
             SweepData.Amplitude = SweepData.(this.DeviceID).demods.sample{1,1}.r; % in V
             SweepData.Phase = rad2deg(SweepData.(this.DeviceID).demods.sample{1,1}.phase); % in rads from device, convert to degrees
+            SweepData.X = SweepData.(this.DeviceID).demods.sample{1,1}.x; % in V
+            SweepData.Y = SweepData.(this.DeviceID).demods.sample{1,1}.y; % in V
 
+        end
+
+        %% Sweep_Execute
+        function Sweep_Execute(this, sweepHandle)
+            % Sweep_Execute(sweepHandle) - Execute a sweep previously set up by OffsetSweep_Initialise, which
+            arguments
+                this; 
+                sweepHandle; 
+            end
+
+            if(this.SimulationMode)
+                disp("Execute sweep");
+                return;
+            end
+
+            % execute handle
+            ziDAQ('execute', sweepHandle);
+            ziDAQ('trigger', sweepHandle');            
         end
 
 
