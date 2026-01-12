@@ -60,6 +60,13 @@ classdef Controller < handle
         PresetsDirectory = "\+CoakViewPresets";
     end
 
+    events
+        Started;
+        Paused;
+        Resumed;
+        Stopped;
+    end
+
     methods
         %% Constructor
         function this = Controller(Settings)
@@ -137,6 +144,12 @@ classdef Controller < handle
 
                 %Populate tab and hook up instrument to the GUI                
                 cont = this.InstrumentController.AddInstrumentControl(this, tab, instrRef, controlDetailsStruct);
+
+                %Subscribe it to Controller events
+                addlistener(this, 'Started', @(src,evnt)cont.MeasurementsStarted(src, evnt));
+                addlistener(this, 'Paused', @(src,evnt)cont.MeasurementsPaused(src, evnt));
+                addlistener(this, 'Resumed', @(src,evnt)cont.MeasurementsResumed(src, evnt));
+                addlistener(this, 'Stopped', @(src,evnt)cont.MeasurementsStopped(src, evnt));
 
                 %Update the View
                 this.View.OnControlEnabled(controlDetailsStruct.Name);
@@ -981,6 +994,12 @@ classdef Controller < handle
             %Display a status message in the logger
             this.Log("Info", "Initialising measurements", "Yellow", "Initialising measurements");
 
+            %Display a model progress bar so we can't go clicking things
+            %while intialisation is underway - and also get clued in that a
+            %slow operation is in fact running and we shouldn't click Start
+            %100 times like my dad
+            this.View.ShowProgressBar("Initialising measurements", "Initialising..");
+
             try
                 %Set the list of instruments from the selection panel's ItemData
                 this.Instruments = this.InstrumentController.GetInstruments();
@@ -994,6 +1013,11 @@ classdef Controller < handle
 
                 %Initialise all instruments
                 for i = 1 : length(this.Instruments)
+
+                    %Update the progress bar
+                    this.View.UpdateProgressBar((i) / (length(this.Instruments)+1), "Connecting to " + this.Instruments{i}.Name);
+
+                    %Try to connect to the instrument
                     [success, instr_msg] = this.Instruments{i}.Initialise();
 
                     if ~success
@@ -1013,6 +1037,7 @@ classdef Controller < handle
                         success = false;
                         msg = instr_msg;
                         title = "Could not connect to Instrument";
+                        this.View.CloseProgressBar();
                         return;
                     end
                 end
@@ -1029,6 +1054,7 @@ classdef Controller < handle
                 %Display a status message in the logger
                 this.Log("Info", "Measurements initialised", "Green", "Measurements initialised");
             catch e
+                this.View.CloseProgressBar();
                 this.HandleError("Error initialising measurements", e);
                 return;
             end
@@ -1036,6 +1062,9 @@ classdef Controller < handle
             %Add a metadata/settings line to the top of the datafile (in
             %the header) for each instrument that defines one
             try
+                %Update the progress bar
+                this.View.UpdateProgressBar(1, "Writing metadata and headers");
+
                 metadataLines = [];
                 for i = 1 : length(this.Instruments)
                     metadataNullableString = this.Instruments{i}.GrabMetadataString();
@@ -1043,7 +1072,11 @@ classdef Controller < handle
                         metadataLines = [metadataLines metadataNullableString];
                     end
                 end
+
+                %Succesful end - close the progress bar
+                this.View.CloseProgressBar();
             catch e
+                this.View.CloseProgressBar();
                 this.HandleError("Error collecting instrument metadata", e);
             end
 
@@ -1127,6 +1160,9 @@ classdef Controller < handle
 
             %Update the View
             this.View.OnPaused();
+
+            %Fire event
+            notify(this, "Paused");
         end
 
         %% OnResumed
@@ -1139,6 +1175,9 @@ classdef Controller < handle
 
             %Update the View
             this.View.OnResumed();
+
+            %Fire event
+            notify(this, "Resumed");
         end
 
         %% OnStarted
@@ -1147,6 +1186,9 @@ classdef Controller < handle
 
             %Update the View
             this.View.OnStarted();
+
+            %Fire event
+            notify(this, "Started");
         end
 
         %% OnStopped
@@ -1161,6 +1203,9 @@ classdef Controller < handle
 
             %Update the View
             this.View.OnStopped();
+
+            %Fire event
+            notify(this, "Stopped");
         end
 
         %% PlotData
