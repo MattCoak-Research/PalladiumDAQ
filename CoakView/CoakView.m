@@ -61,7 +61,7 @@ classdef CoakView < handle
             end
 
             %Pass through to Controller
-            instRef = this.Controller.AddInstrument(instrumentClassName, settings.Name);
+            instRef = this.Controller.AddInstrument(instrumentClassName, "Name", settings.Name);
         end
 
         %% AddInstrumentControl

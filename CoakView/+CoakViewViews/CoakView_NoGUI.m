@@ -59,6 +59,11 @@ classdef CoakView_NoGUI < handle
         function ApplySettings(this, pathSettings, windowSettings)
         end
 
+        %% CloseProgressBar
+        function CloseProgressBar(~)
+            disp("Operation Complete");
+        end
+
         %% CreateInstrumentControlTab
         function tab = CreateInstrumentControlTab(this, tabName)
             tab = this.CreateNewTab(tabName);
@@ -165,17 +170,38 @@ classdef CoakView_NoGUI < handle
         function ShowGreenStatus(this, message)
         end
 
-        %% ShowYellowStatus
-        function ShowYellowStatus(this, message)
+        %% ShowProgressBar
+        function ShowProgressBar(app, message)
+            arguments
+                app
+                message {mustBeTextScalar}
+            end
+
+           disp(string(message));
         end
 
         %% ShowRedStatus
         function ShowRedStatus(this, message)
         end
 
+        %% ShowYellowStatus
+        function ShowYellowStatus(this, message)
+        end
+
         %% UnlockInput
         function UnlockInput(this)
             CoakView.Logging.Logger.Log("Debug", "Input unlocked");
+        end     
+
+        %% UpdateProgressBar
+        function UpdateProgressBar(this, fraction, message)
+            arguments
+                this;
+                fraction (1,1) {mustBeBetween(fraction, 0,1)};
+                message {mustBeTextScalar}
+            end
+            
+           disp(string(message) + " - " + num2str(fraction*100) + "%");
         end        
 
     end
