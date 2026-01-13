@@ -152,6 +152,7 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
         
         %% MeasurementsStopped
         function MeasurementsStopped(this, src, ~, ~)
+            this.GUIView.OnAbortButtonPushed();
             this.LockRunButton();
         end
 

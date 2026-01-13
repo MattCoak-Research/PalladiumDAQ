@@ -46,7 +46,7 @@ classdef ZI_MFLI < CoakView.Core.Instrument
         %% Constructor
         function this = ZI_MFLI()
             this.ConnectedCurrentSource = this.CurrentSource("200 uA/V");
-            this.MeasurementMode = this.MeasType("Voltage XY");
+            this.MeasurementMode = this.MeasType("Voltage RTheta");
         end
 
         %% GenerateSettingsSaveStruct
@@ -83,7 +83,7 @@ classdef ZI_MFLI < CoakView.Core.Instrument
                 zi_Params.Info = 'Simulated Instrument';
             else
                 % Grab all the settings on the LI from LabOne
-                strct = ziDAQ('get', ['/' this.DeviceID]);
+                strct = ziDAQ('get', ['/' this.DeviceHandle]);
                 flds = fields(strct);
                 zi_Params = strct.(flds{1});
             end
@@ -653,7 +653,7 @@ classdef ZI_MFLI < CoakView.Core.Instrument
 
 
             % get a sample from the instrument
-            sample = ziDAQ('getSample', ['/' this.DeviceID '/demods/' num2str(demodIndex) '/sample']);
+            sample = ziDAQ('getSample', ['/' this.DeviceHandle '/demods/' num2str(demodIndex) '/sample']);
 
             % obtain x and y from sample struct
             X = sample.x;
@@ -1350,7 +1350,7 @@ classdef ZI_MFLI < CoakView.Core.Instrument
 
 
         %% InitialiseSweep
-        function sweepHandle = InitialiseSweep(this, auxChannelName, SweepName, SweepParams)
+        function sweepHandle = InitialiseSweep(this, auxChannelName, oscIndex, SweepName, SweepParams)
             % InitialiseSweep - Function to initialise a sweep of the DC Aux
             % Output 1 to produce a graph of demodulated amplitude R against the sweep parameter.
             %This is for dI/dV sweeps. Loop back a coax wire from Aux1 out
@@ -1362,8 +1362,9 @@ classdef ZI_MFLI < CoakView.Core.Instrument
             % measurement.
             arguments
                 this;
-                auxChannelName {mustBeText} = "Aux1"; % set default as Aux Output 1
-                SweepName {mustBeText} = "Frequency";    % What parameter to sweep over (x axis units)
+                auxChannelName              {mustBeText} = "Aux1"; % set default as Aux Output 1
+                oscIndex                    (1,1) {mustBeInteger} = 0;
+                SweepName                   {mustBeText} = "Frequency";    % What parameter to sweep over (x axis units)
 
                 SweepParams.Start           (1,1) double = -0.1; % start value of sweep in appropriate units e.g Hz or V
                 SweepParams.Stop            (1,1) double = 0.1;
@@ -1374,7 +1375,7 @@ classdef ZI_MFLI < CoakView.Core.Instrument
                 SweepParams.FilterOrder     (1,1) double  = 4;
 
                 SweepParams.SettleTime      (1,1) double  = 0.1; % Minimum wait time in seconds between a sweep parameter change and the recording of the next sweep point.- want 7 or larger                
-                SweepParams.SweepInaccuracy (1,1) double  = 10; % Effective wait time is maximum between settling time and inaccuracy. Demodulator filter settling inaccuracy defines the wait time between a sweep parameter change and recording of the next sweep point.
+                SweepParams.SweepInaccuracy (1,1) double  = 1e-5; % How to long to wait until measurement accuracy has approached slowly towards perfectly settled. Fractional error tolerated. Effective wait time is maximum between settling time and inaccuracy. Demodulator filter settling inaccuracy defines the wait time between a sweep parameter change and recording of the next sweep point.
                
                 SweepParams.AveSample       (1,1) double  = 100; % Sets the effective number of samples (clock cycles) per sweeper parameter point that is considered in the measurement.
                 SweepParams.AveTC           (1,1) double  = 1;   % Effective calculation time is the maximum between samples and number of time constants. Usually set the Sample Count.
@@ -1414,7 +1415,7 @@ classdef ZI_MFLI < CoakView.Core.Instrument
             sweepHandle = ziDAQ('sweep');
 
             % configure all the parameters
-            ziDAQ('set', sweepHandle, 'sweep/device', this.DeviceID);
+            ziDAQ('set', sweepHandle, 'sweep/device', this.DeviceHandle);
             ziDAQ('set', sweepHandle, 'sweep/gridnode', gridnode); % sweep parameter
             ziDAQ('set', sweepHandle, 'sweep/start', SweepParams.Start);
             ziDAQ('set', sweepHandle, 'sweep/stop', SweepParams.Stop);
@@ -1439,14 +1440,15 @@ classdef ZI_MFLI < CoakView.Core.Instrument
             ziDAQ('set', sweepHandle, 'sweep/bandwidthoverlap', 0);
             ziDAQ('set', sweepHandle, 'sweep/phaseunwrap', 1);
 
-            ziDAQ('subscribe', sweepHandle, ['/' this.DeviceID '/demods/0/sample']);
+            ziDAQ('subscribe', sweepHandle, ['/' this.DeviceHandle '/demods/0/sample']);
             ziDAQ('execute', sweepHandle);
         end
 
         %% Sweep_Abort
         function Sweep_Abort(this, sweepHandle)
-            %TOdo
-            disp("Sweep abort will be called here");
+            if~isempty(sweepHandle)
+                ziDAQ('finish', sweepHandle);
+            end
         end
 
         %% Sweep_Check_Completion_Poll_Data
@@ -1484,10 +1486,11 @@ classdef ZI_MFLI < CoakView.Core.Instrument
 
             % Read the data.
             tmp = ziDAQ('read', sweepHandle);
+            devID = this.DeviceHandle; %Make sure to use DeviceHandle, not DeviceID - it is lower case - struct will have tmp.dev7779 for example, not .DEV7779
 
             % Process any remaining data returned by read().
-            if ziCheckPathInData(tmp, ['/' this.DeviceID '/demods/' num2str(demodIndex) '/sample'])
-                sample = tmp.(this.DeviceID).demods(1).sample{1};
+            if ziCheckPathInData(tmp, ['/' devID '/demods/' num2str(demodIndex) '/sample'])
+                sample = tmp.(devID).demods(1).sample{1};
                 if ~isempty(sample)
                     SweepData = tmp;
                 end
@@ -1504,11 +1507,11 @@ classdef ZI_MFLI < CoakView.Core.Instrument
             end
 
             % Extract useful values from within the struct
-            SweepData.SweepValues = SweepData.(this.DeviceID).demods.sample{1,1}.grid; % x axis values
-            SweepData.Amplitude = SweepData.(this.DeviceID).demods.sample{1,1}.r; % in V
-            SweepData.Phase = rad2deg(SweepData.(this.DeviceID).demods.sample{1,1}.phase); % in rads from device, convert to degrees
-            SweepData.X = SweepData.(this.DeviceID).demods.sample{1,1}.x; % in V
-            SweepData.Y = SweepData.(this.DeviceID).demods.sample{1,1}.y; % in V
+            SweepData.SweepValues = SweepData.(devID).demods.sample{1,1}.grid'; % x axis values
+            SweepData.Amplitude = SweepData.(devID).demods.sample{1,1}.r'; % in V
+            SweepData.Phase = rad2deg(SweepData.(devID).demods.sample{1,1}.phase'); % in rads from device, convert to degrees
+            SweepData.X = SweepData.(devID).demods.sample{1,1}.x'; % in V
+            SweepData.Y = SweepData.(devID).demods.sample{1,1}.y'; % in V
 
         end
 
@@ -1877,24 +1880,24 @@ classdef ZI_MFLI < CoakView.Core.Instrument
 
             if(strcmp(DemodSignal, 'X'))
                 % node from which data will be recorded
-                demod_path = ['/' this.DeviceID '/demods/' num2str(demodIndex) '/sample.x.avg'];
+                demod_path = ['/' this.DeviceHandle '/demods/' num2str(demodIndex) '/sample.x.avg'];
                 % dots in the signal paths replaced by underscores in the data returned by MATLAB to
                 % prevent conflicts with the MATLAB syntax.
                 demod_path_us = strrep(demod_path,'.','_');
                 path = 'sample_x_avg' ;
 
             elseif(strcmp(DemodSignal,'Y'))
-                demod_path = ['/' this.DeviceID '/demods/' num2str(demodIndex) '/sample.y.avg'];
+                demod_path = ['/' this.DeviceHandle '/demods/' num2str(demodIndex) '/sample.y.avg'];
                 demod_path_us = strrep(demod_path,'.','_');
                 path = 'sample_y_avg' ;
 
             elseif(strcmp(DemodSignal, 'R'))
-                demod_path = ['/' this.DeviceID '/demods/' num2str(demodIndex) '/sample.r.avg'];
+                demod_path = ['/' this.DeviceHandle '/demods/' num2str(demodIndex) '/sample.r.avg'];
                 demod_path_us = strrep(demod_path,'.','_');
                 path = 'sample_r_avg' ;
 
             elseif(strcmp(DemodSignal, 'Phase'))
-                demod_path = ['/' this.DeviceID '/demods/' num2str(demodIndex) '/sample.theta.avg'];
+                demod_path = ['/' this.DeviceHandle '/demods/' num2str(demodIndex) '/sample.theta.avg'];
                 demod_path_us = strrep(demod_path,'.','_');
                 path = 'sample_theta_avg' ;
 
@@ -1920,31 +1923,31 @@ classdef ZI_MFLI < CoakView.Core.Instrument
 
             if(strcmp(DemodSignal, 'X'))
                 % node from which data will be recorded
-                demod_path = ['/' this.DeviceID '/demods/' num2str(demodIndex) '/sample.x.fft.abs'];
+                demod_path = ['/' this.DeviceHandle '/demods/' num2str(demodIndex) '/sample.x.fft.abs'];
                 % dots in the signal paths replaced by underscores in the data returned by MATLAB to
                 % prevent conflicts with the MATLAB syntax.
                 demod_path_us = strrep(demod_path,'.','_');
                 path = 'sample_x_fft_abs';
 
             elseif(strcmp(DemodSignal, 'Y'))
-                demod_path = ['/' this.DeviceID '/demods/' num2str(demodIndex) '/sample.y.fft.abs'];
+                demod_path = ['/' this.DeviceHandle '/demods/' num2str(demodIndex) '/sample.y.fft.abs'];
                 demod_path_us = strrep(demod_path,'.','_');
                 path = 'sample_y_fft_abs' ;
 
             elseif(strcmp(DemodSignal, 'R'))
-                demod_path = ['/' this.DeviceID '/demods/' num2str(demodIndex) '/sample.r.fft.abs'];
+                demod_path = ['/' this.DeviceHandle '/demods/' num2str(demodIndex) '/sample.r.fft.abs'];
                 demod_path_us = strrep(demod_path,'.','_');
                 path = 'sample_r_fft_abs' ;
 
             elseif(strcmp(DemodSignal, 'Phase'))
-                demod_path = ['/' this.DeviceID '/demods/' num2str(demodIndex) '/sample.theta.fft.abs'];
+                demod_path = ['/' this.DeviceHandle '/demods/' num2str(demodIndex) '/sample.theta.fft.abs'];
                 demod_path_us = strrep(demod_path,'.','_');
                 path = 'sample_theta_fft_abs' ;
 
             elseif(strcmp(DemodSignal, 'XiY'))
                 % XiY can only be found for the Time Domain
                 % Filter Compensation can only be applied to XiY signal
-                demod_path = ['/' this.DeviceID '/demods/' num2str(demodIndex)  '/sample.xiy.fft.abs'];
+                demod_path = ['/' this.DeviceHandle '/demods/' num2str(demodIndex)  '/sample.xiy.fft.abs'];
                 demod_path_us = strrep(demod_path,'.','_');
                 path = 'sample_xiy_fft_abs' ;
             else
@@ -1975,7 +1978,7 @@ classdef ZI_MFLI < CoakView.Core.Instrument
             % create a handle for the dataAcquisitionModule
             DAQHandle = ziDAQ('dataAcquisitionModule');
             % device on which dataAcquisitionModule will be performed
-            ziDAQ('set', DAQHandle, 'device', this.DeviceID);
+            ziDAQ('set', DAQHandle, 'device', this.DeviceHandle);
 
             % 4 = exact grid mode is chosen - this is most suitable for FFTs
             % the subscribed signal with the highest sampling rate (as sent from the device) defines
@@ -1992,12 +1995,12 @@ classdef ZI_MFLI < CoakView.Core.Instrument
             ziDAQ('subscribe', DAQHandle, demod_path_freq);
 
             % set the trigger node as the demodulated signal R
-            ziDAQ('set', DAQHandle, 'triggernode', ['/' this.DeviceID '/demods/' num2str(demodIndex) '/sample.r']);
+            ziDAQ('set', DAQHandle, 'triggernode', ['/' this.DeviceHandle '/demods/' num2str(demodIndex) '/sample.r']);
             % return preview - useful to display the progress of high resolution FFTs
             % that take a long time to capture. Successively higher resolution FFTs are calculated and returned.
             ziDAQ('set', DAQHandle, 'preview', 1);
 
-            triggerpath = ['/' this.DeviceID '/demods/0/sample'];
+            triggerpath = ['/' this.DeviceHandle '/demods/0/sample'];
             triggernode = [triggerpath '.r'];
             % The dots in the signal paths are replaced by underscores in the data returned by MATLAB to
             % prevent conflicts with the MATLAB syntax.
@@ -2216,19 +2219,20 @@ classdef ZI_MFLI < CoakView.Core.Instrument
             daqData = tmp;
 
             if ziCheckPathInData(tmp, demod_path_us)
-                sample = tmp.(this.DeviceID).demods(1).(path){1};
+                devID = this.DeviceHandle;
+                sample = tmp.(devID).demods(1).(path){1};
                 if ~isempty(sample)
                     % Get the amplitude of the demodulator signal
                     daqData = tmp;
                 end
                 % obtain amplitude data
-                daqData.Amplitude = tmp.(this.DeviceID).demods(1).(path){1}.value;
+                daqData.Amplitude = tmp.(devID).demods(1).(path){1}.value;
 
                 % Set the first timestamp to the first timestamp obtained.
-                timestamp0 = double(tmp.(this.DeviceID).demods(1).(path){1}.timestamp(1, 1));
+                timestamp0 = double(tmp.(devID).demods(1).(path){1}.timestamp(1, 1));
 
                 % Convert from device ticks to time in seconds.
-                daqData.Time = (double(tmp.(this.DeviceID).demods(1).(path){1}.timestamp(1, :)) - timestamp0)/clockbase;
+                daqData.Time = (double(tmp.(devID).demods(1).(path){1}.timestamp(1, :)) - timestamp0)/clockbase;
             end
         end
 
@@ -2244,17 +2248,18 @@ classdef ZI_MFLI < CoakView.Core.Instrument
             daqData = tmp;
 
             if ziCheckPathInData(tmp, demod_path_us)
-                sample = tmp.(this.DeviceID).demods(1).(path){1};
+                devID = this.DeviceHandle;
+                sample = tmp.(devID).demods(1).(path){1};
                 disp(sample)
                 if ~isempty(sample)
                     daqData = tmp;
                 end
 
                 % Get the amplitude of the demodulator signal
-                daqData.Amplitude = daqData.(this.DeviceID).demods(1).(path){1}.value;
+                daqData.Amplitude = daqData.(devID).demods(1).(path){1}.value;
 
                 % Frequency data is calculated from the grid column delta.
-                bin_resolution = daqData.(this.DeviceID).demods(1).(path){1}.header.gridcoldelta;
+                bin_resolution = daqData.(devID).demods(1).(path){1}.header.gridcoldelta;
 
                 daqData.bandwidth = bin_resolution * length(daqData.Amplitude);
             end
@@ -2378,7 +2383,7 @@ classdef ZI_MFLI < CoakView.Core.Instrument
             end
 
             %Query value from instrument via ZI Matlab API
-            val = ziDAQ('getDouble', ['/' this.DeviceID char(command)]);
+            val = ziDAQ('getDouble', ['/' this.DeviceHandle char(command)]);
         end
 
         %% GetInt
@@ -2389,7 +2394,7 @@ classdef ZI_MFLI < CoakView.Core.Instrument
             end
 
             %Query value from instrument via ZI Matlab API
-            val = ziDAQ('getInt', ['/' this.DeviceID char(command)]);
+            val = ziDAQ('getInt', ['/' this.DeviceHandle char(command)]);
         end
 
         %% SetDouble
@@ -2399,7 +2404,7 @@ classdef ZI_MFLI < CoakView.Core.Instrument
             end
 
             %Relay command to instrument via ZI Matlab API
-            ziDAQ('setDouble', ['/' this.DeviceID char(command)], value);
+            ziDAQ('setDouble', ['/' this.DeviceHandle char(command)], value);
         end
 
         %% SetInt
@@ -2409,7 +2414,7 @@ classdef ZI_MFLI < CoakView.Core.Instrument
             end
 
             %Relay command to instrument via ZI Matlab API
-            ziDAQ('setInt', ['/' this.DeviceID char(command)], value); % turned on
+            ziDAQ('setInt', ['/' this.DeviceHandle char(command)], value); % turned on
         end
 
         %% ConvertInputChannelNameToChannelIndex

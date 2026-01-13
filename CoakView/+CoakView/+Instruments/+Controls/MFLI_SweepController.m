@@ -88,7 +88,8 @@ classdef MFLI_SweepController < CoakView.Core.InstrumentControlBase
 
         %% OnSweepAbort
         function OnSweepAbort(this)
-            this.Instrument.Sweep_Abort();
+            this.SweepHandle = [];
+            this.Instrument.Sweep_Abort(this.SweepHandle);
             %Todo - make sure to write the data so far on abort - right now
             %only writes at the end
         end
@@ -132,7 +133,8 @@ classdef MFLI_SweepController < CoakView.Core.InstrumentControlBase
             end
 
             %Create a sweep object on the instrument
-            this.SweepHandle = this.Instrument.InitialiseSweep("Aux1", SweepName,...
+            this.SweepHandle = this.Instrument.InitialiseSweep("Aux1", 0,...
+                SweepName,...
                 "AveSample", SweepParams.AveSample,...
                 "AveTC", SweepParams.AveTC,...
                 "Bandwidth", SweepParams.Bandwidth,...
@@ -152,12 +154,18 @@ classdef MFLI_SweepController < CoakView.Core.InstrumentControlBase
         %% Update
         function Update(this)
             
+            if isempty(this.SweepHandle)
+                return;
+            end
+
             %Ping the instrument for data so far, and if the sweep is
             %complete
             [SweepData, complete] = this.Instrument.Sweep_Check_Completion_Poll_Data(this.SweepHandle);
-      
+
             %Plot any data
-            this.UpdateData(SweepData.SweepValues, SweepData.Amplitude);
+            if ~isempty(SweepData.SweepValues)
+                this.UpdateData(SweepData.SweepValues, SweepData.Amplitude);
+            end
 
             %Handle the sweep completion if it is finished
             if complete
@@ -177,6 +185,7 @@ classdef MFLI_SweepController < CoakView.Core.InstrumentControlBase
         
         %% MeasurementsStopped
         function MeasurementsStopped(this, src, ~, ~)
+            this.GUIView.AbortSweep();
             this.LockRunButton();
         end
 

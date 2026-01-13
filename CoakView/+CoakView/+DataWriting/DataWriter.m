@@ -150,7 +150,13 @@ classdef DataWriter < handle
 
             if ~isempty(Settings.MetadataLines)
                 for i = 1 : length(Settings.MetadataLines)
-                    fprintf(fid, '%s\r\n', Settings.MetadataLines(i));
+                    str = Settings.MetadataLines(i);
+
+                    if ismissing(str)
+                        fprintf(fid, '%s\r\n', "");
+                    else
+                        fprintf(fid, '%s\r\n', str);
+                    end
                 end
             end
 
