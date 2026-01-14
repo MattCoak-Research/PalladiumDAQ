@@ -50,29 +50,29 @@ classdef DataWriter < handle
 
                 %Error checking
                 if isempty(endLineIdx)
-                    error("Could not find end-of-metadata string in file");
-                end
+                    warning("Could not find end-of-metadata string in file");   %Don't throw full error and prevent file writing entirely
+                else
+                    %Check how many lines to insert
+                    linesToInsert = length(stringLinesArray);
 
-                %Check how many lines to insert
-                linesToInsert = length(stringLinesArray);
 
+                    %Same file path - shoudl overwrite
+                    fid = fopen(this.FileWriteDetails.FilePath, 'w');
 
-                %Same file path - shoudl overwrite
-                fid = fopen(this.FileWriteDetails.FilePath, 'w');
+                    %Print the lines before the one to be inserted
+                    for i = 1 : endLineIdx - 1
+                        fprintf(fid, '%s\n', lines{i});
+                    end
 
-                %Print the lines before the one to be inserted
-                for i = 1 : endLineIdx - 1
-                    fprintf(fid, '%s\n', lines{i});
-                end
+                    %Print the new line(s)
+                    for i = 1 : linesToInsert
+                        fprintf( fid, '%s\n', stringLinesArray(i));
+                    end
 
-                %Print the new line(s)
-                for i = 1 : linesToInsert
-                    fprintf( fid, '%s\n', stringLinesArray(i));
-                end
-
-                %Print the lines after
-                for i = endLineIdx : length(lines)
-                    fprintf(fid, '%s\n', lines{i});
+                    %Print the lines after
+                    for i = endLineIdx : length(lines)
+                        fprintf(fid, '%s\n', lines{i});
+                    end
                 end
 
                 %Close the file
