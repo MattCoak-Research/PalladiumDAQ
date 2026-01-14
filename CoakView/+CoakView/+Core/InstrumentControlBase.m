@@ -5,7 +5,7 @@ classdef InstrumentControlBase < handle
     properties
         ControlDetailsStruct;
         FileNamePropertyDelimiters = "[]";
-        DecimalPointReplacementCharacter = "-";
+        DecimalPointReplacementCharacter = "p";
     end
 
     properties (Access = protected)

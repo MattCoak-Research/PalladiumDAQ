@@ -9,7 +9,7 @@ classdef TestInstrument < CoakView.Core.Instrument
     end
 
     properties(Access = private)
-
+        FirstRun = true;
     end
 
     methods
@@ -52,13 +52,18 @@ classdef TestInstrument < CoakView.Core.Instrument
         function [dataRow] = Measure(this)
 
             pause(1);
+
+            if this.FirstRun
+                this.FirstRun = false;
+                error("test error that only runs once");
+            end
             
             if(this.SimulationMode)
                 %Dummy values
                 dataRow = [500 0.1];
                 return;
             end
-
+    
 
 
         end

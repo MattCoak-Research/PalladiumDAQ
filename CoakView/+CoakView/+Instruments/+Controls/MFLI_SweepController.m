@@ -15,6 +15,7 @@ classdef MFLI_SweepController < CoakView.Core.InstrumentControlBase
 
     properties (Access = private)
         SweepHandle = [];
+        CachedSweepData = [];
         GUIView;
         Controller;
         Data;
@@ -79,7 +80,7 @@ classdef MFLI_SweepController < CoakView.Core.InstrumentControlBase
         end
 
         %% AbortSweep
-        function AbortSweep(this, ~, eventData)
+        function AbortSweep(this, ~, ~)
             this.Running = false;
             this.TimeElapsed_s = 0;
             this.OnSweepAbort();
@@ -88,10 +89,14 @@ classdef MFLI_SweepController < CoakView.Core.InstrumentControlBase
 
         %% OnSweepAbort
         function OnSweepAbort(this)
+
+            %Write the data (will check if Save to File is selected)
+            this.WriteData(this.CachedSweepData);
+
+            %Abort the sweep and clear the handle reference to the sweep
+            %object
             this.SweepHandle = [];
             this.Instrument.Sweep_Abort(this.SweepHandle);
-            %Todo - make sure to write the data so far on abort - right now
-            %only writes at the end
         end
 
         %% OnSweepComplete
@@ -99,18 +104,16 @@ classdef MFLI_SweepController < CoakView.Core.InstrumentControlBase
             this.SweepHandle = [];
             this.Running = false;
 
-            if this.ControlDetailsStruct.SweepDetails.SaveSweepFile
-                this.DataWriter.WriteData([sweepData.SweepValues,...
-                    sweepData.Amplitude,...
-                    sweepData.Phase,...
-                    sweepData.X,...
-                    sweepData.Y]);
+            %Write the data (will check if Save to File is selected)
+            this.WriteData(sweepData)
 
-                %Add in an end-of sweep metadata line
-                this.InsertEndMetadataIntoFile(this.DataWriter);
-            end
-
+            %Update the View
             this.GUIView.SweepComplete();
+
+            %Loop the next one if in Continuous mode
+            if this.GUIView.IsContinuousSelected()
+                this.GUIView.RunSweep();
+            end
         end
 
         %% OnSweepRun
@@ -162,6 +165,10 @@ classdef MFLI_SweepController < CoakView.Core.InstrumentControlBase
             %complete
             [SweepData, complete] = this.Instrument.Sweep_Check_Completion_Poll_Data(this.SweepHandle);
 
+            %Cache the data - in case we abort, we can write the
+            %data-so-far to file
+            this.CachedSweepData = SweepData;
+
             %Plot any data
             if ~isempty(SweepData.SweepValues)
                 this.UpdateData(SweepData.SweepValues, SweepData.Amplitude);
@@ -175,7 +182,7 @@ classdef MFLI_SweepController < CoakView.Core.InstrumentControlBase
 
         %% UpdateData
         function UpdateData(this, x, y)            
-            this.Plotter.PlotData(x, y);           
+            this.Plotter.PlotData(x, y);   
         end
 
         %% MeasurementsStarted
@@ -230,6 +237,7 @@ classdef MFLI_SweepController < CoakView.Core.InstrumentControlBase
         %% ClearData
         function ClearData(this)
             this.Plotter.ClearData();
+            this.Plotter.LabelAxes("", "");
         end
 
         %% SweepEnded
@@ -257,23 +265,43 @@ classdef MFLI_SweepController < CoakView.Core.InstrumentControlBase
 
             switch(SweepName)
                 case("Frequency")
-                    xAx = "Frequency_Hz";
+                    xAx = "Frequency (Hz)";
                 case("AuxOutput1")
-                    xAx = "Voltage_V";
+                    xAx = "Voltage (V)";
                 case("OutputOffset")
-                    xAx = "Voltage_V";
+                    xAx = "Voltage (V)";
                 otherwise
                     error(['Invalid Sweep Parameter for function. ' ...
                         'SweptParameter: Frequency, AuxOutput1, OutputOffset'])
             end
 
-            headers = [xAx, "R_V", "Theta_Deg", "X_V", "Y_V"];
+            headers = [xAx, "Amplitude (V)", "Phase (Deg)", "VoltageX (V)", "VoltageY (V)"];
 
             %Make a simple string of all these headers, tab seperated
             headersString = '';
             for i= 1 : length(headers)
                 headersString = sprintf('%s%s\t', headersString, headers{i});
             end
+
+            %Update the plotter axes labels
+            this.Plotter.LabelAxes(xAx, "Amplitude (V)");
+        end
+
+        %% WriteData
+        function WriteData(this, sweepData)
+
+            %Write final details to file if option selected
+            if this.ControlDetailsStruct.SweepDetails.SaveSweepFile
+                this.DataWriter.WriteData([sweepData.SweepValues,...
+                    sweepData.Amplitude,...
+                    sweepData.Phase,...
+                    sweepData.X,...
+                    sweepData.Y]);
+
+                %Add in an end-of sweep metadata line
+                this.InsertEndMetadataIntoFile(this.DataWriter);
+            end
+
         end
     end
 end

@@ -1383,7 +1383,7 @@ classdef ZI_MFLI < CoakView.Core.Instrument
 
             if(this.SimulationMode)
                 disp("Set up simulated MFLI " + string(SweepName) + " sweep");
-                sweepHandle = []; % define empty sweepHandle
+                sweepHandle = "SweepHandlePLACEHOLDER-Simulation"; % define empty sweepHandle
                 return;
             end
 
@@ -1446,6 +1446,11 @@ classdef ZI_MFLI < CoakView.Core.Instrument
 
         %% Sweep_Abort
         function Sweep_Abort(this, sweepHandle)
+            if(this.SimulationMode)
+                disp("Sweep aborted");
+                return;
+            end
+            
             if~isempty(sweepHandle)
                 ziDAQ('finish', sweepHandle);
             end

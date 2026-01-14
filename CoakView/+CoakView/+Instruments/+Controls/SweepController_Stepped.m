@@ -15,6 +15,7 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
         DataWriter;
         XLabelStr = "X axis var";
         YLabelStr = "Y axis var";
+        Aborted = false;
     end
     
     methods
@@ -108,15 +109,21 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
 
         end  
 
+        %% OnSweepAbort
+        function OnSweepAbort(this)
+           this.Aborted = true;
+        end
+
         %% OnSweepComplete
         function OnSweepComplete(this)  
-           
+            
         end
 
         %% OnSweepRun
         function OnSweepRun(this)
            %Reset the current step number
            this.StepNo = 0;
+           this.Aborted = false;
            this.ClearData();
 
            if this.ControlDetailsStruct.SweepDetails.SaveSweepFile
@@ -176,8 +183,8 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
 
             %Check if we reached the end of the sweep
             if(this.StepNo > this.TotalPoints)
-                this.SweepComplete();
                 this.StepNo = this.TotalPoints + 1;
+                this.SweepComplete();
             end
 
             %Calculate the remaining time
@@ -205,6 +212,12 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
                     %Add in an end-of sweep metadata line if this is the
                     %last update
                     this.InsertEndMetadataIntoFile(this.DataWriter);
+
+                    %Loop the next sweep to start if in Continuous mode
+                    if this.GUIView.IsContinuousSelected() && ~this.Aborted
+                        this.GUIView.RunSweep();
+                    end
+
                 end
             end
         end
