@@ -40,6 +40,7 @@ classdef Controller < handle
 
         DataWriter;
         PlottingPanels = {};
+        PlottingTabs = {};
         BigNumDisplays;
 
         InstrumentController;
@@ -211,12 +212,16 @@ classdef Controller < handle
         function listOfPltrs = AddNewPlottingTab(this, rows, cols)
             try
                 % To be used by external calls, eg. presets
-                listOfPltrs = this.View.AddNewPlottingTab(rows, cols);
+                [listOfPltrs, tab] = this.View.AddNewPlottingTab(rows, cols);
 
                 %Add the plotters to the list of plotters to be updated
                 for i = 1 : length(listOfPltrs)
                     this.RegisterPlotterObject(listOfPltrs(i));
                 end
+
+                %Add the tab to the list of plotter tabs too
+                this.RegisterPlotterTab(tab);
+
             catch err
                 this.HandleError("Error adding new plotting tab", err);
             end
@@ -505,6 +510,23 @@ classdef Controller < handle
                 pltr.UpdateVariables(this.Headers);
             catch err
                 this.HandleError("Error registering plotter object", err);
+            end
+        end
+
+        %% RegisterPlotterTab
+        function RegisterPlotterTab(this, tab)
+            try
+                %Add the tabs to the list of tracked plotter tabs. Just for
+                %cleaning up later and to monitor if we have at least one
+                %on programme Run
+                if(isempty(this.PlottingTabs))
+                    this.PlottingTabs = {tab};
+                else
+                    this.PlottingTabs = [this.PlottingTabs, {tab}];
+                end
+
+            catch err
+                this.HandleError("Error registering plotter tab", err);
             end
         end
 
@@ -1043,7 +1065,7 @@ classdef Controller < handle
                 end
 
                 %If there are no Plotting Tabs, add one
-                if(isempty(this.PlottingPanels))
+                if(isempty(this.PlottingTabs))
                     this.AddNewPlottingTab(2,1);
                 end
 

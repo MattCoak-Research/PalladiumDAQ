@@ -46,8 +46,9 @@ classdef CoakView_NoGUI < handle
         end 
 
         %% AddNewPlottingTab
-        function listOfPltrs = AddNewPlottingTab(this, rows, columns)
+        function [listOfPltrs tab] = AddNewPlottingTab(this, rows, columns)
             listOfPltrs = [];
+            tab = [];
         end
 
         %% AddNewPlottingWindow
