@@ -181,8 +181,12 @@ classdef MFLI_SweepController < CoakView.Core.InstrumentControlBase
         end
 
         %% UpdateData
-        function UpdateData(this, x, y)            
-            this.Plotter.PlotData(x, y);   
+        function UpdateData(this, x, y)      
+            try
+                this.Plotter.PlotData(x, y); 
+            catch e
+                warning("Failed to plot data in Sweep Controller: " + string(e.message), "backtrace", false, "verbose", false);
+            end
         end
 
         %% MeasurementsStarted
