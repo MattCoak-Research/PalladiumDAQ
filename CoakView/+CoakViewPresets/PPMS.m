@@ -4,7 +4,7 @@ function PPMS(coakView)
 
 %Add the PPMS and configure
 ppms = coakView.AddInstrument("PPMS");
-ppms.IP_Address = "169.254.152.146";
+ppms.IP_Address = "147.188.43.118"; %ip address of ppms over eduroam
 ppms.Name = "PPMS";
 
 %Add a Plotting tab - this returns a list of all the plotters in it
