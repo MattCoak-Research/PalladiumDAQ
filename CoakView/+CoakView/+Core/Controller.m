@@ -1029,6 +1029,11 @@ classdef Controller < handle
                 %Generate column headers, for internal use and file writing
                 [this.Headers, headersString, this.Units] = this.GetHeaders();
 
+                %Verify that those headers are valid - no duplicates
+                [duplicateHeaderValues, duplicateHeaderValuesString] = CoakView.Core.Controller.CheckForDuplicatesInHeadersArray(this.Headers);
+                assert(isempty(duplicateHeaderValues), "Some variable names appear twice, this is not allowed. Duplicate variables: " + duplicateHeaderValuesString);
+                    
+
                 %Initialise the (:, n) double array that will hold the
                 %data
                 this.DataTable = [];
@@ -1438,7 +1443,7 @@ classdef Controller < handle
         function ValidateInstall(this)
             try
                 %Make sure user has the required matlab version first of all
-                CoakView.Utilities.ErrorChecking.Verification.VerifyMatlabVersion("R2023b");
+                CoakView.Utilities.ErrorChecking.Verification.VerifyMatlabVersion("R2025b");
             catch err
                 this.HandleError('Matlab version out of date! Cannot run.', err)
             end
@@ -1451,6 +1456,45 @@ classdef Controller < handle
                 CoakView.Logging.Logger.Log("Debug", "Installation verified");
             catch err
                 this.HandleError('Required Matlab Toolbox not installed, please install Toolbox', err)
+            end
+        end
+
+    end
+
+    methods(Static)    
+
+        %% CheckForDuplicatesInHeadersArray
+        function [duplicates, combinedString] = CheckForDuplicatesInHeadersArray(headers)
+            combinedString = "";
+            duplicates = [];
+
+            %handle edge cases
+            if isempty(headers)
+                return;
+            end
+            if length(headers) < 2
+                disp("length less tha 2");
+                 return;
+            end
+
+            % Find the indices of the unique strings
+            [~, uniqueIdx] =unique(headers);
+
+            % Copy the original into a duplicate array
+            duplicates = headers;
+            
+            % remove the unique strings, anything left is a duplicate
+            duplicates(uniqueIdx) = [];
+            
+            % find the unique duplicates
+            duplicates = unique(duplicates);
+
+            for i = 1 : length(duplicates)
+                if i == 1
+                    combinedString = combinedString + string(duplicates(i));
+                else
+                    combinedString = combinedString + ", " + string(duplicates(i));
+                end
             end
         end
 
