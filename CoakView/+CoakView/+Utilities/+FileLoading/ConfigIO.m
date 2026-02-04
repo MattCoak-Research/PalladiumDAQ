@@ -78,6 +78,7 @@ classdef ConfigIO < handle
                 s.LogSettings.PrintStackTraceInCommandWindow = false;
                 s.LogSettings.GUIMessageLevel = "Warning";
                 s.LogSettings.LogFileMessageLevel = "Debug";
+                s.LogSettings.ErrorOnAllInstrumentErrors = false;
                
                 s.PathSettings.DefaultPath = "<DATE>_Filename";
                 s.PathSettings.DefaultDirectory = "..\CoakViewTesting";
