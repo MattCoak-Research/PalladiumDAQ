@@ -27,3 +27,6 @@ CoakView/Instrument Drivers/Zurich Instruments/
 
 # Batch script
 coakviewpush.bat
+
+# Testing log folder
+CoakViewTesting/
