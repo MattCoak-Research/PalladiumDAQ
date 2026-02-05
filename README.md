@@ -3,6 +3,10 @@
 ## Description
 This is a modular framework for laboratory data acquisition. A library of Instrument files (basically drivers) is included for the hardware added so far, and adding more based on the InstrumentTemplate class is straightforward. A default GUI is included, but alternatives can easily be added and switched to, and in fact the programme can be run without a GUI at all (though graphing isn't so useful then).
 
+## System Requirements
+To run CoakView MATLAB version 2025b is required with the Instrument Control Toolbox installed.
+
+
 ## Installation
 * Clone the repository to your local PC or download and extract the code zip file.
 * Open MATLAB and navigate to the main CoakView repository or downloaded folder.
