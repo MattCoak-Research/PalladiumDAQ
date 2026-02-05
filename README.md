@@ -10,7 +10,7 @@ To run CoakView MATLAB version 2025b is required with the Instrument Control Too
 ## Installation
 * Clone the repository to your local PC or download and extract the code zip file.
 * Open MATLAB and navigate to the main CoakView repository or downloaded folder.
-* Type `setupPath` in the command window to run the script which adds the required folders to the path.
+* Add the `CoakView` and `CoakView\+CoakView\+Components\Graphics` folders to the MATLAB path
 
 ## Run CoakView
 * Type `CoakView` in the command window. 
