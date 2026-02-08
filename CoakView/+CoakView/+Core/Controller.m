@@ -17,11 +17,6 @@ classdef Controller < handle
         ErrorOnAllInstrumentErrors = false; %Note - gets set in LoadSettings from the Config.json file's value, overriding a value here. If this is set to true, a full error will be thrown every time an instruments fails to return data. Default (false) is to throw warnings and pad datafile with NaNs instead. Testing has shown that very rare communication errors do happen, and it's a shame to lose the whole experiment because a magnet not being used didn't return 0 properly..
     end
 
-    %Get and Set properties
-    properties(Dependent, Access = public)
-      %  ElapsedTime;
-    end
-
     properties(GetAccess = public, SetAccess = private)
         %Settings structs
         WindowSettings;
@@ -1157,17 +1152,29 @@ classdef Controller < handle
             logSettings.LogFileDirectory = CoakView.Utilities.FileLoading.PathUtils.CleanPath(logSettings.LogFileDirectory);
             pathSettings.DefaultSequenceDirectory = CoakView.Utilities.FileLoading.PathUtils.CleanPath(pathSettings.DefaultSequenceDirectory);
 
-            %Verify that the DefaultDirectory exists - set to a fallback
-            %and warn user if not.
+            %Verify that the DefaultDirectory exists - if it doesn't, try to make that folder. If that fails, set to a fallback
+            %and warn user.
             if(~isfolder(pathSettings.DefaultDirectory))
                 %Show a warning in the command window
-                disp("Could not find directory " + pathSettings.DefaultDirectory + " specified in the config file. Reverting to fallback default.");
+                disp("Could not find directory " + pathSettings.DefaultDirectory + " specified in the config file. Creating new directory.");
 
-                %User folder eg c:/Matt/
-                userDir = fullfile(getenv('USERPROFILE'));
+                try
+                    %Create the folder
+                    mkdir(pathSettings.DefaultDirectory);
 
-                %Set the Default Dir
-                pathSettings.DefaultDirectory = userDir;
+                    %Assert the creation was successful
+                    assert(isfolder(pathSettings.DefaultDirectory), "Folder not found at path");
+                catch exception
+                    %Warn the user
+                    warning("Could not find directory " + pathSettings.DefaultDirectory + " specified in the config file, and hit an error while trying to create it. Reverting to fallback for default directory. Error message: " + string(exception.message));
+                    
+                    %User folder eg c:/Matt/
+                    userDir = fullfile(getenv('USERPROFILE'));
+
+                    %Set the Default Dir
+                    pathSettings.DefaultDirectory = userDir;
+                    
+                end
             end
         end
 
