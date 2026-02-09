@@ -3,7 +3,12 @@ classdef ConfigIO < handle
     %settings to and from (XML) files.
     
     properties(Access = public)
-        ConfigDirectory = "\..\..\..\..\..\CoakViewSettings\";
+        ConfigDirectory = filesep + ".." + filesep + ".." + filesep + ".." + filesep + ".." + filesep + ".." + filesep + "CoakViewSettings" + filesep;
+        PromptForGUIEntryOfSettings = true;
+    end
+
+    properties (Access = private)
+        EnteredSettingsStruct = []; %Hold enetered details (fired from event) in temp property that code can then access when execution resumes
     end
         
     %% Methods
@@ -24,9 +29,17 @@ classdef ConfigIO < handle
                     %not have a Logger yet and so cannot use that
                     fprintf("\n");
                     disp("[INFO] - Config file not found at " + CoakView.Utilities.FileLoading.PathUtils.CleanPath(configPath));
-                    disp("Creating default, saving to file.");
-                    fprintf("\n");
-                    this.SaveDefaultConfig();
+                    
+                    if this.PromptForGUIEntryOfSettings
+                        disp("Opening GUI window for config settings entry.");
+                        defaultConfig = this.GenerateDefaultConfigStruct();                        
+                        enteredConfig = this.ShowConfigEntryGUI(defaultConfig);
+                        this.SaveConfig(enteredConfig);
+                    else
+                        disp("Creating default, saving to file.");
+                        fprintf("\n");
+                        this.SaveDefaultConfig();
+                    end
                 end
 
                 %Load config struct from file
@@ -72,16 +85,24 @@ classdef ConfigIO < handle
                 error("Error saving new default Config file in ConfigIO: " + e.message);
             end
         end     
+
+        
                 
     end
     
     methods(Access = private)
         
+        %% ConfigEntryComplete
+        function ConfigEntryComplete(this, ~, eventData)
+            settingsStruct = eventData.Value;
+            this.EnteredSettingsStruct = settingsStruct;
+        end
+
         %% GenerateDefaultConfigStruct
         function s = GenerateDefaultConfigStruct(this)
 
              %% ------- Edit default config values / add new ones here ----
-                s.LogSettings.LogFileDirectory = "..\CoakViewTesting\Logs";
+                s.LogSettings.LogFileDirectory = filesep + ".." + filesep + ".." + filesep + "CoakViewTesting" + filesep + "Logs";
                 s.LogSettings.LogFileFileName = "<DATE>_Log.txt";
                 s.LogSettings.LogFileDirectoryIsRelativePath = true;
                 s.LogSettings.CommandWindowMessageLevel = "Debug";
@@ -90,9 +111,9 @@ classdef ConfigIO < handle
                 s.LogSettings.LogFileMessageLevel = "Debug";
                 s.LogSettings.ErrorOnAllInstrumentErrors = false;
                
-                s.PathSettings.DefaultPath = "<DATE>_Filename";
-                s.PathSettings.DefaultDirectory = "..\CoakViewTesting";
-                s.PathSettings.DefaultSequenceDirectory = "..\CoakViewTesting";
+                s.PathSettings.DefaultFileName = "<DATE>_Filename";
+                s.PathSettings.DefaultDirectory = filesep + ".." + filesep + ".." + filesep + "CoakViewTesting";
+                s.PathSettings.DefaultSequenceDirectory = filesep + ".." + filesep + ".." + filesep + "CoakViewTesting";
                 s.PathSettings.DataDirectoryIsRelativePath = true;
                 s.PathSettings.SequenceDirectoryIsRelativePath = true;
                 s.PathSettings.DataFileExtension = ".dat";
@@ -112,8 +133,6 @@ classdef ConfigIO < handle
                 s.PlotterSettings.MarkerSize = 6;
                 s.PlotterSettings.Markers = ["o"; "o"; "+"; "*"];
                 s.PlotterSettings.ShowLegends = true;
-
-                %s.TestStruct.Tester = "BEars";
                 % ------------------------------------------------------------
         end
 
@@ -122,7 +141,62 @@ classdef ConfigIO < handle
             functionPath = mfilename('fullpath');
             [directoryOfThisFunction, ~, ~] = fileparts(functionPath);
             dirPath = fullfile(directoryOfThisFunction, char(this.ConfigDirectory));
-        end       
+        end  
+
+        %% ShowConfigEntryGUI
+        function con = ShowConfigEntryGUI(this, initialConfig)  
+            con = initialConfig;
+            c = CoakView.Components.ConfigInputWindow();
+
+            c.SetInitialValues(...
+                "DefaultDataDirectory", initialConfig.PathSettings.DefaultDirectory,...
+                "DefaultDataDirectoryIsRelativePath", initialConfig.PathSettings.DataDirectoryIsRelativePath,...
+                "DefaultLogFileDirectory", initialConfig.LogSettings.LogFileDirectory,...
+                "DefaultLogFileDirectoryIsRelativePath", initialConfig.LogSettings.LogFileDirectoryIsRelativePath,...
+                "DefaultFileName", initialConfig.PathSettings.DefaultFileName,...
+                "WindowWidth", initialConfig.WindowSettings.DefaultSize(1),...
+                "WindowHeight", initialConfig.WindowSettings.DefaultSize(2),...
+                "WindowStartsMaximised", initialConfig.WindowSettings.Maximised);
+
+            %Subscribe to event when Done button pressed on the Config entry
+            addlistener(c, "ConfigEntryComplete", @(src,evnt)this.ConfigEntryComplete(src,evnt));
+
+            waitfor(c);
+
+            if ~isempty(this.EnteredSettingsStruct)
+                s = this.EnteredSettingsStruct;
+                con.PathSettings.DefaultDirectory = s.DefaultDirectory;
+                con.LogSettings.LogFileDirectory = s.LogFileDirectory;
+                con.PathSettings.DataDirectoryIsRelativePath = s.DataDirectoryIsRelativePath;
+                con.LogSettings.LogFileDirectoryIsRelativePath = s.LogFileDirectoryIsRelativePath;
+                con.PathSettings.DefaultFileName = s.DefaultFileName;
+                con.WindowSettings.DefaultSize = s.DefaultSize;
+                con.WindowSettings.Maximised = s.WindowStartsMaximised;
+
+                %Clean up file paths and make desired ones relative instead
+                %of absolute
+                con.PathSettings.DefaultDirectory = CoakView.Utilities.FileLoading.PathUtils.CleanPath(con.PathSettings.DefaultDirectory);
+                con.LogSettings.LogFileDirectory = CoakView.Utilities.FileLoading.PathUtils.CleanPath(con.LogSettings.LogFileDirectory);
+
+                if con.PathSettings.DataDirectoryIsRelativePath
+                    [p, success] = CoakView.Utilities.FileLoading.PathUtils.MakeFilePathRelative(con.PathSettings.DefaultDirectory);
+                    if success
+                        con.PathSettings.DefaultDirectory = p;
+                    else %Handle case of failing to find a relative path to extract - if the folder given was on a different drive for instance. Path remains absolute, and disable the relative toggle
+                        con.PathSettings.DataDirectoryIsRelativePath = false;
+                    end
+                end
+
+                if con.LogSettings.LogFileDirectoryIsRelativePath
+                    [p, success] = CoakView.Utilities.FileLoading.PathUtils.MakeFilePathRelative(con.LogSettings.LogFileDirectory);
+                    if success
+                        con.LogSettings.LogFileDirectory = p;
+                    else
+                        con.LogSettings.LogFileDirectoryIsRelativePath = false;
+                    end
+                end
+            end
+        end
 
         %% VerifyConfigStruct
         function [con, changesDetected] = VerifyConfigStruct(this, con)

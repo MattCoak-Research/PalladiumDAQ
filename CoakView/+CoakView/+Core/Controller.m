@@ -297,7 +297,7 @@ classdef Controller < handle
 
                 %Do this one last, with a proper function call, as it has some code in, and then will
                 %call the GUI update
-                this.SetFilePathsFileName(this.PathSettings.DefaultPath);
+                this.SetFilePathsFileName(this.PathSettings.DefaultFileName);
 
                 %Set the default path for the DataViewer programme too
                 this.DefaultDataDir = CoakView.Utilities.FileLoading.PathUtils.CleanPath(this.PathSettings.DefaultDirectory);
