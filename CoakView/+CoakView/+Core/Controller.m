@@ -391,9 +391,9 @@ classdef Controller < handle
                     this.BigNumDisplays = [this.BigNumDisplays b];
                     this.View.RegisterDependentWindow(f);
 
-                    %Prevent the display being sent to teh back of the tab
+                    %Prevent the display being sent to the back of the tab
                     %stack and everything minimising..
-                    this.RefocusWindow();
+                    %this.RefocusWindow();
                     f.Visible = 'off';
                     f.Visible = 'on';
                 end
@@ -481,15 +481,7 @@ classdef Controller < handle
                     pltr.PlotData(this.DataTable);
                 end
             end
-        end
-
-        %% RefocusWindow
-        function RefocusWindow(this)
-            %Bring the window back to the front, after a filedialog or similar
-            % Calling uigetfile or similar modal dialogs may send the app to the back.
-            % Bring it back to the front. Also loses maximised state etc (argh!). Save current window state and restore it.
-            this.View.RefocusWindow();
-        end
+        end       
 
         %% RegisterPlotterObject
         function RegisterPlotterObject(this, pltr)
@@ -624,7 +616,7 @@ classdef Controller < handle
                 fileNameNoExt = CoakView.Utilities.FileLoading.PathUtils.StripExtension(fileName);
 
                 %Helpfully replace <DATE> tag with today's actual date
-                fileNameDateRp = this.ReplaceDateTag(fileNameNoExt);
+                fileNameDateRp = CoakView.Utilities.FileLoading.PathUtils.ReplaceDateTag(fileNameNoExt);
 
                 %Set the variable
                 this.FileWriteDetails.FileName = fileNameDateRp;
@@ -1025,7 +1017,7 @@ classdef Controller < handle
                 [this.Headers, headersString, this.Units] = this.GetHeaders();
 
                 %Verify that those headers are valid - no duplicates
-                [duplicateHeaderValues, duplicateHeaderValuesString] = CoakView.Core.Controller.CheckForDuplicatesInHeadersArray(this.Headers);
+                [duplicateHeaderValues, duplicateHeaderValuesString] = CoakView.Utilities.ErrorChecking.CheckForDuplicatesInHeadersArray(this.Headers);
                 assert(isempty(duplicateHeaderValues), "Some variable names appear twice, this is not allowed. Duplicate variables: " + duplicateHeaderValuesString);
                     
 
@@ -1267,16 +1259,7 @@ classdef Controller < handle
             end
         end
 
-        %% ReplaceDateTag
-        function outstr = ReplaceDateTag(~, str)
-            %If a string has '<DATE>' in it, let's replace that with today's
-            %date for convenience
-            d = datetime;
-            format = 'yyyy-MM-dd';
-            dateStr = string(d, format);  %Today's date
-
-            outstr = strrep(str, '<DATE>', dateStr);
-        end
+        
 
         %% RunMeasurementLoop
         function RunMeasurementLoop(this)
@@ -1468,43 +1451,5 @@ classdef Controller < handle
 
     end
 
-    methods(Static)    
-
-        %% CheckForDuplicatesInHeadersArray
-        function [duplicates, combinedString] = CheckForDuplicatesInHeadersArray(headers)
-            combinedString = "";
-            duplicates = [];
-
-            %handle edge cases
-            if isempty(headers)
-                return;
-            end
-            if length(headers) < 2
-                disp("length less tha 2");
-                 return;
-            end
-
-            % Find the indices of the unique strings
-            [~, uniqueIdx] =unique(headers);
-
-            % Copy the original into a duplicate array
-            duplicates = headers;
-            
-            % remove the unique strings, anything left is a duplicate
-            duplicates(uniqueIdx) = [];
-            
-            % find the unique duplicates
-            duplicates = unique(duplicates);
-
-            for i = 1 : length(duplicates)
-                if i == 1
-                    combinedString = combinedString + string(duplicates(i));
-                else
-                    combinedString = combinedString + ", " + string(duplicates(i));
-                end
-            end
-        end
-
-    end
 end
 

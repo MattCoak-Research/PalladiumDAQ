@@ -7,7 +7,39 @@ classdef Verification
     
     methods (Static)
 
-        
+        %% CheckForDuplicatesInHeadersArray
+        function [duplicates, combinedString] = CheckForDuplicatesInHeadersArray(headers)
+            combinedString = "";
+            duplicates = [];
+
+            %handle edge cases
+            if isempty(headers)
+                return;
+            end
+            if length(headers) < 2
+                return;
+            end
+
+            % Find the indices of the unique strings
+            [~, uniqueIdx] =unique(headers);
+
+            % Copy the original into a duplicate array
+            duplicates = headers;
+
+            % remove the unique strings, anything left is a duplicate
+            duplicates(uniqueIdx) = [];
+
+            % find the unique duplicates
+            duplicates = unique(duplicates);
+
+            for i = 1 : length(duplicates)
+                if i == 1
+                    combinedString = combinedString + string(duplicates(i));
+                else
+                    combinedString = combinedString + ", " + string(duplicates(i));
+                end
+            end
+        end
 
         %% VerifyMatlabVersion
         function VerifyMatlabVersion(releaseStr)

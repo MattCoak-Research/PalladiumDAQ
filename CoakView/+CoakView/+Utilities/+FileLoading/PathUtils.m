@@ -231,6 +231,17 @@ classdef PathUtils
 
         end
 
+        %% ReplaceDateTag
+        function outstr = ReplaceDateTag(str)
+            %If a string has '<DATE>' in it, let's replace that with today's
+            %date for convenience
+            d = datetime;
+            format = 'yyyy-MM-dd';
+            dateStr = string(d, format);  %Today's date
+
+            outstr = strrep(str, '<DATE>', dateStr);
+        end
+
         %% StripExtension
         function newFileName = StripExtension(fileName)
 
