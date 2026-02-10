@@ -150,6 +150,87 @@ classdef PathUtils
             valid = true;
         end
 
+        %% MakeFilePathRelative
+        function [newPath, successfullyMadeRelative] = MakeFilePathRelative(path, Settings)
+            %Make an absolute path into a relative one, relative to the
+            %CoakView folder by default, or to that given as optional
+            %argument RefDir
+            arguments
+                path {mustBeTextScalar};
+                Settings.RefDir = [];
+            end
+
+            successfullyMadeRelative = false;
+
+            if isempty(Settings.RefDir)
+                %Get path of this file
+                m = mfilename("fullpath");
+                refPath = CoakView.Utilities.FileLoading.PathUtils.CleanPath(string(m) + filesep + ".." + filesep + ".." + filesep + ".." + filesep + ".." + filesep);%This sets refPath to be the absolute path to the "CoakView\coakview\CoakView" inner folder - ApplicationDir of Controller
+            else
+                refPath = string(Settings.RefDir);
+            end            
+
+            %Clean trailing \ if present
+            refPath = strip(refPath, filesep);
+            path = strip(path, filesep);
+
+            %Case for if the path totally contains the refPath - ie the
+            %path is a folder inside that root reference path. Just remove
+            %the ref bit and return
+            if contains(path, refPath)
+                newPath = strrep(path, refPath, "");
+                successfullyMadeRelative = true;
+                return;
+            end
+
+            %Split up the paths into the directories, seperate by "\"
+            pathCellArray = strsplit(path, filesep);
+            refPathCellArray = strsplit(refPath, filesep);
+
+            if strcmp(pathCellArray{1}, refPathCellArray{1})    %Make sure we're at least on the same drive, otherwise forget it
+                i = 1;
+                while(strcmp(pathCellArray{i}, refPathCellArray{i}))
+                    i = i +1;
+
+                    if i == length(pathCellArray) || i == length(refPathCellArray)
+                        break;
+                    end
+                end
+
+                %This is the section of the path that the two string s have
+                %in common. Right now this is not output or used, but is
+                %nice to have if doing more with this
+                commonStr = pathCellArray{1};
+                for j = 2 : i-1
+                    commonStr = commonStr + string(filesep) + pathCellArray{j};
+                end
+
+                %This is the part of the path that is left over once the
+                %common section is stripped out
+                ps = "";
+                for j = i : length(pathCellArray)
+                    ps = ps + string(filesep) + pathCellArray{j};
+                end
+
+
+                refs = "";
+                for j = i : length(refPathCellArray)
+                    refs = refs + string(filesep) + "..";
+                end
+
+                % Stitch those two together to give something like "..\NewFolder"
+                newPath = refs + ps;
+                successfullyMadeRelative = true;
+                return;
+            end
+
+            %Just return the original path (but ensure it's consistently a
+            %string) if we fall back down to here. No relative path
+            %extracted
+            newPath = string(path);
+
+        end
+
         %% StripExtension
         function newFileName = StripExtension(fileName)
 
