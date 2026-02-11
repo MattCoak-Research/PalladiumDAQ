@@ -13,24 +13,27 @@ classdef InstrumentController < handle
         SelectedInstruments;
         Instruments;
     end
-
     
     properties (Access = private)
         Controller; %Reference back to the overall CoakView Controller that handles all the main logic - feed things back to there
-        View;   %FrontEnd or GUI that this will plug into to display changes and trigger functions in here
     end
 
     properties (Access = private, Constant)
         Namespace string = "CoakView.Instruments";
         ControlsNamespace string = "CoakView.Instruments.Controls";
     end
+
+    events
+        InstrumentAdded;
+        InstrumentListPopulated;
+        InstrumentRemoved;
+    end
     
     methods
 
         %% Constructor
-        function this = InstrumentController(controller, view)
+        function this = InstrumentController(controller)
             this.Controller = controller;
-            this.View = view;
         end
 
         %% AddEnabledByDefaultInstrumentControls
@@ -85,7 +88,8 @@ classdef InstrumentController < handle
             end
             
             %Update the View
-            this.View.OnInstrumentAdded(instrStringToAdd, instRef);
+            args = CoakView.Events.InstrumentAddedEventData(instrStringToAdd, instRef);
+            notify(this, "InstrumentAdded", args);
         end    
 
         %% AddInstrumentControl
@@ -249,7 +253,7 @@ classdef InstrumentController < handle
             for i = 1 : length(this.Instruments)
 
                 %Update the progress bar
-                this.View.UpdateProgressBar((i) / (length(this.Instruments)+1), "Connecting to " + this.Instruments{i}.Name);
+                this.Controller.UpdateProgress((i) / (length(this.Instruments)+1), "Connecting to " + this.Instruments{i}.Name);
 
                 %Try to connect to the instrument
                 [success, instr_msg] = this.Instruments{i}.Initialise();
@@ -271,7 +275,7 @@ classdef InstrumentController < handle
                     success = false;
                     msg = instr_msg;
                     title = "Could not connect to Instrument";
-                    this.View.CloseProgressBar();
+                    this.Controller.CloseProgress();
                     return;
                 end
             end
@@ -291,7 +295,8 @@ classdef InstrumentController < handle
             this.ListOfAvailableInstrumentClassNameStrings = cellArrayOfInstrumentNameStrings;
 
             %Pass through to the View
-            this.View.PopulateInstrumentList(cellArrayOfInstrumentNameStrings);
+            args = CoakView.Events.ValueChangedEventData(cellArrayOfInstrumentNameStrings);
+            notify(this, "InstrumentListPopulated", args);
         end     
               
         %% RemoveInstrument
@@ -301,7 +306,8 @@ classdef InstrumentController < handle
             end
 
             %Update the View (before we delete the reference!)
-            this.View.OnInstrumentRemoved(instrumentRef);
+            args = CoakView.Events.ValueChangedEventData(instrumentRef);
+            notify(this, "InstrumentRemoved", args);
 
             %Remove it from the list held here
             for i = 1 : length(this.SelectedInstruments)

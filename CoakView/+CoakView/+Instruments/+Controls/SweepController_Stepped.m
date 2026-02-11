@@ -42,7 +42,7 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
             [targetNumSteps, stepSize] = CoakView.Instruments.Controls.SweepController_Stepped.CalculateSteps(sweepDetails.TargetNumSteps, sweepDetails.StepSize, totalMag);
 
             %Calculate how long this will take
-            updateTime = this.Controller.TargetUpdateTime;
+            updateTime = this.Controller.TimingLoopController.TargetUpdateTime;
             estimatedMinUpdateTime = 0.05; %In seconds. A hardcoded semi-guess at the moment.. the minimum time the programme takes to run if not update-time limited. Will add to the Settle Time for a real total time
             timeMin = CoakView.Instruments.Controls.SweepController_Stepped.CalculateTotalTime(targetNumSteps, sweepDetails.SettleTime, updateTime, estimatedMinUpdateTime);
 
@@ -115,7 +115,7 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
         end
 
         %% OnSweepComplete
-        function OnSweepComplete(this)  
+        function OnSweepComplete(~)  
             
         end
 
@@ -153,12 +153,12 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
         end
 
         %% MeasurementsStarted
-        function MeasurementsStarted(this, src, ~, ~)
+        function MeasurementsStarted(this, ~, ~, ~)
             this.UnlockRunButton();            
         end
         
         %% MeasurementsStopped
-        function MeasurementsStopped(this, src, ~, ~)
+        function MeasurementsStopped(this, ~, ~, ~)
             this.GUIView.OnAbortButtonPushed();
             this.LockRunButton();
         end

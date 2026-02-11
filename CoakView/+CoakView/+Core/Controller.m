@@ -18,10 +18,10 @@ classdef Controller < handle
         WindowSettings;
         PathSettings;
         PlotterSettings;
+        FileWriteDetails;
 
         %Data array
         DataTable;
-
     end
 
     properties(Access = private)
@@ -34,7 +34,6 @@ classdef Controller < handle
         InstrumentController;
         SequenceEditorController;
 
-        FileWriteDetails;
         DefaultDataDir;
 
         Headers = {};
@@ -64,7 +63,7 @@ classdef Controller < handle
             this.View = Settings.View;
 
             %Create a helper class for managing Instruments
-            this.InstrumentController = CoakView.Core.InstrumentController(this, this.View);
+            this.InstrumentController = CoakView.Core.InstrumentController(this);
            
             %Create a helper class for controlling the main
             %measurement/timing loop, Start/Pause/Resume etc
@@ -72,7 +71,7 @@ classdef Controller < handle
 
             %Assign controllers into the View and have it subscribe to
             %their events
-            this.View.AssignControllersAndHookUpEvents(this, this.TimingLoopController);
+            this.View.AssignControllersAndHookUpEvents(this, this.TimingLoopController, this.InstrumentController);
 
         end
 
@@ -139,10 +138,10 @@ classdef Controller < handle
                 cont = this.InstrumentController.AddInstrumentControl(this, tab, instrRef, controlDetailsStruct);
 
                 %Subscribe it to Controller events
-                addlistener(this, 'Started', @(src,evnt)cont.MeasurementsStarted(src, evnt));
-                addlistener(this, 'Paused', @(src,evnt)cont.MeasurementsPaused(src, evnt));
-                addlistener(this, 'Resumed', @(src,evnt)cont.MeasurementsResumed(src, evnt));
-                addlistener(this, 'Stopped', @(src,evnt)cont.MeasurementsStopped(src, evnt));
+                addlistener(this.TimingLoopController, 'Started', @(src,evnt)cont.MeasurementsStarted(src, evnt));
+                addlistener(this.TimingLoopController, 'Paused', @(src,evnt)cont.MeasurementsPaused(src, evnt));
+                addlistener(this.TimingLoopController, 'Resumed', @(src,evnt)cont.MeasurementsResumed(src, evnt));
+                addlistener(this.TimingLoopController, 'Stopped', @(src,evnt)cont.MeasurementsStopped(src, evnt));
 
                 %Update the View
                 this.View.OnControlEnabled(controlDetailsStruct.Name);
@@ -267,7 +266,12 @@ classdef Controller < handle
             end
 
             canStart = true;
-        end        
+        end       
+
+        %% CloseProgress
+        function CloseProgress(this)
+        %    this.View.CloseProgressBar();
+        end
 
         %% GetPresetsDir
         function dirPath = GetPresetsDir(this)
@@ -277,7 +281,7 @@ classdef Controller < handle
         %% HaltMeasurementsOnInstrumentError
         function HaltMeasurementsOnInstrumentError(this, instr, e)
             %Show error message and ask if we want to stop measurements
-            halt = this.Controller.HandleError("Error in main measurement loop - Collect Data from " + instr.FullName, e);
+            halt = this.HandleError("Error in main measurement loop - Collect Data from " + instr.FullName, e);
             if(halt)
                 CoakView.Logging.Logger.Log("Info", "Measurements aborted by User from Error Dialogue");
                 this.TimingLoopController.Stop();
@@ -441,7 +445,7 @@ classdef Controller < handle
             %while intialisation is underway - and also get clued in that a
             %slow operation is in fact running and we shouldn't click Start
             %100 times like my dad
-            this.View.ShowProgressBar("Initialising measurements", "Initialising..");
+            this.ShowProgress("Initialising measurements", "Initialising..");
 
             try
                 %Generate column headers and validate
@@ -453,6 +457,10 @@ classdef Controller < handle
 
                 %Initialise all instruments
                 [success, msg, title] = this.InstrumentController.InitialiseInstruments();
+
+                if ~success
+                    return;
+                end
 
                 %If there are no Plotting Tabs, add one
                 if(isempty(this.PlottingTabs))
@@ -466,7 +474,7 @@ classdef Controller < handle
                 %Display a status message in the logger
                 this.Log("Info", "Measurements initialised", "Green", "Measurements initialised");
             catch e
-                this.View.CloseProgressBar();
+                this.CloseProgress();
                 this.HandleError("Error initialising measurements", e);
                 return;
             end
@@ -475,15 +483,15 @@ classdef Controller < handle
             %the header) for each instrument that defines one
             try
                 %Update the progress bar
-                this.View.UpdateProgressBar(1, "Writing metadata and headers");
+                this.UpdateProgress(1, "Writing metadata and headers");
 
                 %Get the string to write from Instruments
                 metadataLines = this.InstrumentController.GetMetadataLines();
 
                 %Succesful end - close the progress bar
-                this.View.CloseProgressBar();
+                this.CloseProgress();
             catch e
-                this.View.CloseProgressBar();
+                this.CloseProgress();
                 this.HandleError("Error collecting instrument metadata", e);
             end
 
@@ -889,6 +897,11 @@ classdef Controller < handle
             this.ShowStatus(colour, msg);
         end
 
+        %% ShowProgress
+        function ShowProgress(this, msg, title)
+          %  this.View.ShowProgressBar(msg, title);
+        end
+
         %% ShowStatus
         function ShowStatus(this, colour, msg)
             switch(colour)
@@ -901,6 +914,19 @@ classdef Controller < handle
                 otherwise
                     error('Colour unsupported in ShowStatus');
             end
+        end
+
+        %% UpdateProgress
+        function UpdateProgress(this, progress, message)
+            %Tell the Controller that a slow event has made progress. Will
+            %trigger updates on GUI Progress Bars on an attached View
+            arguments
+                this;
+                progress (1,1) double;
+                message {mustBeTextScalar}
+            end
+
+%            this.View.UpdateProgressBar(progress, message);
         end
         
     end

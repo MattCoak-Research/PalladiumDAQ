@@ -3,6 +3,7 @@ classdef TimingLoopController < handle
 
     properties(GetAccess = public, SetAccess = private)    
         State = categorical("Ready", ["Running", "Ready", "Pausing", "Stopping", "Paused"]);
+        TargetUpdateTime = 0.1;
     end
 
     properties(Access = private)
@@ -120,6 +121,10 @@ classdef TimingLoopController < handle
                     this.Timer.Period = targetTime_s;
                 end
 
+                %Store value as a property - things like Sweep Controllers
+                %will want to query it to get their time estimates
+                this.TargetUpdateTime = targetTime_s;
+
                 %Update the View to reflect the change
                 args = CoakView.Events.ValueChangedEventData(targetTime_s);
                 notify(this, "UpdateTimeChanged", args);
@@ -130,13 +135,16 @@ classdef TimingLoopController < handle
 
         %% Start
         function Start(this)
-
+            %Set up the Data Writing
             this.Controller.InitialiseDataWriting();
 
             if(this.Controller.CanStart)
                 this.OnStarted();
+
+                %Connect to all instruments and start writing data table
                 [success, msg, title] = this.Controller.InitialiseMeasurements();
                 if success
+                    %We connected successfully - run the measurements
                     this.RunMeasurementLoop();
                 else
                     %We get to here if we failed to connect to an
