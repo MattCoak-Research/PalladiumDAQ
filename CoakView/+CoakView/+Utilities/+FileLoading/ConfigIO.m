@@ -22,7 +22,7 @@ classdef ConfigIO < handle
         function con = LoadConfig(this)
             try
                 confDir = this.GetConfigDirPath();
-                configPath = confDir + filesep + "Config.json";
+                configPath = confDir + "Config.json";
 
                 if ~exist(configPath, 'file')
                     %Show a warning in the command window - note that we do
