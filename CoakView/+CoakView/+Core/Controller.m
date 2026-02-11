@@ -63,14 +63,17 @@ classdef Controller < handle
             this.ApplicationPath = Settings.ApplicationPath;
             this.View = Settings.View;
 
-            this.View.Controller = this;
-
             %Create a helper class for managing Instruments
             this.InstrumentController = CoakView.Core.InstrumentController(this, this.View);
            
             %Create a helper class for controlling the main
             %measurement/timing loop, Start/Pause/Resume etc
-            this.TimingLoopController = CoakView.Core.TimingLoopController(this, this.InstrumentController);
+            this.TimingLoopController = CoakView.Core.TimingLoopController(this);
+
+            %Assign controllers into the View and have it subscribe to
+            %their events
+            this.View.AssignControllersAndHookUpEvents(this, this.TimingLoopController);
+
         end
 
         %% AddInstrument
@@ -349,14 +352,14 @@ classdef Controller < handle
         %% Initialise
         function Initialise(this)
             %Initialise the Controller, loading and applying settings etc
-        %    try
+            try
                 %Load settings from .json config files in the Settings directory
                 [logSettings, this.PathSettings, this.WindowSettings, this.PlotterSettings] = this.LoadSettings();
-        %    catch e
+            catch e
                 %Note that we don't pass this in to any nice error handling
                 %because we haven't set that up yet
-         %       error("Error in loading settings in Controller.Initialise: " + string(e.message));
-        %    end
+                error("Error in loading settings in Controller.Initialise: " + string(e.message));
+            end
 
             %Now we know the settings to pass to it, create a Logger. Don't
             %need to keep a reference to it, as it has a pseudo-static
@@ -412,6 +415,84 @@ classdef Controller < handle
             end
         end
 
+        %% InitialiseDataWriting
+        function InitialiseDataWriting(this)
+            %Create a DataWriter object to log all data
+            this.DataWriter = CoakView.DataWriting.DataWriter(this.FileWriteDetails);
+            this.FileWriteDetails.FileName = this.DataWriter.ValidateFilePath();
+
+            %Update the View to display the file write settings
+            this.View.OnFileWriteOptionsChanged(this.FileWriteDetails);
+
+            %Clean up Plotters list, remove any that have been deleted
+            this.CleanUpPlotters();
+        end
+
+        %% InitialiseMeasurements
+        function [success, msg, title] = InitialiseMeasurements(this)
+            %Reset and prepare all GUI and instruments ready to then run
+            %the main update loop - note that Resume doesn't call this,
+            %just gets the loop running again without it
+
+            %Display a status message in the logger
+            this.Log("Info", "Initialising measurements", "Yellow", "Initialising measurements");
+
+            %Display a model progress bar so we can't go clicking things
+            %while intialisation is underway - and also get clued in that a
+            %slow operation is in fact running and we shouldn't click Start
+            %100 times like my dad
+            this.View.ShowProgressBar("Initialising measurements", "Initialising..");
+
+            try
+                %Generate column headers and validate
+                [this.Headers, headersString, this.Units] = this.InstrumentController.InitialiseHeaders();
+
+                %Initialise the (:, n) double array that will hold the
+                %data
+                this.DataTable = [];
+
+                %Initialise all instruments
+                [success, msg, title] = this.InstrumentController.InitialiseInstruments();
+
+                %If there are no Plotting Tabs, add one
+                if(isempty(this.PlottingTabs))
+                    this.AddNewPlottingTab(2,1);
+                end
+
+                %Initialise all graphs
+                this.UpdatePlotVariableNames(this.Headers);
+                this.ClearPlots();
+
+                %Display a status message in the logger
+                this.Log("Info", "Measurements initialised", "Green", "Measurements initialised");
+            catch e
+                this.View.CloseProgressBar();
+                this.HandleError("Error initialising measurements", e);
+                return;
+            end
+
+            %Add a metadata/settings line to the top of the datafile (in
+            %the header) for each instrument that defines one
+            try
+                %Update the progress bar
+                this.View.UpdateProgressBar(1, "Writing metadata and headers");
+
+                %Get the string to write from Instruments
+                metadataLines = this.InstrumentController.GetMetadataLines();
+
+                %Succesful end - close the progress bar
+                this.View.CloseProgressBar();
+            catch e
+                this.View.CloseProgressBar();
+                this.HandleError("Error collecting instrument metadata", e);
+            end
+
+            %Write the headers to file
+            this.DataWriter.WriteHeaders(headersString, "MetadataLines", metadataLines);
+
+            success = true;            
+        end
+
         %% LoadPreset
         function presetFn = LoadPreset(this, presetName)
             %Display a status message in the logger
@@ -456,7 +537,7 @@ classdef Controller < handle
             %grab data from Instruments and do things with it.
             try
                 %Collect Data
-                this.Controller.ShowStatus("Green", "Running");
+                this.ShowStatus("Green", "Running");
                 dataRow = this.InstrumentController.CollectMeasurement();
             catch e
                 CatchMeasurementLoopError(this, e);
@@ -869,88 +950,6 @@ classdef Controller < handle
             %housekeeping like refreshing UI
             this.View.FinalisePreset();
         end     
-
-        %% InitialiseDataWriting
-        function InitialiseDataWriting(this)
-            %Create a DataWriter object to log all data
-            this.DataWriter = CoakView.DataWriting.DataWriter(this.FileWriteDetails);
-            this.FileWriteDetails.FileName = this.DataWriter.ValidateFilePath();
-
-            %Update the View to display the file write settings
-            this.View.OnFileWriteOptionsChanged(this.FileWriteDetails);
-
-            %Clean up Plotters list, remove any that have been deleted
-            this.CleanUpPlotters();
-        end
-
-        %% InitialiseMeasurements
-        function [success, msg, title] = InitialiseMeasurements(this)
-            %Reset and prepare all GUI and instruments ready to then run
-            %the main update loop - note that Resume doesn't call this,
-            %just gets the loop running again without it
-
-            success = false;
-            msg = "";
-            title = "";
-
-            %Display a status message in the logger
-            this.Log("Info", "Initialising measurements", "Yellow", "Initialising measurements");
-
-            %Display a model progress bar so we can't go clicking things
-            %while intialisation is underway - and also get clued in that a
-            %slow operation is in fact running and we shouldn't click Start
-            %100 times like my dad
-            this.View.ShowProgressBar("Initialising measurements", "Initialising..");
-
-            try
-                %Generate column headers and validate
-                [this.Headers, headersString, this.Units] = this.InstrumentController.InitialiseHeaders();
-
-                %Initialise the (:, n) double array that will hold the
-                %data
-                this.DataTable = [];
-
-                %Initialise all instruments
-                [success, msg, title] = this.InstrumentController.InitialiseInstruments();
-
-                %If there are no Plotting Tabs, add one
-                if(isempty(this.PlottingTabs))
-                    this.AddNewPlottingTab(2,1);
-                end
-
-                %Initialise all graphs
-                this.UpdatePlotVariableNames(this.Headers);
-                this.ClearPlots();
-
-                %Display a status message in the logger
-                this.Log("Info", "Measurements initialised", "Green", "Measurements initialised");
-            catch e
-                this.View.CloseProgressBar();
-                this.HandleError("Error initialising measurements", e);
-                return;
-            end
-
-            %Add a metadata/settings line to the top of the datafile (in
-            %the header) for each instrument that defines one
-            try
-                %Update the progress bar
-                this.View.UpdateProgressBar(1, "Writing metadata and headers");
-
-                %Get the string to write from Instruments
-                metadataLines = this.InstrumentController.GetMetadataLines();
-
-                %Succesful end - close the progress bar
-                this.View.CloseProgressBar();
-            catch e
-                this.View.CloseProgressBar();
-                this.HandleError("Error collecting instrument metadata", e);
-            end
-
-            %Write the headers to file
-            this.DataWriter.WriteHeaders(headersString, "MetadataLines", metadataLines);
-
-            success = true;            
-        end
 
         %% LoadSettings
         function [logSettings, pathSettings, windowSettings, plotterSettings] = LoadSettings(this)

@@ -1,15 +1,13 @@
 classdef TimingLoopController < handle
     %TIMINGLOOPCONTROLLER 
 
-    properties
-        TargetUpdateTime = 0.2; %in s        
+    properties(GetAccess = public, SetAccess = private)    
+        State = categorical("Ready", ["Running", "Ready", "Pausing", "Stopping", "Paused"]);
     end
 
     properties(Access = private)
-        State = categorical("Ready", ["Running", "Ready", "Pausing", "Stopping", "Paused"]);
         Timer;
         Controller;
-        View;
     end
 
     events
@@ -17,14 +15,15 @@ classdef TimingLoopController < handle
         Paused;
         Resumed;
         Stopped;
+        TargetUpdateTimeChanged;
+        UpdateTimeChanged;
     end
 
     methods
 
         %% Constructor
-        function this = TimingLoopController(controller, view)
+        function this = TimingLoopController(controller)
             this.Controller = controller;
-            this.View = view;
         end
        
         %% CloseTimer
@@ -53,9 +52,6 @@ classdef TimingLoopController < handle
             %Log some information
             this.Controller.Log("Debug", "Measurements paused", "Yellow", "Paused");
 
-            %Update the View
-            this.View.OnPaused();
-
             %Fire event
             notify(this, "Paused");
         end
@@ -68,9 +64,6 @@ classdef TimingLoopController < handle
             this.State = "Running";
             this.RunMeasurementLoop();
 
-            %Update the View
-            this.View.OnResumed();
-
             %Fire event
             notify(this, "Resumed");
         end
@@ -78,9 +71,6 @@ classdef TimingLoopController < handle
         %% OnStarted
         function OnStarted(this)
             this.State = "Running";
-
-            %Update the View
-            this.View.OnStarted();
 
             %Fire event
             notify(this, "Started");
@@ -95,9 +85,6 @@ classdef TimingLoopController < handle
             %Log some information
             this.Controller.Log("Info", "Measurements stopped", "Green", "Ready");
             this.Controller.ShowStatus("Green", "Ready");
-
-            %Update the View
-            this.View.OnStopped();
 
             %Fire event
             notify(this, "Stopped");
@@ -117,6 +104,28 @@ classdef TimingLoopController < handle
             %the measurement loop running again
             this.State = "Running";
             this.RunMeasurementLoop();
+        end
+
+        %% SetUpdateTime
+        function SetUpdateTime(this, targetTime_s)
+            try
+                %Need to stop the timer, change the period, then restart it -
+                %get an error if we try to change the period while it is
+                %running
+                if(strcmp(this.Timer.Running, 'on'))
+                    this.Timer.stop();
+                    this.Timer.Period = targetTime_s;
+                    this.Timer.start();
+                else
+                    this.Timer.Period = targetTime_s;
+                end
+
+                %Update the View to reflect the change
+                args = CoakView.Events.ValueChangedEventData(targetTime_s);
+                notify(this, "UpdateTimeChanged", args);
+            catch err
+                this.Controller.HandleError("Error setting update time", err);
+            end
         end
 
         %% Start
@@ -150,29 +159,6 @@ classdef TimingLoopController < handle
             %iteration will complete, then CloseAll will be called, and THERE
             %all instruments can be stopped.
             this.StopMeasurements();
-        end
-
-        %% SetUpdateTime
-        function SetUpdateTime(this, targetTime_s)
-            try
-                %Need to stop the timer, change the period, then restart it -
-                %get an error if we try to change the period while it is
-                %running
-                if(strcmp(this.Timer.Running, 'on'))
-                    this.Timer.stop();
-                    this.Timer.Period = targetTime_s;
-                    this.Timer.start();
-                else
-                    this.Timer.Period = targetTime_s;
-                end
-
-                this.TargetUpdateTime = targetTime_s;
-
-                %Update the View to reflect the change
-                this.View.OnTargetUpdateTimeChanged(targetTime_s);
-            catch err
-                this.Controller.HandleError("Error setting update time", err);
-            end
         end
 
     end
@@ -254,12 +240,17 @@ classdef TimingLoopController < handle
             end
 
             switch(this.State)
-                case("Running")
-                    
+                case("Running")   
+                    %Execute the core 'tick' measurement command in
+                    %Controller. Gets data, writes data to file, updates
+                    %plots etc
+                    this.Controller.Measure();
+
                     try
-                        %Update the time elapsed this frame in the GUI
+                        %Fire event to allow updating the time elapsed this frame in the GUI
                         elapsedTimeSinceLastTick_s = this.Timer.InstantPeriod;
-                        this.View.DisplayUpdateTime(elapsedTimeSinceLastTick_s);
+                        args = CoakView.Events.ValueChangedEventData(elapsedTimeSinceLastTick_s);
+                        notify(this, "UpdateTimeChanged", args);
                     catch e
                         warning("Measurement time update failed: " + string(e.message));
                     end

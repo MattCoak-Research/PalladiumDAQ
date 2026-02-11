@@ -232,13 +232,19 @@ classdef InstrumentController < handle
             [headers, headersString, units] = this.GetHeaders();
 
             %Verify that those headers are valid - no duplicates
-            [duplicateHeaderValues, duplicateHeaderValuesString] = CoakView.Utilities.ErrorChecking.CheckForDuplicatesInHeadersArray(headers);
+            [duplicateHeaderValues, duplicateHeaderValuesString] = CoakView.Utilities.ErrorChecking.Verification.CheckForDuplicatesInHeadersArray(headers);
             assert(isempty(duplicateHeaderValues), "Some variable names appear twice, this is not allowed. Duplicate variables: " + duplicateHeaderValuesString);
 
         end
 
         %% InitialiseInstruments
         function [success, msg, title] = InitialiseInstruments(this)
+            %Set starting values. Note, function will immediately return if
+            %there are no Instruments, returning these
+            success = false;
+            msg = "";
+            title = "";
+
             %Initialise all instruments
             for i = 1 : length(this.Instruments)
 
