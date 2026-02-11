@@ -22,6 +22,8 @@ classdef Controller < handle
 
         %Data array
         DataTable;
+        Headers = {};
+        Units = {};
     end
 
     properties(Access = private)
@@ -29,15 +31,12 @@ classdef Controller < handle
         DataWriter;
         PlottingPanels = {};
         PlottingTabs = {};
-        BigNumDisplays;
 
         InstrumentController;
         SequenceEditorController;
 
         DefaultDataDir;
 
-        Headers = {};
-        Units = {};
 
         SuppressedErrorMessages = {};
 
@@ -48,6 +47,9 @@ classdef Controller < handle
         PresetsDirectory = filesep + "+CoakViewPresets";
     end
 
+    events
+        DataRowUpdated;
+    end
 
     methods
         %% Constructor
@@ -570,15 +572,10 @@ classdef Controller < handle
             end
 
             try
-                %Update data plots
+                %Update data plots & Update any Big Number Display windows
                 this.PlotData(dataRow);
-            catch e
-                CatchMeasurementLoopError(this, e);
-            end
-
-            try
-                %Update any Big Number Display windows
-                this.UpdateBigNumberDisplays(dataRow);
+                args = CoakView.Events.DataRowAddedEventData(dataRow);
+                notify(this, "DataRowUpdated", args);
             catch e
                 CatchMeasurementLoopError(this, e);
             end           
@@ -605,50 +602,7 @@ classdef Controller < handle
                     end
                 end
             end
-        end
-
-        %% NewBigNumberDisplay
-        function NewBigNumberDisplay(this)
-            iconPath = this.ApplicationDir + "\+CoakView\+Components\Graphics\BigNumDisplayIcon.png";
-
-            %Create a dialogue box askign which value we want to display
-            headers = this.Headers;
-
-            %Quit here if there are no values to choose from yet - i.e. if
-            %the programme is not yet running.
-            if isempty(headers)
-                return;
-            end
-
-            try
-
-                [indx, tf] = listdlg('Name', 'Select value', 'PromptString', 'Select value to be displayed in Big Number Window.', 'SelectionMode', 'single', 'ListString', headers, 'ListSize', [250,350]);
-
-                if(tf)
-                    valHeader = string(this.Headers(indx));
-                    unitsStr = string(this.Units(indx));
-
-                    f= uifigure("Icon", iconPath);
-                    g = uigridlayout(f, [1,1]);
-                    b = CoakView.Components.BigNumberDisplay(g);
-
-                    b.IndexToShow = indx;
-                    b.SetTitle(valHeader);
-                    b.SetUnits(unitsStr);
-
-                    this.BigNumDisplays = [this.BigNumDisplays b];
-                    this.View.RegisterDependentWindow(f);
-
-                    %Prevent the display being sent to the back of the tab
-                    %stack and everything minimising..
-                    %this.RefocusWindow();
-                    f.Visible = 'off';
-                    f.Visible = 'on';
-                end
-            catch err
-                this.HandleError("Error creating big number display", err);
-            end
-        end
+        end       
 
         %% OnFigureClosed
         function OnFigureClosed(this)
@@ -1054,30 +1008,7 @@ classdef Controller < handle
                     pltr.PlotData(this.DataTable);
                 end
             end
-        end
-
-        %% UpdateBigNumberDisplays
-        function UpdateBigNumberDisplays(this, newDataRow)
-
-            if isempty(this.BigNumDisplays)
-                return;
-            end
-
-            %Check for any displays that may have been closed by a
-            %discourteous user - remove them from the list of displays to
-            %update if so.
-            for i = length(this.BigNumDisplays) : - 1 : 1
-                if(~isvalid(this.BigNumDisplays(i)))
-                    this.BigNumDisplays(i) = [];
-                end
-            end
-
-            for i = 1 : length(this.BigNumDisplays)
-                bnd = this.BigNumDisplays(i);
-
-                bnd.UpdateValue(newDataRow);
-            end
-        end
+        end       
 
         %% UpdatePlotVariableNames
         function UpdatePlotVariableNames(this, varNames)

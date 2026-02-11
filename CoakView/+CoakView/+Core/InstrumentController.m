@@ -245,7 +245,7 @@ classdef InstrumentController < handle
         function [success, msg, title] = InitialiseInstruments(this)
             %Set starting values. Note, function will immediately return if
             %there are no Instruments, returning these
-            success = false;
+            success = true;
             msg = "";
             title = "";
 
