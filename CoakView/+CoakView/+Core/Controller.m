@@ -49,6 +49,9 @@ classdef Controller < handle
 
     events
         DataRowUpdated;
+        StartedShowingProgress;
+        UpdatedProgress;
+        StoppedShowingProgress;
     end
 
     methods
@@ -272,7 +275,7 @@ classdef Controller < handle
 
         %% CloseProgress
         function CloseProgress(this)
-        %    this.View.CloseProgressBar();
+            notify(this, "StoppedShowingProgress");
         end
 
         %% GetPresetsDir
@@ -853,7 +856,8 @@ classdef Controller < handle
 
         %% ShowProgress
         function ShowProgress(this, msg, title)
-          %  this.View.ShowProgressBar(msg, title);
+          args = CoakView.Events.MessageEventData(msg, title);
+          notify(this, "StartedShowingProgress", args);
         end
 
         %% ShowStatus
@@ -880,7 +884,8 @@ classdef Controller < handle
                 message {mustBeTextScalar}
             end
 
-%            this.View.UpdateProgressBar(progress, message);
+            args = CoakView.Events.ProgressUpdateEventData(progress, message);
+            notify(this, "UpdatedProgress", args);
         end
         
     end
