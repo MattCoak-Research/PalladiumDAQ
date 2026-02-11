@@ -3,10 +3,15 @@ classdef InstrumentController < handle
     %instrument creation and management in CoakView, and liaising with
     %Instrument selection GUIs in the View
     
+    properties
+        ErrorOnAllInstrumentErrors = false; %Note - gets set in LoadSettings from the Config.json file's value, overriding a value here. If this is set to true, a full error will be thrown every time an instruments fails to return data. Default (false) is to throw warnings and pad datafile with NaNs instead. Testing has shown that very rare communication errors do happen, and it's a shame to lose the whole experiment because a magnet not being used didn't return 0 properly..
+    end
+
     properties (GetAccess = public, SetAccess = private)
         ListOfAvailableInstrumentClassNameStrings;
         SelectedInstrumentNames;
         SelectedInstruments;
+        Instruments;
     end
 
     
@@ -43,8 +48,7 @@ classdef InstrumentController < handle
                     this.Controller.AddInstrumentControl(instr, cds);
                 end
             end
-        end
-     
+        end     
         
         %% AddInstrument
         function instRef = AddInstrument(this, instrStringToAdd)
@@ -97,10 +101,174 @@ classdef InstrumentController < handle
             %Register the control class with the instrument
             instrRef.RegisterControlObject(controlClassRef);
         end
-          
+
+        %% CloseAll
+        function CloseAll(this)
+
+            %Display a status message in the logger
+            this.Controller.Log("Info", "Closing Instruments", "Yellow", "Closing Instruments");
+
+            %Close all instruments
+            for i = 1 : length(this.Instruments)
+                this.Instruments{i}.Close();
+            end
+
+            %Display a status message in the logger
+            this.Controller.Log("Info", "Instruments closed", "Green", "Instruments closed");
+        end
+
+        %% CollectMeasurement
+        function DataRow = CollectMeasurement(this)
+            %Get current time in universal coordinated time (seconds since 1970) then divide by 60 to get minutes
+            Time = posixtime(datetime('now')) /60;
+
+            %Start the DataRow with the Time column, always
+            DataRow = Time;
+
+            %Scan through all instruments and get their data
+            for i = 1 : length(this.Instruments)
+                try
+                    %Check if any GUIs/controls have sent Settings to apply
+                    %to the instrument
+                    this.Instruments{i}.CheckForSettingsToApply();
+
+                    %Measure
+                    DataRow = [DataRow this.Instruments{i}.Measure()];
+                catch e
+                    %Pop in a nan value, as we failed to grab the data from
+                    %this instrument
+                    %First need to know how many nans to insert.. match to
+                    %Headers
+                    hdrs = this.Instruments{i}.GetHeaders();
+                    n = length(hdrs);
+                    DataRow = [DataRow, nan(1, n)];
+
+                    if this.ErrorOnAllInstrumentErrors
+                        this.Controller.HaltMeasurementsOnInstrumentError(this.Instruments{i}, e);
+                    else
+                        %Just show a warning, do not halt execution
+                        reportStr = string(e.message);
+                        CoakView.Logging.Logger.Log("Warning", "Measurement call to instrument " + this.Instruments{i}.Name + " failed in CollectMeasurement, data set to NaN for this tick. Error message: " + reportStr);
+                    end
+                end
+            end
+
+            %Scan through all instruments and cache that full dataRow into
+            %their LastDataRow property, which they can use if doing
+            %independent data writing
+            for i = 1 : length(this.Instruments)
+                try
+                    this.Instruments{i}.LastFullDataRow = DataRow;
+                catch e
+                    %Just show a warning, do not halt execution
+                    reportStr = string(e.message);
+                    CoakView.Logging.Logger.Log("Warning", "Last dataRow update call to instrument " + this.Instruments{i}.Name + " failed in CollectMeasurement. Error message: " + reportStr);
+
+                end
+            end
+        end
+
+        %% GetHeaders
+        function [Headers, HeadersString, Units] = GetHeaders(this)
+            %Put time in as first header
+            Headers = {"Time (mins)"};
+            Units = {"mins"};
+
+            %Scan through all instruments and get their data column
+            %headers.
+            for i = 1 : length(this.Instruments)
+                [instrHeaders, instrUnits] = this.Instruments{i}.GetHeaders();
+                for j = 1 : length(instrHeaders)
+                    Headers = [Headers, string(instrHeaders{j})];
+                    Units = [Units, string(instrUnits{j})];
+                end
+            end
+
+            %Make a simple string of all these headers, tab seperated
+            HeadersString = '';
+            for i= 1 : length(Headers)
+                HeadersString = sprintf('%s%s\t', HeadersString, Headers{i});
+            end
+
+            %Scan through all instruments and cache that full headers row into
+            %their FullHeadersRow property, which they can use if doing
+            %independent data writing
+            for i = 1 : length(this.Instruments)
+                try
+                    this.Instruments{i}.FullHeadersRow = Headers;
+                    this.Instruments{i}.FileWriteDetails = this.Controller.FileWriteDetails;
+                catch e
+                    %Just show a warning, do not halt execution
+                    reportStr = string(e.message);
+                    CoakView.Logging.Logger.Log("Warning", "Last dataRow update call to instrument " + this.Instruments{i}.Name + " failed in CollectMeasurement. Error message: " + reportStr);
+
+                end
+            end
+        end
+
         %% GetInstruments
         function instRefs = GetInstruments(this)            
             instRefs = this.SelectedInstruments;
+        end
+
+        %% GetMetadataLines
+        function metadataLines = GetMetadataLines(this)
+            metadataLines = [];
+            for i = 1 : length(this.Instruments)
+                metadataNullableString = this.Instruments{i}.GrabMetadataString();
+                if ~isempty(metadataNullableString)
+                    metadataLines = [metadataLines metadataNullableString];
+                end
+            end
+        end
+
+        %% InitialiseHeaders
+        function [headers, headersString, units] = InitialiseHeaders(this)
+
+            %Set the list of instruments from the selection panel's ItemData
+            this.Instruments = this.GetInstruments();
+
+            %Generate column headers, for internal use and file writing
+            [headers, headersString, units] = this.GetHeaders();
+
+            %Verify that those headers are valid - no duplicates
+            [duplicateHeaderValues, duplicateHeaderValuesString] = CoakView.Utilities.ErrorChecking.CheckForDuplicatesInHeadersArray(headers);
+            assert(isempty(duplicateHeaderValues), "Some variable names appear twice, this is not allowed. Duplicate variables: " + duplicateHeaderValuesString);
+
+        end
+
+        %% InitialiseInstruments
+        function [success, msg, title] = InitialiseInstruments(this)
+            %Initialise all instruments
+            for i = 1 : length(this.Instruments)
+
+                %Update the progress bar
+                this.View.UpdateProgressBar((i) / (length(this.Instruments)+1), "Connecting to " + this.Instruments{i}.Name);
+
+                %Try to connect to the instrument
+                [success, instr_msg] = this.Instruments{i}.Initialise();
+
+                if ~success
+                    %We failed to connect to an Instrument. Rather than
+                    %just an error throw, placing us in an unknown
+                    %state, disconnect from all previously-successful
+                    %instruments, abort cleanly, show an explanatory
+                    %dialogue, including the message that the failed
+                    %connection returned.
+
+                    %Disconnect from previous instruments
+                    for j = 1 : i-1
+                        this.Instruments{j}.Close();
+                    end
+
+                    %Abort, with warning message
+                    success = false;
+                    msg = instr_msg;
+                    title = "Could not connect to Instrument";
+                    this.View.CloseProgressBar();
+                    return;
+                end
+            end
         end
 
         %% LoadInstrumentClasses
@@ -143,7 +311,7 @@ classdef InstrumentController < handle
         end
 
         %% RemoveInstrumentControl
-        function RemoveInstrumentControl(this, instrRef, controlDetailsStruct)
+        function RemoveInstrumentControl(~, instrRef, controlDetailsStruct)
        
             %Get a reference to the InstrumentControlBase object assigned
             %to this Instrument, of this name

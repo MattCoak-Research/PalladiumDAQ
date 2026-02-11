@@ -1,7 +1,5 @@
 classdef Controller < handle
-    %CONTROLLER Logic and measurement loop for CoakView Programme. This is
-    %the Model, the GUI frontend is the view - doesn't actually do
-    %anything, passes commands through to here
+    %CONTROLLER Logic and measurement loop for CoakView Programme. 
 
     properties
         %Reference to the main figure window / GUI / View Implementation
@@ -12,9 +10,7 @@ classdef Controller < handle
         ApplicationDir;     %These will be set in StartUp Fcn of the UiFigure
 
 
-        Instruments;
-
-        ErrorOnAllInstrumentErrors = false; %Note - gets set in LoadSettings from the Config.json file's value, overriding a value here. If this is set to true, a full error will be thrown every time an instruments fails to return data. Default (false) is to throw warnings and pad datafile with NaNs instead. Testing has shown that very rare communication errors do happen, and it's a shame to lose the whole experiment because a magnet not being used didn't return 0 properly..
+        TimingLoopController;
     end
 
     properties(GetAccess = public, SetAccess = private)
@@ -26,12 +22,9 @@ classdef Controller < handle
         %Data array
         DataTable;
 
-        TargetUpdateTime = 0.2; %in s
     end
 
     properties(Access = private)
-        State = categorical("Ready", ["Running", "Ready", "Pausing", "Stopping", "Paused"]);
-        Timer;
 
         DataWriter;
         PlottingPanels = {};
@@ -53,15 +46,9 @@ classdef Controller < handle
     end
 
     properties(Constant)
-        PresetsDirectory = "\+CoakViewPresets";
+        PresetsDirectory = filesep + "+CoakViewPresets";
     end
 
-    events
-        Started;
-        Paused;
-        Resumed;
-        Stopped;
-    end
 
     methods
         %% Constructor
@@ -77,6 +64,13 @@ classdef Controller < handle
             this.View = Settings.View;
 
             this.View.Controller = this;
+
+            %Create a helper class for managing Instruments
+            this.InstrumentController = CoakView.Core.InstrumentController(this, this.View);
+           
+            %Create a helper class for controlling the main
+            %measurement/timing loop, Start/Pause/Resume etc
+            this.TimingLoopController = CoakView.Core.TimingLoopController(this, this.InstrumentController);
         end
 
         %% AddInstrument
@@ -95,7 +89,7 @@ classdef Controller < handle
 
                 %Set the instrument name if that optional parameter was
                 %passed in. This is useful when setting up Instruments and
-                %their GUI controls programmtically - we want the name to
+                %their GUI controls programmatically - we want the name to
                 %be set before the control gets added in the line below..
                 if ~strcmp(settings.Name, "Auto")
                     instr.Name = settings.Name;
@@ -252,22 +246,117 @@ classdef Controller < handle
             end
         end
 
+        %% CanStart
+        function canStart = CanStart(this)
+            canStart = false;
+            try
+                %Verify directory and path valid
+                if(~CoakView.Utilities.FileLoading.PathUtils.IsDirectoryValid(this.FileWriteDetails.Directory))
+                    error(['Error - directory not valid: ' strrep(this.FileWriteDetails.Directory, '\', '\\')]);
+                end
+                if(~CoakView.Utilities.FileLoading.PathUtils.IsFileNameValid(this.FileWriteDetails.FileName))
+                    error(['Error - file name not valid: ' strrep(this.FileWriteDetails.FileName, '\', '\\')]);
+                end
+            catch err
+                this.View.OnMeasurementsStopped();
+                this.Controller.HandleError('Invalid file path. Cannot start measurements', err);
+                return;
+            end
+
+            canStart = true;
+        end        
+
         %% GetPresetsDir
         function dirPath = GetPresetsDir(this)
             dirPath = fullfile(this.ApplicationDir,  this.PresetsDirectory);
         end
 
+        %% HaltMeasurementsOnInstrumentError
+        function HaltMeasurementsOnInstrumentError(this, instr, e)
+            %Show error message and ask if we want to stop measurements
+            halt = this.Controller.HandleError("Error in main measurement loop - Collect Data from " + instr.FullName, e);
+            if(halt)
+                CoakView.Logging.Logger.Log("Info", "Measurements aborted by User from Error Dialogue");
+                this.TimingLoopController.Stop();
+                this.TimingLoopController.OnStopped();
+            end
+        end
+
+        %% HandleError
+        function Halt = HandleError(this, message, error)
+            %Assemble a full message from the message sent into the logger,
+            %and the actual error details
+            msg = string(message) + ": " + string(error.message);
+
+            %If we have previously suppressed this error, no need to do
+            %anything, just return (and do not halt)
+            if any(strcmp(this.SuppressedErrorMessages, msg))
+                Halt = false;
+                return;
+            end
+
+            %Message about the error - Try to display a red light error status in the programme, and Log, but
+            %don't fuss if that fails, just ignore the exception and throw
+            %a warning
+            try
+                this.ShowStatus("Red", "Error: " + msg);
+                drawnow();
+                CoakView.Logging.Logger.Log("Error", msg, "FullMessage", msg + " : " + string(getReport(error, "extended", "hyperlinks", "on")));
+            catch e
+                warning("An error was thrown while.. trying to handle an error.. : " + string(e.message));
+            end
+
+            %Pass on the error to the Error Handler to show a dialogue box
+            %- user can choose whether to stop the measurement loop, and
+            %separately whether to suppress this error going forward
+            uiFigureHandle = this.View.GetUIFigureHandle();
+            [Halt, suppressError] = CoakView.Logging.Logger.HandleError(message, error, uiFigureHandle);
+
+            %User could have chosen to Suppress this error message in the
+            %dialogue box, so it will not be shown in the future - handle
+            %that case. List of suppressed errors will (for now at least)
+            %be a property of Controller, so will only be reset by
+            %restarting the programme. Could reset it on measurement start
+            %later if that turns out to be clearer for the user
+            if(suppressError)
+                %Log the fact that we are suppressing an error
+                CoakView.Logging.Logger.Log("Info", "Error Suppressed by User: " + msg);
+
+                %Add this error to the list
+                this.SuppressedErrorMessages = [this.SuppressedErrorMessages, msg];
+            end
+        end
+
+        %% HandleWarning
+        function HandleWarning(this, msg, title)
+            fig = this.View;
+            try
+                uifg = fig.CoakViewUIFigure;
+                if matlab.ui.internal.isUIFigure(uifg)
+                    %Our view is a UI Figure, show a modal warning box based on
+                    %its handle
+                    uialert(uifg, sprintf(msg), title, "Icon", "warning", "Interpreter", "HTML");
+                else
+                    %Our view is not a ui figure - just show a warning in the
+                    %console
+                    warning(msg);
+                end
+            catch
+                warning(msg);
+            end
+        end
+
         %% Initialise
         function Initialise(this)
             %Initialise the Controller, loading and applying settings etc
-            try
+        %    try
                 %Load settings from .json config files in the Settings directory
                 [logSettings, this.PathSettings, this.WindowSettings, this.PlotterSettings] = this.LoadSettings();
-            catch e
+        %    catch e
                 %Note that we don't pass this in to any nice error handling
                 %because we haven't set that up yet
-                error("Error in loading settings in Controller.Initialise: " + string(e.message));
-            end
+         %       error("Error in loading settings in Controller.Initialise: " + string(e.message));
+        %    end
 
             %Now we know the settings to pass to it, create a Logger. Don't
             %need to keep a reference to it, as it has a pseudo-static
@@ -286,7 +375,7 @@ classdef Controller < handle
 
             try
                 %Set logging/error setting parameters in Controller
-                this.ErrorOnAllInstrumentErrors = logSettings.ErrorOnAllInstrumentErrors;
+                this.InstrumentController.ErrorOnAllInstrumentErrors = logSettings.ErrorOnAllInstrumentErrors;
 
                 %Store default paths etc
                 this.FileWriteDetails.Directory = this.PathSettings.DefaultDirectory;
@@ -309,11 +398,12 @@ classdef Controller < handle
                 this.View.ApplySettings(this.PathSettings, this.WindowSettings);
 
                 %Load plugins
-                this.InitialisePlugins();
+                this.Log("Debug", "Initialising plugins", "Yellow", "Initialising plugins...");
+                this.InstrumentController.LoadInstrumentClasses(this.ApplicationDir + "\+CoakView\+Instruments");
+                this.Log("Debug", "Plugins intialised", "Green", "Plugins intialised");
 
-                %Create a Timer object that will schedule all the
-                %measurement loop calls
-                this.Timer = timer('TimerFcn', @this.Update, 'ExecutionMode', 'fixedRate', 'Period', 0.1, 'ObjectVisibility','off');
+                %Initialise TimingLoopController
+                this.TimingLoopController.Initialise();
 
                 %Display a status message in the logger
                 this.Log("Info", "Ready", "Green", "Ready");
@@ -359,6 +449,75 @@ classdef Controller < handle
             this.ShowStatus(colour, statusText);
         end
         
+        %% Measure
+        function Measure(this)
+            %This is the core function that gets called by
+            %TimingLoopController's Update call every tick, to actually
+            %grab data from Instruments and do things with it.
+            try
+                %Collect Data
+                this.Controller.ShowStatus("Green", "Running");
+                dataRow = this.InstrumentController.CollectMeasurement();
+            catch e
+                CatchMeasurementLoopError(this, e);
+                %Need to do something here to keep programme running when
+                %CollectMeasurement errors - set the dataRow to NaNs.
+                dataRow = nan([1, length(this.Headers)]);
+                this.Controller.Log("Warning", "Data Row set to NaN values due to error thrown in CollectMeasurements", "Yellow", "Data Row set to NaN values due to error thrown in CollectMeasurements");
+            end
+
+            try
+                %Write data to file
+                this.DataWriter.WriteLine(dataRow);
+            catch e
+                CatchMeasurementLoopError(this, e);
+            end
+
+            try
+                %Append data to array
+                this.AppendToDataTable(dataRow);
+            catch e
+                CatchMeasurementLoopError(this, e);
+            end
+
+            try
+                %Update data plots
+                this.PlotData(dataRow);
+            catch e
+                CatchMeasurementLoopError(this, e);
+            end
+
+            try
+                %Update any Big Number Display windows
+                this.UpdateBigNumberDisplays(dataRow);
+            catch e
+                CatchMeasurementLoopError(this, e);
+            end           
+
+            %Want to catch the error pretty locally, so the rest of the
+            %stuff in the Update Loop still happens in the expected order
+            %if we choose to Ignore or Suppress. This is just a private
+            %function here to avoid duplicating the code of handling an
+            %error specifically in the Measurement Loop
+            function CatchMeasurementLoopError(this, e)
+                if(~ isvalid(this.View))
+                    %Just break out of the loop if we've closed the
+                    %window - it can trigger silly errors about
+                    %event listeners still being subscribed which I
+                    %don't care about
+                    this.TimingLoopController.CloseTimer();
+                    return;
+                else
+                    %Show error message and ask if we want to stop measurements
+                    halt = this.HandleError("Error in main measurement loop", e);
+                    if(halt)
+                        CoakView.Logging.Logger.Log("Info", "Measurements aborted by User from Error Dialogue");
+                        this.TimingLoopController.OnStopped();
+                    end
+                end
+            end
+        end
+
         %% NewBigNumberDisplay
         function NewBigNumberDisplay(this)
             iconPath = this.ApplicationDir + "\+CoakView\+Components\Graphics\BigNumDisplayIcon.png";
@@ -405,9 +564,8 @@ classdef Controller < handle
         %% OnFigureClosed
         function OnFigureClosed(this)
             this.Log("Debug", "Coak View closed", "Yellow", "Closing");
-            this.Timer.stop();
-            delete(this.Timer);
-            this.CloseAll();
+            this.TimingLoopController.CloseTimer();
+            this.InstrumentController.CloseAll();
         end
 
         %% OnLoaded
@@ -423,12 +581,17 @@ classdef Controller < handle
             end
         end
 
+        %% OnMeasurementsStopped
+        function OnMeasurementsStopped(this)
+            this.InstrumentController.CloseAll();
+        end
+
         %% OpenDataViewer
         function OpenDataViewer(this)
             try
                 defaultDataPath = this.DefaultDataDir;
                 extensions = this.FileWriteDetails.FileExtension;
-                dv = DataViewer("DefaultDir", defaultDataPath, "FileExtensions", extensions);
+                DataViewer("DefaultDir", defaultDataPath, "FileExtensions", extensions);
             catch err
                 this.HandleError("Error opening DataViewer", err);
             end
@@ -449,15 +612,7 @@ classdef Controller < handle
             catch err
                 this.HandleError("Error opening Sequence Viewer", err);
             end
-        end
-
-        %% Pause
-        function Pause(this)
-            %Display a status message in the logger
-            this.ShowStatus("Yellow", "Pausing");
-
-            this.State = "Pausing";
-        end
+        end       
 
         %% PlotterAxesSelectionChange
         function PlotterAxesSelectionChange(this, pltr)
@@ -471,7 +626,7 @@ classdef Controller < handle
             %this does not happen, so in that case, we hook into the
             %Plotter's event and fire a manual replot in the case that
             %measurements are stopped
-            if this.State ~= "Running"
+            if this.TimingLoopController.State ~= "Running"
                 %Have to pass whole data table back in - Plotters do not
                 %store/copy these, that would be very expensive.
                 %If the data table is empty, for now just do nothing -
@@ -549,14 +704,6 @@ classdef Controller < handle
             catch err
                 this.HandleError("Error removing instrument control " + controlDetailsStruct.Name, err);
             end
-        end
-
-        %% Resume
-        function Resume(this)
-            %Similar to Start - but we don't clear anything first, just get
-            %the measurement loop running again
-            this.State = "Running";
-            this.RunMeasurementLoop();
         end
 
         %% SavePlot
@@ -652,29 +799,6 @@ classdef Controller < handle
             end
         end
 
-        %% SetUpdateTime
-        function SetUpdateTime(this, targetTime_s)
-            try
-                %Need to stop the timer, change the period, then restart it -
-                %get an error if we try to change the period while it is
-                %running
-                if(strcmp(this.Timer.Running, 'on'))
-                    this.Timer.stop();
-                    this.Timer.Period = targetTime_s;
-                    this.Timer.start();
-                else
-                    this.Timer.Period = targetTime_s;
-                end
-
-                this.TargetUpdateTime = targetTime_s;
-
-                %Update the View to reflect the change
-                this.View.OnTargetUpdateTimeChanged(targetTime_s);
-            catch err
-                this.HandleError("Error setting update time", err);
-            end
-        end
-
         %% ShowMessageInGUI
         function ShowMessageInGUI(this, colour, msg)
             %Note, this is for the moment deliberately seperate from the
@@ -697,79 +821,10 @@ classdef Controller < handle
                     error('Colour unsupported in ShowStatus');
             end
         end
-
-        %% Start
-        function Start(this)
-
-            %Create a DataWriter object to log all data
-            this.DataWriter = CoakView.DataWriting.DataWriter(this.FileWriteDetails);
-            this.FileWriteDetails.FileName = this.DataWriter.ValidateFilePath();
-
-            %Update the View to display the file write settings
-            this.View.OnFileWriteOptionsChanged(this.FileWriteDetails);
-
-            %Clean up Plotters list, remove any that have been deleted
-            this.CleanUpPlotters();
-
-            if(this.CanStart)
-                this.OnStarted();
-                [success, msg, title] = this.InitialiseMeasurements();
-                if success
-                    this.RunMeasurementLoop();
-                else
-                    %We get to here if we failed to connect to an
-                    %instrument. We have already disconnected from all the
-                    %ones we did manange to connect to. Now abort instead
-                    %of starting the measurement loop, show a warning, and
-                    %return to the Ready state
-                    this.AbortStart(msg, title);
-                end
-            else
-                %Abort and warn that we couldn't start - in fact should it
-                %even be possible to get here if so?
-                this.AbortStart("Could not start, aborting. Controller.CanStart was false, this really shouldn't have been possible..", "Intialisation failed");
-            end
-        end
-
-        %% Stop
-        function Stop(this)
-            %Pressing the stop button sets the State to 'Stopping' only. Current loop
-            %iteration will complete, then CloseAll will be called, and THERE
-            %all instruments can be stopped.
-            this.StopMeasurements();
-        end
+        
     end
 
-    methods(Access=private)
-   
-        %% AbortStart
-        function AbortStart(this, msg, title)
-            %abort instead starting the measurement loop, show a warning, and return to the Ready state
-
-            %Display a status message in the logger
-            this.Log("Info", "Initialisation aborted", "Red", "Initialisation aborted");
-
-            %Build out full string to print
-            msg = msg + "\n\nInitialisation has been aborted.";
-
-            fig = this.View;
-            try
-                uifg = fig.CoakViewUIFigure;
-                if matlab.ui.internal.isUIFigure(uifg)
-                    %Our view is a UI Figure, show a modal warning box based on
-                    %its handle
-                    uialert(uifg, sprintf(msg), title, "Icon", "warning", "Interpreter", "HTML");
-                else
-                    %Our view is not a ui figure - just show a warning in the
-                    %console
-                    warning(msg);
-                end
-            catch
-                warning(msg);
-            end
-
-            this.OnStopped();
-        end
+    methods(Access=private)   
 
         %% AppendToDataTable
         function AppendToDataTable(this, dataRow)
@@ -779,26 +834,6 @@ classdef Controller < handle
             else
                 this.DataTable = [this.DataTable; dataRow];
             end
-        end
-
-        %% CanStart
-        function canStart = CanStart(this)
-            canStart = false;
-            try
-                %Verify directory and path valid
-                if(~CoakView.Utilities.FileLoading.PathUtils.IsDirectoryValid(this.FileWriteDetails.Directory))
-                    error(['Error - directory not valid: ' strrep(this.FileWriteDetails.Directory, '\', '\\')]);
-                end
-                if(~CoakView.Utilities.FileLoading.PathUtils.IsFileNameValid(this.FileWriteDetails.FileName))
-                    error(['Error - file name not valid: ' strrep(this.FileWriteDetails.FileName, '\', '\\')]);
-                end
-            catch err
-                this.View.OnMeasurementsStopped();
-                this.HandleError('Invalid file path. Cannot start measurements', err);
-                return;
-            end
-
-            canStart = true;
         end
 
         %% CleanUpPlotters
@@ -818,79 +853,7 @@ classdef Controller < handle
             for i = 1 : length(this.PlottingPanels)
                 this.PlottingPanels{i}.ClearData();
             end
-        end
-
-        %% CloseAll
-        function CloseAll(this)
-
-            %Display a status message in the logger
-            this.Log("Info", "Closing Instruments", "Yellow", "Closing Instruments");
-
-            %Close all instruments
-            for i = 1 : length(this.Instruments)
-                this.Instruments{i}.Close();
-            end
-
-            %Display a status message in the logger
-            this.Log("Info", "Instruments closed", "Green", "Instruments closed");
-        end
-
-        %% CollectMeasurement
-        function DataRow = CollectMeasurement(this)
-            %Get current time in universal coordinated time (seconds since 1970) then divide by 60 to get minutes
-            Time = posixtime(datetime('now')) /60;
-
-            %Start the DataRow with the Time column, always
-            DataRow = Time;
-
-            %Scan through all instruments and get their data
-            for i = 1 : length(this.Instruments)
-                try
-                    %Check if any GUIs/controls have sent Settings to apply
-                    %to the instrument
-                    this.Instruments{i}.CheckForSettingsToApply();
-
-                    %Measure
-                    DataRow = [DataRow this.Instruments{i}.Measure()];
-                catch e
-                    %Pop in a nan value, as we failed to grab the data from
-                    %this instrument
-                    %First need to know how many nans to insert.. match to
-                    %Headers
-                    hdrs = this.Instruments{i}.GetHeaders();
-                    n = length(hdrs);
-                    DataRow = [DataRow, nan(1, n)];
-
-                    if this.ErrorOnAllInstrumentErrors
-                        %Show error message and ask if we want to stop measurements
-                        halt = this.HandleError("Error in main measurement loop - Collect Data from " + this.Instruments{i}.FullName, e);
-                        if(halt)
-                            CoakView.Logging.Logger.Log("Info", "Measurements aborted by User from Error Dialogue");
-                            this.Stop();
-                            this.OnStopped();
-                        end
-                    else
-                        %Just show a warning, do not halt execution
-                        reportStr = string(e.message);
-                        CoakView.Logging.Logger.Log("Warning", "Measurement call to instrument " + this.Instruments{i}.Name + " failed in CollectMeasurement, data set to NaN for this tick. Error message: " + reportStr);
-                    end
-                end
-            end
-
-            %Scan through all instruments and cache that full dataRow into
-            %their LastDataRow property, which they can use if doing
-            %independent data writing
-            for i = 1 : length(this.Instruments)
-                try
-                    this.Instruments{i}.LastFullDataRow = DataRow;
-                catch e
-                    %Just show a warning, do not halt execution
-                    reportStr = string(e.message);
-                    CoakView.Logging.Logger.Log("Warning", "Last dataRow update call to instrument " + this.Instruments{i}.Name + " failed in CollectMeasurement. Error message: " + reportStr);
-
-                end
-            end
-        end
+        end              
 
         %% CreateInstrumentControlTab
         function tab = CreateInstrumentControlTab(this, tabName)
@@ -905,89 +868,19 @@ classdef Controller < handle
             %Called once the preset changes are all applied, to do final
             %housekeeping like refreshing UI
             this.View.FinalisePreset();
-        end
+        end     
 
-        %% GetHeaders
-        function [Headers, HeadersString, Units] = GetHeaders(this)
-            %Put time in as first header
-            Headers = {"Time (mins)"};
-            Units = {"mins"};
+        %% InitialiseDataWriting
+        function InitialiseDataWriting(this)
+            %Create a DataWriter object to log all data
+            this.DataWriter = CoakView.DataWriting.DataWriter(this.FileWriteDetails);
+            this.FileWriteDetails.FileName = this.DataWriter.ValidateFilePath();
 
-            %Scan through all instruments and get their data column
-            %headers.
-            for i = 1 : length(this.Instruments)
-                [instrHeaders, instrUnits] = this.Instruments{i}.GetHeaders();
-                for j = 1 : length(instrHeaders)
-                    Headers = [Headers, string(instrHeaders{j})];
-                    Units = [Units, string(instrUnits{j})];
-                end
-            end
+            %Update the View to display the file write settings
+            this.View.OnFileWriteOptionsChanged(this.FileWriteDetails);
 
-            %Make a simple string of all these headers, tab seperated
-            HeadersString = '';
-            for i= 1 : length(Headers)
-                HeadersString = sprintf('%s%s\t', HeadersString, Headers{i});
-            end
-
-            %Scan through all instruments and cache that full headers row into
-            %their FullHeadersRow property, which they can use if doing
-            %independent data writing
-            for i = 1 : length(this.Instruments)
-                try
-                    this.Instruments{i}.FullHeadersRow = Headers;
-                    this.Instruments{i}.FileWriteDetails = this.FileWriteDetails;
-                catch e
-                    %Just show a warning, do not halt execution
-                    reportStr = string(e.message);
-                    CoakView.Logging.Logger.Log("Warning", "Last dataRow update call to instrument " + this.Instruments{i}.Name + " failed in CollectMeasurement. Error message: " + reportStr);
-
-                end
-            end
-        end
-
-        %% HandleError
-        function Halt = HandleError(this, message, error)
-            %Assemble a full message from the message sent into the logger,
-            %and the actual error details
-            msg = string(message) + ": " + string(error.message);
-
-            %If we have previously suppressed this error, no need to do
-            %anything, just return (and do not halt)
-            if any(strcmp(this.SuppressedErrorMessages, msg))
-                Halt = false;
-                return;
-            end
-
-            %Message about the error - Try to display a red light error status in the programme, and Log, but
-            %don't fuss if that fails, just ignore the exception and throw
-            %a warning
-            try
-                this.ShowStatus("Red", "Error: " + msg);
-                drawnow();
-                CoakView.Logging.Logger.Log("Error", msg, "FullMessage", msg + " : " + string(getReport(error, "extended", "hyperlinks", "on")));
-            catch e
-                warning("An error was thrown while.. trying to handle an error.. : " + string(e.message));
-            end
-
-            %Pass on the error to the Error Handler to show a dialogue box
-            %- user can choose whether to stop the measurement loop, and
-            %separately whether to suppress this error going forward
-            uiFigureHandle = this.View.GetUIFigureHandle();
-            [Halt, suppressError] = CoakView.Logging.Logger.HandleError(message, error, uiFigureHandle);
-
-            %User could have chosen to Suppress this error message in the
-            %dialogue box, so it will not be shown in the future - handle
-            %that case. List of suppressed errors will (for now at least)
-            %be a property of Controller, so will only be reset by
-            %restarting the programme. Could reset it on measurement start
-            %later if that turns out to be clearer for the user
-            if(suppressError)
-                %Log the fact that we are suppressing an error
-                CoakView.Logging.Logger.Log("Info", "Error Suppressed by User: " + msg);
-
-                %Add this error to the list
-                this.SuppressedErrorMessages = [this.SuppressedErrorMessages, msg];
-            end
+            %Clean up Plotters list, remove any that have been deleted
+            this.CleanUpPlotters();
         end
 
         %% InitialiseMeasurements
@@ -1010,51 +903,15 @@ classdef Controller < handle
             this.View.ShowProgressBar("Initialising measurements", "Initialising..");
 
             try
-                %Set the list of instruments from the selection panel's ItemData
-                this.Instruments = this.InstrumentController.GetInstruments();
-
-                %Generate column headers, for internal use and file writing
-                [this.Headers, headersString, this.Units] = this.GetHeaders();
-
-                %Verify that those headers are valid - no duplicates
-                [duplicateHeaderValues, duplicateHeaderValuesString] = CoakView.Utilities.ErrorChecking.CheckForDuplicatesInHeadersArray(this.Headers);
-                assert(isempty(duplicateHeaderValues), "Some variable names appear twice, this is not allowed. Duplicate variables: " + duplicateHeaderValuesString);
-                    
+                %Generate column headers and validate
+                [this.Headers, headersString, this.Units] = this.InstrumentController.InitialiseHeaders();
 
                 %Initialise the (:, n) double array that will hold the
                 %data
                 this.DataTable = [];
 
                 %Initialise all instruments
-                for i = 1 : length(this.Instruments)
-
-                    %Update the progress bar
-                    this.View.UpdateProgressBar((i) / (length(this.Instruments)+1), "Connecting to " + this.Instruments{i}.Name);
-
-                    %Try to connect to the instrument
-                    [success, instr_msg] = this.Instruments{i}.Initialise();
-
-                    if ~success
-                        %We failed to connect to an Instrument. Rather than
-                        %just an error throw, placing us in an unknown
-                        %state, disconnect from all previously-successful
-                        %instruments, abort cleanly, show an explanatory
-                        %dialogue, including the message that the failed
-                        %connection returned.
-
-                        %Disconnect from previous instruments
-                        for j = 1 : i-1
-                            this.Instruments{j}.Close();
-                        end
-
-                        %Abort, with warning message
-                        success = false;
-                        msg = instr_msg;
-                        title = "Could not connect to Instrument";
-                        this.View.CloseProgressBar();
-                        return;
-                    end
-                end
+                [success, msg, title] = this.InstrumentController.InitialiseInstruments();
 
                 %If there are no Plotting Tabs, add one
                 if(isempty(this.PlottingTabs))
@@ -1079,13 +936,8 @@ classdef Controller < handle
                 %Update the progress bar
                 this.View.UpdateProgressBar(1, "Writing metadata and headers");
 
-                metadataLines = [];
-                for i = 1 : length(this.Instruments)
-                    metadataNullableString = this.Instruments{i}.GrabMetadataString();
-                    if ~isempty(metadataNullableString)
-                        metadataLines = [metadataLines metadataNullableString];
-                    end
-                end
+                %Get the string to write from Instruments
+                metadataLines = this.InstrumentController.GetMetadataLines();
 
                 %Succesful end - close the progress bar
                 this.View.CloseProgressBar();
@@ -1098,22 +950,6 @@ classdef Controller < handle
             this.DataWriter.WriteHeaders(headersString, "MetadataLines", metadataLines);
 
             success = true;            
-        end
-
-        %% InitialisePlugins
-        function InitialisePlugins(this)
-            %Display a status message in the logger
-            this.Log("Debug", "Initialising plugins", "Yellow", "Initialising plugins...");
-
-            %Create a helper class for managing Instruments
-            this.InstrumentController = CoakView.Core.InstrumentController(this, this.View);
-
-            % Load instrument classes into the instrument selection panel
-            this.InstrumentController.LoadInstrumentClasses(this.ApplicationDir + "\+CoakView\+Instruments");
-
-
-            %Log some information
-            this.Log("Debug", "Plugins intialised", "Green", "Plugins intialised");
         end
 
         %% LoadSettings
@@ -1170,70 +1006,6 @@ classdef Controller < handle
             end
         end
 
-
-        %% OnPaused
-        function OnPaused(this)
-            %Called from the main loop after "Pausing" state has been set
-            %by GUI event calls, and then the update loop has passed
-            %through again to here. Stop the timer and basically halt
-            %measurements - but we won't clear everything upon Resuming,
-            %unlike Stop/Start
-            this.Timer.stop();
-            this.State = "Paused";
-
-            %Log some information
-            this.Log("Debug", "Measurements paused", "Yellow", "Paused");
-
-            %Update the View
-            this.View.OnPaused();
-
-            %Fire event
-            notify(this, "Paused");
-        end
-
-        %% OnResumed
-        function OnResumed(this)
-            %Log some information
-            this.Log("Debug", "Measurements resumed", "Green", "Running");
-
-            this.State = "Running";
-            this.RunMeasurementLoop();
-
-            %Update the View
-            this.View.OnResumed();
-
-            %Fire event
-            notify(this, "Resumed");
-        end
-
-        %% OnStarted
-        function OnStarted(this)
-            this.State = "Running";
-
-            %Update the View
-            this.View.OnStarted();
-
-            %Fire event
-            notify(this, "Started");
-        end
-
-        %% OnStopped
-        function OnStopped(this)
-            this.Timer.stop();
-            this.CloseAll();
-            this.State = "Ready";
-
-            %Log some information
-            this.Log("Info", "Measurements stopped", "Green", "Ready");
-            this.ShowStatus("Green", "Ready");
-
-            %Update the View
-            this.View.OnStopped();
-
-            %Fire event
-            notify(this, "Stopped");
-        end
-
         %% PlotData
         function PlotData(this, newDataRow)
             %Check for any plotters that may have been closed by a
@@ -1255,146 +1027,6 @@ classdef Controller < handle
                 %call the full UpdatePlot method instead
                 if(~pltr.TryAppendData(newDataRow))
                     pltr.PlotData(this.DataTable);
-                end
-            end
-        end
-
-        
-
-        %% RunMeasurementLoop
-        function RunMeasurementLoop(this)
-            %Display a status message in the logger
-            this.Log("Info", "Measurement Loop started", "Green", "Running");
-
-            %Start the Timer object that calls the loop updates
-            this.Timer.start();
-        end
-
-        %% StopMeasurements
-        function StopMeasurements(this)
-            %Pressing the stop button sets the State to 'Stopping' only. Current loop
-            %iteration will complete, then CloseAll will be called, and THERE
-            %all instruments can be stopped.
-
-            %Display a status message in the logger           
-            this.Log("Info", "Measurement Loop Stopping...", "Yellow", "Stopping measurements");
-
-            
-            if strcmp(this.State, "Paused") || strcmp(this.State, "Pausing")
-                %If we are currently paused, the timer is suspended and
-                %there will be no update calls, so Stop will never
-                %properly fire. Call it manually here.
-                this.State = "Stopping";
-                this.OnStopped();
-            else                
-                %Normal behaviour - mark the programme as due to stop on
-                %the next update tick
-                this.State = "Stopping";
-            end
-        end
-
-        %% Update
-        function Update(this, ~, ~)
-            %Execute one 'tick' of the measurement loop - poll each
-            %instrument for one row of data, update all GUI and plots. This
-            %keeps running, triggered async off a Timer object, until state
-            %is changed to Pausing or Stopping by Pause or Stop events
-
-            %Process GUI events like button presses and force the async
-            %timer to check in with the GUI - get hangs without this if
-            %update time is set too short
-            drawnow();
-
-            try
-                %Check for exit conditions from the measurement loop - are we
-                %trying to Pause or Stop the loop?
-                switch(this.State)
-                    case("Stopping")
-                        this.OnStopped();
-                    case("Pausing")
-                        this.OnPaused();
-                end
-            catch e
-                CatchMeasurementLoopError(this, e);
-            end
-
-            switch(this.State)
-                case("Running")
-                    try
-                        %Collect Data
-                        this.ShowStatus("Green", "Running");
-                        dataRow = this.CollectMeasurement();
-                    catch e
-                        CatchMeasurementLoopError(this, e);
-                        %Need to do something here to keep programme running when
-                        %CollectMeasurement errors - set the dataRow to NaNs.
-                        dataRow = nan([1, length(this.Headers)]);
-                        this.Log("Warning", "Data Row set to NaN values due to error thrown in CollectMeasurements", "Yellow", "Data Row set to NaN values due to error thrown in CollectMeasurements");
-                    end
-
-                    try
-                        %Write data to file
-                        this.DataWriter.WriteLine(dataRow);
-                    catch e
-                        CatchMeasurementLoopError(this, e);
-                    end
-
-                    try
-                        %Append data to array
-                        this.AppendToDataTable(dataRow);
-                    catch e
-                        CatchMeasurementLoopError(this, e);
-                    end
-
-                    try
-                        %Update data plots
-                        this.PlotData(dataRow);
-                    catch e
-                        CatchMeasurementLoopError(this, e);
-                    end
-
-                    try
-                        %Update any Big Number Display windows
-                        this.UpdateBigNumberDisplays(dataRow);
-                    catch e
-                        CatchMeasurementLoopError(this, e);
-                    end
-
-                    try
-                        %Update the time elapsed this frame in the GUI
-                        elapsedTimeSinceLastTick_s = this.Timer.InstantPeriod;
-                        this.View.DisplayUpdateTime(elapsedTimeSinceLastTick_s);
-                    catch e
-                        CatchMeasurementLoopError(this, e);
-                    end
-                    
-                otherwise
-                    %Do nothing if not Running
-                    
-            end
-
-
-            %Want to catch the error pretty locally, so the rest of the
-            %stuff in the Update Loop still happens in the expected order
-            %if we choose to Ignore or Suppress. This is just a private
-            %function here to avoid duplicating the code of handling an
-            %error specifically in the Measurement Loop
-            function CatchMeasurementLoopError(this, e)
-                if(~ isvalid(this.View))
-                    %Just break out of the loop if we've closed the
-                    %window - it can trigger silly errors about
-                    %event listeners still being subscribed which I
-                    %don't care about
-                    this.Timer.stop();
-                    delete(this.Timer);
-                    return;
-                else
-                    %Show error message and ask if we want to stop measurements
-                    halt = this.HandleError("Error in main measurement loop", e);
-                    if(halt)
-                        CoakView.Logging.Logger.Log("Info", "Measurements aborted by User from Error Dialogue");
-                        this.OnStopped();
-                    end
                 end
             end
         end
