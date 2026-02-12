@@ -1,16 +1,13 @@
 classdef Controller < handle
     %CONTROLLER Logic and measurement loop for CoakView Programme. 
 
-    properties
-        %Reference to the main figure window / GUI / View Implementation
-        View;
+    properties       
 
         %Paths and Directories
         ApplicationPath;    %These will be set in StartUp Fcn of the UiFigure
         ApplicationDir;     %These will be set in StartUp Fcn of the UiFigure
 
-
-        TimingLoopController;
+       
     end
 
     properties(GetAccess = public, SetAccess = private)
@@ -24,23 +21,25 @@ classdef Controller < handle
         DataTable;
         Headers = {};
         Units = {};
+
+        %Sub-controllers
+        TimingLoopController;
+        DataWriter;
     end
 
     properties(Access = private)
-
-        DataWriter;
-        PlottingPanels = {};
-        PlottingTabs = {};
-
         InstrumentController;
+        PlottingController;
         SequenceEditorController;
 
         DefaultDataDir;
 
+        Closing = false;    %Will get set by an attached GUI if it is in the process of being closed, to tell us to stop sending events to a now-invalid GUI
 
         SuppressedErrorMessages = {};
 
         AssignInstrumentRefsIntoWorkspace = true;
+        UIFigureHandle = []; %Needed for error handling - need to know if we are throwing a modal dialogue box in an attached UIFigure, or a free floating normal one if there is no listening View
     end
 
     properties(Constant)
@@ -49,9 +48,16 @@ classdef Controller < handle
 
     events
         DataRowUpdated;
+        FileWriteOptionsChanged;
+        FinalisePreset;
+        GreenStatus;
+        Loaded;
+        RedStatus
+        SettingsApplied;
         StartedShowingProgress;
-        UpdatedProgress;
         StoppedShowingProgress;
+        UpdatedProgress;
+        YellowStatus;
     end
 
     methods
@@ -60,12 +66,10 @@ classdef Controller < handle
             arguments
                 Settings.ApplicationDir {mustBeTextScalar};
                 Settings.ApplicationPath {mustBeTextScalar};
-                Settings.View (1,1);
             end
 
             this.ApplicationDir = Settings.ApplicationDir;
             this.ApplicationPath = Settings.ApplicationPath;
-            this.View = Settings.View;
 
             %Create a helper class for managing Instruments
             this.InstrumentController = CoakView.Core.InstrumentController(this);
@@ -73,11 +77,16 @@ classdef Controller < handle
             %Create a helper class for controlling the main
             %measurement/timing loop, Start/Pause/Resume etc
             this.TimingLoopController = CoakView.Core.TimingLoopController(this);
+           
+            %And one for handling all things Plotting
+            this.PlottingController = CoakView.Core.PlottingController(this);
+        end
 
+        %% AttachView
+        function AttachView(this, view)
             %Assign controllers into the View and have it subscribe to
             %their events
-            this.View.AssignControllersAndHookUpEvents(this, this.TimingLoopController, this.InstrumentController);
-
+            view.AssignControllersAndHookUpEvents(this, this.TimingLoopController, this.InstrumentController, this.PlottingController);
         end
 
         %% AddInstrument
@@ -127,55 +136,52 @@ classdef Controller < handle
         end
 
         %% AddInstrumentControl
-        function cont = AddInstrumentControl(this, instrRef, controlDetailsStruct)
-            try
-                %Check that the control has not already been added (before
-                %creating the new tab..)
-                if ~isempty(instrRef.GetRegisteredControlObjectsFromName(controlDetailsStruct.Name))
-                    error("A Control object of name " + controlDetailsStruct.Name + " has already been added to Instrument " + instrRef.Name);
-                end
+        function cont = AddInstrumentControl(this, tab, instrRef, controlDetailsStruct)
+            %Populate tab and hook up instrument to the GUI
+            cont = this.InstrumentController.AddInstrumentControl(this, tab, instrRef, controlDetailsStruct);
 
-                %Create a new tab
-                tabName = instrRef.Name + " - " + controlDetailsStruct.TabName;
-                tab = this.CreateInstrumentControlTab(tabName);
+            %Subscribe it to Controller events
+            addlistener(this.TimingLoopController, 'Started', @(src,evnt)cont.MeasurementsStarted(src, evnt));
+            addlistener(this.TimingLoopController, 'Paused', @(src,evnt)cont.MeasurementsPaused(src, evnt));
+            addlistener(this.TimingLoopController, 'Resumed', @(src,evnt)cont.MeasurementsResumed(src, evnt));
+            addlistener(this.TimingLoopController, 'Stopped', @(src,evnt)cont.MeasurementsStopped(src, evnt));
 
-                %Populate tab and hook up instrument to the GUI                
-                cont = this.InstrumentController.AddInstrumentControl(this, tab, instrRef, controlDetailsStruct);
-
-                %Subscribe it to Controller events
-                addlistener(this.TimingLoopController, 'Started', @(src,evnt)cont.MeasurementsStarted(src, evnt));
-                addlistener(this.TimingLoopController, 'Paused', @(src,evnt)cont.MeasurementsPaused(src, evnt));
-                addlistener(this.TimingLoopController, 'Resumed', @(src,evnt)cont.MeasurementsResumed(src, evnt));
-                addlistener(this.TimingLoopController, 'Stopped', @(src,evnt)cont.MeasurementsStopped(src, evnt));
-
-                %Update the View
-                this.View.OnControlEnabled(controlDetailsStruct.Name);
-
-                %Verbose/debug message printing
-                this.Log("Info", "Added Instrument Control: " + controlDetailsStruct.Name, "Green", "Added Instrument Control");
-            catch err
-                this.HandleError("Error adding instrument control " + controlDetailsStruct.Name, err);
-            end
+            %Verbose/debug message printing
+            this.Log("Info", "Added Instrument Control: " + controlDetailsStruct.Name, "Green", "Added Instrument Control");
         end
         
         %% AddNewPlotter
         function pltr = AddNewPlotter(this, parent, size)
             %This is used by things like Instrument Control creating GUIs
-            %and placing Plotters in exisiting Gridlayouts
+            %and placing Plotters in existing Gridlayouts
             arguments
                 this;
-                parent;
+                parent = [];
                 size = "Medium";
             end
 
             try
-                %Pass through to View to handle GUI stuff
-                pltr = this.View.AddNewPlotter(parent, size);
-                
-                %Register the plotter so it gets updated
-                this.RegisterPlotterObject(pltr);
+                %Create a new parent figure for the plotter to go in if we
+                %didn't specify a parent
+                if isempty(parent)
+                    parent = uifigure();
+                end
+
+                %Get the Plotting Controller to actually construct the
+                %plotter, add it to whatever parent we sent in. All of this
+                %is View-agnostic, and doesn't need one at all.
+                pltr = this.PlottingController.CreateNewPlotter(parent, size);
+
             catch err
                 this.HandleError("Error adding new plotter", err);
+                return;
+            end
+
+            %Register the plotter so it gets updated
+            try
+                this.PlottingController.RegisterPlotterObject(pltr);
+            catch err
+                this.HandleError("Error registering plotter object", err);
             end
         end
 
@@ -195,49 +201,15 @@ classdef Controller < handle
 
             try
                 %Pass through to View to handle GUI stuff
-                pltr = this.View.AddNewSimplePlotter(parent, size);
+                pltr = this.PlottingController.CreateNewSimplePlotter(parent, size);
                 
                 %Simple plotters do not get registered for auto-updates.
                 %Whatever made them has to push data to them itself.
             catch err
-                this.HandleError("Error adding new plotter", err);
+                this.HandleError("Error adding new simple plotter", err);
             end
         end
         
-        %% AddNewPlottingTab
-        function listOfPltrs = AddNewPlottingTab(this, rows, cols)
-            try
-                % To be used by external calls, eg. presets
-                [listOfPltrs, tab] = this.View.AddNewPlottingTab(rows, cols);
-
-                %Add the plotters to the list of plotters to be updated
-                for i = 1 : length(listOfPltrs)
-                    this.RegisterPlotterObject(listOfPltrs(i));
-                end
-
-                %Add the tab to the list of plotter tabs too
-                this.RegisterPlotterTab(tab);
-
-            catch err
-                this.HandleError("Error adding new plotting tab", err);
-            end
-        end
-
-        %% AddNewPlottingWindow
-        function listOfPltrs = AddNewPlottingWindow(this, rows, cols)
-            try
-                % To be used by external calls, eg. presets
-                listOfPltrs = this.View.AddNewPlottingWindow(rows, cols);
-
-                %Add the plotters to the list of plotters to be updated
-                for i = 1 : length(listOfPltrs)
-                    this.RegisterPlotterObject(listOfPltrs(i));
-                end
-            catch err
-                this.HandleError("Error adding new plotting window", err);
-            end
-        end
-
         %% ApplyPreset
         function ApplyPreset(this, presetFn)
             try
@@ -245,9 +217,12 @@ classdef Controller < handle
                 this.ShowStatus('Yellow', 'Applying Preset');
                 presetFn(this);
 
-                %Finalise the preset - basically, update the GUI to relfect
+                %Display a status message in the logger
+                this.ShowStatus('Yellow', 'Finalising Preset');
+
+                %Finalise the preset - basically, update the GUI to reflect
                 %changes
-                this.FinalisePreset();
+                notify(this, "FinalisePreset");
             catch err
                 this.HandleError("Error applying Preset", err);
             end
@@ -265,7 +240,6 @@ classdef Controller < handle
                     error(['Error - file name not valid: ' strrep(this.FileWriteDetails.FileName, '\', '\\')]);
                 end
             catch err
-                this.View.OnMeasurementsStopped();
                 this.Controller.HandleError('Invalid file path. Cannot start measurements', err);
                 return;
             end
@@ -321,8 +295,7 @@ classdef Controller < handle
             %Pass on the error to the Error Handler to show a dialogue box
             %- user can choose whether to stop the measurement loop, and
             %separately whether to suppress this error going forward
-            uiFigureHandle = this.View.GetUIFigureHandle();
-            [Halt, suppressError] = CoakView.Logging.Logger.HandleError(message, error, uiFigureHandle);
+            [Halt, suppressError] = CoakView.Logging.Logger.HandleError(message, error, this.UIFigureHandle);
 
             %User could have chosen to Suppress this error message in the
             %dialogue box, so it will not be shown in the future - handle
@@ -341,9 +314,8 @@ classdef Controller < handle
 
         %% HandleWarning
         function HandleWarning(this, msg, title)
-            fig = this.View;
             try
-                uifg = fig.CoakViewUIFigure;
+                uifg = this.UIFigureHandle;
                 if matlab.ui.internal.isUIFigure(uifg)
                     %Our view is a UI Figure, show a modal warning box based on
                     %its handle
@@ -407,7 +379,8 @@ classdef Controller < handle
                 this.WindowSettings.CoakViewIconPath = this.ApplicationDir + "\+CoakView\+Components\Graphics\CoakViewIcon.png";
 
                 %Send settings to the GUI
-                this.View.ApplySettings(this.PathSettings, this.WindowSettings);
+                args = CoakView.Events.SettingsChangedEventData(this.PathSettings, this.WindowSettings);
+                notify(this, "SettingsApplied", args);
 
                 %Load plugins
                 this.Log("Debug", "Initialising plugins", "Yellow", "Initialising plugins...");
@@ -431,10 +404,11 @@ classdef Controller < handle
             this.FileWriteDetails.FileName = this.DataWriter.ValidateFilePath();
 
             %Update the View to display the file write settings
-            this.View.OnFileWriteOptionsChanged(this.FileWriteDetails);
+            args = CoakView.Events.ValueChangedEventData(this.FileWriteDetails);
+            notify(this, "FileWriteOptionsChanged", args);
 
             %Clean up Plotters list, remove any that have been deleted
-            this.CleanUpPlotters();
+            this.PlottingController.CleanUpPlotters();
         end
 
         %% InitialiseMeasurements
@@ -467,14 +441,9 @@ classdef Controller < handle
                     return;
                 end
 
-                %If there are no Plotting Tabs, add one
-                if(isempty(this.PlottingTabs))
-                    this.AddNewPlottingTab(2,1);
-                end
-
                 %Initialise all graphs
-                this.UpdatePlotVariableNames(this.Headers);
-                this.ClearPlots();
+                this.PlottingController.UpdatePlotVariableNames(this.Headers);
+                this.PlottingController.ClearPlots();
 
                 %Display a status message in the logger
                 this.Log("Info", "Measurements initialised", "Green", "Measurements initialised");
@@ -576,7 +545,7 @@ classdef Controller < handle
 
             try
                 %Update data plots & Update any Big Number Display windows
-                this.PlotData(dataRow);
+                this.PlottingController.PlotData(dataRow);
                 args = CoakView.Events.DataRowAddedEventData(dataRow);
                 notify(this, "DataRowUpdated", args);
             catch e
@@ -589,7 +558,7 @@ classdef Controller < handle
             %function here to avoid duplicating the code of handling an
             %error specifically in the Measurement Loop
             function CatchMeasurementLoopError(this, e)
-                if(~ isvalid(this.View))
+                if(this.Closing)
                     %Just break out of the loop if we've closed the
                     %window - it can trigger silly errors about
                     %event listeners still being subscribed which I
@@ -610,6 +579,7 @@ classdef Controller < handle
         %% OnFigureClosed
         function OnFigureClosed(this)
             this.Log("Debug", "Coak View closed", "Yellow", "Closing");
+            this.Closing = true;
             this.TimingLoopController.CloseTimer();
             this.InstrumentController.CloseAll();
         end
@@ -621,7 +591,7 @@ classdef Controller < handle
 
             try
                 %Let the user interact with the GUI now it is loaded and ready
-                this.View.UnlockInput();
+                notify(this, "Loaded");
             catch err
                 this.HandleError("Error unlocking input in Controller.OnLoaded", err);
             end
@@ -658,64 +628,16 @@ classdef Controller < handle
             catch err
                 this.HandleError("Error opening Sequence Viewer", err);
             end
-        end       
+        end           
 
-        %% PlotterAxesSelectionChange
-        function PlotterAxesSelectionChange(this, pltr)
-            %This is needed for the case where we want to change the
-            %displayed data in a Plotter, but the loop is not running.
-            %While measurement loop is running, the Plotter will get an
-            %Update call with new data every tick, and if it has
-            %established that a button has been pressed and it needs to
-            %e.g. change the data plotted on a y axis, it sets a bool flag
-            %to do a plot refresh next update tick. If there are no ticks
-            %this does not happen, so in that case, we hook into the
-            %Plotter's event and fire a manual replot in the case that
-            %measurements are stopped
-            if this.TimingLoopController.State ~= "Running"
-                %Have to pass whole data table back in - Plotters do not
-                %store/copy these, that would be very expensive.
-                %If the data table is empty, for now just do nothing -
-                %might be clearer UX to clear the plot, but then again
-                %might be annoying to delete the data for no obvious reason
-                if ~isempty(this.DataTable)
-                    pltr.PlotData(this.DataTable);
-                end
+        %% RegisterUIFigure
+        function RegisterUIFigure(this, uiFigureHandle)
+            arguments
+                this;
+                uiFigureHandle (1,1) handle;
             end
-        end       
 
-        %% RegisterPlotterObject
-        function RegisterPlotterObject(this, pltr)
-            try
-                %Add the plotter panel grid to the list of plotters
-                if(isempty(this.PlottingPanels))
-                    this.PlottingPanels = {pltr};
-                else
-                    this.PlottingPanels = [this.PlottingPanels, {pltr}];
-                end
-
-                %Update the variables avaliable to the plotter
-                pltr.UpdateVariables(this.Headers);
-            catch err
-                this.HandleError("Error registering plotter object", err);
-            end
-        end
-
-        %% RegisterPlotterTab
-        function RegisterPlotterTab(this, tab)
-            try
-                %Add the tabs to the list of tracked plotter tabs. Just for
-                %cleaning up later and to monitor if we have at least one
-                %on programme Run
-                if(isempty(this.PlottingTabs))
-                    this.PlottingTabs = {tab};
-                else
-                    this.PlottingTabs = [this.PlottingTabs, {tab}];
-                end
-
-            catch err
-                this.HandleError("Error registering plotter tab", err);
-            end
+            this.UIFigureHandle = uiFigureHandle;
         end
 
         %% RemoveInstrument
@@ -739,29 +661,13 @@ classdef Controller < handle
         %% RemoveInstrumentControl
         function RemoveInstrumentControl(this, instrRef, controlDetailsStruct)
             try
+                %Pass on through to InstrumentController
                 this.InstrumentController.RemoveInstrumentControl(instrRef, controlDetailsStruct);
-                this.View.RemoveTab(controlDetailsStruct.TabName);
-
-                %Update the View
-                this.View.OnControlDisabled(controlDetailsStruct.Name);
-
+              
                 %Verbose/debug message printing
                 this.Log("Info", "Removed Instrument Control: " + controlDetailsStruct.Name, "Green", "Removed Instrument Control");
             catch err
                 this.HandleError("Error removing instrument control " + controlDetailsStruct.Name, err);
-            end
-        end
-
-        %% SavePlot
-        function SavePlot(this, eventData)
-            try
-                fig = eventData.Figure;
-                this.DataWriter.SaveFigure(fig, this.FileWriteDetails.Directory, this.FileWriteDetails.FileName);
-
-                %Display a status message in the logger
-                this.Log("Info", "Plot saved", "Green", "Plot saved");
-            catch err
-                this.HandleError("Error saving figure", err);
             end
         end
 
@@ -771,7 +677,8 @@ classdef Controller < handle
                 this.FileWriteDetails.Directory = CoakView.Utilities.FileLoading.PathUtils.CleanPath(directory);
 
                 %Update the View
-                this.View.OnFileWriteOptionsChanged(this.FileWriteDetails);
+                args = CoakView.Events.ValueChangedEventData(this.FileWriteDetails);
+                notify(this, "FileWriteOptionsChanged", args);
             catch err
                 this.HandleError("Error in SetFilePathsDirectory", err);
             end
@@ -783,7 +690,8 @@ classdef Controller < handle
                 this.FileWriteDetails.FileExtension = fileExtension;
 
                 %Pass through to View
-                this.View.OnFileWriteOptionsChanged(this.FileWriteDetails);
+                args = CoakView.Events.ValueChangedEventData(this.FileWriteDetails);
+                notify(this, "FileWriteOptionsChanged", args);
             catch err
                 this.HandleError("Error in SetFilePathsFileExtension", err);
             end
@@ -795,7 +703,8 @@ classdef Controller < handle
                 this.FileWriteDetails.DescriptionText = descriptionText;
 
                 %Pass through to View
-                this.View.OnFileWriteOptionsChanged(this.FileWriteDetails);
+                args = CoakView.Events.ValueChangedEventData(this.FileWriteDetails);
+                notify(this, "FileWriteOptionsChanged", args);
             catch err
                 this.HandleError("Error in SetFilePathsDescription", err);
             end
@@ -815,7 +724,8 @@ classdef Controller < handle
                 this.FileWriteDetails.FileName = fileNameDateRp;
 
                 %Pass through to View
-                this.View.OnFileWriteOptionsChanged(this.FileWriteDetails);
+                args = CoakView.Events.ValueChangedEventData(this.FileWriteDetails);
+                notify(this, "FileWriteOptionsChanged", args);
             catch err
                 this.HandleError("Error setting file name", err);
             end
@@ -827,7 +737,8 @@ classdef Controller < handle
                 this.FileWriteDetails.SaveFile = saveFileBool;
 
                 %Pass through to View
-                this.View.OnFileWriteOptionsChanged(this.FileWriteDetails);
+                args = CoakView.Events.ValueChangedEventData(this.FileWriteDetails);
+                notify(this, "FileWriteOptionsChanged", args);
             catch err
                 this.HandleError("Error setting save file bool", err);
             end
@@ -839,7 +750,8 @@ classdef Controller < handle
                 this.FileWriteDetails.WriteMode = writeMode;
 
                 %Pass through to View
-                this.View.OnFileWriteOptionsChanged(this.FileWriteDetails);
+                args = CoakView.Events.ValueChangedEventData(this.FileWriteDetails);
+                notify(this, "FileWriteOptionsChanged", args);
             catch err
                 this.HandleError("Error setting write mode", err);
             end
@@ -864,11 +776,11 @@ classdef Controller < handle
         function ShowStatus(this, colour, msg)
             switch(colour)
                 case('Green')
-                    this.View.ShowGreenStatus(msg);
+                    notify(this, "GreenStatus", CoakView.Events.MessageEventData(msg));
                 case('Yellow')
-                    this.View.ShowYellowStatus(msg);
+                    notify(this, "YellowStatus", CoakView.Events.MessageEventData(msg));
                 case('Red')
-                    this.View.ShowRedStatus(msg);
+                    notify(this, "RedStatus", CoakView.Events.MessageEventData(msg));
                 otherwise
                     error('Colour unsupported in ShowStatus');
             end
@@ -901,40 +813,6 @@ classdef Controller < handle
                 this.DataTable = [this.DataTable; dataRow];
             end
         end
-
-        %% CleanUpPlotters
-        function CleanUpPlotters(this)
-            %Remove any plotters that may have been deleted (as part of
-            %e.g. an InstrumentControl tab that has been deleted from the
-            %GUI), from the list to update
-             for i = length(this.PlottingPanels) : -1 : 1
-                 if ~isvalid(this.PlottingPanels{i})
-                     this.PlottingPanels(i) = [];
-                 end
-             end
-        end
-
-        %% ClearPlots
-        function ClearPlots(this)
-            for i = 1 : length(this.PlottingPanels)
-                this.PlottingPanels{i}.ClearData();
-            end
-        end              
-
-        %% CreateInstrumentControlTab
-        function tab = CreateInstrumentControlTab(this, tabName)
-            tab = this.View.CreateInstrumentControlTab(tabName);
-        end
-
-        %% FinalisePreset
-        function FinalisePreset(this)
-            %Display a status message in the logger
-            this.ShowStatus('Yellow', 'Finalising Preset');
-
-            %Called once the preset changes are all applied, to do final
-            %housekeeping like refreshing UI
-            this.View.FinalisePreset();
-        end     
 
         %% LoadSettings
         function [logSettings, pathSettings, windowSettings, plotterSettings] = LoadSettings(this)
@@ -987,38 +865,6 @@ classdef Controller < handle
                     pathSettings.DefaultDirectory = userDir;
                     
                 end
-            end
-        end
-
-        %% PlotData
-        function PlotData(this, newDataRow)
-            %Check for any plotters that may have been closed by a
-            %discourteous user - remove them from the list of plotters to
-            %update if so.
-            for i = length(this.PlottingPanels) : - 1 : 1
-                if(~isvalid(this.PlottingPanels{i}))
-                    this.PlottingPanels(i) = [];
-                end
-            end
-
-            for i = 1 : length(this.PlottingPanels)
-                pltr = this.PlottingPanels{i};
-
-                %If possible, just append the new row of data to the
-                %existing plot (for speed). If e.g. the axis selections
-                %have changed on this Plotter and it needs a full refresh,
-                %the TryAppendData call will return false and we should
-                %call the full UpdatePlot method instead
-                if(~pltr.TryAppendData(newDataRow))
-                    pltr.PlotData(this.DataTable);
-                end
-            end
-        end       
-
-        %% UpdatePlotVariableNames
-        function UpdatePlotVariableNames(this, varNames)
-            for i = 1 : length(this.PlottingPanels)
-                this.PlottingPanels{i}.UpdateVariables(varNames);
             end
         end
 

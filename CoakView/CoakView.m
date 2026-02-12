@@ -16,7 +16,7 @@ classdef CoakView < handle
         %% Constructor
         function this = CoakView(Settings)
             arguments
-                Settings.View {mustBeTextScalar} = "CoakView_DefaultGUI";
+                Settings.View = "CoakView_DefaultGUI";
                 Settings.Preset = [];
             end
 
@@ -28,15 +28,21 @@ classdef CoakView < handle
             [applicationDir, ~, ~] = fileparts(applicationPath);
 
             %Create the view/frontend/implementation/GUI
-            view = this.CreateView(Settings.View, applicationDir);
+            if ~isempty(Settings.View)
+                view = this.CreateView(Settings.View, applicationDir);
+            end
 
             %Create a Controller class that will handle all the backend
             %logic
             this.Controller = CoakView.Core.Controller( ...
                 "ApplicationDir", applicationDir,...
-                "ApplicationPath", applicationPath, ...
-                "View", view...
+                "ApplicationPath", applicationPath...
                 );
+
+            %Register the view with the Controller
+            if ~isempty(Settings.View)
+                this.Controller.AttachView(view);
+            end
 
             %Initialise the Controller
             this.Controller.Initialise();
