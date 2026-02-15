@@ -49,8 +49,8 @@ classdef CoakView < handle
 
             %Apply a preset, if specified in the optional arguments
             if ~isempty(Settings.Preset)
-                presetFn = this.Controller.LoadPreset(Settings.Preset);
-                this.Controller.ApplyPreset(presetFn);
+                presetFn = this.LoadPreset(Settings.Preset);
+                this.ApplyPreset(presetFn);
             end
 
             %Tell the controller we have finished loading everything and
@@ -64,35 +64,26 @@ classdef CoakView < handle
                 this;
                 instrumentClassName {mustBeTextScalar};
                 settings.Name {mustBeTextScalar} = "Auto";
+                settings.ConnectionType {mustBeTextScalar} = "Auto";
             end
 
             %Pass through to Controller
-            instRef = this.Controller.AddInstrument(instrumentClassName, "Name", settings.Name);
-        end
-
-        %% AddInstrumentControl
-        function cont = AddInstrumentControl(this, instrRef, controlDetailsStruct)
-            cont = this.Controller.AddInstrumentControl(instrRef, controlDetailsStruct);
+            instRef = this.Controller.InstrumentController.AddInstrument(instrumentClassName, Name=settings.Name, ConnectionType=settings.ConnectionType);
         end
 
         %% Pause
         function Pause(this)
-            this.Controller.Pause();
+            this.Controller.TimingLoopController.Pause();
         end
 
         %% RemoveInstrument
         function RemoveInstrument(this, instRef)
-            this.Controller.RemoveInstrument(instRef);
-        end
-
-        %% RemoveInstrumentControl
-        function RemoveInstrumentControl(this, instrRef, controlDetailsStruct)
-            this.Controller.RemoveInstrumentControl(instrRef, controlDetailsStruct);
+            this.Controller.InstrumentController.RemoveInstrument(instRef);
         end
 
         %% Resume
         function Resume(this)
-            this.Controller.Resume();
+            this.Controller.TimingLoopController.Resume();
         end
 
         %% SetFilePathsDirectory
@@ -125,18 +116,41 @@ classdef CoakView < handle
             this.Controller.SetFilePathsWriteMode(writeMode);
         end
 
+        %% SetUpdateTime
+        function SetUpdateTime(this, time_s)
+            this.Controller.TimingLoopController.SetUpdateTime(time_s);
+        end
+
         %% Start
         function Start(this)
-            this.Controller.Start();
+            this.Controller.TimingLoopController.Start();
         end
 
         %% Stop
         function Stop(this)
-            this.Controller.Stop();
+            this.Controller.TimingLoopController.Stop();
         end
     end
 
     methods (Access = private)
+
+        %% ApplyPreset
+        function ApplyPreset(this, presetFn)
+            try
+                %Display a status message in the logger
+                this.Controller.ShowStatus('Yellow', 'Applying Preset');
+                presetFn(this);
+
+                %Display a status message in the logger
+                this.Controller.ShowStatus('Yellow', 'Finalising Preset');
+
+                %Finalise the preset - basically, update the GUI to reflect
+                %changes
+                notify(this.Controller, "FinalisePreset");
+            catch err
+                this.Controller.HandleError("Error applying Preset", err);
+            end
+        end
 
         %% CreateView
         function view = CreateView(~, viewFileName, applicationDir)
@@ -154,6 +168,32 @@ classdef CoakView < handle
             %Create an instance of the required class (empty constructor)
             fnHandle = str2func(namespaceClassPath);
             view = fnHandle();
+        end
+
+        %% GetPresetsDir
+        function dirPath = GetPresetsDir(this)
+            dirPath = fullfile(this.Controller.ApplicationDir,  this.Controller.PresetsDirectory);
+        end
+
+        %% LoadPreset
+        function presetFn = LoadPreset(this, presetName)
+            %Display a status message in the logger
+            this.Controller.ShowStatus('Yellow', 'Loading Preset');
+
+            try
+                %Fetch paths
+                presetsDir = this.GetPresetsDir();
+                presetPath = fullfile(presetsDir, presetName) + ".m";
+
+                %Error checking
+                assert(exist(presetsDir,"dir") == 7, "Presets directory " + presetsDir + " not found");
+                assert(exist(presetPath,"file") == 2, "Preset file " + presetPath + " not found");
+
+                %Load the present in as a function handle
+                presetFn = CoakView.Utilities.FileLoading.PluginLoading.InstantiatePreset("CoakViewPresets", presetName);
+            catch err
+                this.Controller.HandleError("Error loading Preset", err);
+            end
         end
 
     end

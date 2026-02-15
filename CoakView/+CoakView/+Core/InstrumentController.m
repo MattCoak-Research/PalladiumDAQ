@@ -54,8 +54,14 @@ classdef InstrumentController < handle
         end     
         
         %% AddInstrument
-        function instRef = AddInstrument(this, instrStringToAdd)
+        function instRef = AddInstrument(this, instrStringToAdd, settings)
             %Add an instrument just from a string of the name of its class
+            arguments
+                this;
+                instrStringToAdd {mustBeTextScalar};
+                settings.Name {mustBeTextScalar} = "Auto";
+                settings.ConnectionType {mustBeTextScalar} = "Auto";
+            end
 
             %Check for error cases like empty list box selection
             if(isempty(instrStringToAdd))
@@ -68,14 +74,30 @@ classdef InstrumentController < handle
             assert(~isempty(this.ListOfAvailableInstrumentClassNameStrings), "List of loaded instrument classes to select from is empty - file paths messed up?");
             assert(any(contains(this.ListOfAvailableInstrumentClassNameStrings, instrStringToAdd, "IgnoreCase", false)), string(instrStringToAdd) + " not found in list of avaliable Instruments");
           
-
             %Make an instance of the selected datasource class
             instRef = CoakView.Utilities.FileLoading.PluginLoading.InstantiateClass(this.Namespace, instrStringToAdd);
             
-            %Give the newly created instrument a number at the end of its
-            %name ie Lakeshore350_1
-            instRef.Name = CoakView.Utilities.FileLoading.PluginLoading.GetIncrementedInstrName(instRef, this.SelectedInstruments);
-            
+            %Set the instrument name if that optional parameter was
+            %passed in. This is useful when setting up Instruments and
+            %their GUI controls programmtically - we want the name to
+            %be set before the control gets added in the line below..
+            if ~strcmp(settings.Name, "Auto")
+                instRef.Name = settings.Name;
+
+            end
+
+            if strcmp(settings.Name, "Auto") | CoakView.Utilities.FileLoading.PluginLoading.CheckForExistingInstrName(instRef.Name, this.SelectedInstruments)
+                %Give the newly created instrument a number at the end of its
+                %name ie Lakeshore350_1
+                instRef.Name = CoakView.Utilities.FileLoading.PluginLoading.GetIncrementedInstrName(instRef, this.SelectedInstruments);
+            end
+
+            %Set the instrument Connection Type if that optional parameter was
+            %passed in. 
+            if ~strcmp(settings.ConnectionType, "Auto")
+                instRef.Connection_Type = CoakView.Enums.ConnectionType(settings.ConnectionType);
+            end
+           
             %Add the new instrument, and the name of its class, to the
             %lists of each held in this class (will also be done in the
             %View, which hopefully will match!)

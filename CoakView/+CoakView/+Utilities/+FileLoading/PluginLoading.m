@@ -3,6 +3,32 @@ classdef PluginLoading
 
     methods (Static)
 
+        %% CheckForExistingInstrName
+        function existsAlready = CheckForExistingInstrName(newName, itemsData)
+            %Check the list itemsData - presumed to be a list of
+            %Instruments - and see if any have the Name newName
+           
+            %Check if the instruments array is empty, that's an easy false
+            if(isempty(itemsData))
+                existsAlready = false;
+                return;
+            end
+
+            %Get names of existing instruments
+            for n = 1 : length(itemsData)
+                existingNames(n) = string(itemsData{n}.Name);
+            end
+
+            %Check for duplicate
+            if(any(strcmp(existingNames, newName)))
+                existsAlready = true;
+                return;
+            end
+
+            %Assign output - we got to the end without returning
+            existsAlready = false;
+        end
+
         %% GetIncrementedInstrName
         function NewName = GetIncrementedInstrName(instr, itemsData)
             %Prevent duplicate instrument names by appending 1,2,3 to the end

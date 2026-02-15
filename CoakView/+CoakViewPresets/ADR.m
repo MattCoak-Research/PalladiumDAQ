@@ -10,14 +10,12 @@ coakView.SetUpdateTime(0.5);
 
 %Add the Lakeshore 372 temperature controller and configure it - for now I
 %think 370 and 372 code is interchangable..
-ls372 = coakView.AddInstrument("Lakeshore372");
-ls372.Connection_Type = CoakView.Enums.ConnectionType.GPIB;
+ls372 = coakView.AddInstrument("Lakeshore372", Name="Lakeshore372", ConnectionType="GPIB");
 ls372.GPIB_Address = 11;
 ls372.Ch_Name = "Sample Temperature (K)";
 
 %Add the Lakeshore 350 temperature controller and configure it
-ls350 = coakView.AddInstrument("Lakeshore350");
-ls350.Connection_Type = CoakView.Enums.ConnectionType.GPIB;
+ls350 = coakView.AddInstrument("Lakeshore350", Name="Lakeshore350", ConnectionType="GPIB");
 ls350.GPIB_Address = 12;
 ls350.Ch_A_Name = "1K Plate Temperature (K)";
 ls350.Ch_B_Name = "Sorb Temperature (K)";
@@ -29,13 +27,11 @@ pltr.SetDefaultXAxis("Time (mins)");
 pltr.SetDefaultYAxes("Sample Temperature (K)", "1K Plate Temperature (K)", [], []);
 
 %Add demag magnet power supply
-demagIPS = coakView.AddInstrument("Mercury120_10_IPS", Name = "Demag Magnet");
-demagIPS.Connection_Type = CoakView.Enums.ConnectionType.Serial;
+demagIPS = coakView.AddInstrument("Mercury120_10_IPS", Name = "Demag Magnet", ConnectionType="Serial");
 demagIPS.Serial_Address = "COM4";
 
 %Add sample magnet power supply
-sampleIPS = coakView.AddInstrument("Mercury120_IPS", Name = "Sample Magnet");
-sampleIPS.Connection_Type = CoakView.Enums.ConnectionType.GPIB;
+sampleIPS = coakView.AddInstrument("Mercury120_IPS", Name = "Sample Magnet", ConnectionType="Serial");
 sampleIPS.GPIB_Address = 25;
 
 %Add a Plotting tab for the magnets

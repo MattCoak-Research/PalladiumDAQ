@@ -24,11 +24,11 @@ classdef Controller < handle
 
         %Sub-controllers
         TimingLoopController;
+        InstrumentController;
         DataWriter;
     end
 
     properties(Access = private)
-        InstrumentController;
         PlottingController;
         SequenceEditorController;
 
@@ -210,24 +210,6 @@ classdef Controller < handle
             end
         end
         
-        %% ApplyPreset
-        function ApplyPreset(this, presetFn)
-            try
-                %Display a status message in the logger
-                this.ShowStatus('Yellow', 'Applying Preset');
-                presetFn(this);
-
-                %Display a status message in the logger
-                this.ShowStatus('Yellow', 'Finalising Preset');
-
-                %Finalise the preset - basically, update the GUI to reflect
-                %changes
-                notify(this, "FinalisePreset");
-            catch err
-                this.HandleError("Error applying Preset", err);
-            end
-        end
-
         %% CanStart
         function canStart = CanStart(this)
             canStart = false;
@@ -250,11 +232,6 @@ classdef Controller < handle
         %% CloseProgress
         function CloseProgress(this)
             notify(this, "StoppedShowingProgress");
-        end
-
-        %% GetPresetsDir
-        function dirPath = GetPresetsDir(this)
-            dirPath = fullfile(this.ApplicationDir,  this.PresetsDirectory);
         end
 
         %% HaltMeasurementsOnInstrumentError
@@ -473,27 +450,6 @@ classdef Controller < handle
             this.DataWriter.WriteHeaders(headersString, "MetadataLines", metadataLines);
 
             success = true;            
-        end
-
-        %% LoadPreset
-        function presetFn = LoadPreset(this, presetName)
-            %Display a status message in the logger
-            this.ShowStatus('Yellow', 'Loading Preset');
-
-            try
-                %Fetch paths
-                presetsDir = this.GetPresetsDir();
-                presetPath = fullfile(presetsDir, presetName) + ".m";
-
-                %Error checking
-                assert(exist(presetsDir,"dir") == 7, "Presets directory " + presetsDir + " not found");
-                assert(exist(presetPath,"file") == 2, "Preset file " + presetPath + " not found");
-
-                %Load the present in as a function handle
-                presetFn = CoakView.Utilities.FileLoading.PluginLoading.InstantiatePreset("CoakViewPresets", presetName);
-            catch err
-                this.HandleError("Error loading Preset", err);
-            end
         end
 
         %% Log
