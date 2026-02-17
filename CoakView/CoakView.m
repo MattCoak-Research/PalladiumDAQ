@@ -30,6 +30,8 @@ classdef CoakView < handle
             %Create the view/frontend/implementation/GUI
             if ~isempty(Settings.View)
                 view = this.CreateView(Settings.View, applicationDir);
+            else
+                view = [];
             end
 
             %Create a Controller class that will handle all the backend
@@ -50,7 +52,7 @@ classdef CoakView < handle
             %Apply a preset, if specified in the optional arguments
             if ~isempty(Settings.Preset)
                 presetFn = this.LoadPreset(Settings.Preset);
-                this.ApplyPreset(presetFn);
+                this.ApplyPreset(presetFn, view);
             end
 
             %Tell the controller we have finished loading everything and
@@ -135,11 +137,13 @@ classdef CoakView < handle
     methods (Access = private)
 
         %% ApplyPreset
-        function ApplyPreset(this, presetFn)
+        function ApplyPreset(this, presetFn, view)
             try
                 %Display a status message in the logger
                 this.Controller.ShowStatus('Yellow', 'Applying Preset');
-                presetFn(this);
+
+                %Execute the Preset script file
+                presetFn(this, view);
 
                 %Display a status message in the logger
                 this.Controller.ShowStatus('Yellow', 'Finalising Preset');
@@ -148,7 +152,16 @@ classdef CoakView < handle
                 %changes
                 notify(this.Controller, "FinalisePreset");
             catch err
-                this.Controller.HandleError("Error applying Preset", err);
+
+                if strcmp(err.message, "Dot indexing is not supported for variables of this type.") && isempty(view)    %Add additional helpder text to the error if it's likely we are trying to call functions on an empty GUI. Note we're avoiding isempty checks or architectural complexity in the PReset functions to keep them easy to edit and understand, which means the user can do silly things like this
+                    try
+                        error("Assignment error in a Preset with no attached view. The 'gui' argument is null, are you trying to call functions like AddPlottingWindow on it? Error message: " + string(err.message));
+                    catch exception
+                        this.Controller.HandleError("Error applying Preset", exception);
+                    end
+                else
+                    this.Controller.HandleError("Error applying Preset", err);
+                end
             end
         end
 

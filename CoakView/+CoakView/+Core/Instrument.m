@@ -140,6 +140,34 @@ classdef(Abstract) Instrument < handle
             controlDetailsStructs = [];
         end
 
+        %% GetControlOption
+        function controlDetailsStruct = GetControlOption(this, controlName)
+            arguments
+                this;
+                controlName {mustBeTextScalar}
+            end
+
+            controlDetailsStructs = this.GetAvailableControlOptions();
+
+            controlDetailsStruct = [];
+            listOfPotentialNames = "";
+
+            for i = 1 : length(controlDetailsStructs)
+                listOfPotentialNames = listOfPotentialNames + string(controlDetailsStructs(i).Name);
+
+                if i < length(controlDetailsStructs)
+                    listOfPotentialNames = listOfPotentialNames + ", ";
+                end
+
+                if strcmp(controlName, controlDetailsStructs(i).Name)
+                    controlDetailsStruct = controlDetailsStructs(i);
+                    return;
+                end
+            end
+
+            error("Could not find Control Detail Struct with name " + string(controlName) + ". Supported options: " + listOfPotentialNames);
+        end
+
         %% GetRegisteredControlObjectsFromName
         function objsList = GetRegisteredControlObjectsFromName(this, name)
             objsList = [];

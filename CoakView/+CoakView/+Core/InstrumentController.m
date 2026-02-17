@@ -48,7 +48,7 @@ classdef InstrumentController < handle
                 cds = cdsList(i);
 
                 if cds.EnabledByDefault
-                    this.Controller.AddInstrumentControl(instr, cds);
+                    this.AddInstrumentControl(instr, cds);
                 end
             end
         end     

@@ -114,7 +114,9 @@ classdef Controller < handle
 
                 %Check for any InstrumentControls that have EnabledByDefault
                 %set to true, and add them
-                this.InstrumentController.AddEnabledByDefaultInstrumentControls(instr);
+                if ~isempty(this.UIFigureHandle)
+                    this.InstrumentController.AddEnabledByDefaultInstrumentControls(instr);
+                end
 
                 %Assign a reference to the instrument into the Matlab
                 %workspace as well, so we can e.g. programmatically call
