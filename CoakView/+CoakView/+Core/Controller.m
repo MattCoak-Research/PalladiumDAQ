@@ -37,8 +37,6 @@ classdef Controller < handle
         Closing = false;    %Will get set by an attached GUI if it is in the process of being closed, to tell us to stop sending events to a now-invalid GUI
 
         SuppressedErrorMessages = {};
-
-        AssignInstrumentRefsIntoWorkspace = true;
         UIFigureHandle = []; %Needed for error handling - need to know if we are throwing a modal dialogue box in an attached UIFigure, or a free floating normal one if there is no listening View
     end
 
@@ -87,70 +85,7 @@ classdef Controller < handle
             %Assign controllers into the View and have it subscribe to
             %their events
             view.AssignControllersAndHookUpEvents(this, this.TimingLoopController, this.InstrumentController, this.PlottingController);
-        end
-
-        %% AddInstrument
-        function instr = AddInstrument(this, instrumentClassName, settings)
-            arguments
-                this;
-                instrumentClassName {mustBeTextScalar};
-                settings.Name {mustBeTextScalar} = "Auto";
-            end
-
-            %This can be called either programmatically, from the wrapper,
-            %or via events triggered in the View. 
-            try
-                % Pass on to Instrument Controller
-                instr = this.InstrumentController.AddInstrument(instrumentClassName);
-
-                %Set the instrument name if that optional parameter was
-                %passed in. This is useful when setting up Instruments and
-                %their GUI controls programmatically - we want the name to
-                %be set before the control gets added in the line below..
-                if ~strcmp(settings.Name, "Auto")
-                    instr.Name = settings.Name;
-                end
-
-
-                %Check for any InstrumentControls that have EnabledByDefault
-                %set to true, and add them
-                if ~isempty(this.UIFigureHandle)
-                    this.InstrumentController.AddEnabledByDefaultInstrumentControls(instr);
-                end
-
-                %Assign a reference to the instrument into the Matlab
-                %workspace as well, so we can e.g. programmatically call
-                %functions and adjust settings mid-measurement
-                if(this.AssignInstrumentRefsIntoWorkspace)
-                    try
-                        safeName = genvarname(instr.Name);
-                        assignin("base", safeName, instr);
-                    catch err
-                        warning("Failed to assign Instrument " + instr.Name + " into the workspace. Message: " + err.message);
-                    end
-                end
-
-                %Verbose/debug message printing
-                this.Log("Info", "Added Instrument: " + instrumentClassName, "Green", "Added Instrument");
-            catch err
-                this.HandleError("Error adding instrument " + instrumentClassName, err);
-            end
-        end
-
-        %% AddInstrumentControl
-        function cont = AddInstrumentControl(this, tab, instrRef, controlDetailsStruct)
-            %Populate tab and hook up instrument to the GUI
-            cont = this.InstrumentController.AddInstrumentControl(this, tab, instrRef, controlDetailsStruct);
-
-            %Subscribe it to Controller events
-            addlistener(this.TimingLoopController, 'Started', @(src,evnt)cont.MeasurementsStarted(src, evnt));
-            addlistener(this.TimingLoopController, 'Paused', @(src,evnt)cont.MeasurementsPaused(src, evnt));
-            addlistener(this.TimingLoopController, 'Resumed', @(src,evnt)cont.MeasurementsResumed(src, evnt));
-            addlistener(this.TimingLoopController, 'Stopped', @(src,evnt)cont.MeasurementsStopped(src, evnt));
-
-            %Verbose/debug message printing
-            this.Log("Info", "Added Instrument Control: " + controlDetailsStruct.Name, "Green", "Added Instrument Control");
-        end
+        end            
         
         %% AddNewPlotter
         function pltr = AddNewPlotter(this, parent, size)

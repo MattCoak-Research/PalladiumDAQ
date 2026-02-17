@@ -16,6 +16,7 @@ classdef InstrumentController < handle
     
     properties (Access = private)
         Controller; %Reference back to the overall CoakView Controller that handles all the main logic - feed things back to there
+        AssignInstrumentRefsIntoWorkspace = true;
     end
 
     properties (Access = private, Constant)
@@ -24,6 +25,7 @@ classdef InstrumentController < handle
     end
 
     events
+        DefaultEnabledInstrumentControlAdd;
         InstrumentAdded;
         InstrumentListPopulated;
         InstrumentRemoved;
@@ -48,7 +50,10 @@ classdef InstrumentController < handle
                 cds = cdsList(i);
 
                 if cds.EnabledByDefault
-                    this.AddInstrumentControl(instr, cds);
+                    %The View needs to handle GUI object creation, so send
+                    %an event upstream. Note, no View = No control made!
+                    args = CoakView.Events.InstrumentControlAddEventData(instr, cds);
+                    notify(this, "DefaultEnabledInstrumentControlAdd", args);
                 end
             end
         end     
@@ -68,64 +73,99 @@ classdef InstrumentController < handle
                 instRef = [];
                 return;
             end
+            try
+                %Make sure the instrName is valid, and other error checking
+                assert(isstring(instrStringToAdd), "Instrument name must be a string");
+                assert(~isempty(this.ListOfAvailableInstrumentClassNameStrings), "List of loaded instrument classes to select from is empty - file paths messed up?");
+                assert(any(contains(this.ListOfAvailableInstrumentClassNameStrings, instrStringToAdd, "IgnoreCase", false)), string(instrStringToAdd) + " not found in list of avaliable Instruments");
 
-            %Make sure the instrName is valid, and other error checking
-            assert(isstring(instrStringToAdd), "Instrument name must be a string");
-            assert(~isempty(this.ListOfAvailableInstrumentClassNameStrings), "List of loaded instrument classes to select from is empty - file paths messed up?");
-            assert(any(contains(this.ListOfAvailableInstrumentClassNameStrings, instrStringToAdd, "IgnoreCase", false)), string(instrStringToAdd) + " not found in list of avaliable Instruments");
-          
-            %Make an instance of the selected datasource class
-            instRef = CoakView.Utilities.FileLoading.PluginLoading.InstantiateClass(this.Namespace, instrStringToAdd);
-            
-            %Set the instrument name if that optional parameter was
-            %passed in. This is useful when setting up Instruments and
-            %their GUI controls programmtically - we want the name to
-            %be set before the control gets added in the line below..
-            if ~strcmp(settings.Name, "Auto")
-                instRef.Name = settings.Name;
+                %Make an instance of the selected datasource class
+                instRef = CoakView.Utilities.FileLoading.PluginLoading.InstantiateClass(this.Namespace, instrStringToAdd);
 
-            end
+                %Set the instrument name if that optional parameter was
+                %passed in. This is useful when setting up Instruments and
+                %their GUI controls programmtically - we want the name to
+                %be set before the control gets added in the line below..
+                if ~strcmp(settings.Name, "Auto")
+                    instRef.Name = settings.Name;
+                end
 
-            if strcmp(settings.Name, "Auto") | CoakView.Utilities.FileLoading.PluginLoading.CheckForExistingInstrName(instRef.Name, this.SelectedInstruments)
-                %Give the newly created instrument a number at the end of its
-                %name ie Lakeshore350_1
-                instRef.Name = CoakView.Utilities.FileLoading.PluginLoading.GetIncrementedInstrName(instRef, this.SelectedInstruments);
-            end
+                if strcmp(settings.Name, "Auto") | CoakView.Utilities.FileLoading.PluginLoading.CheckForExistingInstrName(instRef.Name, this.SelectedInstruments)
+                    %Give the newly created instrument a number at the end of its
+                    %name ie Lakeshore350_1
+                    instRef.Name = CoakView.Utilities.FileLoading.PluginLoading.GetIncrementedInstrName(instRef, this.SelectedInstruments);
+                end
 
-            %Set the instrument Connection Type if that optional parameter was
-            %passed in. 
-            if ~strcmp(settings.ConnectionType, "Auto")
-                instRef.Connection_Type = CoakView.Enums.ConnectionType(settings.ConnectionType);
+                %Set the instrument Connection Type if that optional parameter was
+                %passed in.
+                if ~strcmp(settings.ConnectionType, "Auto")
+                    instRef.Connection_Type = CoakView.Enums.ConnectionType(settings.ConnectionType);
+                end
+
+                %Add the new instrument, and the name of its class, to the
+                %lists of each held in this class (will also be done in the
+                %View, which hopefully will match!)
+                if(isempty(this.SelectedInstrumentNames))
+                    this.SelectedInstrumentNames = instrStringToAdd;
+                    this.SelectedInstruments = {instRef};
+                else
+                    this.SelectedInstrumentNames = [this.SelectedInstrumentNames, instrStringToAdd];
+                    this.SelectedInstruments = [this.SelectedInstruments, {instRef}];
+                end
+
+                %Check for any InstrumentControls that have EnabledByDefault
+                %set to true, and add them
+                this.AddEnabledByDefaultInstrumentControls(instRef);
+
+                %Assign a reference to the instrument into the Matlab
+                %workspace as well, so we can e.g. programmatically call
+                %functions and adjust settings mid-measurement
+                if(this.AssignInstrumentRefsIntoWorkspace)
+                    try
+                        safeName = genvarname(instRef.Name);
+                        assignin("base", safeName, instRef);
+                    catch err
+                        warning("Failed to assign Instrument " + instRef.Name + " into the workspace. Message: " + err.message);
+                    end
+                end
+
+                %Update the View
+                args = CoakView.Events.InstrumentAddedEventData(instrStringToAdd, instRef);
+                notify(this, "InstrumentAdded", args);
+
+
+                %Verbose/debug message printing
+                this.Controller.Log("Info", "Added Instrument: " + instrStringToAdd, "Green", "Added Instrument");
+            catch err
+                this.Controller.HandleError("Error adding instrument " + instrStringToAdd, err);
             end
-           
-            %Add the new instrument, and the name of its class, to the
-            %lists of each held in this class (will also be done in the
-            %View, which hopefully will match!)
-            if(isempty(this.SelectedInstrumentNames))
-                this.SelectedInstrumentNames = instrStringToAdd;
-                this.SelectedInstruments = {instRef};                
-            else
-                this.SelectedInstrumentNames = [this.SelectedInstrumentNames, instrStringToAdd];
-                this.SelectedInstruments = [this.SelectedInstruments, {instRef}];
-            end
-            
-            %Update the View
-            args = CoakView.Events.InstrumentAddedEventData(instrStringToAdd, instRef);
-            notify(this, "InstrumentAdded", args);
         end    
 
         %% AddInstrumentControl
-        function controlClassRef = AddInstrumentControl(this, controller, tab, instrRef, controlDetailsStruct)
-            
-            %Make an instance of the selected datasource class
-            controlClassRef = CoakView.Utilities.FileLoading.PluginLoading.InstantiateClass(this.ControlsNamespace, controlDetailsStruct.ControlClassFileName);      
-            controlClassRef.ControlDetailsStruct = controlDetailsStruct;
+        function controlClassRef = AddInstrumentControl(this, tab, instrRef, controlDetailsStruct)
+            try
+                %Make an instance of the selected datasource class
+                controlClassRef = CoakView.Utilities.FileLoading.PluginLoading.InstantiateClass(this.ControlsNamespace, controlDetailsStruct.ControlClassFileName);
+                controlClassRef.ControlDetailsStruct = controlDetailsStruct;
 
-            %Tell the control class to create the required GUI etc
-            controlClassRef.CreateInstrumentControlGUI(controller, tab, instrRef);
+                %Tell the control class to create the required GUI etc
+                controlClassRef.CreateInstrumentControlGUI(this.Controller, tab, instrRef);
 
-            %Register the control class with the instrument
-            instrRef.RegisterControlObject(controlClassRef);
+                %Register the control class with the instrument
+                instrRef.RegisterControlObject(controlClassRef);
+
+
+                %Subscribe it to Controller events
+                addlistener(this.Controller.TimingLoopController, 'Started', @(src,evnt)cont.MeasurementsStarted(src, evnt));
+                addlistener(this.Controller.TimingLoopController, 'Paused', @(src,evnt)cont.MeasurementsPaused(src, evnt));
+                addlistener(this.Controller.TimingLoopController, 'Resumed', @(src,evnt)cont.MeasurementsResumed(src, evnt));
+                addlistener(this.Controller.TimingLoopController, 'Stopped', @(src,evnt)cont.MeasurementsStopped(src, evnt));
+
+                %Verbose/debug message printing
+                this.Controller.Log("Info", "Added Instrument Control: " + controlDetailsStruct.Name, "Green", "Added Instrument Control");
+            catch err
+                this.Controller.HandleError("Error adding instrument Control " + controlDetailsStruct.Name, err);
+            end
         end
 
         %% CloseAll
