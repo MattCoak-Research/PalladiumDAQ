@@ -1,11 +1,13 @@
 classdef (ConstructOnLoad) DataRowAddedEventData < event.EventData
    properties
-      DataRow
+      DataRow;
+      Headers;      
    end
    
    methods
-       function data = DataRowAddedEventData(value)
-         data.DataRow = value;
+       function data = DataRowAddedEventData(dataRow, headers)
+         data.DataRow = dataRow;
+         data.Headers = headers;
       end
    end
 end

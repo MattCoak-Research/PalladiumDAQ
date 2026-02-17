@@ -439,7 +439,7 @@ classdef Controller < handle
             try
                 %Update data plots & Update any Big Number Display windows
                 this.PlottingController.PlotData(dataRow);
-                args = CoakView.Events.DataRowAddedEventData(dataRow);
+                args = CoakView.Events.DataRowAddedEventData(dataRow, this.Headers);
                 notify(this, "DataRowUpdated", args);
             catch e
                 CatchMeasurementLoopError(this, e);

@@ -25,6 +25,7 @@ classdef InstrumentController < handle
     end
 
     events
+        DataRowCollected;
         DefaultEnabledInstrumentControlAdd;
         InstrumentAdded;
         InstrumentListPopulated;
@@ -154,13 +155,15 @@ classdef InstrumentController < handle
                 %Register the control class with the instrument
                 instrRef.RegisterControlObject(controlClassRef);
 
-
                 %Subscribe it to Controller events
-                addlistener(this.Controller.TimingLoopController, 'Started', @(src,evnt)cont.MeasurementsStarted(src, evnt));
-                addlistener(this.Controller.TimingLoopController, 'Paused', @(src,evnt)cont.MeasurementsPaused(src, evnt));
-                addlistener(this.Controller.TimingLoopController, 'Resumed', @(src,evnt)cont.MeasurementsResumed(src, evnt));
-                addlistener(this.Controller.TimingLoopController, 'Stopped', @(src,evnt)cont.MeasurementsStopped(src, evnt));
+                addlistener(this.Controller.TimingLoopController, 'Started', @(src,evnt)controlClassRef.MeasurementsStarted(src, evnt));
+                addlistener(this.Controller.TimingLoopController, 'Paused', @(src,evnt)controlClassRef.MeasurementsPaused(src, evnt));
+                addlistener(this.Controller.TimingLoopController, 'Resumed', @(src,evnt)controlClassRef.MeasurementsResumed(src, evnt));
+                addlistener(this.Controller.TimingLoopController, 'Stopped', @(src,evnt)controlClassRef.MeasurementsStopped(src, evnt));
+                addlistener(this.Controller.TimingLoopController, 'MeasurementsInitialised', @(src,evnt)controlClassRef.MeasurementsInitialised(src, evnt));
 
+                addlistener(this, 'DataRowCollected', @(src,evnt)controlClassRef.DataRowCollected(evnt.DataRow, evnt.Headers));
+              
                 %Verbose/debug message printing
                 this.Controller.Log("Info", "Added Instrument Control: " + controlDetailsStruct.Name, "Green", "Added Instrument Control");
             catch err
@@ -232,6 +235,9 @@ classdef InstrumentController < handle
 
                 end
             end
+
+            %Fire event for data row collected
+            notify(this, "DataRowCollected", CoakView.Events.DataRowAddedEventData(DataRow, this.Controller.Headers));
         end
 
         %% GetHeaders

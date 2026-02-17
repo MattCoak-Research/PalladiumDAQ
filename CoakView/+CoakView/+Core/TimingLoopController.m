@@ -12,6 +12,7 @@ classdef TimingLoopController < handle
     end
 
     events
+        MeasurementsInitialised;
         Started;
         Paused;
         Resumed;
@@ -145,6 +146,7 @@ classdef TimingLoopController < handle
                 [success, msg, title] = this.Controller.InitialiseMeasurements();
                 if success
                     %We connected successfully - run the measurements
+                    this.OnMeasurementsInitialised(this.Controller.Headers);
                     this.RunMeasurementLoop();
                 else
                     %We get to here if we failed to connect to an
@@ -186,6 +188,16 @@ classdef TimingLoopController < handle
             this.Controller.HandleWarning(msg, title);
 
             this.OnStopped();
+        end
+
+        %% OnMeasurementsInitialised
+        function OnMeasurementsInitialised(this, headers)
+            %Fired after successful connection to instruments, data column
+            %headers locked in.
+
+            %Fire event
+            args = CoakView.Events.MeasurementsInitialisedEventData(headers);
+            notify(this, "MeasurementsInitialised", args);
         end
 
 
