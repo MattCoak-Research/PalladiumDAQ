@@ -1,4 +1,4 @@
-function Example(coakView)
+function Example(coakView, gui)
 %EXAMPLE - Example/template preset for CoakView. Edit it, save as
 %'Filename' in the Presets folder, then use it by calling
 %CoakView('Filename') to programmatically set various parameters and GUI
@@ -25,14 +25,14 @@ k24.MeasMode = k24.MeasType("Current"); %Example of how to set Categorical prope
 
 
 %Add a Plotting tab
-pltr = coakView.AddNewPlottingTab(1, 1);
+pltr = gui.AddNewPlottingTab(1, 1);
 pltr.SetDefaultXAxis("Time (mins)");
 pltr.SetDefaultYAxes("Time (mins)", [], "K2000_1 - Resistance (Ohms)", []);
-coakView.AddNewPlottingTab(2, 2);
+gui.AddNewPlottingTab(2, 2);
 
 
 %Add a Plotting window
-%coakView.AddNewPlottingWindow(1, 1);
+%gui.AddNewPlottingWindow(1, 1);
 
 end
 
