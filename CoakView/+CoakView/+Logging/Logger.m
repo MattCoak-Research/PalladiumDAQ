@@ -80,7 +80,7 @@ classdef Logger < handle
                 msg = ErrorString;
                 title = "Error";
                 ErrorQuestResult = questdlg(sprintf(msg), title, ...
-                    "Stop Measurements", "Stop & Go to Code", "Suppress Error", "Ignore");
+                    "Stop Measurements", "Stop & Go to Code", "Ignore", "Ignore");
             else
                 %Show a modal dialogue box asking the user what they want
                 %to do

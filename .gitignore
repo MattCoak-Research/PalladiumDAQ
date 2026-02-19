@@ -25,8 +25,9 @@ sccprj/
 CoakView/Instrument Drivers/Paragraf MIST/
 CoakView/Instrument Drivers/Zurich Instruments/
 
+# Presets other than the default example and the PPMS example
+CoakView/+CoakViewPresets/ADR.m
+CoakView/+CoakViewPresets/Testing.m
+
 # Batch script
 coakviewpush.bat
-
-# Testing log folder
-CoakViewTesting/

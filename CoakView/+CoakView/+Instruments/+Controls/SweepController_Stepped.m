@@ -16,6 +16,8 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
         XLabelStr = "X axis var";
         YLabelStr = "Y axis var";
         Aborted = false;
+        ExtraDataColHeaders = [];
+        CachedData = [];
     end
     
     methods
@@ -42,7 +44,7 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
             [targetNumSteps, stepSize] = CoakView.Instruments.Controls.SweepController_Stepped.CalculateSteps(sweepDetails.TargetNumSteps, sweepDetails.StepSize, totalMag);
 
             %Calculate how long this will take
-            updateTime = this.Controller.TargetUpdateTime;
+            updateTime = this.Controller.TimingLoopController.TargetUpdateTime;
             estimatedMinUpdateTime = 0.05; %In seconds. A hardcoded semi-guess at the moment.. the minimum time the programme takes to run if not update-time limited. Will add to the Settle Time for a real total time
             timeMin = CoakView.Instruments.Controls.SweepController_Stepped.CalculateTotalTime(targetNumSteps, sweepDetails.SettleTime, updateTime, estimatedMinUpdateTime);
 
@@ -115,7 +117,7 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
         end
 
         %% OnSweepComplete
-        function OnSweepComplete(this)  
+        function OnSweepComplete(~)  
             
         end
 
@@ -152,15 +154,22 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
             this.GUIView = [];
         end
 
+        %% MeasurementsInitialised
+        function MeasurementsInitialised(this, src, eventArgs)
+            headers = eventArgs.Headers;
+            this.GUIView.UpdateAvailableDataColumnHeaders(headers);
+        end
+
         %% MeasurementsStarted
-        function MeasurementsStarted(this, src, ~, ~)
-            this.UnlockRunButton();            
+        function MeasurementsStarted(this, ~, ~, ~)
+            this.UnlockRunButton(); 
         end
         
         %% MeasurementsStopped
-        function MeasurementsStopped(this, src, ~, ~)
+        function MeasurementsStopped(this, ~, ~, ~)
             this.GUIView.OnAbortButtonPushed();
             this.LockRunButton();
+            this.CachedData = [];
         end
 
         %% LockRunButton
@@ -203,10 +212,28 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
             this.Data.X = [this.Data.X; x];
             this.Data.Y = [this.Data.Y; y];
 
+            this.CachedData.X = x;
+            this.CachedData.Y = y;
+
+            %Do the actual data writing in the event-triggered
+            %DataRowCollected call, which gets called when we have a full
+            %dataRow from other instruments to interrogate
+        end
+
+        %% DataRowCollected
+        function DataRowCollected(this, dataRow, headers)
+            %Gets triggered every tick once the loop has collected the
+            %entire dataRow from all instruments. Use to e.g. write sweep
+            %data that includes columns from other instruments
+
+            if isempty(this.CachedData)
+                return;
+            end
+
             this.Plotter.PlotData(this.Data.X, this.Data.Y);
 
             if this.ControlDetailsStruct.SweepDetails.SaveSweepFile
-                this.DataWriter.WriteLine([x, y]);
+                this.DataWriter.WriteLine(this.GetDataRowToWrite(this.CachedData.X, this.CachedData.Y, dataRow, headers));
 
                 if  ~this.Running
                     %Add in an end-of sweep metadata line if this is the
@@ -220,8 +247,26 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
 
                 end
             end
+
+            this.CachedData = [];
         end
 
+        %% GetDataRowToWrite
+        function dataRowToWrite = GetDataRowToWrite(this, x, y, dataRow, headers)
+            dataRowToWrite = [x, y];
+
+            if ~isempty(this.ExtraDataColHeaders)
+                for i = 1 : length(this.ExtraDataColHeaders)
+                     [~,idx] = ismember(this.ExtraDataColHeaders(i), headers);
+
+                     if isempty(idx)
+                         error("Invalid header in sweep");
+                     end
+
+                     dataRowToWrite = [dataRowToWrite, dataRow(idx)];
+                end
+            end
+        end
 
         %% WaitSettleTime
         function WaitSettleTime(this)
@@ -287,6 +332,14 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
         %% GetHeaders
         function headersString = GetHeaders(this)
             headers = [this.XLabelStr, this.YLabelStr];
+
+            %Get any additional extra headers added in the GUI - extra
+            %datacolumns from the wider programme to print into the Sweep
+            %File
+            this.ExtraDataColHeaders = this.GUIView.ExtraDataColumnsHeaders;
+            if ~isempty(this.ExtraDataColHeaders)
+                headers = [headers this.ExtraDataColHeaders];
+            end
 
             %Make a simple string of all these headers, tab seperated
             headersString = '';

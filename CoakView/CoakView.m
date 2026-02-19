@@ -16,10 +16,14 @@ classdef CoakView < handle
         %% Constructor
         function this = CoakView(Settings)
             arguments
-                Settings.View {mustBeTextScalar} = "CoakView_DefaultGUI";
+                Settings.View = "CoakView_DefaultGUI";
                 Settings.Preset = [];
             end
 
+            %Check that new enough Matlab version is installed, toolboxes
+            %are there.. etc etc. Will throw error if not
+            CoakView.Utilities.ErrorChecking.Verification.ValidateInstall(MatlabVersion="R2025b", ToolboxNames = {"Instrument Control Toolbox"});
+   
             %Set application paths for loading of child classes later - make
             %all paths relative to this, the filepath of the CoakView.m file
             %- if we don't do this they will be relative to the user's
@@ -28,23 +32,31 @@ classdef CoakView < handle
             [applicationDir, ~, ~] = fileparts(applicationPath);
 
             %Create the view/frontend/implementation/GUI
-            view = this.CreateView(Settings.View, applicationDir);
+            if ~isempty(Settings.View)
+                view = this.CreateView(Settings.View, applicationDir);
+            else
+                view = [];
+            end
 
             %Create a Controller class that will handle all the backend
             %logic
             this.Controller = CoakView.Core.Controller( ...
                 "ApplicationDir", applicationDir,...
-                "ApplicationPath", applicationPath, ...
-                "View", view...
+                "ApplicationPath", applicationPath...
                 );
+
+            %Register the view with the Controller
+            if ~isempty(Settings.View)
+                this.Controller.AttachView(view);
+            end
 
             %Initialise the Controller
             this.Controller.Initialise();
 
             %Apply a preset, if specified in the optional arguments
             if ~isempty(Settings.Preset)
-                presetFn = this.Controller.LoadPreset(Settings.Preset);
-                this.Controller.ApplyPreset(presetFn);
+                presetFn = this.LoadPreset(Settings.Preset);
+                this.ApplyPreset(presetFn, view);
             end
 
             %Tell the controller we have finished loading everything and
@@ -58,35 +70,26 @@ classdef CoakView < handle
                 this;
                 instrumentClassName {mustBeTextScalar};
                 settings.Name {mustBeTextScalar} = "Auto";
+                settings.ConnectionType {mustBeTextScalar} = "Auto";
             end
 
             %Pass through to Controller
-            instRef = this.Controller.AddInstrument(instrumentClassName, "Name", settings.Name);
-        end
-
-        %% AddInstrumentControl
-        function cont = AddInstrumentControl(this, instrRef, controlDetailsStruct)
-            cont = this.Controller.AddInstrumentControl(instrRef, controlDetailsStruct);
+            instRef = this.Controller.InstrumentController.AddInstrument(instrumentClassName, Name=settings.Name, ConnectionType=settings.ConnectionType);
         end
 
         %% Pause
         function Pause(this)
-            this.Controller.Pause();
+            this.Controller.TimingLoopController.Pause();
         end
 
         %% RemoveInstrument
         function RemoveInstrument(this, instRef)
-            this.Controller.RemoveInstrument(instRef);
-        end
-
-        %% RemoveInstrumentControl
-        function RemoveInstrumentControl(this, instrRef, controlDetailsStruct)
-            this.Controller.RemoveInstrumentControl(instrRef, controlDetailsStruct);
+            this.Controller.InstrumentController.RemoveInstrument(instRef);
         end
 
         %% Resume
         function Resume(this)
-            this.Controller.Resume();
+            this.Controller.TimingLoopController.Resume();
         end
 
         %% SetFilePathsDirectory
@@ -119,18 +122,52 @@ classdef CoakView < handle
             this.Controller.SetFilePathsWriteMode(writeMode);
         end
 
+        %% SetUpdateTime
+        function SetUpdateTime(this, time_s)
+            this.Controller.TimingLoopController.SetUpdateTime(time_s);
+        end
+
         %% Start
         function Start(this)
-            this.Controller.Start();
+            this.Controller.TimingLoopController.Start();
         end
 
         %% Stop
         function Stop(this)
-            this.Controller.Stop();
+            this.Controller.TimingLoopController.Stop();
         end
     end
 
     methods (Access = private)
+
+        %% ApplyPreset
+        function ApplyPreset(this, presetFn, view)
+            try
+                %Display a status message in the logger
+                this.Controller.ShowStatus('Yellow', 'Applying Preset');
+
+                %Execute the Preset script file
+                presetFn(this, view);
+
+                %Display a status message in the logger
+                this.Controller.ShowStatus('Yellow', 'Finalising Preset');
+
+                %Finalise the preset - basically, update the GUI to reflect
+                %changes
+                notify(this.Controller, "FinalisePreset");
+            catch err
+
+                if strcmp(err.message, "Dot indexing is not supported for variables of this type.") && isempty(view)    %Add additional helpder text to the error if it's likely we are trying to call functions on an empty GUI. Note we're avoiding isempty checks or architectural complexity in the PReset functions to keep them easy to edit and understand, which means the user can do silly things like this
+                    try
+                        error("Assignment error in a Preset with no attached view. The 'gui' argument is null, are you trying to call functions like AddPlottingWindow on it? Error message: " + string(err.message));
+                    catch exception
+                        this.Controller.HandleError("Error applying Preset", exception);
+                    end
+                else
+                    this.Controller.HandleError("Error applying Preset", err);
+                end
+            end
+        end
 
         %% CreateView
         function view = CreateView(~, viewFileName, applicationDir)
@@ -149,6 +186,34 @@ classdef CoakView < handle
             fnHandle = str2func(namespaceClassPath);
             view = fnHandle();
         end
+
+        %% GetPresetsDir
+        function dirPath = GetPresetsDir(this)
+            dirPath = fullfile(this.Controller.ApplicationDir,  this.Controller.PresetsDirectory);
+        end
+
+        %% LoadPreset
+        function presetFn = LoadPreset(this, presetName)
+            %Display a status message in the logger
+            this.Controller.ShowStatus('Yellow', 'Loading Preset');
+
+            try
+                %Fetch paths
+                presetsDir = this.GetPresetsDir();
+                presetPath = fullfile(presetsDir, presetName) + ".m";
+
+                %Error checking
+                assert(exist(presetsDir,"dir") == 7, "Presets directory " + presetsDir + " not found");
+                assert(exist(presetPath,"file") == 2, "Preset file " + presetPath + " not found");
+
+                %Load the present in as a function handle
+                presetFn = CoakView.Utilities.FileLoading.PluginLoading.InstantiatePreset("CoakViewPresets", presetName);
+            catch err
+                this.Controller.HandleError("Error loading Preset", err);
+            end
+        end
+
+       
 
     end
 end

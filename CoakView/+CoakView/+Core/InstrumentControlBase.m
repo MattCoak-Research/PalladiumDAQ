@@ -24,30 +24,42 @@ classdef InstrumentControlBase < handle
 
         %% Constructor
         function this = InstrumentControlBase()
-        end        
+        end       
+
+        %% DataRowCollected
+        function DataRowCollected(this, dataRow)
+            %Gets triggered every tick once the loop has collected the
+            %entire dataRow from all instruments. Use to e.g. write sweep
+            %data that includes columns from other instruments
+        end
 
         %% GetName
         function name = GetName(this)
             name = this.ControlDetailsStruct.Name;
         end
 
+        %% MeasurementsInitialised
+        function MeasurementsInitialised(this, src, eventArgs)
+
+        end
+
         %% MeasurementsStarted
-        function MeasurementsStarted(src, ~, ~)
+        function MeasurementsStarted(this, src, eventArgs)
         
         end
 
         %% MeasurementsPaused
-        function MeasurementsPaused(src, ~, ~)
+        function MeasurementsPaused(this, src, eventArgs)
         
         end
         
         %% MeasurementsResumed
-        function MeasurementsResumed(src, ~, ~)
+        function MeasurementsResumed(this, src, eventArgs)
         
         end 
         
         %% MeasurementsStopped
-        function MeasurementsStopped(src, ~, ~)
+        function MeasurementsStopped(this, src, eventArgs)
         
         end
     end

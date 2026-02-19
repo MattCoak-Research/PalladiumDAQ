@@ -41,6 +41,37 @@ classdef Verification
             end
         end
 
+        %% ValidateInstall
+        function ValidateInstall(Settings)
+            arguments
+                Settings.MatlabVersion = "R2025b";
+                Settings.ToolboxNames = {"Instrument Control Toolbox"};
+            end
+
+            try
+                %Make sure user has the required matlab version first of all
+                CoakView.Utilities.ErrorChecking.Verification.VerifyMatlabVersion(Settings.MatlabVersion);
+            catch err
+                %Throw error message - note we don't have a Logger yet, and
+                %need to use simpler functions
+                errordlg(err.message, "Matlab version out of date! Cannot run.");
+            end
+
+            try
+                %Make sure the user has the required toolboxes installed
+                if ~isempty(Settings.ToolboxNames)
+                    for i = 1 : length(Settings.ToolboxNames)
+                        CoakView.Utilities.ErrorChecking.Verification.VerifyToolboxInstalled(Settings.ToolboxNames{i});
+                    end
+                end
+
+            catch err
+                %Throw error message - note we don't have a Logger yet, and
+                %need to use simpler functions
+                errordlg(err.message, "Required Matlab Toolbox not installed, please install Toolbox");
+            end
+        end
+
         %% VerifyMatlabVersion
         function VerifyMatlabVersion(releaseStr)
             %Throw an error if the installed Matlab version is lower than the
@@ -56,7 +87,7 @@ classdef Verification
             v_= ver;
             [installedToolboxes{1:length(v_)}] = deal(v_.Name);
             result = all(ismember(toolboxName,installedToolboxes));
-            assert(result,['Error! ' toolboxName ' is not installed!']);
+            assert(result, "Error! " + string(toolboxName) + " is not installed");
         end
         
         
