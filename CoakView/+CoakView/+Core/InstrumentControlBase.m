@@ -27,7 +27,7 @@ classdef InstrumentControlBase < handle
         end       
 
         %% DataRowCollected
-        function DataRowCollected(this, dataRow)
+        function DataRowCollected(this, dataRow, headers)
             %Gets triggered every tick once the loop has collected the
             %entire dataRow from all instruments. Use to e.g. write sweep
             %data that includes columns from other instruments
