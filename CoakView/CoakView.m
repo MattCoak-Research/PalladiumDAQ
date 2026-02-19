@@ -20,6 +20,10 @@ classdef CoakView < handle
                 Settings.Preset = [];
             end
 
+            %Check that new enough Matlab version is installed, toolboxes
+            %are there.. etc etc. Will throw error if not
+            CoakView.Utilities.ErrorChecking.Verification.ValidateInstall(MatlabVersion="R2025b", ToolboxNames = {"Instrument Control Toolbox"});
+   
             %Set application paths for loading of child classes later - make
             %all paths relative to this, the filepath of the CoakView.m file
             %- if we don't do this they will be relative to the user's
@@ -208,6 +212,8 @@ classdef CoakView < handle
                 this.Controller.HandleError("Error loading Preset", err);
             end
         end
+
+       
 
     end
 end

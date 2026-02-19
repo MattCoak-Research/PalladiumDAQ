@@ -265,11 +265,7 @@ classdef Controller < handle
                 "CommandWindowMessageLevel", logSettings.CommandWindowMessageLevel,...
                 "GUIMessageLevel", logSettings.GUIMessageLevel,...
                 "LogFileMessageLevel", logSettings.LogFileMessageLevel,...
-                "PrintStackTraceInCommandWindow", logSettings.PrintStackTraceInCommandWindow);
-
-            %check that new enough Matlab version is installed, toolboxes
-            %are there.. etc etc. Will throw error if not!
-            this.ValidateInstall();
+                "PrintStackTraceInCommandWindow", logSettings.PrintStackTraceInCommandWindow);            
 
             try
                 %Set logging/error setting parameters in Controller
@@ -758,26 +754,6 @@ classdef Controller < handle
                     pathSettings.DefaultDirectory = userDir;
                     
                 end
-            end
-        end
-
-        %% ValidateInstall
-        function ValidateInstall(this)
-            try
-                %Make sure user has the required matlab version first of all
-                CoakView.Utilities.ErrorChecking.Verification.VerifyMatlabVersion("R2025b");
-            catch err
-                this.HandleError('Matlab version out of date! Cannot run.', err)
-            end
-
-            try
-                %Make sure the user has the required toolboxes installed
-                CoakView.Utilities.ErrorChecking.Verification.VerifyToolboxInstalled('Instrument Control Toolbox');
-
-                %Log some information
-                CoakView.Logging.Logger.Log("Debug", "Installation verified");
-            catch err
-                this.HandleError('Required Matlab Toolbox not installed, please install Toolbox', err)
             end
         end
 
