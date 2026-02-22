@@ -97,7 +97,7 @@ classdef CoakView < handle
 
         %% RemoveInstrumentControl
         function RemoveInstrumentControl(this, instRef, controlDetailsStruct)
-            this.Controller.InstrumentController.RemoveInstrumentControl(instRef, controlDetailsStruct);
+            this.View.RemoveInstrumentControl(instRef, controlDetailsStruct);
         end
 
         %% Resume

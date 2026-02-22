@@ -5,6 +5,7 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
     %a Sweep, programmed by a SweepSetupPanel in the GUI
     
     properties
+        PlotterType = "Default"; %Default or Simple - call before constructing GUI
     end
 
     properties (Access = private)
@@ -104,10 +105,19 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
             %Set up the defaults and populate parameters 
             this.RefreshUnitsAndLimits();
 
-            %Add a SIMPLE plotter as well, to the right
-            this.Plotter = controller.AddNewSimplePlotter(grid, "Medium");
-            this.Plotter.Layout.Row = [2 4];
-            this.Plotter.Layout.Column = 3;
+            %Add a plotter of the desired sort as well, to the right
+            switch(this.PlotterType)
+                case("Default")
+                    this.Plotter = controller.AddNewPlotter(grid, "Medium");
+                    this.Plotter.Layout.Row = [2 4];
+                    this.Plotter.Layout.Column = 3;
+                case("Simple")
+                    this.Plotter = controller.AddNewSimplePlotter(grid, "Medium");
+                    this.Plotter.Layout.Row = [2 4];
+                    this.Plotter.Layout.Column = 3;
+                otherwise
+                    error("Unsupported Plotter type in SweepController_Stepped");
+            end
 
         end  
 
