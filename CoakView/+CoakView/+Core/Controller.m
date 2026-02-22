@@ -14,7 +14,6 @@ classdef Controller < handle
         %Settings structs
         WindowSettings;
         PathSettings;
-        PlotterSettings;
         FileWriteDetails;
 
         %Data array
@@ -249,7 +248,7 @@ classdef Controller < handle
             %Initialise the Controller, loading and applying settings etc
             try
                 %Load settings from .json config files in the Settings directory
-                [logSettings, this.PathSettings, this.WindowSettings, this.PlotterSettings] = this.LoadSettings();
+                [logSettings, this.PathSettings, this.WindowSettings, this.PlottingController.PlotterSettings] = this.LoadSettings();
             catch e
                 %Note that we don't pass this in to any nice error handling
                 %because we haven't set that up yet

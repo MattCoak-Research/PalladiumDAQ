@@ -1,6 +1,10 @@
 classdef PlottingController < handle
     %PlottingController
 
+    properties
+        PlotterSettings;
+    end
+
     properties(GetAccess = public, SetAccess = private)    
         
     end
@@ -46,7 +50,7 @@ classdef PlottingController < handle
             pltr = CoakView.Components.PlotterPanel(parent);
 
             %Apply settings loaded from json file
-            plotterSettings = this.Controller.PlotterSettings;
+            plotterSettings = this.PlotterSettings;
             plotterSettings.Size = size;
             pltr.ApplySettings(plotterSettings);
 
@@ -61,7 +65,7 @@ classdef PlottingController < handle
             pltr = CoakView.Components.SimplePlotterPanel(parent);
 
             %Apply settings loaded from json file
-            plotterSettings = this.Controller.PlotterSettings;
+            plotterSettings = this.PlotterSettings;
             plotterSettings.Size = size;
             pltr.ApplySettings(plotterSettings);
 
