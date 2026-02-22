@@ -57,8 +57,11 @@ classdef Mercury120_IPS < CoakView.Core.Instrument
 
          %% Close
         function Close(this)
-            %Place in local mode now we are done
-            this.SetLocal();
+            %Place in local mode now we are done.. if we connected in the
+            %first place (ie not if we are aborting a failed connect())
+            if ~isempty(this.DeviceHandle)
+                this.SetLocal();
+            end
 
             %Override base class Close function - still call the base
             %function, but place instrument in local mode first
