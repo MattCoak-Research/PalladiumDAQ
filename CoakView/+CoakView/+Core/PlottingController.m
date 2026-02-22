@@ -11,7 +11,6 @@ classdef PlottingController < handle
 
     properties(Access = private)
         Plotters = {};
-        Controller;
     end
 
     events
@@ -21,8 +20,7 @@ classdef PlottingController < handle
     methods
 
         %% Constructor
-        function this = PlottingController(controller)
-            this.Controller = controller;
+        function this = PlottingController()
         end
 
         %% CleanUpPlotters
@@ -53,10 +51,6 @@ classdef PlottingController < handle
             plotterSettings = this.PlotterSettings;
             plotterSettings.Size = size;
             pltr.ApplySettings(plotterSettings);
-
-            %Subscribe to events
-            addlistener(pltr, 'AxesSelectionChange', @(src,evnt)this.PlotterAxesSelectionChange(src));
-            addlistener(pltr, 'SavePlot', @(src,evnt)this.SavePlot(evnt));
         end
 
         %% CreateNewSimplePlotter
@@ -68,13 +62,10 @@ classdef PlottingController < handle
             plotterSettings = this.PlotterSettings;
             plotterSettings.Size = size;
             pltr.ApplySettings(plotterSettings);
-
-            %Subscribe to events
-            addlistener(pltr, 'SavePlot', @(src,evnt)this.SavePlot(evnt));
         end
 
         %% RegisterPlotterObject
-        function RegisterPlotterObject(this, pltr)
+        function RegisterPlotterObject(this, pltr, headers)
             %Add to the list of plotters
             if(isempty(this.Plotters))
                 this.Plotters = {pltr};
@@ -83,11 +74,16 @@ classdef PlottingController < handle
             end
 
             %Update the variables avaliable to the plotter
-            pltr.UpdateVariables(this.Controller.Headers);
+            pltr.UpdateVariables(headers);
         end
 
         %% PlotData
-        function PlotData(this, newDataRow)
+        function PlotData(this, newDataRow, fullDataTable)
+            %Note - was worried passing in fullDataTable every tick would
+            %be very bad for performance, but apparantly MATLAB basically
+            %passes large matrices in by reference so this has no cost! See
+            %https://stackoverflow.com/questions/13078338/passing-arrays-without-overhead-preferably-by-reference-to-avoid-duplicati
+
             %Check for any plotters that may have been closed by a
             %discourteous user - remove them from the list of plotters to
             %update if so.
@@ -106,47 +102,10 @@ classdef PlottingController < handle
                 %the TryAppendData call will return false and we should
                 %call the full UpdatePlot method instead
                 if(~pltr.TryAppendData(newDataRow))
-                    pltr.PlotData(this.Controller.DataTable);
+                    pltr.PlotData(fullDataTable);
                 end
             end
         end         
-
-        %% PlotterAxesSelectionChange
-        function PlotterAxesSelectionChange(this, pltr)
-            %This is needed for the case where we want to change the
-            %displayed data in a Plotter, but the loop is not running.
-            %While measurement loop is running, the Plotter will get an
-            %Update call with new data every tick, and if it has
-            %established that a button has been pressed and it needs to
-            %e.g. change the data plotted on a y axis, it sets a bool flag
-            %to do a plot refresh next update tick. If there are no ticks
-            %this does not happen, so in that case, we hook into the
-            %Plotter's event and fire a manual replot in the case that
-            %measurements are stopped
-            if this.Controller.TimingLoopController.State ~= "Running"
-                %Have to pass whole data table back in - Plotters do not
-                %store/copy these, that would be very expensive.
-                %If the data table is empty, for now just do nothing -
-                %might be clearer UX to clear the plot, but then again
-                %might be annoying to delete the data for no obvious reason
-                if ~isempty(this.Controller.DataTable)
-                    pltr.PlotData(this.Controller.DataTable);
-                end
-            end
-        end  
-
-        %% SavePlot
-        function SavePlot(this, eventData)
-            try
-                fig = eventData.Figure;
-                this.Controller.DataWriter.SaveFigure(fig, this.Controller.FileWriteDetails.Directory, this.Controller.FileWriteDetails.FileName);
-
-                %Display a status message in the logger
-                this.Controller.Log("Info", "Plot saved", "Green", "Plot saved");
-            catch err
-                this.Controller.HandleError("Error saving figure", err);
-            end
-        end
 
         %% UpdatePlotVariableNames
         function UpdatePlotVariableNames(this, varNames)
@@ -155,11 +114,6 @@ classdef PlottingController < handle
             end
         end
 
-    end
-
-    methods(Access=private)
-
-       
     end
 
 end

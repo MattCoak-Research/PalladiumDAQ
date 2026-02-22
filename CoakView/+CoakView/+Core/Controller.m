@@ -107,6 +107,10 @@ classdef Controller < handle
                 %plotter, add it to whatever parent we sent in. All of this
                 %is View-agnostic, and doesn't need one at all.
                 pltr = this.PlottingController.CreateNewPlotter(parent, size);
+           
+                %Subscribe to events
+                addlistener(pltr, 'AxesSelectionChange', @(src,evnt)this.PlotterAxesSelectionChange(src));
+                addlistener(pltr, 'SavePlot', @(src,evnt)this.SavePlot(evnt));
 
             catch err
                 this.HandleError("Error adding new plotter", err);
@@ -115,7 +119,7 @@ classdef Controller < handle
 
             %Register the plotter so it gets updated
             try
-                this.PlottingController.RegisterPlotterObject(pltr);
+                this.PlottingController.RegisterPlotterObject(pltr, this.Headers);
             catch err
                 this.HandleError("Error registering plotter object", err);
             end
@@ -139,6 +143,9 @@ classdef Controller < handle
                 %Pass through to View to handle GUI stuff
                 pltr = this.PlottingController.CreateNewSimplePlotter(parent, size);
                 
+                %Subscribe to events
+                addlistener(pltr, 'SavePlot', @(src,evnt)this.SavePlot(evnt));
+
                 %Simple plotters do not get registered for auto-updates.
                 %Whatever made them has to push data to them itself.
             catch err
@@ -433,7 +440,7 @@ classdef Controller < handle
 
             try
                 %Update data plots & Update any Big Number Display windows
-                this.PlottingController.PlotData(dataRow);
+                this.PlottingController.PlotData(dataRow, this.DataTable);
                 args = CoakView.Events.DataRowAddedEventData(dataRow, this.Headers);
                 notify(this, "DataRowUpdated", args);
             catch e
@@ -534,9 +541,9 @@ classdef Controller < handle
                 %Store this, as we won't be able to retrieve it after deleting
                 %the object
                 instName = instrRef.Name;
+
                 % Pass on to Instrument Controller
                 this.InstrumentController.RemoveInstrument(instrRef);
-
 
                 %Verbose/debug message printing
                 this.Log("Info", "Removed Instrument: " + instName, "Green", "Removed Instrument");
@@ -756,6 +763,43 @@ classdef Controller < handle
             end
         end
 
+        %% PlotterAxesSelectionChange
+        function PlotterAxesSelectionChange(this, pltr)
+            %This is needed for the case where we want to change the
+            %displayed data in a Plotter, but the loop is not running.
+            %While measurement loop is running, the Plotter will get an
+            %Update call with new data every tick, and if it has
+            %established that a button has been pressed and it needs to
+            %e.g. change the data plotted on a y axis, it sets a bool flag
+            %to do a plot refresh next update tick. If there are no ticks
+            %this does not happen, so in that case, we hook into the
+            %Plotter's event and fire a manual replot in the case that
+            %measurements are stopped
+            if this.TimingLoopController.State ~= "Running"
+                %Have to pass whole data table back in - Plotters do not
+                %store/copy these, that would be very expensive.
+                %If the data table is empty, for now just do nothing -
+                %might be clearer UX to clear the plot, but then again
+                %might be annoying to delete the data for no obvious reason
+                if ~isempty(this.DataTable)
+                    pltr.PlotData(this.DataTable);
+                end
+            end
+        end 
+
+        %% SavePlot
+        function SavePlot(this, eventData)
+            try
+                %Save the figure and a png to file using the existing
+                %DataWriter
+                this.DataWriter.SaveFigure(eventData.Figure, this.FileWriteDetails.Directory, this.FileWriteDetails.FileName);
+
+                %Display a status message in the logger
+                this.Log("Info", "Plot saved", "Green", "Plot saved");
+            catch err
+                this.HandleError("Error saving figure", err);
+            end
+        end
     end
 
 end
