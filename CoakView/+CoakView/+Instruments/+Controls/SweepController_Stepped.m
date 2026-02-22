@@ -145,13 +145,12 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
 
         %% RemoveControl
         function RemoveControl(this, instrRef)
-            %Clean up references to this in the Lakeshore Instrument Class
-            %so it doesn't think we have a heater control
+            %Clean up references to this in the Instrument Class
             instrRef.SweepController = [];
 
             %Delete GUI objects
-            delete(this.GUIView);
-            this.GUIView = [];
+         %   delete(this.GUIView);
+          %  this.GUIView = [];
         end
 
         %% MeasurementsInitialised
