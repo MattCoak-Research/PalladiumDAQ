@@ -157,7 +157,7 @@ classdef InstrumentController < handle
 
                 %Subscribe it to Controller events. Store the handle to the
                 %Listener by calling RegisterEventListener, so we can
-                %unsubscirbe from events on deletion of the control.
+                %unsubscribe from events on deletion of the control.
                 ltr = addlistener(this.Controller.TimingLoopController, 'Started', @(src,evnt)controlClassRef.MeasurementsStarted(src, evnt));
                 controlClassRef.RegisterEventListener(ltr);
                 ltr = addlistener(this.Controller.TimingLoopController, 'Paused', @(src,evnt)controlClassRef.MeasurementsPaused(src, evnt));
@@ -392,6 +392,7 @@ classdef InstrumentController < handle
                     break;
                 end
             end
+
 
             %Remove the instrument class reference from memory
             delete(instrumentRef);
