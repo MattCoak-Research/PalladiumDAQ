@@ -155,15 +155,22 @@ classdef InstrumentController < handle
                 %Register the control class with the instrument
                 instrRef.RegisterControlObject(controlClassRef);
 
-                %Subscribe it to Controller events
-                addlistener(this.Controller.TimingLoopController, 'Started', @(src,evnt)controlClassRef.MeasurementsStarted(src, evnt));
-                addlistener(this.Controller.TimingLoopController, 'Paused', @(src,evnt)controlClassRef.MeasurementsPaused(src, evnt));
-                addlistener(this.Controller.TimingLoopController, 'Resumed', @(src,evnt)controlClassRef.MeasurementsResumed(src, evnt));
-                addlistener(this.Controller.TimingLoopController, 'Stopped', @(src,evnt)controlClassRef.MeasurementsStopped(src, evnt));
-                addlistener(this.Controller.TimingLoopController, 'MeasurementsInitialised', @(src,evnt)controlClassRef.MeasurementsInitialised(src, evnt));
+                %Subscribe it to Controller events. Store the handle to the
+                %Listener by calling RegisterEventListener, so we can
+                %unsubscirbe from events on deletion of the control.
+                ltr = addlistener(this.Controller.TimingLoopController, 'Started', @(src,evnt)controlClassRef.MeasurementsStarted(src, evnt));
+                controlClassRef.RegisterEventListener(ltr);
+                ltr = addlistener(this.Controller.TimingLoopController, 'Paused', @(src,evnt)controlClassRef.MeasurementsPaused(src, evnt));
+                controlClassRef.RegisterEventListener(ltr);
+                ltr = addlistener(this.Controller.TimingLoopController, 'Resumed', @(src,evnt)controlClassRef.MeasurementsResumed(src, evnt));
+                controlClassRef.RegisterEventListener(ltr);
+                ltr = addlistener(this.Controller.TimingLoopController, 'Stopped', @(src,evnt)controlClassRef.MeasurementsStopped(src, evnt));
+                controlClassRef.RegisterEventListener(ltr);
+                ltr = addlistener(this.Controller.TimingLoopController, 'MeasurementsInitialised', @(src,evnt)controlClassRef.MeasurementsInitialised(src, evnt));
+                controlClassRef.RegisterEventListener(ltr);                
+                ltr = addlistener(this, 'DataRowCollected', @(src,evnt)controlClassRef.DataRowCollected(evnt.DataRow, evnt.Headers));
+                controlClassRef.RegisterEventListener(ltr);
 
-                addlistener(this, 'DataRowCollected', @(src,evnt)controlClassRef.DataRowCollected(evnt.DataRow, evnt.Headers));
-              
                 %Verbose/debug message printing
                 this.Controller.Log("Info", "Added Instrument Control: " + controlDetailsStruct.Name, "Green", "Added Instrument Control");
             catch err
@@ -403,13 +410,17 @@ classdef InstrumentController < handle
             assert(isscalar(objsList), "Expected to find exactly 1 InstrumentControl..");
             controlClass = objsList(1);
 
-            %Send the remove command
-            controlClass.RemoveControl(instrRef);
-
             %De-register the control class with the instrument
             instrRef.RemoveControlObject(controlClassName);
 
-            %Delete the reference
+            %Un-subscribe from events
+            controlClass.UnsubscribeFromEvents();
+            
+            %Send the remove command
+            controlClass.RemoveControl(instrRef);
+
+            %Delete the reference NEED TO COMMENT OUT THIS, AND THE REMOVE
+            %TAB COMMAND OR MATLAB CRASHES
             delete(controlClass);
         end
     end

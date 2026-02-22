@@ -221,7 +221,11 @@ classdef(Abstract) Instrument < handle
             end
 
             %Add to the list of tracked things
-            this.ControlClasses = [this.ControlClasses classRef];
+            if isempty(this.ControlClasses)
+                this.ControlClasses = classRef;
+            else
+                this.ControlClasses = [this.ControlClasses, classRef];
+            end
         end
 
         %% RemoveControlObject

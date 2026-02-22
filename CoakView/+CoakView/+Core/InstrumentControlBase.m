@@ -1,7 +1,7 @@
 classdef InstrumentControlBase < handle
     %InstrumentControlBase - Base class for a Logic controller add-on object to be added on to an
     %Instrument object, eg LakeshoreHeaterControl.m
-    
+
     properties
         ControlDetailsStruct;
         FileNamePropertyDelimiters = "[]";
@@ -11,20 +11,21 @@ classdef InstrumentControlBase < handle
     properties (Access = protected)
         Instrument;
     end
-    
+
     properties (Access = private)
+        EventListeners;
     end
 
-    methods (Abstract)  
+    methods (Abstract)
         CreateInstrumentControlGUI(this, controller, tab, instrRef);
-        RemoveControl(this);
+        RemoveControl(this, instrRef);
     end
-    
+
     methods
 
         %% Constructor
         function this = InstrumentControlBase()
-        end       
+        end
 
         %% DataRowCollected
         function DataRowCollected(this, dataRow, headers)
@@ -45,27 +46,51 @@ classdef InstrumentControlBase < handle
 
         %% MeasurementsStarted
         function MeasurementsStarted(this, src, eventArgs)
-        
+
         end
 
         %% MeasurementsPaused
         function MeasurementsPaused(this, src, eventArgs)
-        
+
         end
-        
+
         %% MeasurementsResumed
         function MeasurementsResumed(this, src, eventArgs)
-        
-        end 
-        
+
+        end
+
         %% MeasurementsStopped
         function MeasurementsStopped(this, src, eventArgs)
-        
+
+        end
+
+        %% RegisterEventListener
+        function RegisterEventListener(this, listnr)
+            if isempty(this.EventListeners)
+                this.EventListeners = listnr;
+            else
+                this.EventListeners = [this.EventListeners, listnr];
+            end
+        end
+
+        %% UnsubscribeFromEvents
+        function UnsubscribeFromEvents(this)
+            if isempty(this.EventListeners)
+                return;
+            end
+            try
+                for i = length(this.EventListeners) : -1 : 1
+                    delete(this.EventListeners(i));
+                    this.EventListeners(i) = [];
+                end
+            catch err
+                error("Error unsubscribing Instrument Control from event listeners: " + string(err.message));
+            end
         end
     end
 
     methods (Access = protected)
-       
+
         %% CreateDataRowHeaderString
         function stringLine = CreateDataRowHeaderString(this)
             %Create a line of metadata to log to a datafile that has
@@ -191,11 +216,11 @@ classdef InstrumentControlBase < handle
 
                 %Expect (but do not demand) something formatted like
                 %"Sample Temperature(K),%6f2" - ie the property, a comma
-                %delimiter, and then the num2str format spec. If 
+                %delimiter, and then the num2str format spec. If
                 splitSegs = strsplit(segments(i), ",");
 
-                if length(splitSegs) == 1
-                   format = Settings.DefaultFormat;
+                if isscalar(splitSegs)
+                    format = Settings.DefaultFormat;
                 elseif length(splitSegs) == 2
                     format = strtrim(splitSegs(2));
                 else
@@ -219,7 +244,7 @@ classdef InstrumentControlBase < handle
 
         %% StartNewDataFile
         function StartNewDataFile(this, dataWriter, headers, extraMetadataLines)
-           
+
             %This will increment the number of the filename etc
             dataWriter.ValidateFilePath();
 
@@ -231,7 +256,7 @@ classdef InstrumentControlBase < handle
             %voltages, settings etc
             metadataDescLine = this.Instrument.FullName + " Scan - Measurement data at Scan Start:";
             metadataLine = this.Instrument.GrabMetadataString();
-                        
+
             %Write to file
             dataWriter.WriteHeaders(headers, "MetadataLines", [metadataDescLine, dataRowMetadataLine, metadataLine, extraMetadataLines]);
         end
