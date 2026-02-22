@@ -10,6 +10,7 @@ classdef CoakView < handle
 
     properties (Access = private)
         Controller;
+        View = [];
     end
 
     methods
@@ -34,6 +35,7 @@ classdef CoakView < handle
             %Create the view/frontend/implementation/GUI
             if ~isempty(Settings.View)
                 view = this.CreateView(Settings.View, applicationDir);
+                this.View = view;
             else
                 view = [];
             end
@@ -77,6 +79,12 @@ classdef CoakView < handle
             instRef = this.Controller.InstrumentController.AddInstrument(instrumentClassName, Name=settings.Name, ConnectionType=settings.ConnectionType);
         end
 
+         %% AddInstrumentControl
+        function cont = AddInstrumentControl(this, instrRef, controlDetailsStruct)
+            %Pass on to the View
+            cont = this.View.AddInstrumentControl(instrRef, controlDetailsStruct);
+        end
+
         %% Pause
         function Pause(this)
             this.Controller.TimingLoopController.Pause();
@@ -85,6 +93,11 @@ classdef CoakView < handle
         %% RemoveInstrument
         function RemoveInstrument(this, instRef)
             this.Controller.InstrumentController.RemoveInstrument(instRef);
+        end
+
+        %% RemoveInstrumentControl
+        function RemoveInstrumentControl(this, instRef, controlDetailsStruct)
+            this.Controller.InstrumentController.RemoveInstrumentControl(instRef, controlDetailsStruct);
         end
 
         %% Resume
