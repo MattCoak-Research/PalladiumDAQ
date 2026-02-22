@@ -76,7 +76,7 @@ classdef Controller < handle
             this.TimingLoopController = CoakView.Core.TimingLoopController(this);
            
             %And one for handling all things Plotting
-            this.PlottingController = CoakView.Core.PlottingController(this);
+            this.PlottingController = CoakView.Core.PlottingController();
         end
 
         %% AttachView
@@ -789,6 +789,7 @@ classdef Controller < handle
 
         %% SavePlot
         function SavePlot(this, eventData)
+            disp("sAve plot")
             try
                 %Save the figure and a png to file using the existing
                 %DataWriter
