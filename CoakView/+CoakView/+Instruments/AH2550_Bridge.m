@@ -28,7 +28,7 @@ classdef AH2550_Bridge < CoakView.Core.Instrument
         %% Constructor
         function this = AH2550_Bridge()
             this.GPIB_Address = this.DefaultGPIB_Address;
-            this.ConnectionSettings.GPIB_Terminators = ["CR" "CR"];
+            this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];
             this.Loss_Units = this.LossUnitsType("TanDelta");
         end
 
