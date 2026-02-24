@@ -54,7 +54,7 @@ classdef Lakeshore370 < CoakView.Core.Instrument
             switch(this.Reading)
                 case(this.MeasType("Temperature"))
                     Headers = [Headers, this.Ch_Name, this.Name + " - Resistance (Ohms)"];
-                    Units = [Units "K"];
+                    Units = [Units "K" "Ohms"];
                 case(this.MeasType("Resistance"))
                     Headers = [Headers, this.Name + " - Resistance (Ohms)"];
                     Units = [Units "Ohms"];
