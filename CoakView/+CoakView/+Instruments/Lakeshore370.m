@@ -1,9 +1,11 @@
 classdef Lakeshore370 < CoakView.Core.Instrument
     %Instrument implementation for a Lakeshore 370 temperature controller.
-    %NONE OF THIS TESTED and still a work in progress.
+
+    properties(Constant, Access = public)
+        FullName = "Lakeshore 370";                             %Full name, just for displaying on GUI
+    end
 
     properties(Access = public, SetObservable)
-        FullName = "Lakeshore 370";                             %Full name, just for displaying on GUI
         Name = "Ls370";                                         %Instrument name
         Connection_Type = CoakView.Enums.ConnectionType.Debug;  %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         Ch_Name = "Sample Temperature (K)";                     %Change these to change how the readings are displayed in headers and graph axes

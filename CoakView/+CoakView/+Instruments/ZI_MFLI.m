@@ -18,9 +18,12 @@ classdef ZI_MFLI < CoakView.Core.Instrument
     %indeed is intended to be used this way - complex settings and control are not
     %duplicated here.
 
+    properties(Constant, Access = public)
+        FullName = "Zurich Instruments MFLI";                       %Full name, just for displaying on GUI
+    end
+
     properties(Access = public, SetObservable)
         Name = 'ZI MFLI';
-        FullName = "Zurich Instruments MFLI";                       %Full name, just for displaying on GUI
         Connection_Type = CoakView.Enums.ConnectionType.Ethernet;      %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         DeviceID = 'DEV7779';                                          %Instrument hardware address
         ConnectedCurrentSource;                                     %Do we have a current source connected that will turn voltage out into a current?

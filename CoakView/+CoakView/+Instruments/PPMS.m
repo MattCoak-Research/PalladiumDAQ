@@ -7,8 +7,11 @@ classdef PPMS < CoakView.Core.Instrument
     %Note that currently there is no way to UNload .NET assemblies in
     %MATLAB, but this is not a practical issue in this version of the code.
     
-    properties(Access = public, SetObservable)
+    properties(Constant, Access = public)
         FullName = 'PPMS';                                          %Full name, just for displaying on GUI
+    end
+
+    properties(Access = public, SetObservable)
         Name = 'PPMS';                                              %Instrument name
         Connection_Type = CoakView.Enums.ConnectionType.Ethernet;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         RotatorInstalled = false;                                   %Set to true if using rotation option - rotation angle will be logged

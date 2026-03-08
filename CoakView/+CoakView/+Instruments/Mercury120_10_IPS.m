@@ -24,8 +24,11 @@ classdef Mercury120_10_IPS < CoakView.Core.Instrument
     %for returned number, 23.09 Amps would be returned as +02309 (multiply/divide
     %everything by 100?)
 
-    properties(Access = public, SetObservable)
+    properties(Constant, Access = public)
         FullName = "Mercury 120-10 IPS";     %Full name, just for displaying on GUI
+    end
+
+    properties(Access = public, SetObservable)
         Name = "120-10IPS";             %Instrument name
         Connection_Type = CoakView.Enums.ConnectionType.Serial;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
     end

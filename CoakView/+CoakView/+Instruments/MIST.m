@@ -1,8 +1,11 @@
 classdef MIST < CoakView.Core.Instrument
     %Instrument implementation for MIST
 
-    properties(Access = public, SetObservable)
+    properties(Constant, Access = public)
         FullName = 'MiST';       %Full name, just for displaying on GUI
+    end
+
+    properties(Access = public, SetObservable)
         Name = 'MiST';                            %Instrument name
         Connection_Type = CoakView.Enums.ConnectionType.Ethernet;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
     

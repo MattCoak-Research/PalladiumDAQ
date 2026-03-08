@@ -11,8 +11,11 @@ classdef Keithley6220 < CoakView.Core.Instrument
     %querying a current source for voltage measurement data - it is
     %speaking for a pair of instruments.
     
-    properties(Access = public, SetObservable)
+    properties(Constant, Access = public)
         FullName = "Keithley 6220 Current Source";     %Full name, just for displaying on GUI
+    end
+
+    properties(Access = public, SetObservable)
         Name = "K6220";             %Instrument name
         Connection_Type = CoakView.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         DeltaMode = true; %If true, measurements are being carried out with a parried nanovoltmeter in Delta Mode (this is the intended usage)

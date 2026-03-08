@@ -2,11 +2,14 @@ classdef Agilent_53220A_FreqCounter < CoakView.Core.Instrument
     %Instrument implementation for Agilent 53220A Frequency Counter.
     %Assumes device has already been manually configured and is measuring
     %frequency.
+
+    properties(Constant, Access = public)
+        FullName = 'Aglient 53220A Frequency Counter';              %Full name, just for displaying on GUI
+    end
     
     properties(Access = public, SetObservable)
-        FullName = 'Aglient 53220A Frequency Counter';      %Full name, just for displaying on GUI
-        Name = 'A53220A';                                   %Instrument name
-        Connection_Type = CoakView.Enums.ConnectionType.Debug;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
+        Name = 'A53220A';                                           %Instrument name
+        Connection_Type = CoakView.Enums.ConnectionType.Debug;      %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
     end
     
     properties(Access = private)

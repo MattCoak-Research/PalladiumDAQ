@@ -3,8 +3,11 @@ classdef AH2550_Bridge < CoakView.Core.Instrument
     %capacitance bridge. Assumes instrument has already been set measuring,
     %and grabs latest values only.
 
-    properties(Access = public, SetObservable)
+    properties(Constant, Access = public)
         FullName = "AH Bridge";     %Full name, just for displaying on GUI
+    end
+
+    properties(Access = public, SetObservable)
         Name = "AH_Br";             %Instrument name
         Connection_Type = CoakView.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         Loss_Units;                 %Selected units of capacitive loss, for column headers and extracting data from measurement string. 'TanDelta', 'kOhm' supported at this time.

@@ -8,8 +8,11 @@ classdef Mercury120_IPS < CoakView.Core.Instrument
     %recognised, and will echo the command if it worked, so we could build
     %in some verification on this.
 
-    properties(Access = public, SetObservable)
+    properties(Constant, Access = public)
         FullName = "Mercury 120 IPS";     %Full name, just for displaying on GUI
+    end
+
+    properties(Access = public, SetObservable)
         Name = "120IPS";             %Instrument name
         Connection_Type = CoakView.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
     end

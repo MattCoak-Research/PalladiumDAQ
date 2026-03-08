@@ -1,8 +1,11 @@
 classdef Lakeshore350 < CoakView.Core.Instrument
     %Instrument implementation for a Lakeshore 350 temperature controller.
 
-    properties(Access = public, SetObservable)
+    properties(Constant, Access = public)
         FullName = "Lakeshore 350";                             %Full name, just for displaying on GUI
+    end
+
+    properties(Access = public, SetObservable)
         Name = "Ls350";                                         %Instrument name
         Connection_Type = CoakView.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         Ch_A_Reading;                                           %Measure Temperature (K) or Resistance, or do not measure, for each channel ABCD

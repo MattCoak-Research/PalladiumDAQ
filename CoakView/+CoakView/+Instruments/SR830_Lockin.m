@@ -2,8 +2,11 @@ classdef SR830_Lockin < CoakView.Core.Instrument
     %Instrument implementation for Stanford Research 830 Model lockin
     %amplifiers
 
-    properties(Access = public, SetObservable)
+    properties(Constant, Access = public)
         FullName = "SR830 lockin";     %Full name, just for displaying on GUI
+    end
+
+    properties(Access = public, SetObservable)
         Name = "SR830";             %Instrument name
         Connection_Type = CoakView.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         AutoSensitivity = true;    %Toggle if the instrument should change voltage range automatically

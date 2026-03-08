@@ -1,8 +1,11 @@
 classdef Lakeshore372 < CoakView.Core.Instrument
     %Instrument implementation for a Lakeshore 372 temperature controller.
 
-    properties(Access = public, SetObservable)
+    properties(Constant, Access = public)
         FullName = "Lakeshore 372";                             %Full name, just for displaying on GUI
+    end
+
+    properties(Access = public, SetObservable)
         Name = "Ls372";                                         %Instrument name
         Connection_Type = CoakView.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         Ch_Name = "Sample Temperature (K)";                     %Change these to change how the readings are displayed in headers and graph axes

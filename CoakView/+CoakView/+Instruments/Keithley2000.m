@@ -3,8 +3,11 @@ classdef Keithley2000 < CoakView.Core.Instrument
     %Assumes device has already been manually configured and is measuring
     %resistance.
     
-    properties(Access = public, SetObservable)
+    properties(Constant, Access = public)
         FullName = "Keithley 2000 DMM";     %Full name, just for displaying on GUI
+    end
+
+    properties(Access = public, SetObservable)
         Name = "K2000";             %Instrument name
         Connection_Type = CoakView.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         MeasMode;                                   %Resistance, Voltage, Current

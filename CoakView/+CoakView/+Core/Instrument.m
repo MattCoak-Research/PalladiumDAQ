@@ -2,17 +2,20 @@ classdef(Abstract) Instrument < handle
     %Instrument - Abstract base class all instrument implementations must
     %inherit from.
 
+    properties(Abstract, Constant)
+        FullName;   %Will be displayed on eg instrument settings tab
+    end
+
     properties(Abstract)
         Name;
-        FullName;   %Will be displayed on eg instrument settings tab
         Connection_Type;   %Type of connection to use to communicate with the instrument. Value will be a member of the ConnectionType Enum
     end
 
     properties(Access = public, SetObservable)
-        GPIB_Address = 0;
-        IP_Address = '192.0.0.0.0';
-        Serial_Address = 'COM12';
-        VISA_Address = 'VISA_ADDRESS';
+        GPIB_Address    (1,1) {mustBeInteger, mustBeBetween(GPIB_Address, 0, 30)} = 0;
+        IP_Address      {mustBeTextScalar}  = '192.0.0.0.0';
+        Serial_Address  {mustBeTextScalar} = 'COM12';
+        VISA_Address    {mustBeTextScalar} = "VISA_ADDRESS";
     end
 
     properties(Access = public) %Properties that will not get detected by the GUI and have buttons added for them

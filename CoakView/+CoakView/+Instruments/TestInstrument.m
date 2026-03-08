@@ -2,8 +2,11 @@ classdef TestInstrument < CoakView.Core.Instrument
     %Instrument implementation for .. insert details here
     %Make a copy of this class and modify it when adding a new instrument
 
-    properties(Access = public, SetObservable)
+    properties(Constant, Access = public)
         FullName = 'Test Instrument';       %Full name, just for displaying on GUI
+    end
+
+    properties(Access = public, SetObservable)
         Name = 'TestInstrument';                            %Instrument name
         Connection_Type = CoakView.Enums.ConnectionType.Debug;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
     end

@@ -1,8 +1,11 @@
 classdef Keithley6430 < CoakView.Core.Instrument
     %Instrument implementation for Keithley 6430 source meters.
 
-    properties(Access = public, SetObservable)
+    properties(Constant, Access = public)
         FullName = 'Keithley 6430 Src Meter';       %Full name, just for displaying on GUI
+    end
+
+    properties(Access = public, SetObservable)
         Name = 'SrcMtr';                            %Instrument name
         Connection_Type = CoakView.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         MeasMode;                                   %Resistance, Voltage, Current
