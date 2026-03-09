@@ -32,7 +32,6 @@ classdef MagnetController < CoakView.Core.InstrumentControlBase
 
             %Make a specific reference in the Instrument Class
             this.Instrument = instrRef;
-            this.Instrument.MagnetControlPanel = this;
 
             %Add a plotter as well underneath
             plotter = controller.AddNewPlotter(grid, "Medium");
@@ -77,10 +76,6 @@ classdef MagnetController < CoakView.Core.InstrumentControlBase
 
          %% RemoveControl
         function RemoveControl(this, instrRef)
-            %Clean up references to this in the Lakeshore Instrument Class
-            %so it doesn't think we have a heater control
-            instrRef.MagnetControlPanel = [];
-
             %Delete GUI objects
             delete(this.GUIView);
             this.GUIView = [];
@@ -93,9 +88,21 @@ classdef MagnetController < CoakView.Core.InstrumentControlBase
             this.Instrument.SetTargetField(setPoint_T);
         end
 
+        %% Update
+        function Update(this)
+            %Do nothing - wait for UpdateData which happens after the
+            %Measure command
+        end
+
+        %% UpdateData
+        function UpdateData(this, dataRow, headers)
+            statusStruct = this.Instrument.GatherStatusStructForControlPanel();
+            this.UpdateDisplayedStatus(statusStruct);
+        end
+
         %% UpdateDisplayedStatus
-        function UpdateDisplayedStatus(comp, statusStruct)
-            comp.GUIView.UpdateDisplayedStatus(statusStruct);
+        function UpdateDisplayedStatus(this, statusStruct)
+            this.GUIView.UpdateDisplayedStatus(statusStruct);
         end
 
     end

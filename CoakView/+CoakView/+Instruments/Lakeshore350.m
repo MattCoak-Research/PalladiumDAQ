@@ -21,10 +21,6 @@ classdef Lakeshore350 < CoakView.Core.Instrument
         ControlChannel;                                         %Channel (A,B,C,D) that the heater is regulated by, if using the HeaterControl in ClosedLoop or Zone mode
     end
 
-    properties(Access = public)
-        HeaterControlClassObject = [];                          %Reference to a logic class that wraps a Heater Control GUI element, if added
-    end
-
     properties(Access = private)
         DefaultGPIB_Address = 12;                               %GPIB address
     end
@@ -112,12 +108,6 @@ classdef Lakeshore350 < CoakView.Core.Instrument
 
             %Append data to the table
             dataRow = [dataRow, T_A, R_A, T_B, R_B, T_C, R_C, T_D, R_D];
-
-            %Update diagonistics display in ControlPanel, if present
-            if ~isempty(this.HeaterControlClassObject)
-                [settings, heaterLevelPct, heaterEnabled, heaterPower] = this.CollectHeaterControlSettings();
-                this.HeaterControlClassObject.DisplayData(settings, heaterLevelPct, heaterEnabled, heaterPower);
-            end
 
             %Append heater status columns to the data row
             hterPower = this.GetHeaterPower(this.HeaterChannel);
@@ -497,19 +487,7 @@ classdef Lakeshore350 < CoakView.Core.Instrument
 
             %Update PID values
             this.SetPIDValues(this.HeaterChannel, settings.PID_Settings.P, settings.PID_Settings.I, settings.PID_Settings.D);
-        end
-
-        %% OnInitialised
-        function OnInitialised(this)
-            %We can have changed the variable names of the data headers
-            %(from e.g. Ch_A - but HeaterControl will not know about this
-            %and its plotters will crash on measurement start. Update em
-            %here - this is called by Initialise just before measurement
-            %start)
-            if ~isempty(this.HeaterControlClassObject)
-                this.HeaterControlClassObject.UpdateVarNames();
-            end
-        end
+        end       
 
 
     end

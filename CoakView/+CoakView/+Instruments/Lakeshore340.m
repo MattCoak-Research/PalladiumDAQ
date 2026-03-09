@@ -17,10 +17,6 @@ classdef Lakeshore340 < CoakView.Core.Instrument
         ControlChannel;                                         %Channel (A,B) that the heater is regulated by, if using the HeaterControl in ClosedLoop or Zone mode - equivalent to Loop 1 and Loop 2 on a 340
     end
 
-    properties(Access = public)
-        HeaterControlClassObject = [];                          %Reference to a logic class that wraps a Heater Control GUI element, if added
-    end
-
     properties(Access = private)
         DefaultGPIB_Address = 12;           %GPIB address     
     end
@@ -127,11 +123,6 @@ classdef Lakeshore340 < CoakView.Core.Instrument
                     dataRow = [dataRow this.GetResistance(this.Channel("B"))];
             end
 
-            %Update diagonistics display in ControlPanel, if present
-            if ~isempty(this.HeaterControlClassObject)
-                [settings, heaterLevelPct, heaterEnabled, heaterPower] = this.CollectHeaterControlSettings();
-                this.HeaterControlClassObject.DisplayData(settings, heaterLevelPct, heaterEnabled, heaterPower);
-            end
 
             %Append heater status columns to the data row
             hterPower = 0;% this.GetHeaterPower();

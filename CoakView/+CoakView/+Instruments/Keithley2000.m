@@ -74,8 +74,7 @@ classdef Keithley2000 < CoakView.Core.Instrument
         function srcLevel = GetSourceLevel(this)
             %Returns in amps or volts.
             if (this.SimulationMode)
-                %Just return dummy value
-                srcLevel = 2;
+                srcLevel = this.RetrieveSimulatedDataValue("SourceLevel");
                 return;
             end
 
@@ -122,39 +121,38 @@ classdef Keithley2000 < CoakView.Core.Instrument
 
         %% Measure
         function [dataRow] = Measure(this)
-            %Update the sweep controller, if one is added and a sweep is currently running, and apply its
-            %latest target source level
-            if ~isempty(this.SweepController)
-                if this.SweepController.Running
-                    valueToSet = this.SweepController.Update();
-                    this.SetSourceLevel(valueToSet, true);
-
-                    %And now wait for the set Settle Time for that change
-                    %to take place before measuring
-                    this.SweepController.WaitSettleTime();
-                end
-            end
-
             %Get measurement values
             if(this.SimulationMode)
                 %Dummy values if simulating instrument
                 data = 17 + rand()*0.1;
-                sourceLevel = 0.55;
             else
                 %Query the source meter for latest measurement 
                 data = this.QueryDouble("MEAS?");
-                sourceLevel = this.GetSourceLevel();
             end
+
+            %Get source level (this will handle simulation mode internally)
+            sourceLevel = this.GetSourceLevel();
             
             %Assign data to output data row 
             dataRow = [data, sourceLevel];
         end
 
+        %% SetNewSweepStepValue
+        function SetNewSweepStepValue(this, value)
+            %This built-in function is defined in the Instrument base class
+            %(does nothing) and called by any added
+            %SweepController_Stepped. Define here what action to take when
+            %a new step is triggered (set the new source voltage/current)
+            this.SetSourceLevel(value, true);
+        end
+        
         %% SetSourceLevel
         function SetSourceLevel(this, level, enableOutput)
             if(this.SimulationMode)
-                %Do nothing, just print
+                %Store in SimulatedData struct, otherwise do nothing, just print
                 disp("Setting source to " + num2str(level) + ", output enabled: " + num2str(enableOutput));
+                this.SimulatedData.SourceLevel = level;
+                this.SimulatedData.SourceEnabled = enableOutput;
                 return;
             end
 

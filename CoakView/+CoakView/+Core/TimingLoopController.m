@@ -17,8 +17,8 @@ classdef TimingLoopController < handle
         Paused;
         Resumed;
         Stopped;
-        TargetUpdateTimeChanged;
-        UpdateTimeChanged;
+        UpdateTimeChanged;          %Called every tick with the elapsed time info
+        TargetUpdateTimeChanged;    %Called when the target update time is changed in the GUI (or programmatically)
     end
 
     methods
@@ -128,7 +128,7 @@ classdef TimingLoopController < handle
 
                 %Update the View to reflect the change
                 args = CoakView.Events.ValueChangedEventData(targetTime_s);
-                notify(this, "UpdateTimeChanged", args);
+                notify(this, "TargetUpdateTimeChanged", args);
             catch err
                 this.Controller.HandleError("Error setting update time", err);
             end
@@ -277,6 +277,29 @@ classdef TimingLoopController < handle
                 otherwise
                     %Do nothing if not Running
                     
+            end
+
+            %Want to catch the error pretty locally, so the rest of the
+            %stuff in the Update Loop still happens in the expected order
+            %if we choose to Ignore or Suppress. This is just a private
+            %function here to avoid duplicating the code of handling an
+            %error specifically in the Measurement Loop
+            function CatchMeasurementLoopError(this, e)
+                % if(this.Closing)
+                %     %Just break out of the loop if we've closed the
+                %     %window - it can trigger silly errors about
+                %     %event listeners still being subscribed which I
+                %     %don't care about
+                %     this.CloseTimer();
+                %     return;
+                % else
+                    %Show error message and ask if we want to stop measurements
+                    halt = this.Controller.HandleError("Error in main measurement loop", e);
+                    if(halt)
+                        CoakView.Logging.Logger.Log("Info", "Measurements aborted by User from Error Dialogue");
+                        this.OnStopped();
+                    end
+               % end
             end
         end
     end

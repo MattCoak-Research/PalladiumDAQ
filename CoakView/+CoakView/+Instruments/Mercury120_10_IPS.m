@@ -31,14 +31,9 @@ classdef Mercury120_10_IPS < CoakView.Core.Instrument
     properties(Access = public, SetObservable)
         Name = "120-10IPS";             %Instrument name
         Connection_Type = CoakView.Enums.ConnectionType.Serial;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
-    end
-    
-    properties(Access = public)
-        MagnetControlPanel = [];
-    end
+    end    
 
     properties(Access = private)
-        SimulatedFieldValue = 0;
         TargetFieldValue = 0;
     end
     
@@ -73,7 +68,7 @@ classdef Mercury120_10_IPS < CoakView.Core.Instrument
 
          %% Close
         function Close(this)
-            git%Place in local mode now we are done.. if we connected in the
+            %Place in local mode now we are done.. if we connected in the
             %first place (ie not if we are aborting a failed connect())
             if ~isempty(this.DeviceHandle)
                 this.SetLocal();
@@ -84,7 +79,7 @@ classdef Mercury120_10_IPS < CoakView.Core.Instrument
             Close@CoakView.Core.Instrument(this);
         end
 
-   %% GetAvailableControlOptions
+        %% GetAvailableControlOptions
         function [controlDetailsStructs] = GetAvailableControlOptions(this)
             %Tell the GUI what options for Control GUIs to create
             controlDetailsStructs = [...
@@ -128,41 +123,11 @@ classdef Mercury120_10_IPS < CoakView.Core.Instrument
        
         %% Measure
         function [dataRow] = Measure(this)
-            %Update the sweep controller, if one is added and a sweep is
-            %currently running
-            if ~isempty(this.SweepController)
-                if this.SweepController.Running
-                    [~, complete] = this.SweepController.Update();
-                    if complete
-                        this.SweepComplete();
-                    end
-                end
-            end
 
-            %Update the magnet control panel if one is added
-            if ~isempty(this.MagnetControlPanel)
-                statusStruct.Current_A = this.GetCurrent();
-                statusStruct.Field_T = this.GetField();
-                statusStruct.RampRate_Tmin = this.GetFieldRampRate();
-                statusStruct.SetPoint_T = this.GetSetPointField();
+            %Query for latest measurement
+            field = this.GetField();
+            current = this.GetCurrent();
 
-                status = this.GetStatus();
-                statusStruct.StatusString = status.SweepStatus;
-
-                this.MagnetControlPanel.UpdateDisplayedStatus(statusStruct);
-            end
-
-            %Get measurement values
-            if(this.SimulationMode)
-                %Dummy values if simulating instrument
-                current = 17 + rand()*0.1;
-                field = this.SimulatedFieldValue;
-            else
-                %Query for latest measurement       
-                field = this.GetField();
-                current = this.GetCurrent();
-            end
-            
             %Assign data to output data row 
             dataRow = [field, current];
         end
@@ -178,13 +143,26 @@ classdef Mercury120_10_IPS < CoakView.Core.Instrument
             %physical instrument connected
             if this.SimulationMode
                 rampStatus = this.SweepController.SimulateRamping(tDiff, currentTarget, rampRate_min);
-                this.SimulatedFieldValue = rampStatus.CurrentField;
+                this.SimulatedData.Field_T = rampStatus.CurrentField;
+                this.SimulatedData.Current_A = rampStatus.CurrentField*12;
                 return;
             end
 
             %Actual instrument commands here
             isRamping = this.GetRampStatus();
             rampStatus.TargetReached = ~isRamping;
+        end
+
+        %% GatherStatusStructForControlPanel
+        function statusStruct = GatherStatusStructForControlPanel(this)
+            %This will get called by the MagnetController Control, if added
+            statusStruct.Current_A = this.GetCurrent();
+            statusStruct.Field_T = this.GetField();
+            statusStruct.RampRate_Tmin = this.GetFieldRampRate();
+            statusStruct.SetPoint_T = this.GetSetPointField();
+
+            status = this.GetStatus();
+            statusStruct.StatusString = status.SweepStatus;
         end
 
         %% GetCurrent

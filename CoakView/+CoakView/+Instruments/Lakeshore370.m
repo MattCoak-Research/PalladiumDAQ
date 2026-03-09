@@ -13,13 +13,8 @@ classdef Lakeshore370 < CoakView.Core.Instrument
         HeaterResistance = 100;                                 %When instrument is being used to supply heater power, it needs to know the resistance of that external heater (in Ohms) to calculate power.
     end
     
-    properties(Access = public)
-        HeaterControlClassObject = [];                          %Reference to a logic class that wraps a Heater Control GUI element, if added
-    end
-
     properties(Access = private)
         DefaultGPIB_Address = 12;           %GPIB address
-        HeaterControlPanel = [];            %Reference to a Control, if added
     end
 
     methods
@@ -90,12 +85,6 @@ classdef Lakeshore370 < CoakView.Core.Instrument
                     dataRow = [dataRow this.GetResistance()];
                 otherwise
                     error("Unsupported measurement type " + string(this.Reading));
-            end
-
-            %Update diagonistics display in ControlPanel, if present
-            if ~isempty(this.HeaterControlClassObject)
-                [settings, heaterLevelPct, heaterEnabled, heaterPower] = this.CollectHeaterControlSettings();
-                this.HeaterControlClassObject.DisplayData(settings, heaterLevelPct, heaterEnabled, heaterPower);
             end
 
             %Append heater status columns to the data row

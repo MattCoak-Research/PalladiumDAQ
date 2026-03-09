@@ -415,7 +415,7 @@ classdef Controller < handle
             try
                 %Collect Data
                 this.ShowStatus("Green", "Running");
-                dataRow = this.InstrumentController.CollectMeasurement();
+                dataRow = this.InstrumentController.CollectMeasurement(this.Headers);
             catch e
                 CatchMeasurementLoopError(this, e);
                 %Need to do something here to keep programme running when

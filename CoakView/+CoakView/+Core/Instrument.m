@@ -19,7 +19,6 @@ classdef(Abstract) Instrument < handle
     end
 
     properties(Access = public) %Properties that will not get detected by the GUI and have buttons added for them
-        SweepController = [];  
         LastFullDataRow = [];           %Each tick, the Controller will store the complete DataRow in each Instrument here. This is used when Instruments write their own data files, for things like independent sweeps
         FullHeadersRow = [];            %On measurements start, this will get cached with the full array of headers for the whole setup - again, for instrument-driven data writing.
         FileWriteDetails = [];
@@ -29,7 +28,8 @@ classdef(Abstract) Instrument < handle
         SimulationMode = false;         %Set to true if testing code while not actually connected to a physical instrument - dummy data will be generated. Set via constructor of instance classes only.
         DeviceHandle = [];              %Reference to the instrument connection/session, set when calling Connect()     
         SettingsToApply = [];           %Either null, or a struct of all the settings to apply in the next Measure command (keep these calls synchronous, they come originally from events)
-      
+        SimulatedData = [];             %Empty placeholder where an Instrument can define struct properties like SimulatedData.SourceLevel for testing things like SweepControl
+
         %Default Connection Settings - override individual settings in implementation class
         %constructors
         ConnectionSettings = struct('GPIB_BoardIndex', 0,...
@@ -254,6 +254,11 @@ classdef(Abstract) Instrument < handle
             end
         end
 
+        %% SetNewSweepStepValue
+        function SetNewSweepStepValue(this, value) %#ok<INUSD>
+            warning("An override method for SetNewSweepStepValue has not been defined for this Instrument. A SweepController_Stepped is probably trying to tell this Instrument to go to the next step in its sweep but the Instrument doesn't have a function written to tell it how. Look at the Keithley2000 class for an example");
+        end
+
         %% SettingsInput
         function SettingsInput(this, settings)
             %This is triggered by e.g. the event raised by a
@@ -347,6 +352,23 @@ classdef(Abstract) Instrument < handle
             %string...
             preInfStr = this.Name + " Settings: ";
             stringLine = CoakView.DataWriting.DataWriter.BuildMetadataLineStringFromStruct(preInfStr, result);
+        end
+
+        %% UpdateAndMeasure
+        function dataRow = UpdateAndMeasure(this, headers)
+            %UpdateAndMeasure is the entry point to Measure commands from
+            %the InstrumentController Loop. It will call Update methods on
+            %all InstrumentControls and then do the Measure call
+
+            %First Update any added Controls
+            this.UpdateControls();
+
+            %Pass through and do the actual measure command
+            dataRow = this.Measure();
+
+            %And then UpdateData any added Controls, handing them that
+            %last-acquired dataRow
+            this.UpdateControlsData(dataRow, headers);
         end
     end
 
@@ -470,6 +492,35 @@ classdef(Abstract) Instrument < handle
             end
         end
 
+        %% RetrieveSimulatedDataValue
+        function val = RetrieveSimulatedDataValue(this, propName, defaultValue)
+            arguments
+                this; 
+                propName {mustBeTextScalar}; 
+                defaultValue = 0;
+            end
+            %Handle retrieving a previously stored SimulatedData struct
+            %field, like SimulatedData.SourceLevel, but dealing with edge
+            %cases like it not being set yet, SimulatedData being empty,
+            %etc
+
+            if isempty(this.SimulatedData)
+                this.SimulatedData.(propName) = defaultValue;
+                val = defaultValue;
+                return;
+            end
+
+            if ~isfield(this.SimulatedData, propName)
+                this.SimulatedData.(propName) = defaultValue;
+                val = defaultValue;
+                return;
+            end
+
+            %We made it past all the error handling! Now we can just
+            %extract the field, knowing it's there
+            val = this.SimulatedData.(propName);
+        end
+
         %% QueryDouble
         function val = QueryDouble(this, command)
             arguments
@@ -557,6 +608,21 @@ classdef(Abstract) Instrument < handle
                 end
             end
         end
+
+        %% UpdateControls
+        function UpdateControls(this)
+            for i = 1 : length(this.ControlClasses)
+                this.ControlClasses(i).Update();
+            end
+        end
+
+        %% UpdateControlsData
+        function UpdateControlsData(this, dataRow, headers)
+            for i = 1 : length(this.ControlClasses)
+                this.ControlClasses(i).UpdateData(dataRow, headers);
+            end
+        end
+
         
     end
 end

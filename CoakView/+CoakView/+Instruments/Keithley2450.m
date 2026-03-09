@@ -2,11 +2,11 @@ classdef Keithley2450 < CoakView.Core.Instrument
     %Instrument implementation for Keithley 2450 source meter - use this rather than the 24X0 more general (and deprecated) option.
 
     properties(Constant, Access = public)
-        FullName = 'Keithley 2450 Src Meter';       %Full name, just for displaying on GUI
+        FullName = "Keithley 2450 Src Meter";       %Full name, just for displaying on GUI
     end
 
     properties(Access = public, SetObservable)
-        Name = 'SrcMtr';                            %Instrument name
+        Name = "K2450_SrcMtr";                            %Instrument name
         Connection_Type = CoakView.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         MeasMode;                                   %Resistance, Voltage, Current
         SourceMode;                                 %Current, Voltage       
@@ -101,32 +101,14 @@ classdef Keithley2450 < CoakView.Core.Instrument
 
         %% Measure
         function [dataRow] = Measure(this)
-            
-            sweepActive =  ~isempty(this.SweepController) && this.SweepController.Running;
-
-            %Update the sweep controller, if one is added and a sweep is currently running, and apply its
-            %latest target source level
-            if sweepActive
-                valueToSet = this.SweepController.Update();
-
-                %Set the source ouput to the new value
-                this.SetSourceLevel(valueToSet, true);
-
-                %And now wait for the set Settle Time for that change
-                %to take place before measuring
-                this.SweepController.WaitSettleTime();
-            end
+            %Retrieve source level (will work for simulated and real data
+            %both)
+            sourceLevel = this.GetSourceLevel();
 
             if(this.SimulationMode)
-                %Dummy values
-                current = rand(1)*1e-7 + 2e-6;
-                dataRow = [current 0.1];
-
-                %Update attached SweepController, if it exists
-                    if sweepActive
-                        this.SweepController.UpdateData(valueToSet, current);
-                    end
-
+                %Return dummy values if in simulation mode
+                value = rand(1)*1e-7 + 2e-6;
+                dataRow = [value sourceLevel];                
                 return;
             end
 
@@ -141,41 +123,23 @@ classdef Keithley2450 < CoakView.Core.Instrument
                 case(this.MeasType("Resistance"))
                     %Get measurement values from the split string
                     resistance = str2double(splitData{1});
-                    sourceLevel = this.GetSourceLevel();
 
                     %Assign data to output data row
                     dataRow = [resistance, sourceLevel];
 
-                    %Update attached SweepController, if it exists
-                    if sweepActive
-                        this.SweepController.UpdateData(sourceLevel, resistance);
-                    end
-
                 case(this.MeasType("Voltage"))
                     %Get measurement values 
                     voltage = str2double(data);
-                    current = this.GetSourceLevel();
 
                     %Assign data to output data row
-                    dataRow = [voltage, current];
-
-                    %Update attached SweepController, if it exists
-                    if sweepActive
-                        this.SweepController.UpdateData(current, voltage);
-                    end
+                    dataRow = [voltage, sourceLevel];
                     
                 case(this.MeasType("Current"))
                     %Get measurement values 
-                    voltage = this.GetSourceLevel();
                     current = str2double(data);
 
                     %Assign data to output data row
-                    dataRow = [current, voltage];
-
-                    %Update attached SweepController, if it exists
-                    if sweepActive
-                        this.SweepController.UpdateData(voltage, current);
-                    end
+                    dataRow = [current, sourceLevel];
                 otherwise
                     error("Mode must be Resistance, Voltage, or Current, this was " + string(this.Mode));
             end
@@ -183,10 +147,8 @@ classdef Keithley2450 < CoakView.Core.Instrument
 
         %% GetSourceLevel
         function srcLevel = GetSourceLevel(this)
-            %Returns in amps or volts.
             if (this.SimulationMode)
-                %Just return dummy value
-                srcLevel = 2;
+                srcLevel = this.RetrieveSimulatedDataValue("SourceLevel");
                 return;
             end
 
@@ -200,11 +162,22 @@ classdef Keithley2450 < CoakView.Core.Instrument
             end
         end
 
+        %% SetNewSweepStepValue
+        function SetNewSweepStepValue(this, value)
+            %This built-in function is defined in the Instrument base class
+            %(does nothing) and called by any added
+            %SweepController_Stepped. Define here what action to take when
+            %a new step is triggered (set the new source voltage/current)
+            this.SetSourceLevel(value, true);
+        end
+
         %% SetSourceLevel
         function SetSourceLevel(this, level, enableOutput)
-            if(this.SimulationMode)
-                %Do nothing, just print
+             if(this.SimulationMode)
+                %Store in SimulatedData struct, otherwise do nothing, just print
                 disp("Setting source to " + num2str(level) + ", output enabled: " + num2str(enableOutput));
+                this.SimulatedData.SourceLevel = level;
+                this.SimulatedData.SourceEnabled = enableOutput;
                 return;
             end
 

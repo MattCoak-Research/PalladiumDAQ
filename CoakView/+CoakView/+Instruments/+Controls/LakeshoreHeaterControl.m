@@ -32,7 +32,6 @@ classdef LakeshoreHeaterControl < CoakView.Core.InstrumentControlBase
 
             %Make a specific reference in the Lakeshore Instrument Class
             this.Instrument = instrRef;
-            this.Instrument.HeaterControlClassObject = this;
 
             %Set instrument-model-specific options
             switch(this.Instrument.FullName)
@@ -77,13 +76,15 @@ classdef LakeshoreHeaterControl < CoakView.Core.InstrumentControlBase
 
         %% RemoveControl
         function RemoveControl(this, instrRef)
-            %Clean up references to this in the Lakeshore Instrument Class
-            %so it doesn't think we have a heater control
-            instrRef.HeaterControlClassObject = [];
-
             %Delete GUI objects
             delete(this.GUIView);
             this.GUIView = [];
+        end
+
+        %% UpdateData
+        function UpdateData(this, dataRow, headers) %#ok<INUSD>
+             [settings, heaterLevelPct, heaterEnabled, heaterPower] = this.Instrument.CollectHeaterControlSettings();
+             this.DisplayData(settings, heaterLevelPct, heaterEnabled, heaterPower);
         end
         
         %% UpdateVarNames
