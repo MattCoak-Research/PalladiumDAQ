@@ -14,6 +14,9 @@ classdef DataReader < handle
         function [headerMetadataLines, dataColNames, dataArray] = ReadFile(this, filePath)
             % Open the text file.
             fileID = fopen(filePath, 'r');
+            if fileID == -1
+                error('DataReader:OpenFileFailure','Failed to open data file');
+            end
 
             %Read metadata (and work out how many lines it was so we know
             %where to read the Headers Row)
