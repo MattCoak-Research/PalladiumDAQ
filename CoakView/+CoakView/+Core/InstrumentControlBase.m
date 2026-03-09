@@ -6,6 +6,7 @@ classdef InstrumentControlBase < handle
         ControlDetailsStruct;
         FileNamePropertyDelimiters = "[]";
         DecimalPointReplacementCharacter = "p";
+        ProgrammeTargetUpdateTime;
     end
 
     properties (Access = protected)
@@ -73,6 +74,11 @@ classdef InstrumentControlBase < handle
             end
         end
 
+        %% TargetUpdateTimeChanged
+        function TargetUpdateTimeChanged(this, ~, evnt)            
+            this.ProgrammeTargetUpdateTime = evnt.Value;%In seconds
+        end
+
         %% UnsubscribeFromEvents
         function UnsubscribeFromEvents(this)
             if isempty(this.EventListeners)
@@ -86,6 +92,18 @@ classdef InstrumentControlBase < handle
             catch err
                 error("Error unsubscribing Instrument Control from event listeners: " + string(err.message));
             end
+        end
+
+        %% Update
+        function Update(this) %#ok<MANU>
+            %Does nothing by default - override in base classes
+        end
+
+        %% UpdateData
+        function UpdateData(this, dataRow, headers) %#ok<INUSD>
+            %Does nothing by default - override in base classes. Will get
+            %called right after Measure is complete on parent Instrument,
+            %passing in that Instrument's data row
         end
     end
 

@@ -45,7 +45,7 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
             [targetNumSteps, stepSize] = CoakView.Instruments.Controls.SweepController_Stepped.CalculateSteps(sweepDetails.TargetNumSteps, sweepDetails.StepSize, totalMag);
 
             %Calculate how long this will take
-            updateTime = this.Controller.TimingLoopController.TargetUpdateTime;
+            updateTime = this.ProgrammeTargetUpdateTime;
             estimatedMinUpdateTime = 0.05; %In seconds. A hardcoded semi-guess at the moment.. the minimum time the programme takes to run if not update-time limited. Will add to the Settle Time for a real total time
             timeMin = CoakView.Instruments.Controls.SweepController_Stepped.CalculateTotalTime(targetNumSteps, sweepDetails.SettleTime, updateTime, estimatedMinUpdateTime);
 
@@ -78,8 +78,6 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
         function CreateInstrumentControlGUI(this, controller, tab, instrRef)
             %Make a specific reference to and from the Instrument Class
             this.Instrument = instrRef;
-            this.Instrument.SweepController = this;
-            this.Controller = controller;
             
             %Create grid and Sweepcontrol component and position them in the
             %tab.
@@ -155,12 +153,10 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
 
         %% RemoveControl
         function RemoveControl(this, instrRef)
-            %Clean up references to this in the Instrument Class
-            instrRef.SweepController = [];
-
+            
             %Delete GUI objects
-         %   delete(this.GUIView);
-          %  this.GUIView = [];
+            delete(this.GUIView);
+            this.GUIView = [];
         end
 
         %% MeasurementsInitialised
@@ -192,7 +188,21 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
         end
         
         %% Update
-        function valueToSet = Update(this)
+        function Update(this)
+            
+            if this.Running
+                %Set the new value on the Instrument
+                valueToSet = this.UpdateValueToSet();
+                this.Instrument.SetNewSweepStepValue(valueToSet);
+
+                %And now wait for the set Settle Time for that change
+                %to take place before measuring
+                this.WaitSettleTime();
+            end
+        end
+
+        %% UpdateValueToSet
+        function valueToSet = UpdateValueToSet(this)
             %Increment the step number
             this.StepNo = this.StepNo + 1;
 
@@ -215,18 +225,21 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
         end
 
         %% UpdateData
-        function UpdateData(this, x, y)
+        function UpdateData(this, dataRow, headers)
             %Instrument calls this to add latest x and y values to be
             %plotted and logged to file
-            this.Data.X = [this.Data.X; x];
-            this.Data.Y = [this.Data.Y; y];
-
-            this.CachedData.X = x;
-            this.CachedData.Y = y;
+             switch(this.PlotterType)
+                case("Simple")
+                    %Let's assume if we are using Simple as the plotting
+                    %option the data row is just 2 values, x and y.
+                    this.Data.X = [this.Data.X; dataRow(1)];
+                    this.Data.Y = [this.Data.Y; dataRow(2)];
+            end
 
             %Do the actual data writing in the event-triggered
             %DataRowCollected call, which gets called when we have a full
-            %dataRow from other instruments to interrogate
+            %dataRow from other instruments to interrogate. Cache for now.
+            this.CachedData = dataRow;
         end
 
         %% DataRowCollected
@@ -239,10 +252,13 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
                 return;
             end
 
-            this.Plotter.PlotData(this.Data.X, this.Data.Y);
+            switch(this.PlotterType)
+                case("Simple")
+                 this.Plotter.PlotData(this.Data.X, this.Data.Y);
+            end
 
             if this.ControlDetailsStruct.SweepDetails.SaveSweepFile
-                this.DataWriter.WriteLine(this.GetDataRowToWrite(this.CachedData.X, this.CachedData.Y, dataRow, headers));
+                this.DataWriter.WriteLine(this.GetDataRowToWrite(this.CachedData, dataRow, headers));
 
                 if  ~this.Running
                     %Add in an end-of sweep metadata line if this is the

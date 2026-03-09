@@ -7,7 +7,7 @@ classdef Keithley24X0 < CoakView.Core.Instrument
     end
 
     properties(Access = public, SetObservable)
-        Name = "SrcMtr";                            %Instrument name
+        Name = "K2400_SrcMtr";                            %Instrument name
         Connection_Type = CoakView.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         MeasMode;                                   %Resistance, Voltage, Current
         SourceMode;                                 %Current, Voltage
@@ -33,44 +33,7 @@ classdef Keithley24X0 < CoakView.Core.Instrument
             %like these
             this.MeasMode = this.MeasType("Resistance");
             this.SourceMode = this.SourceType("Current");
-        end
-
-        %% CreateInstrumentControl
-        function CreateInstrumentControl(this, tab, controller)
-            %Create grid and Sweepcontrol component and position them in the
-            %tab.
-            grid = uigridlayout(tab, "ColumnWidth", {10, 'fit', '1x'}, "RowHeight", {10, 'fit', 10, '1x'}, 'RowSpacing', 2);
-            comp = CoakView.Instruments.Controls.SweepSetupControl(grid);
-            comp.Layout.Row = 2;
-            comp.Layout.Column = 2;
-
-            %Set title and metadata
-            comp.SetTitle(this.Name + " Sweep Control");
-            switch(this.SourceMode)
-                case(this.MeasType("Voltage"))
-                    comp.SetUnitsString("V");
-                    comp.SetLimits(-50, 50);    %Need to check what these physical limits actually are and improve this
-                case(this.MeasType("Current"))
-                    comp.SetUnitsString("A");
-                    comp.SetLimits(-1, 1); %Need to check what these physical limits actually are and improve this
-                otherwise
-                    error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
-            end
-
-            %Subscribe to events
-            addlistener(comp, 'Run', @(src,evnt)this.SweepRun(src,evnt));
-            addlistener(comp, 'Abort', @(src,evnt)this.SweepAbort(src,evnt));
-
-            this.SweepControlPanel = comp;
-
-            %Add a plotter as well underneath
-            pltr = controller.AddNewPlotter(grid);
-            pltr.Layout.Row = [2 4];
-            pltr.Layout.Column = 3;
-
-            %Set default displayed axes for the plotter
-            pltr.SetXAxisVariable("Time (mins)");
-        end
+        end        
 
         %% GetSupportedConnectionTypes
         function connectionTypes = GetSupportedConnectionTypes(this)
@@ -82,29 +45,7 @@ classdef Keithley24X0 < CoakView.Core.Instrument
                 CoakView.Enums.ConnectionType.Serial,...
                 CoakView.Enums.ConnectionType.USB...
                 ];
-        end
-
-        %% GenerateTabNames
-        function names = GenerateTabNames(this)
-            names = this.Name + " SweepControl";
-        end
-
-        %% SweepRun
-        function SweepRun(this, src, eventData)
-            sweepMode = CoakView.Enums.SweepMode.Stepped;
-            this.SweepController = CoakView.Instruments.Controllers.SweepController(sweepMode, eventData.SweepDetails);
-        end
-
-        %% SweepAbort
-        function SweepAbort(this, src, eventData)
-            this.SweepController = [];
-        end
-
-        %% SweepComplete
-        function SweepComplete(this)
-            this.SweepController = [];
-            this.SweepControlPanel.SweepComplete();
-        end
+        end        
 
         %% GetAvailableControlOptions
         function [controlDetailsStructs] = GetAvailableControlOptions(this)
@@ -155,96 +96,67 @@ classdef Keithley24X0 < CoakView.Core.Instrument
         %% Measure
         function [dataRow] = Measure(this)
 
-            sweepActive =  ~isempty(this.SweepController) && this.SweepController.Running;
-
-            %Update attached SweepController, if it exists
-            if sweepActive
-                valueToSet = this.SweepController.Update();
-
-                %Set the source ouput to the new value
-                this.SetSourceLevel(valueToSet, true);
-
-                %And now wait for the set Settle Time for that change
-                %to take place before measuring
-                this.SweepController.WaitSettleTime();
-            end
-
             if(this.SimulationMode)
                 %Dummy values
                 resistance = 10 + 0.1*rand();
                 current = 5 + 0.01*rand();
                 voltage =1 + 0.01*rand;
+                srcLevel = this.GetSourceLevel();
 
-                if sweepActive
-                    switch(this.SourceMode)
-                        case(this.SourceType("Voltage"))
-                            voltage = valueToSet;
-                        case(this.SourceType("Current"))
-                            current = valueToSet;
-                    end
+                switch(this.MeasMode)
+                    case(this.MeasType("Resistance"))
+                        dataRow = [resistance, current, srcLevel];
+                    case(this.MeasType("Voltage"))
+                        dataRow = [current, srcLevel];
+                    case(this.MeasType("Current"))
+                        %Assign data to output data row
+                        dataRow = [voltage, srcLevel];
+                    otherwise
+                        error("Mode must be Resistance, Voltage, or Current, this was " + this.MeasMode);
                 end
-            else
-                %Query the source meter for latest measurement and get a string
-                %returned. example for a 184 kOhm resistor with 10 microA current: '+1.839736E+00,+9.999968E-06,+1.839742E+05,+6.482821E+04,+4.506000E+04'
-                if(this.OffsetComp)
-                    %Error if not in Ohms mode
-                    if(this.MeasMode ~= this.MeasType("Resistance"))
-                        error("OffsetComp only functions in Resistance Mode");
-                    end
-
-                    %Store the currently set source level
-                    sourceLvl = this.GetSourceLevel();
-
-                    %Set to zero source level and measure
-                    this.SetSourceLevel(0, true);
-                    data = this.QueryString("MEAS?");
-                    [voltage1, current1, resistance1] = this.ParseDataString(data);
-
-                    %Set to initial source level and measure
-                    this.SetSourceLevel(sourceLvl, true);
-                    data = this.QueryString("MEAS?");
-                    [voltage2, current2, resistance2] = this.ParseDataString(data);
-
-                    resistance = resistance2 - resistance1;
-                    voltage = voltage2; %Maybe should do something a bit more clever with these? Depending on source mode?
-                    current = current2;
-                else
-                    data = this.QueryString("MEAS?");
-                    [voltage, current, resistance] = this.ParseDataString(data);
-                end
+                return;
             end
+
+
+            %Query the source meter for latest measurement and get a string
+            %returned. example for a 184 kOhm resistor with 10 microA current: '+1.839736E+00,+9.999968E-06,+1.839742E+05,+6.482821E+04,+4.506000E+04'
+            if(this.OffsetComp)
+                %Error if not in Ohms mode
+                if(this.MeasMode ~= this.MeasType("Resistance"))
+                    error("OffsetComp only functions in Resistance Mode");
+                end
+
+                %Store the currently set source level
+                sourceLvl = this.GetSourceLevel();
+
+                %Set to zero source level and measure
+                this.SetSourceLevel(0, true);
+                data = this.QueryString("MEAS?");
+                [voltage1, current1, resistance1] = this.ParseDataString(data);
+
+                %Set to initial source level and measure
+                this.SetSourceLevel(sourceLvl, true);
+                data = this.QueryString("MEAS?");
+                [voltage2, current2, resistance2] = this.ParseDataString(data);
+
+                resistance = resistance2 - resistance1;
+                voltage = voltage2; %Maybe should do something a bit more clever with these? Depending on source mode?
+                current = current2;
+            else
+                data = this.QueryString("MEAS?");
+                [voltage, current, resistance] = this.ParseDataString(data);
+            end
+
 
             %Assign data to output data row
             switch(this.MeasMode)
                 case(this.MeasType("Resistance"))
-                    dataRow = [resistance, current, voltage];
-                    %Update attached SweepController, if it exists
-                    if sweepActive
-                        switch(this.SourceMode)
-                            case(this.SourceType("Voltage"))
-                                this.SweepController.UpdateData(voltage, resistance);
-                            case(this.SourceType("Current"))
-                                this.SweepController.UpdateData(current, resistance);
-                        end
-                    end
-
+                    dataRow = [resistance, current, voltage];                    
                 case(this.MeasType("Voltage"))
                     dataRow = [current, voltage];
-
-                    %Update attached SweepController, if it exists
-                    if sweepActive
-                        this.SweepController.UpdateData(current, voltage);
-                    end
-
                 case(this.MeasType("Current"))
                     %Assign data to output data row
                     dataRow = [voltage, current];
-
-                    %Update attached SweepController, if it exists
-                    if sweepActive
-                        this.SweepController.UpdateData(voltage, current);
-                    end
-
                 otherwise
                     error("Mode must be Resistance, Voltage, or Current, this was " + this.MeasMode);
             end
@@ -252,31 +164,42 @@ classdef Keithley24X0 < CoakView.Core.Instrument
 
         %% GetSourceLevel
         function [srcLevel, srcEnabled] = GetSourceLevel(this)
-            %Returns in amps.
-            if(this.SimulationMode)
-                %Dummy values
-                srcLevel = 1.5;
-                srcEnabled = true;
-            else
-                %Query whether the source is enabled
-                enabled = this.QueryDouble("OUTP?");
-                srcEnabled = (enabled == 1);
-
-                switch(this.SourceMode)
-                    case(this.SourceType("Voltage"))
-                        srcLevel = this.QueryDouble("SOUR:VOLT:LEV:AMPL?");
-                    case(this.SourceType("Current"))
-                        srcLevel = this.QueryDouble("SOUR:CURR:LEV:AMPL?");
-                    otherwise
-                        error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
-                end
+            if (this.SimulationMode)
+                srcLevel = this.RetrieveSimulatedDataValue("SourceLevel");
+                srcEnabled = this.RetrieveSimulatedDataValue("SourceEnabled", true);
+                return;
             end
+
+            %Query whether the source is enabled
+            enabled = this.QueryDouble("OUTP?");
+            srcEnabled = (enabled == 1);
+
+            switch(this.SourceMode)
+                case(this.SourceType("Voltage"))
+                    srcLevel = this.QueryDouble("SOUR:VOLT:LEV:AMPL?");
+                case(this.SourceType("Current"))
+                    srcLevel = this.QueryDouble("SOUR:CURR:LEV:AMPL?");
+                otherwise
+                    error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+            end
+        end
+
+        %% SetNewSweepStepValue
+        function SetNewSweepStepValue(this, value)
+            %This built-in function is defined in the Instrument base class
+            %(does nothing) and called by any added
+            %SweepController_Stepped. Define here what action to take when
+            %a new step is triggered (set the new source voltage/current)
+            this.SetSourceLevel(value, true);
         end
 
         %% SetSourceLevel
         function SetSourceLevel(this, level, enableOutput)
-            if(this.SimulationMode)
-                %Do nothing
+             if(this.SimulationMode)
+                %Store in SimulatedData struct, otherwise do nothing, just print
+                disp("Setting source to " + num2str(level) + ", output enabled: " + num2str(enableOutput));
+                this.SimulatedData.SourceLevel = level;
+                this.SimulatedData.SourceEnabled = enableOutput;
                 return;
             end
 

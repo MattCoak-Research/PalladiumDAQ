@@ -16,14 +16,9 @@ classdef Mercury120_IPS < CoakView.Core.Instrument
         Name = "120IPS";             %Instrument name
         Connection_Type = CoakView.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
     end
-
-    properties(Access = public)
-        MagnetControlPanel = [];
-    end
     
     properties(Access = private)
         DefaultGPIB_Address = 25;          %GPIB address
-        SimulatedFieldValue = 0;
         TargetFieldValue = 0;
     end
     
@@ -116,41 +111,9 @@ classdef Mercury120_IPS < CoakView.Core.Instrument
        
         %% Measure
         function [dataRow] = Measure(this)
-            %Update the sweep controller, if one is added and a sweep is
-            %currently running
-            if ~isempty(this.SweepController)
-                if this.SweepController.Running
-                    [~, complete] = this.SweepController.Update();
-                    if complete
-                        this.SweepComplete();
-                    end
-                end
-            end
-
-            %Update the magnet control panel if one is added
-            if ~isempty(this.MagnetControlPanel)
-                statusStruct.Current_A = this.GetCurrent();
-                statusStruct.Field_T = this.GetField();
-                statusStruct.RampRate_Tmin = this.GetFieldRampRate();
-                statusStruct.SetPoint_T = this.GetSetPointField();
-
-                status = this.GetStatus();
-                statusStruct.StatusString = status.SweepStatus;
-
-                this.MagnetControlPanel.UpdateDisplayedStatus(statusStruct);
-            end
-
-
-            %Get measurement values
-            if(this.SimulationMode)
-                %Dummy values if simulating instrument
-                current = 17 + rand()*0.1;
-                field = this.SimulatedFieldValue;
-            else
-                %Query for latest measurement       
-                field = this.GetField();
-                current = this.GetCurrent();
-            end
+            %Get measurement values 
+            field = this.GetField();
+            current = this.GetCurrent();
             
             %Assign data to output data row 
             dataRow = [field, current];
@@ -167,7 +130,8 @@ classdef Mercury120_IPS < CoakView.Core.Instrument
             %physical instrument connected
             if this.SimulationMode
                 rampStatus = this.SweepController.SimulateRamping(tDiff, currentTarget, rampRate_min);
-                this.SimulatedFieldValue = rampStatus.CurrentField;
+                this.SimulatedData.Field_T = rampStatus.CurrentField;
+                this.SimulatedData.Current_A = rampStatus.CurrentField*12;
                 return;
             end
 
@@ -176,10 +140,22 @@ classdef Mercury120_IPS < CoakView.Core.Instrument
             rampStatus.TargetReached = ~isRamping;
         end
 
+        %% GatherStatusStructForControlPanel
+        function statusStruct = GatherStatusStructForControlPanel(this)
+            %This will get called by the MagnetController Control, if added
+            statusStruct.Current_A = this.GetCurrent();
+            statusStruct.Field_T = this.GetField();
+            statusStruct.RampRate_Tmin = this.GetFieldRampRate();
+            statusStruct.SetPoint_T = this.GetSetPointField();
+
+            status = this.GetStatus();
+            statusStruct.StatusString = status.SweepStatus;
+        end
+
         %% GetCurrent
         function current_A = GetCurrent(this)
             if this.SimulationMode
-                current_A = 0;
+                current_A = this.RetrieveSimulatedDataValue("Current_A");
                 return;
             end
 
@@ -211,7 +187,7 @@ classdef Mercury120_IPS < CoakView.Core.Instrument
         %% GetField
         function field_T = GetField(this)
             if this.SimulationMode
-                field_T = 0;
+                field_T = this.RetrieveSimulatedDataValue("Field_T");
                 return;
             end
 

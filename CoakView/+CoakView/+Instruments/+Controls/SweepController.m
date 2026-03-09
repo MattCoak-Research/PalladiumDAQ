@@ -10,7 +10,6 @@ classdef SweepController < CoakView.Core.InstrumentControlBase
 
     properties (Access = protected)
         GUIView;
-        Controller;
         timerVal;   %Used for tracking Elapsed Time since sweep started, with tic/toc
     end
 

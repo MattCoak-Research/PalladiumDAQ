@@ -17,7 +17,6 @@ classdef MFLI_SweepController < CoakView.Core.InstrumentControlBase
         SweepHandle = [];
         CachedSweepData = [];
         GUIView;
-        Controller;
         Data;
         Plotter;
         DataWriter;
@@ -34,8 +33,6 @@ classdef MFLI_SweepController < CoakView.Core.InstrumentControlBase
         function CreateInstrumentControlGUI(this, controller, tab, instrRef)
             %Make a specific reference to and from the Instrument Class
             this.Instrument = instrRef;
-            this.Instrument.SweepController = this;
-            this.Controller = controller;
 
             %Create grid and TempControl component and position them in the
             %tab.
@@ -54,18 +51,15 @@ classdef MFLI_SweepController < CoakView.Core.InstrumentControlBase
             addlistener(comp, 'RunSingleSweep', @(src,evnt)this.RunSweep(src, evnt));
             addlistener(comp, 'StopSweep', @(src,evnt)this.AbortSweep(src, evnt));
 
-            %Add a SIMPLE plotter as well, to the right
-            this.Plotter = controller.AddNewSimplePlotter(grid, "Medium");
+            %Add a plotter as well, to the right
+            this.Plotter = controller.AddNewPlotter(grid, "Medium");
             this.Plotter.Layout.Row = 2;
             this.Plotter.Layout.Column = 2;
         end
 
         %% RemoveControl
         function RemoveControl(this, instrRef)
-            %Clean up references to this in the Lakeshore Instrument Class
-            %so it doesn't think we have a heater control
-            instrRef.SweepControlPanel = [];
-
+            
             %Delete GUI objects
             delete(this.GUIView);
             this.GUIView = [];
@@ -161,32 +155,30 @@ classdef MFLI_SweepController < CoakView.Core.InstrumentControlBase
                 return;
             end
 
-            %Ping the instrument for data so far, and if the sweep is
-            %complete
-            [SweepData, complete] = this.Instrument.Sweep_Check_Completion_Poll_Data(this.SweepHandle);
+            if this.Running
+                %Ping the instrument for data so far, and if the sweep is
+                %complete
+                [SweepData, complete] = this.Instrument.Sweep_Check_Completion_Poll_Data(this.SweepHandle);
 
-            %Cache the data - in case we abort, we can write the
-            %data-so-far to file
-            this.CachedSweepData = SweepData;
+                %Cache the data - in case we abort, we can write the
+                %data-so-far to file
+                this.CachedSweepData = SweepData;
 
-            %Plot any data
-            if ~isempty(SweepData.SweepValues)
-                this.UpdateData(SweepData.SweepValues, SweepData.Amplitude);
-            end
+                %Plot any data - this is a relic of having a SimplePlotter
+               % if ~isempty(SweepData.SweepValues)
+              %      this.UpdateData(SweepData.SweepValues, SweepData.Amplitude);
+              %  end
 
-            %Handle the sweep completion if it is finished
-            if complete
-                this.OnSweepComplete(SweepData);
+                %Handle the sweep completion if it is finished
+                if complete
+                    this.OnSweepComplete(SweepData);
+                end
             end
         end
 
         %% UpdateData
-        function UpdateData(this, x, y)      
-            try
-                this.Plotter.PlotData(x, y); 
-            catch e
-                warning("Failed to plot data in Sweep Controller: " + string(e.message), "backtrace", false, "verbose", false);
-            end
+        function UpdateData(this, dataRow, headers)      
+            
         end
 
         %% MeasurementsStarted
@@ -240,8 +232,8 @@ classdef MFLI_SweepController < CoakView.Core.InstrumentControlBase
 
         %% ClearData
         function ClearData(this)
-            this.Plotter.ClearData();
-            this.Plotter.LabelAxes("", "");
+            %this.Plotter.ClearData();
+          %  this.Plotter.LabelAxes("", "");
         end
 
         %% SweepEnded
@@ -288,7 +280,7 @@ classdef MFLI_SweepController < CoakView.Core.InstrumentControlBase
             end
 
             %Update the plotter axes labels
-            this.Plotter.LabelAxes(xAx, "Amplitude (V)");
+%            this.Plotter.LabelAxes(xAx, "Amplitude (V)");
         end
 
         %% WriteData

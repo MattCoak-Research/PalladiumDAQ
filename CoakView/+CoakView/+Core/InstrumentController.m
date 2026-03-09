@@ -148,6 +148,7 @@ classdef InstrumentController < handle
                 %Make an instance of the selected datasource class
                 controlClassRef = CoakView.Utilities.FileLoading.PluginLoading.InstantiateClass(this.ControlsNamespace, controlDetailsStruct.ControlClassFileName);
                 controlClassRef.ControlDetailsStruct = controlDetailsStruct;
+                controlClassRef.ProgrammeTargetUpdateTime = this.Controller.TimingLoopController.TargetUpdateTime;
 
                 %Tell the control class to create the required GUI etc
                 controlClassRef.CreateInstrumentControlGUI(this.Controller, tab, instrRef);
@@ -167,9 +168,12 @@ classdef InstrumentController < handle
                 ltr = addlistener(this.Controller.TimingLoopController, 'Stopped', @(src,evnt)controlClassRef.MeasurementsStopped(src, evnt));
                 controlClassRef.RegisterEventListener(ltr);
                 ltr = addlistener(this.Controller.TimingLoopController, 'MeasurementsInitialised', @(src,evnt)controlClassRef.MeasurementsInitialised(src, evnt));
-                controlClassRef.RegisterEventListener(ltr);                
+                controlClassRef.RegisterEventListener(ltr);              
+                ltr = addlistener(this.Controller.TimingLoopController, 'TargetUpdateTimeChanged', @(src,evnt)controlClassRef.TargetUpdateTimeChanged(src, evnt));
+                controlClassRef.RegisterEventListener(ltr);  
                 ltr = addlistener(this, 'DataRowCollected', @(src,evnt)controlClassRef.DataRowCollected(evnt.DataRow, evnt.Headers));
                 controlClassRef.RegisterEventListener(ltr);
+
 
                 %Verbose/debug message printing
                 this.Controller.Log("Info", "Added Instrument Control: " + controlDetailsStruct.Name, "Green", "Added Instrument Control");
@@ -194,7 +198,7 @@ classdef InstrumentController < handle
         end
 
         %% CollectMeasurement
-        function DataRow = CollectMeasurement(this)
+        function DataRow = CollectMeasurement(this, headers)
             %Get current time in universal coordinated time (seconds since 1970) then divide by 60 to get minutes
             Time = posixtime(datetime('now')) /60;
 
@@ -209,7 +213,7 @@ classdef InstrumentController < handle
                     this.Instruments{i}.CheckForSettingsToApply();
 
                     %Measure
-                    DataRow = [DataRow this.Instruments{i}.Measure()];
+                    DataRow = [DataRow this.Instruments{i}.UpdateAndMeasure(headers)];
                 catch e
                     %Pop in a nan value, as we failed to grab the data from
                     %this instrument

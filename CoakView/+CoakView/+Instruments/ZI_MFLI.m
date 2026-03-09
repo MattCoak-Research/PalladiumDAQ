@@ -31,15 +31,7 @@ classdef ZI_MFLI < CoakView.Core.Instrument
         MeasurementMode;                                            %Measuring voltage or current?
     end
 
-    properties(Access = public)
-        SweepControlPanel = [];
-    end
-
-    properties(Access = private)
-
-    end
-
-
+    
     methods(Access = public)
 
         %% Categoricals
@@ -245,12 +237,6 @@ classdef ZI_MFLI < CoakView.Core.Instrument
             %Query data on demodulator 0
             demodIndex = 0;
            
-            %Update attached SweepController, if it exists 
-            sweepActive = ~isempty(this.SweepController) && this.SweepController.Running;
-            if sweepActive
-                this.SweepController.Update();
-            end
-
             %Retrieve frequency and voltage out levels
             output = this.GetSuppliedVoltageOrCurrentAndUnits();
             frequency = this.GetOscFrequency(demodIndex);        
