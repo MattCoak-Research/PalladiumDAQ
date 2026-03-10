@@ -71,7 +71,11 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
             sweepDetails.TargetNumSteps = targetNumSteps;
             sweepDetails.StepSize = stepSize;
 
-            this.TotalPoints = sweepDetails.TargetNumSteps;
+            %Get this from counting the points, not the target, as the way
+            %points are split up into the quadrants, ensuring the extremal
+            %points are hit, can give extra points that then don't get
+            %included
+            this.TotalPoints = length(sweepDetails.Points);
         end 
 
         %% CreateInstrumentControlGUI
@@ -214,9 +218,7 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
             valueToSet = this.ControlDetailsStruct.SweepDetails.Points(this.StepNo);
 
             %Check if we reached the end of the sweep
-            if(this.StepNo > this.TotalPoints)
-                this.StepNo = this.TotalPoints + 1;
-                valueToSet = this.ControlDetailsStruct.SweepDetails.Points(end);
+            if(this.StepNo >= this.TotalPoints)
                 this.SweepComplete();
             end
 
