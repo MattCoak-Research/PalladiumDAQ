@@ -2,6 +2,8 @@ classdef testDataReader < matlab.unittest.TestCase
     properties
         reader;
         FileName = fullfile('data', 'DataReaderTest.dat');
+        NoMetaMarkerFile = fullfile('data', 'DataReaderNoMetaMarker.dat');
+        NoHeaderStringFile = fullfile('data', 'DataReaderNoHeaderString.dat');
         expectedMetadata = ["<<< CoakView data file 3.0 >>>", "", "" "<Instrument Settings and Metadata>"];
         expectedColNames = ["Time (mins)"	"Channel A Temperature (K)"	"Channel B Temperature (K)"	"Ls331_1 Heater Power (W)"];
         expectedDataArray = [29545432.2083213	100.814723686393	100.905791937076	0.452857203366604;
@@ -40,6 +42,17 @@ classdef testDataReader < matlab.unittest.TestCase
        function testInvalidFilename(testCase)
            verifyError(testCase, @() testCase.reader.ReadFile(''), 'DataReader:OpenFileFailure');
        end
+
+       function testNoMetadataMarker(testCase)
+           verifyError(testCase, @() testCase.reader.ReadFile(testCase.NoMetaMarkerFile), ...
+               'DataReader:NoMetadataMarker');
+       end
+
+       function testNoHeaderString(testCase)
+           verifyError(testCase, @() testCase.reader.ReadFile(testCase.NoHeaderStringFile), ...
+               'DataReader:NoHeaderString');
+       end
+      
     end
 
 end

@@ -66,7 +66,7 @@ classdef DataReader < handle
 
 
             %Error checking
-            assert(~isempty(headersStrArray), "Headers row loaded from file empty");
+            assert(~isempty(headersStrArray), 'DataReader:NoHeaderString', "Headers row loaded from file empty");
         end
 
         %% ScanFileForMetadataRows
@@ -106,7 +106,7 @@ classdef DataReader < handle
             %Handle the case where we never found the header string and
             %reached end of file
             if(~success)
-                error('Could not find headers in datafile');
+                error('DataReader:NoMetadataMarker','Could not find headers in datafile');
             end
         end
     end
