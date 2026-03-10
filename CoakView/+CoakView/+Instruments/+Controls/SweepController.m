@@ -146,6 +146,7 @@ classdef SweepController < CoakView.Core.InstrumentControlBase
                     points(end) = [];
                 end
             end
+
         end
 
         %% CalculateTotalMagnitude

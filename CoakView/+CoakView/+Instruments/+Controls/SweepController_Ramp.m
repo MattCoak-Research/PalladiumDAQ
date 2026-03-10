@@ -86,7 +86,8 @@ classdef SweepController_Ramp < CoakView.Instruments.Controls.SweepController
             addlistener(comp, 'RampToZero', @(src,evnt)this.RampToZero(src, evnt));
 
             %And to the event fired when instrument properties change!
-            addlistener(instrRef, 'PropertyChanged', @(src,evnt)this.RefreshUnitsAndLimits());
+            ltr = addlistener(instrRef, 'PropertyChanged', @(src,evnt)this.RefreshUnitsAndLimits());
+            this.RegisterEventListener(ltr);
 
             %Set up the defaults and populate parameters 
             this.RefreshUnitsAndLimits();

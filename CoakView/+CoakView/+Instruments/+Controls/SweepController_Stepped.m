@@ -42,7 +42,7 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
             %Take the target number of steps (which will be empty if we are
             %choosing to set stepSize instead - by default in the GUI, as
             %these parameters are linked)
-            [targetNumSteps, stepSize] = CoakView.Instruments.Controls.SweepController_Stepped.CalculateSteps(sweepDetails.TargetNumSteps, sweepDetails.StepSize, totalMag);
+            [targetNumSteps, stepSize] = CoakView.Instruments.Controls.SweepController_Stepped.CalculateSteps(sweepDetails.TargetNumSteps, sweepDetails.StepSize, totalMag, targetPts);
 
             %Calculate how long this will take
             updateTime = this.ProgrammeTargetUpdateTime;
@@ -97,8 +97,13 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
             addlistener(comp, 'Abort', @(src,evnt)this.SweepAbort(src, evnt));
             addlistener(comp, 'SweepDataChange', @(src,evnt)this.SweepDataChanged(src, evnt));
 
-            %And to the event fired when instrument properties change!
-            addlistener(instrRef, 'PropertyChanged', @(src,evnt)this.RefreshUnitsAndLimits());
+            %And to the event fired when instrument properties change! Note
+            %that we have to store and register this listener handle
+            %properly, or when we remove this control  the orphaned listener still lives on the instrument.
+            %When you then change a dropdown (e.g., SourceMode), the PostSet → PropertyChanged event fires, the orphaned listener
+            %tries to call RefreshUnitsAndLimits() on a deleted handle object, and MATLAB crashes.            
+            ltr = addlistener(instrRef, 'PropertyChanged', @(src,evnt)this.RefreshUnitsAndLimits());
+            this.RegisterEventListener(ltr);
 
             %Set up the defaults and populate parameters 
             this.RefreshUnitsAndLimits();
@@ -152,8 +157,7 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
         end
 
         %% RemoveControl
-        function RemoveControl(this, instrRef)
-            
+        function RemoveControl(this, instrRef)            
             %Delete GUI objects
             delete(this.GUIView);
             this.GUIView = [];
@@ -212,6 +216,7 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
             %Check if we reached the end of the sweep
             if(this.StepNo > this.TotalPoints)
                 this.StepNo = this.TotalPoints + 1;
+                valueToSet = this.ControlDetailsStruct.SweepDetails.Points(end);
                 this.SweepComplete();
             end
 
@@ -378,11 +383,12 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
     methods (Static)
 
         %% CalculateSteps
-        function [targetNumSteps, stepSize] = CalculateSteps(targetNumStepsIn, stepSizeIn, totalMag)
+        function [targetNumSteps, stepSize] = CalculateSteps(targetNumStepsIn, stepSizeIn, totalMag, targetPts)
             arguments
                 targetNumStepsIn;   %Can be [] to signify we are using set stepsize
                 stepSizeIn (1,1) double;
                 totalMag (1,1) double;
+                targetPts (:,1) double; %Array of extremal points to hit
             end
 
             %Take the target number of steps (which will be empty if we are
@@ -395,7 +401,11 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
             else
                 %We have dictated a number of steps - work out the step
                 %size from that
-                targetNumSteps = targetNumStepsIn;
+                if targetNumStepsIn < length(targetPts)%Catch and handle the case where we are asking for fewer steps than there are quadrants of the sweep - just step up to each extremal point in this case
+                    targetNumSteps = length(targetPts);
+                else
+                    targetNumSteps = targetNumStepsIn;
+                end
                 stepSize = totalMag / targetNumSteps;   %Set this again to make it exactly fit the total range with no gap or excess (step size will update in the GUI)
             end
         end
