@@ -120,7 +120,7 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
                     this.Plotter = controller.AddNewPlotter(grid, Size="Medium", RegisterPlotter=false);    %Don't register the plotter centrally, as we will push data to it only when the sweep is running, and clear it on sweep start. This does mean, for now at least, that the Plotter is not hooked up
                     this.Plotter.Layout.Row = [2 4];
                     this.Plotter.Layout.Column = 3;
-                 %   addlistener(this.Plotter, 'AxesSelectionChange', @(src,evnt)this.PlotterAxesSelectionChange(src));
+                    addlistener(this.Plotter, 'AxesSelectionChange', @(src,evnt)this.PlotterAxesSelectionChange(src));
                 case("Simple")
                     this.Plotter = controller.AddNewSimplePlotter(grid, "Medium");
                     this.Plotter.Layout.Row = [2 4];

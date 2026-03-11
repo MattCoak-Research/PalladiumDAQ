@@ -34,7 +34,7 @@ classdef MagnetController < CoakView.Core.InstrumentControlBase
             this.Instrument = instrRef;
 
             %Add a plotter as well underneath
-            plotter = controller.AddNewPlotter(grid, "Medium");
+            plotter = controller.AddNewPlotter(grid, Size="Medium");
             plotter.Layout.Row = 2;
             plotter.Layout.Column = 2;   
 

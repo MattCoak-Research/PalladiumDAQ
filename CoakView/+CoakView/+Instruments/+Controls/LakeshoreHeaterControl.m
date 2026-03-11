@@ -48,7 +48,7 @@ classdef LakeshoreHeaterControl < CoakView.Core.InstrumentControlBase
             end       
 
             %Add a plotter as well underneath
-            this.Plotter = controller.AddNewPlotter(grid, "Medium");
+            this.Plotter = controller.AddNewPlotter(grid, Size="Medium");
             this.Plotter.Layout.Row = 4;
             this.Plotter.Layout.Column = [1 3];   %Span columns
 

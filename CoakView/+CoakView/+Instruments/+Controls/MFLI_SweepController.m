@@ -52,7 +52,7 @@ classdef MFLI_SweepController < CoakView.Core.InstrumentControlBase
             addlistener(comp, 'StopSweep', @(src,evnt)this.AbortSweep(src, evnt));
 
             %Add a plotter as well, to the right
-            this.Plotter = controller.AddNewPlotter(grid, "Medium");
+            this.Plotter = controller.AddNewPlotter(grid, size="Medium");
             this.Plotter.Layout.Row = 2;
             this.Plotter.Layout.Column = 2;
         end
