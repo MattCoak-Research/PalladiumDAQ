@@ -11,6 +11,8 @@ classdef SweepController < CoakView.Core.InstrumentControlBase
     properties (Access = protected)
         GUIView;
         timerVal;   %Used for tracking Elapsed Time since sweep started, with tic/toc
+        RestartNextTick = false;
+        Aborted = false;
     end
 
     properties (Access = private)
@@ -59,6 +61,7 @@ classdef SweepController < CoakView.Core.InstrumentControlBase
            %it isn't abstract)
         end               
 
+
         %% SweepAbort
         function SweepAbort(this, ~, eventData)
            this.Running = false;     
@@ -72,6 +75,11 @@ classdef SweepController < CoakView.Core.InstrumentControlBase
             this.TimeElapsed_s = 0;   
             this.GUIView.SweepComplete();
             this.OnSweepComplete();
+
+            %Loop the next sweep to start if in Continuous mode
+            if this.GUIView.IsContinuousSelected() && ~this.Aborted
+                this.RestartNextTick = true;
+            end
         end
 
         %% SweepDataChanged
