@@ -83,7 +83,7 @@ classdef Controller < handle
         function AttachView(this, view)
             %Assign controllers into the View and have it subscribe to
             %their events
-            view.AssignControllersAndHookUpEvents(this, this.TimingLoopController, this.InstrumentController, this.PlottingController);
+            view.AssignControllersAndHookUpEvents(this, this.TimingLoopController, this.InstrumentController);
         end            
         
         %% AddNewPlotter
