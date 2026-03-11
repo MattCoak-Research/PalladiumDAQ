@@ -424,8 +424,7 @@ classdef InstrumentController < handle
             %Send the remove command
             controlClass.RemoveControl(instrRef);
 
-            %Delete the reference NEED TO COMMENT OUT THIS, AND THE REMOVE
-            %TAB COMMAND OR MATLAB CRASHES
+            %Delete the reference 
             delete(controlClass);
         end
     end

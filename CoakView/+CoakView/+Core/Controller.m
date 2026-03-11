@@ -83,17 +83,18 @@ classdef Controller < handle
         function AttachView(this, view)
             %Assign controllers into the View and have it subscribe to
             %their events
-            view.AssignControllersAndHookUpEvents(this, this.TimingLoopController, this.InstrumentController, this.PlottingController);
+            view.AssignControllersAndHookUpEvents(this, this.TimingLoopController, this.InstrumentController);
         end            
         
         %% AddNewPlotter
-        function pltr = AddNewPlotter(this, parent, size)
+        function pltr = AddNewPlotter(this, parent, Settings)
             %This is used by things like Instrument Control creating GUIs
             %and placing Plotters in existing Gridlayouts
             arguments
                 this;
                 parent = [];
-                size = "Medium";
+                Settings.Size = "Medium";
+                Settings.RegisterPlotter = true;
             end
 
             try
@@ -106,10 +107,13 @@ classdef Controller < handle
                 %Get the Plotting Controller to actually construct the
                 %plotter, add it to whatever parent we sent in. All of this
                 %is View-agnostic, and doesn't need one at all.
-                pltr = this.PlottingController.CreateNewPlotter(parent, size);
+                pltr = this.PlottingController.CreateNewPlotter(parent, Settings.Size);
            
                 %Subscribe to events
-                addlistener(pltr, 'AxesSelectionChange', @(src,evnt)this.PlotterAxesSelectionChange(src));
+                if Settings.RegisterPlotter
+                    addlistener(pltr, 'AxesSelectionChange', @(src,evnt)this.PlotterAxesSelectionChange(src));
+                end
+
                 addlistener(pltr, 'SavePlot', @(src,evnt)this.SavePlot(evnt));
 
             catch err
@@ -118,10 +122,12 @@ classdef Controller < handle
             end
 
             %Register the plotter so it gets updated
-            try
-                this.PlottingController.RegisterPlotterObject(pltr, this.Headers);
-            catch err
-                this.HandleError("Error registering plotter object", err);
+            if Settings.RegisterPlotter
+                try
+                    this.PlottingController.RegisterPlotterObject(pltr, this.Headers);
+                catch err
+                    this.HandleError("Error registering plotter object", err);
+                end
             end
         end
 
@@ -789,7 +795,6 @@ classdef Controller < handle
 
         %% SavePlot
         function SavePlot(this, eventData)
-            disp("sAve plot")
             try
                 %Save the figure and a png to file using the existing
                 %DataWriter

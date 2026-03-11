@@ -16,9 +16,9 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
         DataWriter;
         XLabelStr = "X axis var";
         YLabelStr = "Y axis var";
-        Aborted = false;
         ExtraDataColHeaders = [];
-        CachedData = [];
+        CachedData = [];            %CachedData for the last iteration, ready to be written (need to wait until data fomr other instruments come in)
+        DataArray = [];             %Store entire array of dataRows taken during this sweep - need it if we change axes on a Plotter mid-sweep
     end
     
     methods
@@ -115,9 +115,12 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
             %Add a plotter of the desired sort as well, to the right
             switch(this.PlotterType)
                 case("Default")
-                    this.Plotter = controller.AddNewPlotter(grid, "Medium");
+                    %Don't register the plotter centrally, as we will push data to it only when the sweep is running, 
+                    %and clear it on sweep start.                  
+                    this.Plotter = controller.AddNewPlotter(grid, Size="Medium", RegisterPlotter=false);    %Don't register the plotter centrally, as we will push data to it only when the sweep is running, and clear it on sweep start. This does mean, for now at least, that the Plotter is not hooked up
                     this.Plotter.Layout.Row = [2 4];
                     this.Plotter.Layout.Column = 3;
+                    addlistener(this.Plotter, 'AxesSelectionChange', @(src,evnt)this.PlotterAxesSelectionChange(src));
                 case("Simple")
                     this.Plotter = controller.AddNewSimplePlotter(grid, "Medium");
                     this.Plotter.Layout.Row = [2 4];
@@ -171,6 +174,7 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
         function MeasurementsInitialised(this, src, eventArgs)
             headers = eventArgs.Headers;
             this.GUIView.UpdateAvailableDataColumnHeaders(headers);
+            this.Plotter.UpdateVariables(headers);
         end
 
         %% MeasurementsStarted
@@ -196,8 +200,7 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
         end
         
         %% Update
-        function Update(this)
-            
+        function Update(this)            
             if this.Running
                 %Set the new value on the Instrument
                 valueToSet = this.UpdateValueToSet();
@@ -217,11 +220,6 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
             %Tick onto next value from the list
             valueToSet = this.ControlDetailsStruct.SweepDetails.Points(this.StepNo);
 
-            %Check if we reached the end of the sweep
-            if(this.StepNo >= this.TotalPoints)
-                this.SweepComplete();
-            end
-
             %Calculate the remaining time
             totalTimeMin = this.ControlDetailsStruct.SweepDetails.TotalTimeMin;
             this.ControlDetailsStruct.SweepDetails.RemainingTimeMin = CoakView.Instruments.Controls.SweepController_Stepped.CalculateTimeRemaining(totalTimeMin, this.StepNo, this.TotalPoints);
@@ -233,20 +231,34 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
 
         %% UpdateData
         function UpdateData(this, dataRow, headers)
-            %Instrument calls this to add latest x and y values to be
-            %plotted and logged to file
-             switch(this.PlotterType)
-                case("Simple")
-                    %Let's assume if we are using Simple as the plotting
-                    %option the data row is just 2 values, x and y.
-                    this.Data.X = [this.Data.X; dataRow(1)];
-                    this.Data.Y = [this.Data.Y; dataRow(2)];
-            end
+            if this.Running
+                %Instrument calls this to add latest x and y values to be
+                %plotted and logged to file
+                switch(this.PlotterType)
+                    case("Simple")
+                        %Let's assume if we are using Simple as the plotting
+                        %option the data row is just 2 values, x and y.
+                        this.Data.X = [this.Data.X; dataRow(1)];
+                        this.Data.Y = [this.Data.Y; dataRow(2)];
+                end
 
-            %Do the actual data writing in the event-triggered
-            %DataRowCollected call, which gets called when we have a full
-            %dataRow from other instruments to interrogate. Cache for now.
-            this.CachedData = dataRow;
+                %Do the actual data writing in the event-triggered
+                %DataRowCollected call, which gets called when we have a full
+                %dataRow from other instruments to interrogate. Cache for now.
+                this.CachedData = dataRow;
+
+                %Check if we reached the end of the sweep
+                if(this.StepNo >= this.TotalPoints)
+                    this.SweepComplete();
+                end
+
+            else
+                %Loop the next sweep to start if in Continuous mode
+                if this.RestartNextTick
+                    this.RestartNextTick = false;
+                    this.GUIView.RunSweep();
+                end
+            end
         end
 
         %% DataRowCollected
@@ -259,9 +271,19 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
                 return;
             end
 
+            %Append to the cached dataarray (this is the whole
+            %programme-wide dataRow, so we can plot anything - but only
+            %lines since the sweep started are to be stored)
+            this.DataArray = [this.DataArray; dataRow];
+
             switch(this.PlotterType)
                 case("Simple")
                  this.Plotter.PlotData(this.Data.X, this.Data.Y);
+                case("Default")
+                 success = this.Plotter.TryAppendData(dataRow);
+                 if ~success
+                     this.Plotter.PlotData(this.DataArray);
+                 end
             end
 
             if this.ControlDetailsStruct.SweepDetails.SaveSweepFile
@@ -271,12 +293,6 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
                     %Add in an end-of sweep metadata line if this is the
                     %last update
                     this.InsertEndMetadataIntoFile(this.DataWriter);
-
-                    %Loop the next sweep to start if in Continuous mode
-                    if this.GUIView.IsContinuousSelected() && ~this.Aborted
-                        this.GUIView.RunSweep();
-                    end
-
                 end
             end
 
@@ -284,8 +300,8 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
         end
 
         %% GetDataRowToWrite
-        function dataRowToWrite = GetDataRowToWrite(this, x, y, dataRow, headers)
-            dataRowToWrite = [x, y];
+        function dataRowToWrite = GetDataRowToWrite(this, instrDataRow, dataRow, headers)
+            dataRowToWrite = instrDataRow;
 
             if ~isempty(this.ExtraDataColHeaders)
                 for i = 1 : length(this.ExtraDataColHeaders)
@@ -337,6 +353,8 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
         function ClearData(this)
             this.Data.X = [];
             this.Data.Y = [];
+            this.CachedData = [];
+            this.DataArray = [];
 
             this.Plotter.ClearData();
         end
@@ -363,7 +381,8 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
 
         %% GetHeaders
         function headersString = GetHeaders(this)
-            headers = [this.XLabelStr, this.YLabelStr];
+           % headers = [this.XLabelStr, this.YLabelStr];
+            headers = this.Instrument.GetHeaders();
 
             %Get any additional extra headers added in the GUI - extra
             %datacolumns from the wider programme to print into the Sweep
@@ -379,6 +398,30 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
                 headersString = sprintf('%s%s\t', headersString, headers{i});
             end
         end
+
+        %% PlotterAxesSelectionChange
+        function PlotterAxesSelectionChange(this, pltr)
+            %This is needed for the case where we want to change the
+            %displayed data in a Plotter, but the loop is not running.
+            %While measurement loop is running, the Plotter will get an
+            %Update call with new data every tick, and if it has
+            %established that a button has been pressed and it needs to
+            %e.g. change the data plotted on a y axis, it sets a bool flag
+            %to do a plot refresh next update tick. If there are no ticks
+            %this does not happen, so in that case, we hook into the
+            %Plotter's event and fire a manual replot in the case that
+            %measurements are stopped
+            if ~this.Running
+                %Have to pass whole data table back in - Plotters do not
+                %store/copy these, that would be very expensive.
+                %If the data table is empty, for now just do nothing -
+                %might be clearer UX to clear the plot, but then again
+                %might be annoying to delete the data for no obvious reason
+                if ~isempty(this.DataArray)
+                    pltr.PlotData(this.DataArray);
+                end
+            end
+        end 
 
     end
 
