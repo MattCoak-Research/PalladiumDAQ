@@ -183,6 +183,11 @@ classdef Controller < handle
             notify(this, "StoppedShowingProgress");
         end
 
+        %% GetAllInstrumentClassNames
+        function classNames = GetAllInstrumentClassNames(this)
+            classNames = this.InstrumentController.ListOfAvailableInstrumentClassNameStrings;
+        end
+
         %% HaltMeasurementsOnInstrumentError
         function HaltMeasurementsOnInstrumentError(this, instr, e)
             %Show error message and ask if we want to stop measurements

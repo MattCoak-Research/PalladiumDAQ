@@ -79,10 +79,15 @@ classdef CoakView < handle
             instRef = this.Controller.InstrumentController.AddInstrument(instrumentClassName, Name=settings.Name, ConnectionType=settings.ConnectionType);
         end
 
-         %% AddInstrumentControl
+        %% AddInstrumentControl
         function cont = AddInstrumentControl(this, instrRef, controlDetailsStruct)
             %Pass on to the View
             cont = this.View.AddInstrumentControl(instrRef, controlDetailsStruct);
+        end
+
+        %% GetAllInstrumentClassNames
+        function classNames = GetAllInstrumentClassNames(this)
+            classNames = this.Controller.GetAllInstrumentClassNames();
         end
 
         %% Pause
