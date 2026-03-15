@@ -17,7 +17,7 @@ classdef Palladium < handle
         %% Constructor
         function this = Palladium(Settings)
             arguments
-                Settings.View = "Palladium_DefaultGUI";
+                Settings.View = "PalladiumDAQ_DefaultGUI";
                 Settings.Preset = [];
             end
 

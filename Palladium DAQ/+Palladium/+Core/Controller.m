@@ -161,10 +161,10 @@ classdef Controller < handle
             canStart = false;
             try
                 %Verify directory and path valid
-                if(~Palladium.Utilities.FileLoading.PathUtils.IsDirectoryValid(this.FileWriteDetails.Directory))
+                if(~Palladium.Utilities.PathUtils.IsDirectoryValid(this.FileWriteDetails.Directory))
                     error(['Error - directory not valid: ' strrep(this.FileWriteDetails.Directory, '\', '\\')]);
                 end
-                if(~Palladium.Utilities.FileLoading.PathUtils.IsFileNameValid(this.FileWriteDetails.FileName))
+                if(~Palladium.Utilities.PathUtils.IsFileNameValid(this.FileWriteDetails.FileName))
                     error(['Error - file name not valid: ' strrep(this.FileWriteDetails.FileName, '\', '\\')]);
                 end
             catch err
@@ -721,7 +721,7 @@ classdef Controller < handle
         %% LoadSettings
         function [logSettings, pathSettings, windowSettings, plotterSettings] = LoadSettings(this)
             %Load the settings file into struct
-            configIO = Palladium.Utilities.FileLoading.ConfigIO();
+            configIO = Palladium.Utilities.ConfigIO();
             settingsStruct = configIO.LoadConfig();
 
             %Parse the entries neatly into the PathSettings struct property

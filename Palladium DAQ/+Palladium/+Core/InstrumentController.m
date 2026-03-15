@@ -146,7 +146,7 @@ classdef InstrumentController < handle
         function controlClassRef = AddInstrumentControl(this, tab, instrRef, controlDetailsStruct)
             try
                 %Make an instance of the selected datasource class
-                controlClassRef = Palladium.Utilities.FileLoading.PluginLoading.InstantiateClass(this.ControlsNamespace, controlDetailsStruct.ControlClassFileName);
+                controlClassRef = Palladium.Utilities.PluginLoading.InstantiateClass(this.ControlsNamespace, controlDetailsStruct.ControlClassFileName);
                 controlClassRef.ControlDetailsStruct = controlDetailsStruct;
                 controlClassRef.ProgrammeTargetUpdateTime = this.Controller.TimingLoopController.TargetUpdateTime;
 
