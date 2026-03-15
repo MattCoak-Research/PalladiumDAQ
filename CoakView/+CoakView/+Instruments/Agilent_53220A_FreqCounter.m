@@ -20,6 +20,8 @@ classdef Agilent_53220A_FreqCounter < CoakView.Core.Instrument
         
         %% Constructor
         function this = Agilent_53220A_FreqCounter()
+            %Specify communication options and settings
+            this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "Serial", "USB", "VISA"]);
             this.GPIB_Address = this.DefaultGPIB_Address;
         end
 
@@ -27,18 +29,6 @@ classdef Agilent_53220A_FreqCounter < CoakView.Core.Instrument
         function [Headers, Units] = GetHeaders(this)
             Headers = this.Name + " - Freq (Hz)";
             Units = "Hz";
-        end
-
-        %% GetSupportedConnectionTypes
-        function connectionTypes = GetSupportedConnectionTypes(this)
-            connectionTypes = [...
-                CoakView.Enums.ConnectionType.Debug,...
-                CoakView.Enums.ConnectionType.GPIB,...
-                CoakView.Enums.ConnectionType.VISA,...
-                CoakView.Enums.ConnectionType.Ethernet,...
-                CoakView.Enums.ConnectionType.Serial,...
-                CoakView.Enums.ConnectionType.USB...
-                ];
         end
 
         %% Measure

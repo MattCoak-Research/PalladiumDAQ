@@ -33,23 +33,15 @@ classdef Keithley6220 < CoakView.Core.Instrument
 
         %% Constructor
         function this = Keithley6220()
+            %Specify communication options and settings
+            this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Serial", "VISA"]);
             this.GPIB_Address = this.DefaultGPIB_Address;
             this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];
 
             %Make sure to set values for Properties of Categorical type
             %like these
             this.Units = this.UnitsType("Ohms");
-        end        
-
-        %% GetSupportedConnectionTypes
-        function connectionTypes = GetSupportedConnectionTypes(this)
-            connectionTypes = [...
-                CoakView.Enums.ConnectionType.Debug,...
-                CoakView.Enums.ConnectionType.GPIB,...
-                CoakView.Enums.ConnectionType.VISA,...
-                CoakView.Enums.ConnectionType.Serial
-                ];
-        end
+        end   
 
         %% GetHeaders
         function [Headers, Units] = GetHeaders(this)

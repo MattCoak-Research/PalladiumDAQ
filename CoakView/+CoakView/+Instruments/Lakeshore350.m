@@ -36,6 +36,8 @@ classdef Lakeshore350 < CoakView.Core.Instrument
 
         %% Constructor
         function this = Lakeshore350()
+            %Specify communication options and settings
+            this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "Serial", "USB", "VISA"]);
             this.GPIB_Address = this.DefaultGPIB_Address;
 
             %Define the Instrument Controls that can be added 
@@ -78,18 +80,6 @@ classdef Lakeshore350 < CoakView.Core.Instrument
             % Add columns for heater control data too
             Headers = [Headers, this.Name + " Heater Power (W)"];
             Units = [Units, "W"];
-        end
-
-        %% GetSupportedConnectionTypes
-        function connectionTypes = GetSupportedConnectionTypes(this)
-            connectionTypes = [...
-                CoakView.Enums.ConnectionType.Debug,...
-                CoakView.Enums.ConnectionType.GPIB,...
-                CoakView.Enums.ConnectionType.VISA,...
-                CoakView.Enums.ConnectionType.Ethernet,...
-                CoakView.Enums.ConnectionType.Serial,...
-                CoakView.Enums.ConnectionType.USB...
-                ];
         end
 
         %% Measure

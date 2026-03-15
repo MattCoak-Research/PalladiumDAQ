@@ -4,14 +4,14 @@ classdef Keithley2000 < CoakView.Core.Instrument
     %resistance.
     
     properties(Constant, Access = public)
-        FullName = "Keithley 2000 DMM";     %Full name, just for displaying on GUI
+        FullName = "Keithley 2000 DMM";                         %Full name, just for displaying on GUI
     end
 
     properties(Access = public, SetObservable)
-        Name = "K2000";             %Instrument name
+        Name = "K2000";                                         %Instrument name
         Connection_Type = CoakView.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
-        MeasMode;                                   %Resistance, Voltage, Current
-        SourceMode;                                 %Current, Voltage  
+        MeasMode;                                               %Resistance, Voltage, Current
+        SourceMode;                                             %Current, Voltage  
     end
     
     properties(Access = private)
@@ -26,6 +26,8 @@ classdef Keithley2000 < CoakView.Core.Instrument
 
         %% Constructor
         function this = Keithley2000()
+            %Specify communication options and settings
+            this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "Serial", "USB", "VISA"]);
             this.GPIB_Address = this.DefaultGPIB_Address;
             this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];  
             
@@ -79,18 +81,6 @@ classdef Keithley2000 < CoakView.Core.Instrument
                 otherwise
                     error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
             end
-        end
-
-        %% GetSupportedConnectionTypes
-        function connectionTypes = GetSupportedConnectionTypes(this)
-            connectionTypes = [...
-                CoakView.Enums.ConnectionType.Debug,...
-                CoakView.Enums.ConnectionType.GPIB,...
-                CoakView.Enums.ConnectionType.VISA,...
-                CoakView.Enums.ConnectionType.Ethernet,...
-                CoakView.Enums.ConnectionType.Serial,...
-                CoakView.Enums.ConnectionType.USB...
-                ];
         end
 
        %% GetSweepUnitsString

@@ -19,26 +19,14 @@ classdef TemplateInstrumentClass < CoakView.Core.Instrument
 
         %% Constructor
         function this = TemplateInstrumentClass()
-            %Give some hardware communication settings and defaults
+            %Specify communication options and settings
+            this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "Serial", "USB", "VISA"]);
             this.GPIB_Address = this.DefaultGPIB_Address;
             this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];  
 
             %Define the Instrument Controls that can be added 
             this.DefineInstrumentControl(Name = "Sweep Control", ClassName = "SweepController_Stepped", TabName = "Sweep Control", EnabledByDefault = false);
-     
-        end
-
-
-        %% GetSupportedConnectionTypes
-        function connectionTypes = GetSupportedConnectionTypes(this)
-            connectionTypes = [...
-                CoakView.Enums.ConnectionType.Debug,...
-                CoakView.Enums.ConnectionType.GPIB,...
-                CoakView.Enums.ConnectionType.VISA,...
-                CoakView.Enums.ConnectionType.Ethernet,...
-                CoakView.Enums.ConnectionType.USB...
-                ];
-        end
+       end
 
         %% GetHeaders
         function [Headers, Units] = GetHeaders(this)

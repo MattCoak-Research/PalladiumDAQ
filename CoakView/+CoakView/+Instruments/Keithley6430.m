@@ -24,6 +24,8 @@ classdef Keithley6430 < CoakView.Core.Instrument
 
         %% Constructor
         function this = Keithley6430()
+            %Specify communication options and settings
+            this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "Serial", "USB", "VISA"]);
             this.GPIB_Address = this.DefaultGPIB_Address;
 
             %Make sure to set values for Properties of Categorical type
@@ -47,18 +49,6 @@ classdef Keithley6430 < CoakView.Core.Instrument
                 otherwise
                     error("Mode must be Resistance, Voltage, or Current, this was " + string(this.Mode));
             end
-        end
-
-        %% GetSupportedConnectionTypes
-        function connectionTypes = GetSupportedConnectionTypes(this)
-            connectionTypes = [...
-                CoakView.Enums.ConnectionType.Debug,...
-                CoakView.Enums.ConnectionType.GPIB,...
-                CoakView.Enums.ConnectionType.VISA,...
-                CoakView.Enums.ConnectionType.Ethernet,...
-                CoakView.Enums.ConnectionType.Serial,...
-                CoakView.Enums.ConnectionType.USB...
-                ];
         end
 
         %% Measure

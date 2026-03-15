@@ -35,6 +35,10 @@ classdef MIST < CoakView.Core.Instrument
 
         %% Constructor
         function this = MIST()
+            %Specify communication options and settings
+            this.DefineSupportedConnectionTypes(["Debug", "Ethernet"]);
+
+            %Configure Python install - needed for communication with MIST
             this.AddDriversToPythonPath();
 
             %Define the Instrument Controls that can be added 
@@ -141,14 +145,6 @@ classdef MIST < CoakView.Core.Instrument
                 end
             end
            
-        end
-
-        %% GetSupportedConnectionTypes
-        function connectionTypes = GetSupportedConnectionTypes(this)
-            connectionTypes = [...
-                CoakView.Enums.ConnectionType.Debug,...
-                CoakView.Enums.ConnectionType.Ethernet
-                ];
         end
 
         %% InitialiseMeasurements

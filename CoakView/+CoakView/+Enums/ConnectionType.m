@@ -1,6 +1,6 @@
 classdef ConnectionType
    enumeration
-      GPIB, VISA, Ethernet, Serial, USB, Debug
+      Debug, Ethernet, GPIB, Serial, USB, VISA 
    end
 end
 

@@ -40,6 +40,14 @@ classdef(Abstract) Instrument < handle
     end
 
     properties(Access = private)
+        AllowedConnectionTypes = [...
+                CoakView.Enums.ConnectionType.Debug,...
+                CoakView.Enums.ConnectionType.GPIB,...
+                CoakView.Enums.ConnectionType.VISA,...
+                CoakView.Enums.ConnectionType.Ethernet,...
+                CoakView.Enums.ConnectionType.Serial,...
+                CoakView.Enums.ConnectionType.USB...
+                ];
         ControlClasses = [];
         ControlDetailsStructs = []; % List of structs that define the options for later creating Control Classes
     end   
@@ -196,15 +204,18 @@ classdef(Abstract) Instrument < handle
       
         %% GetSupportedConnectionTypes
         function connectionTypes = GetSupportedConnectionTypes(this)
-            connectionTypes = [...
-                CoakView.Enums.ConnectionType.Debug,...
-                CoakView.Enums.ConnectionType.GPIB,...
-                CoakView.Enums.ConnectionType.VISA,...
-                CoakView.Enums.ConnectionType.Ethernet,...
-                CoakView.Enums.ConnectionType.Serial,...
-                CoakView.Enums.ConnectionType.USB...
-                ];
-        end   
+            connectionTypes = this.AllowedConnectionTypes;
+        end  
+
+        %% DefineSupportedConnectionTypes
+        function DefineSupportedConnectionTypes(this, connectionTypes)
+            arguments
+                this
+                connectionTypes (:,1) CoakView.Enums.ConnectionType;
+            end
+            
+            this.AllowedConnectionTypes = connectionTypes;
+        end
 
         %% Initialise
         function [success, msg] = Initialise(this)
@@ -328,7 +339,7 @@ classdef(Abstract) Instrument < handle
         function [controlDetailsStructs] = GetAvailableControlOptions(this)
             controlDetailsStructs = this.ControlDetailsStructs;
         end
-        
+
         %% GrabMetadataString
         function stringLine = GrabMetadataString(this)
             %This function calls the CollectMetadata function, which should

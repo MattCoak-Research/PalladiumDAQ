@@ -24,6 +24,8 @@ classdef Keithley2450 < CoakView.Core.Instrument
 
         %% Constructor
         function this = Keithley2450()
+            %Specify communication options and settings
+            this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "USB", "VISA"]);
             this.GPIB_Address = this.DefaultGPIB_Address;
             this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];
             this.VISA_Address = 'USB0::0x05E6::0x2450::04602266::0::INSTR';
@@ -61,17 +63,6 @@ classdef Keithley2450 < CoakView.Core.Instrument
                 otherwise
                     error("Mode must be Resistance, Voltage, or Current, this was " + string(this.Mode));
             end
-        end
-
-        %% GetSupportedConnectionTypes
-        function connectionTypes = GetSupportedConnectionTypes(this)
-            connectionTypes = [...
-                CoakView.Enums.ConnectionType.Debug,...
-                CoakView.Enums.ConnectionType.GPIB,...
-                CoakView.Enums.ConnectionType.VISA,...
-                CoakView.Enums.ConnectionType.Ethernet,...
-                CoakView.Enums.ConnectionType.USB...
-                ];
         end
 
        %% GetSweepUnitsString

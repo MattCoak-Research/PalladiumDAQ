@@ -20,6 +20,8 @@ classdef Keysight4248A_LCR_Meter < CoakView.Core.Instrument
 
         %% Constructor
         function this = Keysight4248A_LCR_Meter()
+            %Specify communication options and settings
+            this.DefineSupportedConnectionTypes(["Debug", "GPIB", "VISA"]);
             this.GPIB_Address = this.DefaultGPIB_Address;
 
             %Define the Instrument Controls that can be added to the
@@ -33,14 +35,6 @@ classdef Keysight4248A_LCR_Meter < CoakView.Core.Instrument
             %the parameter it is sweeping
             str = "Hz";
             limits = [20, 1e6];    %max and min Frequency, in Hz
-        end
-
-        %% GetSupportedConnectionTypes
-        function connectionTypes = GetSupportedConnectionTypes(this)
-            connectionTypes = [...
-                CoakView.Enums.ConnectionType.Debug,...
-                CoakView.Enums.ConnectionType.GPIB
-                ];
         end
 
         %% GetHeaders

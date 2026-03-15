@@ -26,7 +26,8 @@ classdef Mercury120_IPS < CoakView.Core.Instrument
     
         %% Constructor
         function this = Mercury120_IPS()
-            %Configure communication parameters
+            %Specify communication options and settings
+            this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Serial", "VISA"]);
             this.ConnectionSettings.GPIB_Terminators = ["CR" "CR"];
             this.ConnectionSettings.SerialSettings.Terminator = "CR";
             this.ConnectionSettings.SerialSettings.StopBits = 2;

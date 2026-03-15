@@ -30,21 +30,11 @@ classdef AH2550_Bridge < CoakView.Core.Instrument
 
         %% Constructor
         function this = AH2550_Bridge()
+            %Specify communication options and settings
+            this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "Serial", "USB", "VISA"]);
             this.GPIB_Address = this.DefaultGPIB_Address;
             this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];
             this.Loss_Units = this.LossUnitsType("TanDelta");
-        end
-
-        %% GetSupportedConnectionTypes
-        function connectionTypes = GetSupportedConnectionTypes(this)
-            connectionTypes = [...
-                CoakView.Enums.ConnectionType.Debug,...
-                CoakView.Enums.ConnectionType.GPIB,...
-                CoakView.Enums.ConnectionType.VISA,...
-                CoakView.Enums.ConnectionType.Ethernet,...
-                CoakView.Enums.ConnectionType.Serial,...
-                CoakView.Enums.ConnectionType.USB...
-                ];
         end
 
         %% LossUnit Get Accessor

@@ -40,8 +40,9 @@ classdef Mercury120_10_IPS < CoakView.Core.Instrument
     methods
     
         %% Constructor
-        function this = Mercury120_10_IPS()
-            %Configure communication parameters
+        function this = Mercury120_10_IPS()            
+            %Specify communication options and settings
+            this.DefineSupportedConnectionTypes(["Debug", "Serial", "VISA"]);
             this.ConnectionSettings.SerialSettings.Terminator = "CR";
             this.ConnectionSettings.SerialSettings.StopBits = 2;
 
@@ -87,16 +88,7 @@ classdef Mercury120_10_IPS < CoakView.Core.Instrument
         function [Headers, Units] = GetHeaders(this)
             Headers = [this.Name + " - Field (T)", this.Name + " - Current (A)"];
             Units = ["T", "A"];
-        end
-       
-        %% GetSupportedConnectionTypes
-        function connectionTypes = GetSupportedConnectionTypes(this)
-            connectionTypes = [...
-                CoakView.Enums.ConnectionType.Debug,...
-                CoakView.Enums.ConnectionType.Serial,...
-                CoakView.Enums.ConnectionType.VISA
-                ];
-        end 
+        end       
         
         %% GetSweepUnitsString
         function [str, limits, xlabelStr, ylabelStr] = GetSweepUnitsString(this)

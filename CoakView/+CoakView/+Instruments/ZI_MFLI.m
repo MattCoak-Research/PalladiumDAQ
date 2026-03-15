@@ -40,6 +40,8 @@ classdef ZI_MFLI < CoakView.Core.Instrument
 
         %% Constructor
         function this = ZI_MFLI()
+            %Specify communication options and settings
+            this.DefineSupportedConnectionTypes(["Debug", "Ethernet", "USB"]);
             this.ConnectedCurrentSource = this.CurrentSource("200 uA/V");
             this.MeasurementMode = this.MeasType("Voltage RTheta");
 
@@ -125,15 +127,6 @@ classdef ZI_MFLI < CoakView.Core.Instrument
             metadataStruct.SignalOut_Offset = zi_Params.sigouts(1).offset.value;
             metadataStruct.SignalOut_On = zi_Params.sigouts(1).on.value;
             metadataStruct.TimeConstant_s = zi_Params.demods(1).timeconstant.value;
-        end
-
-        %% GetSupportedConnectionTypes
-        function connectionTypes = GetSupportedConnectionTypes(this)
-            connectionTypes = [...
-                CoakView.Enums.ConnectionType.Debug,...
-                CoakView.Enums.ConnectionType.Ethernet,...
-                CoakView.Enums.ConnectionType.USB...
-                ];
         end
 
         %% Connect to Instrument

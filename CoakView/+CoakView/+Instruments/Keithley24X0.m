@@ -26,6 +26,8 @@ classdef Keithley24X0 < CoakView.Core.Instrument
 
         %% Constructor
         function this = Keithley24X0()
+            %Specify communication options and settings
+            this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "Serial", "USB", "VISA"]);
             this.GPIB_Address = this.DefaultGPIB_Address;
             this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];
 
@@ -33,19 +35,7 @@ classdef Keithley24X0 < CoakView.Core.Instrument
             %like these
             this.MeasMode = this.MeasType("Resistance");
             this.SourceMode = this.SourceType("Current");
-        end        
-
-        %% GetSupportedConnectionTypes
-        function connectionTypes = GetSupportedConnectionTypes(this)
-            connectionTypes = [...
-                CoakView.Enums.ConnectionType.Debug,...
-                CoakView.Enums.ConnectionType.GPIB,...
-                CoakView.Enums.ConnectionType.VISA,...
-                CoakView.Enums.ConnectionType.Ethernet,...
-                CoakView.Enums.ConnectionType.Serial,...
-                CoakView.Enums.ConnectionType.USB...
-                ];
-        end        
+        end   
 
         %% GetSweepUnitsString
         function [str, limits, xlabelStr, ylabelStr] = GetSweepUnitsString(this)

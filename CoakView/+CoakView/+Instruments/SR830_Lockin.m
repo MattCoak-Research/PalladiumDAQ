@@ -25,6 +25,8 @@ classdef SR830_Lockin < CoakView.Core.Instrument
       
         %% Constructor
         function this = SR830_Lockin()
+            %Specify communication options and settings
+            this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Serial"]);
             this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];
             this.GPIB_Address = this.DefaultGPIB_Address;
             this.ConnectedCurrentSource = this.CurrentSource("200 uA/V");
@@ -74,15 +76,6 @@ classdef SR830_Lockin < CoakView.Core.Instrument
             %during the measurement and therefore don't merit logging each
             %step
             metadataStruct.Frequency_Hz = this.GetFrequency();
-        end
-
-        %% GetSupportedConnectionTypes
-        function connectionTypes = GetSupportedConnectionTypes(this)
-            connectionTypes = [...
-                CoakView.Enums.ConnectionType.Debug,...
-                CoakView.Enums.ConnectionType.GPIB,....
-                CoakView.Enums.ConnectionType.Serial
-                ];
         end
 
         %% Measure
