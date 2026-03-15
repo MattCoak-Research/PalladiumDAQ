@@ -11,40 +11,19 @@ classdef TemplateInstrumentClass < CoakView.Core.Instrument
         Connection_Type = CoakView.Enums.ConnectionType.Ethernet;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
     end
 
-    properties(Access = private)
-
-    end
 
     methods
 
         %% Constructor
         function this = TemplateInstrumentClass()
+            %Specify communication options and settings
+            this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "Serial", "USB", "VISA"]);
+            this.GPIB_Address = 22;      %Default Address
+            this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];  
 
-        end
-
-
-        %% GetSupportedConnectionTypes
-        function connectionTypes = GetSupportedConnectionTypes(this)
-            connectionTypes = [...
-                CoakView.Enums.ConnectionType.Debug,...
-                CoakView.Enums.ConnectionType.GPIB,...
-                CoakView.Enums.ConnectionType.VISA,...
-                CoakView.Enums.ConnectionType.Ethernet,...
-                CoakView.Enums.ConnectionType.USB...
-                ];
-        end
-
-
-        %% GetAvailableControlOptions
-        function [controlDetailsStructs] = GetAvailableControlOptions(this)
-            %Tell the GUI what options for Control GUIs to create
-            controlDetailsStructs = struct(...
-                "Name", "Sweep Control",...
-                "ControlClassFileName", "SweepController_Stepped",...
-                "TabName", "Sweep Control",...
-                "EnabledByDefault", false);
-        end
-
+            %Define the Instrument Controls that can be added 
+            this.DefineInstrumentControl(Name = "Sweep Control", ClassName = "SweepController_Stepped", TabName = "Sweep Control", EnabledByDefault = false);
+       end
 
         %% GetHeaders
         function [Headers, Units] = GetHeaders(this)
@@ -80,8 +59,10 @@ classdef TemplateInstrumentClass < CoakView.Core.Instrument
                 dataRow = [500 0.1 nan];
                 return;
             end
-
-
+        
+            %Write code that communicates with the hardware to get values
+            %to return here
+            dataRow = [500 0.1 nan];
         end
 
     end

@@ -4,19 +4,16 @@ classdef Keithley2000 < CoakView.Core.Instrument
     %resistance.
     
     properties(Constant, Access = public)
-        FullName = "Keithley 2000 DMM";     %Full name, just for displaying on GUI
+        FullName = "Keithley 2000 DMM";                         %Full name, just for displaying on GUI
     end
 
     properties(Access = public, SetObservable)
-        Name = "K2000";             %Instrument name
+        Name = "K2000";                                         %Instrument name
         Connection_Type = CoakView.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
-        MeasMode;                                   %Resistance, Voltage, Current
-        SourceMode;                                 %Current, Voltage  
+        MeasMode;                                               %Resistance, Voltage, Current
+        SourceMode;                                             %Current, Voltage  
     end
     
-    properties(Access = private)
-        DefaultGPIB_Address = 22;          %GPIB address
-    end
     
     methods
 
@@ -26,9 +23,14 @@ classdef Keithley2000 < CoakView.Core.Instrument
 
         %% Constructor
         function this = Keithley2000()
-            this.GPIB_Address = this.DefaultGPIB_Address;
-            this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];
-
+            %Specify communication options and settings
+            this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "Serial", "USB", "VISA"]);
+            this.GPIB_Address = 22;      %Default Address
+            this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];  
+            
+            %Define the Instrument Controls that can be added 
+            this.DefineInstrumentControl(Name = "Sweep Control", ClassName = "SweepController_Stepped", TabName = "Sweep Control", EnabledByDefault = false);
+     
             %Make sure to set values for Properties of Categorical type
             %like these
             this.MeasMode = this.MeasType("Resistance");
@@ -58,17 +60,7 @@ classdef Keithley2000 < CoakView.Core.Instrument
                 otherwise
                     error("Mode must be Resistance, Voltage, or Current, this was " + string(this.Mode));
             end
-        end
-              
-        %% GetAvailableControlOptions
-        function [controlDetailsStructs] = GetAvailableControlOptions(this)
-            %Tell the GUI what options for Control GUIs to create
-            controlDetailsStructs = struct(...
-                "Name", "Sweep Control",...
-                "ControlClassFileName", "SweepController_Stepped",...
-                "TabName", "Sweep Control",...
-                "EnabledByDefault", false);
-        end
+        end         
 
         %% GetSourceLevel
         function srcLevel = GetSourceLevel(this)
@@ -86,18 +78,6 @@ classdef Keithley2000 < CoakView.Core.Instrument
                 otherwise
                     error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
             end
-        end
-
-        %% GetSupportedConnectionTypes
-        function connectionTypes = GetSupportedConnectionTypes(this)
-            connectionTypes = [...
-                CoakView.Enums.ConnectionType.Debug,...
-                CoakView.Enums.ConnectionType.GPIB,...
-                CoakView.Enums.ConnectionType.VISA,...
-                CoakView.Enums.ConnectionType.Ethernet,...
-                CoakView.Enums.ConnectionType.Serial,...
-                CoakView.Enums.ConnectionType.USB...
-                ];
         end
 
        %% GetSweepUnitsString

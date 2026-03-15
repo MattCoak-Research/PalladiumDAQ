@@ -21,10 +21,7 @@ classdef Keithley6220 < CoakView.Core.Instrument
         DeltaMode = true; %If true, measurements are being carried out with a parried nanovoltmeter in Delta Mode (this is the intended usage)
         Units;                                 %Volts, Ohms, Watts, Seimens  
     end
-    
-    properties(Access = private)
-        DefaultGPIB_Address = 10;          %GPIB address
-    end
+        
     
     methods
 
@@ -33,23 +30,15 @@ classdef Keithley6220 < CoakView.Core.Instrument
 
         %% Constructor
         function this = Keithley6220()
-            this.GPIB_Address = this.DefaultGPIB_Address;
+            %Specify communication options and settings
+            this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Serial", "VISA"]);
+            this.GPIB_Address = 10;      %Default Address
             this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];
 
             %Make sure to set values for Properties of Categorical type
             %like these
             this.Units = this.UnitsType("Ohms");
-        end        
-
-        %% GetSupportedConnectionTypes
-        function connectionTypes = GetSupportedConnectionTypes(this)
-            connectionTypes = [...
-                CoakView.Enums.ConnectionType.Debug,...
-                CoakView.Enums.ConnectionType.GPIB,...
-                CoakView.Enums.ConnectionType.VISA,...
-                CoakView.Enums.ConnectionType.Serial
-                ];
-        end
+        end   
 
         %% GetHeaders
         function [Headers, Units] = GetHeaders(this)

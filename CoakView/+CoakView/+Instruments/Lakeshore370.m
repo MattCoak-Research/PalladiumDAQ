@@ -13,9 +13,6 @@ classdef Lakeshore370 < CoakView.Core.Instrument
         HeaterResistance = 100;                                 %When instrument is being used to supply heater power, it needs to know the resistance of that external heater (in Ohms) to calculate power.
     end
     
-    properties(Access = private)
-        DefaultGPIB_Address = 12;           %GPIB address
-    end
 
     methods
 
@@ -26,21 +23,16 @@ classdef Lakeshore370 < CoakView.Core.Instrument
     
         %% Constructor
         function this = Lakeshore370()
-            this.GPIB_Address = this.DefaultGPIB_Address;
+            %Specify communication options and settings
+            this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "Serial", "USB", "VISA"]);
+            this.GPIB_Address = 12;      %Default Address
 
+            %Define the Instrument Controls that can be added 
+            this.DefineInstrumentControl(Name = "🕹️ Heater Control", ClassName = "LakeshoreHeaterControl", TabName = "Heater Control", EnabledByDefault = true);
+     
             %Make sure to set values for Properties of Categorical type
             %like these
             this.Reading = this.MeasType("Temperature");
-        end
-
-        %% GetAvailableControlOptions
-        function [controlDetailsStructs] = GetAvailableControlOptions(this)
-            %Tell the GUI what options for Control GUIs to create
-            controlDetailsStructs = struct(...
-                "Name", "🕹️ Heater Control",...
-                "ControlClassFileName", "LakeshoreHeaterControl",...
-                "TabName", "Heater Control",...
-                "EnabledByDefault", true);
         end
 
         %% GetHeaders
@@ -60,18 +52,6 @@ classdef Lakeshore370 < CoakView.Core.Instrument
             % Add columns for heater control data too
             Headers = [Headers, this.Name + " Heater Power (W)"];
             Units = [Units, "W"];
-        end
-
-        %% GetSupportedConnectionTypes
-        function connectionTypes = GetSupportedConnectionTypes(this)
-            connectionTypes = [...
-                CoakView.Enums.ConnectionType.Debug,...
-                CoakView.Enums.ConnectionType.GPIB,...
-                CoakView.Enums.ConnectionType.VISA,...
-                CoakView.Enums.ConnectionType.Ethernet,...
-                CoakView.Enums.ConnectionType.Serial,...
-                CoakView.Enums.ConnectionType.USB...
-                ];
         end
 
         %% Measure

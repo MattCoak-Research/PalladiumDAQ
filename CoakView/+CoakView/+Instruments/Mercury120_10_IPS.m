@@ -37,17 +37,21 @@ classdef Mercury120_10_IPS < CoakView.Core.Instrument
         TargetFieldValue = 0;
     end
     
+
     methods
     
         %% Constructor
-        function this = Mercury120_10_IPS()
-            %Configure communication parameters
+        function this = Mercury120_10_IPS()            
+            %Specify communication options and settings
+            this.DefineSupportedConnectionTypes(["Debug", "Serial", "VISA"]);
             this.ConnectionSettings.SerialSettings.Terminator = "CR";
             this.ConnectionSettings.SerialSettings.StopBits = 2;
-
-            %Set some default addresses
             this.VISA_Address = "ASRL4::INSTR";
             this.Serial_Address = "COM4";
+
+            %Define the Instrument Controls that can be added 
+            this.DefineInstrumentControl(Name = "Magnet Control", ClassName = "MagnetController", TabName = "Magnet Control", EnabledByDefault = true);
+            this.DefineInstrumentControl(Name = "Sweep Control", ClassName = "SweepController_Ramp", TabName = "Sweep Control", EnabledByDefault = false);
         end
 
         %% Connect
@@ -77,39 +81,13 @@ classdef Mercury120_10_IPS < CoakView.Core.Instrument
             %Override base class Close function - still call the base
             %function, but place instrument in local mode first
             Close@CoakView.Core.Instrument(this);
-        end
-
-        %% GetAvailableControlOptions
-        function [controlDetailsStructs] = GetAvailableControlOptions(this)
-            %Tell the GUI what options for Control GUIs to create
-            controlDetailsStructs = [...
-                struct(...
-                "Name", "Magnet Control",...
-                "ControlClassFileName", "MagnetController",...
-                "TabName", "Magnet Control",...
-                "EnabledByDefault", true),...
-                struct(...
-                "Name", "Sweep Control",...
-                "ControlClassFileName", "SweepController_Ramp",...
-                "TabName", "Sweep Control",...
-                "EnabledByDefault", false)...
-                ];       
-        end
+        end        
         
         %% GetHeaders
         function [Headers, Units] = GetHeaders(this)
             Headers = [this.Name + " - Field (T)", this.Name + " - Current (A)"];
             Units = ["T", "A"];
-        end
-       
-        %% GetSupportedConnectionTypes
-        function connectionTypes = GetSupportedConnectionTypes(this)
-            connectionTypes = [...
-                CoakView.Enums.ConnectionType.Debug,...
-                CoakView.Enums.ConnectionType.Serial,...
-                CoakView.Enums.ConnectionType.VISA
-                ];
-        end 
+        end       
         
         %% GetSweepUnitsString
         function [str, limits, xlabelStr, ylabelStr] = GetSweepUnitsString(this)

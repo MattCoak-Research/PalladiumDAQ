@@ -1,23 +1,20 @@
-classdef Keithley24X0 < CoakView.Core.Instrument
+classdef Keithley2410 < CoakView.Core.Instrument
     %Instrument implementation for Keithley 2400 and 2410 source meters.
     %Note that this assumes the instrument is measuring already - just reads data.
 
     properties(Constant, Access = public)
-        FullName = "Keithley 24X0 Src Meter";       %Full name, just for displaying on GUI
+        FullName = "Keithley 2410 Src Meter";       %Full name, just for displaying on GUI
     end
 
     properties(Access = public, SetObservable)
-        Name = "K2400_SrcMtr";                            %Instrument name
+        Name = "K2410_SrcMtr";                            %Instrument name
         Connection_Type = CoakView.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         MeasMode;                                   %Resistance, Voltage, Current
         SourceMode;                                 %Current, Voltage
         OffsetComp = false;
     end
 
-    properties(Access = private)
-        DefaultGPIB_Address = 24;          %GPIB address
-    end
-
+    
     methods
 
         %% Categoricals
@@ -25,37 +22,17 @@ classdef Keithley24X0 < CoakView.Core.Instrument
         function catOut = SourceType(this, inputStr); catOut = this.ConvertToCategorical(inputStr, ["Voltage", "Current"]); end
 
         %% Constructor
-        function this = Keithley24X0()
-            this.GPIB_Address = this.DefaultGPIB_Address;
+        function this = Keithley2410()
+            %Specify communication options and settings
+            this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "Serial", "USB", "VISA"]);
+            this.GPIB_Address = 24;      %Default Address
             this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];
 
             %Make sure to set values for Properties of Categorical type
             %like these
             this.MeasMode = this.MeasType("Resistance");
             this.SourceMode = this.SourceType("Current");
-        end        
-
-        %% GetSupportedConnectionTypes
-        function connectionTypes = GetSupportedConnectionTypes(this)
-            connectionTypes = [...
-                CoakView.Enums.ConnectionType.Debug,...
-                CoakView.Enums.ConnectionType.GPIB,...
-                CoakView.Enums.ConnectionType.VISA,...
-                CoakView.Enums.ConnectionType.Ethernet,...
-                CoakView.Enums.ConnectionType.Serial,...
-                CoakView.Enums.ConnectionType.USB...
-                ];
-        end        
-
-        %% GetAvailableControlOptions
-        function [controlDetailsStructs] = GetAvailableControlOptions(this)
-            %Tell the GUI what options for Control GUIs to create
-            controlDetailsStructs = struct(...
-                "Name", "Sweep Control",...
-                "ControlClassFileName", "SweepController_Stepped",...
-                "TabName", "Sweep Control",...
-                "EnabledByDefault", false);
-        end
+        end   
 
         %% GetSweepUnitsString
         function [str, limits, xlabelStr, ylabelStr] = GetSweepUnitsString(this)

@@ -183,6 +183,11 @@ classdef Controller < handle
             notify(this, "StoppedShowingProgress");
         end
 
+        %% GetAllInstrumentClassNames
+        function classNames = GetAllInstrumentClassNames(this)
+            classNames = this.InstrumentController.ListOfAvailableInstrumentClassNameStrings;
+        end
+
         %% HaltMeasurementsOnInstrumentError
         function HaltMeasurementsOnInstrumentError(this, instr, e)
             %Show error message and ask if we want to stop measurements
@@ -338,6 +343,7 @@ classdef Controller < handle
             %Reset and prepare all GUI and instruments ready to then run
             %the main update loop - note that Resume doesn't call this,
             %just gets the loop running again without it
+            success = false; msg = ""; title = "";
 
             %Display a status message in the logger
             this.Log("Info", "Initialising measurements", "Yellow", "Initialising measurements");

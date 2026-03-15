@@ -30,18 +30,11 @@ classdef PPMS < CoakView.Core.Instrument
     methods
 
         %% Constructor
-        function this = PPMS()
-            %Set some default values
+        function this = PPMS()            
+            %Specify communication options and settings
+            this.DefineSupportedConnectionTypes(["Debug", "Ethernet"]);
             this.IP_Address = "127.0.0.1";
             this.ConnectionSettings.Port = 11000;
-        end
-
-        %% GetSupportedConnectionTypes
-        function connectionTypes = GetSupportedConnectionTypes(this)
-            connectionTypes = [...
-                CoakView.Enums.ConnectionType.Debug,
-                CoakView.Enums.ConnectionType.Ethernet
-                ];
         end
 
         %% GetHeaders

@@ -19,16 +19,16 @@ classdef ZI_MFLI < CoakView.Core.Instrument
     %duplicated here.
 
     properties(Constant, Access = public)
-        FullName = "Zurich Instruments MFLI";                       %Full name, just for displaying on GUI
+        FullName = "Zurich Instruments MFLI";                           %Full name, just for displaying on GUI
     end
 
     properties(Access = public, SetObservable)
         Name = 'ZI MFLI';
-        Connection_Type = CoakView.Enums.ConnectionType.Ethernet;      %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
-        DeviceID = 'DEV7779';                                          %Instrument hardware address
-        ConnectedCurrentSource;                                     %Do we have a current source connected that will turn voltage out into a current?
-        AmplifierGain = 1;  %Gain of any externally-added amplifiers or transformers to take into account.
-        MeasurementMode;                                            %Measuring voltage or current?
+        Connection_Type = CoakView.Enums.ConnectionType.Ethernet;       %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
+        DeviceID = 'DEV7779';                                           %Instrument hardware address
+        ConnectedCurrentSource;                                         %Do we have a current source connected that will turn voltage out into a current?
+        AmplifierGain = 1;                                              %Gain of any externally-added amplifiers or transformers to take into account.
+        MeasurementMode;                                                %Measuring voltage or current?
     end
 
     
@@ -40,8 +40,13 @@ classdef ZI_MFLI < CoakView.Core.Instrument
 
         %% Constructor
         function this = ZI_MFLI()
+            %Specify communication options and settings
+            this.DefineSupportedConnectionTypes(["Debug", "Ethernet", "USB"]);
             this.ConnectedCurrentSource = this.CurrentSource("200 uA/V");
             this.MeasurementMode = this.MeasType("Voltage RTheta");
+
+            %Define the Instrument Controls that can be added 
+            this.DefineInstrumentControl(Name = "MFLI Sweep Control", ClassName = "MFLI_SweepController", TabName = "MFLI Sweep Control", EnabledByDefault = false);
         end
 
         %% GenerateSettingsSaveStruct
@@ -122,27 +127,6 @@ classdef ZI_MFLI < CoakView.Core.Instrument
             metadataStruct.SignalOut_Offset = zi_Params.sigouts(1).offset.value;
             metadataStruct.SignalOut_On = zi_Params.sigouts(1).on.value;
             metadataStruct.TimeConstant_s = zi_Params.demods(1).timeconstant.value;
-        end
-
-        %% GetSupportedConnectionTypes
-        function connectionTypes = GetSupportedConnectionTypes(this)
-            connectionTypes = [...
-                CoakView.Enums.ConnectionType.Debug,...
-                CoakView.Enums.ConnectionType.Ethernet,...
-                CoakView.Enums.ConnectionType.USB...
-                ];
-        end
-
-         %% GetAvailableControlOptions
-        function [controlDetailsStructs] = GetAvailableControlOptions(this)
-            %Tell the GUI what options for Control GUIs to create
-            controlDetailsStructs = [...
-                struct(...
-                "Name", "MFLI Sweep Control",...
-                "ControlClassFileName", "MFLI_SweepController",...
-                "TabName", "MFLI Sweep Control",...
-                "EnabledByDefault", false)...                
-                ];       
         end
 
         %% Connect to Instrument

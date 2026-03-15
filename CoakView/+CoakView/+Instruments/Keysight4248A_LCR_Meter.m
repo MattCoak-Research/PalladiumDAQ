@@ -12,25 +12,17 @@ classdef Keysight4248A_LCR_Meter < CoakView.Core.Instrument
     end
 
 
-    properties(Access = private)
-        DefaultGPIB_Address = 22;          %GPIB address
-    end
-
     methods
 
         %% Constructor
         function this = Keysight4248A_LCR_Meter()
-            this.GPIB_Address = this.DefaultGPIB_Address;
-        end
+            %Specify communication options and settings
+            this.DefineSupportedConnectionTypes(["Debug", "GPIB", "VISA"]);
+            this.GPIB_Address = 22;      %Default Address
 
-        %% GetAvailableControlOptions
-        function [controlDetailsStructs] = GetAvailableControlOptions(this)
-            %Tell the GUI what options for Control GUIs to create
-            controlDetailsStructs = struct(...
-                "Name", "Sweep Control",...
-                "ControlClassFileName", "SweepController_Stepped",...
-                "TabName", "Sweep Control",...
-                "EnabledByDefault", false);
+            %Define the Instrument Controls that can be added to the
+            %Instrument
+            this.DefineInstrumentControl(Name = "Sweep Control", ClassName = "SweepController_Stepped", TabName = "Sweep Control", EnabledByDefault = false);
         end
 
         %% GetSweepUnitsString
@@ -39,14 +31,6 @@ classdef Keysight4248A_LCR_Meter < CoakView.Core.Instrument
             %the parameter it is sweeping
             str = "Hz";
             limits = [20, 1e6];    %max and min Frequency, in Hz
-        end
-
-        %% GetSupportedConnectionTypes
-        function connectionTypes = GetSupportedConnectionTypes(this)
-            connectionTypes = [...
-                CoakView.Enums.ConnectionType.Debug,...
-                CoakView.Enums.ConnectionType.GPIB
-                ];
         end
 
         %% GetHeaders
