@@ -17,9 +17,6 @@ classdef Lakeshore340 < CoakView.Core.Instrument
         ControlChannel;                                         %Channel (A,B) that the heater is regulated by, if using the HeaterControl in ClosedLoop or Zone mode - equivalent to Loop 1 and Loop 2 on a 340
     end
 
-    properties(Access = private)
-        DefaultGPIB_Address = 12;           %GPIB address     
-    end
 
     methods
 
@@ -33,7 +30,7 @@ classdef Lakeshore340 < CoakView.Core.Instrument
         function this = Lakeshore340()
             %Specify communication options and settings
             this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "Serial", "USB", "VISA"]);
-            this.GPIB_Address = this.DefaultGPIB_Address;
+            this.GPIB_Address = 12;      %Default Address
 
             %Define the Instrument Controls that can be added 
             this.DefineInstrumentControl(Name = "🕹️ Heater Control", ClassName = "LakeshoreHeaterControl", TabName = "Heater Control", EnabledByDefault = true);

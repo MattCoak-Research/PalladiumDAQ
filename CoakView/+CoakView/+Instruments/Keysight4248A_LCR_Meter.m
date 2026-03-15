@@ -12,17 +12,13 @@ classdef Keysight4248A_LCR_Meter < CoakView.Core.Instrument
     end
 
 
-    properties(Access = private)
-        DefaultGPIB_Address = 22;          %GPIB address
-    end
-
     methods
 
         %% Constructor
         function this = Keysight4248A_LCR_Meter()
             %Specify communication options and settings
             this.DefineSupportedConnectionTypes(["Debug", "GPIB", "VISA"]);
-            this.GPIB_Address = this.DefaultGPIB_Address;
+            this.GPIB_Address = 22;      %Default Address
 
             %Define the Instrument Controls that can be added to the
             %Instrument

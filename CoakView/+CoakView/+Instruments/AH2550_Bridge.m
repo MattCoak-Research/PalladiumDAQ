@@ -19,10 +19,7 @@ classdef AH2550_Bridge < CoakView.Core.Instrument
         LossUnit;
     end
 
-    properties(Access = private)
-        DefaultGPIB_Address = 22;          %GPIB address
-    end
-
+    
     methods
 
         %% Categoricals
@@ -32,7 +29,7 @@ classdef AH2550_Bridge < CoakView.Core.Instrument
         function this = AH2550_Bridge()
             %Specify communication options and settings
             this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "Serial", "USB", "VISA"]);
-            this.GPIB_Address = this.DefaultGPIB_Address;
+            this.GPIB_Address = 22;      %Default Address
             this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];
             this.Loss_Units = this.LossUnitsType("TanDelta");
         end

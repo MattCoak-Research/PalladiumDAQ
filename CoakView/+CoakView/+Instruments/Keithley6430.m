@@ -12,10 +12,7 @@ classdef Keithley6430 < CoakView.Core.Instrument
         SourceMode;                                 %Current, Voltage
     end
 
-    properties(Access = private)
-        DefaultGPIB_Address = 18;          %GPIB address
-    end
-
+    
     methods
 
         %% Categoricals
@@ -26,7 +23,7 @@ classdef Keithley6430 < CoakView.Core.Instrument
         function this = Keithley6430()
             %Specify communication options and settings
             this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "Serial", "USB", "VISA"]);
-            this.GPIB_Address = this.DefaultGPIB_Address;
+            this.GPIB_Address = 18;      %Default Address
 
             %Make sure to set values for Properties of Categorical type
             %like these

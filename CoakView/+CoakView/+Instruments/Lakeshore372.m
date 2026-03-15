@@ -13,9 +13,6 @@ classdef Lakeshore372 < CoakView.Core.Instrument
         HeaterResistance = 100;                                 %When instrument is being used to supply heater power, it needs to know the resistance of that external heater (in Ohms) to calculate power.
     end  
 
-    properties(Access = private)
-        DefaultGPIB_Address = 11;           %GPIB address
-    end
 
     methods
 
@@ -28,7 +25,7 @@ classdef Lakeshore372 < CoakView.Core.Instrument
         function this = Lakeshore372()
             %Specify communication options and settings
             this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "Serial", "USB", "VISA"]);
-            this.GPIB_Address = this.DefaultGPIB_Address;
+            this.GPIB_Address = 11;      %Default Address
 
             %Define the Instrument Controls that can be added 
             this.DefineInstrumentControl(Name = "🕹️ Heater Control", ClassName = "LakeshoreHeaterControl", TabName = "Heater Control", EnabledByDefault = true);

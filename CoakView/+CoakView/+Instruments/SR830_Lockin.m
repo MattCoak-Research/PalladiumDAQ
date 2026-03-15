@@ -14,9 +14,6 @@ classdef SR830_Lockin < CoakView.Core.Instrument
         AmplifierGain = 1;  %Gain of any externally-added amplifiers or transformers to take into account.
     end
 
-    properties(Access = private)
-        DefaultGPIB_Address = 8;          %GPIB address
-    end
 
     methods
 
@@ -28,7 +25,7 @@ classdef SR830_Lockin < CoakView.Core.Instrument
             %Specify communication options and settings
             this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Serial"]);
             this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];
-            this.GPIB_Address = this.DefaultGPIB_Address;
+            this.GPIB_Address = 8;
             this.ConnectedCurrentSource = this.CurrentSource("200 uA/V");
         end
 

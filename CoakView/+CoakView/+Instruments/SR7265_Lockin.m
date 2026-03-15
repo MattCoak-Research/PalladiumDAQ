@@ -12,9 +12,6 @@ classdef SR7265_Lockin < CoakView.Core.Instrument
         AutoSensitivity = true;    %Toggle if the instrument should change voltage range automatically
     end
     
-    properties(Access = private)
-        DefaultGPIB_Address = 8;          %GPIB address
-    end
     
     methods
         
@@ -22,7 +19,7 @@ classdef SR7265_Lockin < CoakView.Core.Instrument
         function this = SR7265_Lockin()
             %Specify communication options and settings
             this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "Serial", "USB", "VISA"]);
-            this.GPIB_Address = this.DefaultGPIB_Address;
+            this.GPIB_Address = 8;
         end
 
         %% GetHeaders

@@ -18,7 +18,6 @@ classdef Mercury120_IPS < CoakView.Core.Instrument
     end
     
     properties(Access = private)
-        DefaultGPIB_Address = 25;          %GPIB address
         TargetFieldValue = 0;
     end
     
@@ -31,15 +30,13 @@ classdef Mercury120_IPS < CoakView.Core.Instrument
             this.ConnectionSettings.GPIB_Terminators = ["CR" "CR"];
             this.ConnectionSettings.SerialSettings.Terminator = "CR";
             this.ConnectionSettings.SerialSettings.StopBits = 2;
+            this.GPIB_Address = 25;
+            this.VISA_Address = "ASRL4::INSTR";
+            this.Serial_Address = "COM4";
 
             %Define the Instrument Controls that can be added 
             this.DefineInstrumentControl(Name = "Magnet Control", ClassName = "MagnetController", TabName = "Magnet Control", EnabledByDefault = true);
             this.DefineInstrumentControl(Name = "Sweep Control", ClassName = "SweepController_Ramp", TabName = "Sweep Control", EnabledByDefault = false);
-     
-            %Set some default addresses
-            this.GPIB_Address = this.DefaultGPIB_Address;
-            this.VISA_Address = "ASRL4::INSTR";
-            this.Serial_Address = "COM4";
         end
 
         %% Connect

@@ -9,12 +9,9 @@ classdef Agilent_53220A_FreqCounter < CoakView.Core.Instrument
     
     properties(Access = public, SetObservable)
         Name = 'A53220A';                                           %Instrument name
-        Connection_Type = CoakView.Enums.ConnectionType.Debug;      %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
+        Connection_Type = CoakView.Enums.ConnectionType.GPIB;      %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
     end
     
-    properties(Access = private)
-        DefaultGPIB_Address = 3;          %GPIB address
-    end
     
     methods
         
@@ -22,7 +19,7 @@ classdef Agilent_53220A_FreqCounter < CoakView.Core.Instrument
         function this = Agilent_53220A_FreqCounter()
             %Specify communication options and settings
             this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "Serial", "USB", "VISA"]);
-            this.GPIB_Address = this.DefaultGPIB_Address;
+            this.GPIB_Address = 3;      %Default Address
         end
 
         %% GetHeaders

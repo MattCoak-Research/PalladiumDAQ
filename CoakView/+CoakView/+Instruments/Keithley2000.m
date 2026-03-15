@@ -14,9 +14,6 @@ classdef Keithley2000 < CoakView.Core.Instrument
         SourceMode;                                             %Current, Voltage  
     end
     
-    properties(Access = private)
-        DefaultGPIB_Address = 22;          %GPIB address
-    end
     
     methods
 
@@ -28,7 +25,7 @@ classdef Keithley2000 < CoakView.Core.Instrument
         function this = Keithley2000()
             %Specify communication options and settings
             this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "Serial", "USB", "VISA"]);
-            this.GPIB_Address = this.DefaultGPIB_Address;
+            this.GPIB_Address = 22;      %Default Address
             this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];  
             
             %Define the Instrument Controls that can be added 

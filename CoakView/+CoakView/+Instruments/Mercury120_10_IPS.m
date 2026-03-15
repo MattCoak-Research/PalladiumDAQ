@@ -37,6 +37,7 @@ classdef Mercury120_10_IPS < CoakView.Core.Instrument
         TargetFieldValue = 0;
     end
     
+
     methods
     
         %% Constructor
@@ -45,14 +46,12 @@ classdef Mercury120_10_IPS < CoakView.Core.Instrument
             this.DefineSupportedConnectionTypes(["Debug", "Serial", "VISA"]);
             this.ConnectionSettings.SerialSettings.Terminator = "CR";
             this.ConnectionSettings.SerialSettings.StopBits = 2;
+            this.VISA_Address = "ASRL4::INSTR";
+            this.Serial_Address = "COM4";
 
             %Define the Instrument Controls that can be added 
             this.DefineInstrumentControl(Name = "Magnet Control", ClassName = "MagnetController", TabName = "Magnet Control", EnabledByDefault = true);
             this.DefineInstrumentControl(Name = "Sweep Control", ClassName = "SweepController_Ramp", TabName = "Sweep Control", EnabledByDefault = false);
-     
-            %Set some default addresses
-            this.VISA_Address = "ASRL4::INSTR";
-            this.Serial_Address = "COM4";
         end
 
         %% Connect
