@@ -47,16 +47,6 @@ classdef Keithley24X0 < CoakView.Core.Instrument
                 ];
         end        
 
-        %% GetAvailableControlOptions
-        function [controlDetailsStructs] = GetAvailableControlOptions(this)
-            %Tell the GUI what options for Control GUIs to create
-            controlDetailsStructs = struct(...
-                "Name", "Sweep Control",...
-                "ControlClassFileName", "SweepController_Stepped",...
-                "TabName", "Sweep Control",...
-                "EnabledByDefault", false);
-        end
-
         %% GetSweepUnitsString
         function [str, limits, xlabelStr, ylabelStr] = GetSweepUnitsString(this)
             switch(this.SourceMode)

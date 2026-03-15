@@ -12,14 +12,20 @@ classdef TemplateInstrumentClass < CoakView.Core.Instrument
     end
 
     properties(Access = private)
-
+        DefaultGPIB_Address = 22;          %GPIB address
     end
 
     methods
 
         %% Constructor
         function this = TemplateInstrumentClass()
+            %Give some hardware communication settings and defaults
+            this.GPIB_Address = this.DefaultGPIB_Address;
+            this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];  
 
+            %Define the Instrument Controls that can be added 
+            this.DefineInstrumentControl(Name = "Sweep Control", ClassName = "SweepController_Stepped", TabName = "Sweep Control", EnabledByDefault = false);
+     
         end
 
 
@@ -33,18 +39,6 @@ classdef TemplateInstrumentClass < CoakView.Core.Instrument
                 CoakView.Enums.ConnectionType.USB...
                 ];
         end
-
-
-        %% GetAvailableControlOptions
-        function [controlDetailsStructs] = GetAvailableControlOptions(this)
-            %Tell the GUI what options for Control GUIs to create
-            controlDetailsStructs = struct(...
-                "Name", "Sweep Control",...
-                "ControlClassFileName", "SweepController_Stepped",...
-                "TabName", "Sweep Control",...
-                "EnabledByDefault", false);
-        end
-
 
         %% GetHeaders
         function [Headers, Units] = GetHeaders(this)
@@ -80,8 +74,10 @@ classdef TemplateInstrumentClass < CoakView.Core.Instrument
                 dataRow = [500 0.1 nan];
                 return;
             end
-
-
+        
+            %Write code that communicates with the hardware to get values
+            %to return here
+            dataRow = [500 0.1 nan];
         end
 
     end

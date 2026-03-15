@@ -28,19 +28,12 @@ classdef Lakeshore370 < CoakView.Core.Instrument
         function this = Lakeshore370()
             this.GPIB_Address = this.DefaultGPIB_Address;
 
+            %Define the Instrument Controls that can be added 
+            this.DefineInstrumentControl(Name = "🕹️ Heater Control", ClassName = "LakeshoreHeaterControl", TabName = "Heater Control", EnabledByDefault = true);
+     
             %Make sure to set values for Properties of Categorical type
             %like these
             this.Reading = this.MeasType("Temperature");
-        end
-
-        %% GetAvailableControlOptions
-        function [controlDetailsStructs] = GetAvailableControlOptions(this)
-            %Tell the GUI what options for Control GUIs to create
-            controlDetailsStructs = struct(...
-                "Name", "🕹️ Heater Control",...
-                "ControlClassFileName", "LakeshoreHeaterControl",...
-                "TabName", "Heater Control",...
-                "EnabledByDefault", true);
         end
 
         %% GetHeaders

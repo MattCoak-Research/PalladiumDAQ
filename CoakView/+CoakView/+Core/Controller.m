@@ -338,6 +338,7 @@ classdef Controller < handle
             %Reset and prepare all GUI and instruments ready to then run
             %the main update loop - note that Resume doesn't call this,
             %just gets the loop running again without it
+            success = false; msg = ""; title = "";
 
             %Display a status message in the logger
             this.Log("Info", "Initialising measurements", "Yellow", "Initialising measurements");

@@ -36,6 +36,9 @@ classdef MIST < CoakView.Core.Instrument
         %% Constructor
         function this = MIST()
             this.AddDriversToPythonPath();
+
+            %Define the Instrument Controls that can be added 
+            this.DefineInstrumentControl(Name = "MiST Control", ClassName = "MiSTController", TabName = "MiST Control", EnabledByDefault = true);       
         end
 
         %% Connect
@@ -138,18 +141,6 @@ classdef MIST < CoakView.Core.Instrument
                 end
             end
            
-        end
-
-        %% GetAvailableControlOptions
-        function [controlDetailsStructs] = GetAvailableControlOptions(this)
-            %Tell the GUI what options for Control GUIs to create
-            controlDetailsStructs = [...
-                struct(...
-                "Name", "MiST Control",...
-                "ControlClassFileName", "MiSTController",...
-                "TabName", "MiST Control",...
-                "EnabledByDefault", true)...
-                ];       
         end
 
         %% GetSupportedConnectionTypes

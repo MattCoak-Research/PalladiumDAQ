@@ -45,6 +45,10 @@ classdef Mercury120_10_IPS < CoakView.Core.Instrument
             this.ConnectionSettings.SerialSettings.Terminator = "CR";
             this.ConnectionSettings.SerialSettings.StopBits = 2;
 
+            %Define the Instrument Controls that can be added 
+            this.DefineInstrumentControl(Name = "Magnet Control", ClassName = "MagnetController", TabName = "Magnet Control", EnabledByDefault = true);
+            this.DefineInstrumentControl(Name = "Sweep Control", ClassName = "SweepController_Ramp", TabName = "Sweep Control", EnabledByDefault = false);
+     
             %Set some default addresses
             this.VISA_Address = "ASRL4::INSTR";
             this.Serial_Address = "COM4";
@@ -77,24 +81,7 @@ classdef Mercury120_10_IPS < CoakView.Core.Instrument
             %Override base class Close function - still call the base
             %function, but place instrument in local mode first
             Close@CoakView.Core.Instrument(this);
-        end
-
-        %% GetAvailableControlOptions
-        function [controlDetailsStructs] = GetAvailableControlOptions(this)
-            %Tell the GUI what options for Control GUIs to create
-            controlDetailsStructs = [...
-                struct(...
-                "Name", "Magnet Control",...
-                "ControlClassFileName", "MagnetController",...
-                "TabName", "Magnet Control",...
-                "EnabledByDefault", true),...
-                struct(...
-                "Name", "Sweep Control",...
-                "ControlClassFileName", "SweepController_Ramp",...
-                "TabName", "Sweep Control",...
-                "EnabledByDefault", false)...
-                ];       
-        end
+        end        
         
         %% GetHeaders
         function [Headers, Units] = GetHeaders(this)

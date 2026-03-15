@@ -41,6 +41,7 @@ classdef(Abstract) Instrument < handle
 
     properties(Access = private)
         ControlClasses = [];
+        ControlDetailsStructs = []; % List of structs that define the options for later creating Control Classes
     end   
     
     % Events with associated public callbacks
@@ -137,12 +138,7 @@ classdef(Abstract) Instrument < handle
                     error("Unsupported connection type: " + this.Connection_Type + ". ConnectionType can be tcpip, gpib, serial, usb, or visa.");
             end
         end
-
-        %% GetAvailableControlOptions
-        function [controlDetailsStructs] = GetAvailableControlOptions(this)
-            controlDetailsStructs = [];
-        end
-
+      
         %% GetControlOption
         function controlDetailsStruct = GetControlOption(this, controlName)
             arguments
@@ -328,6 +324,11 @@ classdef(Abstract) Instrument < handle
 
     methods (Access = public, Sealed)
     
+        %% GetAvailableControlOptions
+        function [controlDetailsStructs] = GetAvailableControlOptions(this)
+            controlDetailsStructs = this.ControlDetailsStructs;
+        end
+        
         %% GrabMetadataString
         function stringLine = GrabMetadataString(this)
             %This function calls the CollectMetadata function, which should
@@ -353,7 +354,7 @@ classdef(Abstract) Instrument < handle
             preInfStr = this.Name + " Settings: ";
             stringLine = CoakView.DataWriting.DataWriter.BuildMetadataLineStringFromStruct(preInfStr, result);
         end
-
+        
         %% UpdateAndMeasure
         function dataRow = UpdateAndMeasure(this, headers)
             %UpdateAndMeasure is the entry point to Measure commands from
@@ -469,6 +470,32 @@ classdef(Abstract) Instrument < handle
             end
         end
 
+        %% DefineInstrumentControl
+        function DefineInstrumentControl(this, Settings)
+            %Normally call this in the Constructor of an Instrument
+            %implementation - specify a Control class, like a
+            %SweepController or the Control Panel GUI for a magnet power
+            %supply, that will then appear as an option to be added to this
+            %Instrument
+            arguments
+                this;
+                Settings.Name               {mustBeTextScalar}
+                Settings.ClassName          {mustBeTextScalar}
+                Settings.TabName            {mustBeTextScalar}
+                Settings.EnabledByDefault   (1,1) logical = false;
+                Settings.UserData = []; %Spare field to use for specific Control data flexibly 
+            end
+            
+            s = struct(...
+                "Name", Settings.Name,...
+                "ControlClassFileName", Settings.ClassName,...
+                "TabName", Settings.TabName,...
+                "EnabledByDefault", Settings.EnabledByDefault,...
+                "UserData", Settings.UserData);
+
+            this.ControlDetailsStructs = [this.ControlDetailsStructs, s];
+        end
+
         %% GetPropertiesToIgnore
         function propertiesToIgnore = GetPropertiesToIgnore(this)
             propertiesToIgnore = {};
@@ -578,7 +605,7 @@ classdef(Abstract) Instrument < handle
 
     end
 
-    methods (Access = private)
+    methods (Access = private) 
 
         %% HandlePropEvents
         function HandlePropEvents(this, ~, evnt)

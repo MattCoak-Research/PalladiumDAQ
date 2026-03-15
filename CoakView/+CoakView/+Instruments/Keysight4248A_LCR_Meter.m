@@ -21,16 +21,10 @@ classdef Keysight4248A_LCR_Meter < CoakView.Core.Instrument
         %% Constructor
         function this = Keysight4248A_LCR_Meter()
             this.GPIB_Address = this.DefaultGPIB_Address;
-        end
 
-        %% GetAvailableControlOptions
-        function [controlDetailsStructs] = GetAvailableControlOptions(this)
-            %Tell the GUI what options for Control GUIs to create
-            controlDetailsStructs = struct(...
-                "Name", "Sweep Control",...
-                "ControlClassFileName", "SweepController_Stepped",...
-                "TabName", "Sweep Control",...
-                "EnabledByDefault", false);
+            %Define the Instrument Controls that can be added to the
+            %Instrument
+            this.DefineInstrumentControl(Name = "Sweep Control", ClassName = "SweepController_Stepped", TabName = "Sweep Control", EnabledByDefault = false);
         end
 
         %% GetSweepUnitsString
