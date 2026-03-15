@@ -153,7 +153,7 @@ classdef PathUtils
         %% MakeFilePathRelative
         function [newPath, successfullyMadeRelative] = MakeFilePathRelative(path, Settings)
             %Make an absolute path into a relative one, relative to the
-            %CoakView folder by default, or to that given as optional
+            %Palladium folder by default, or to that given as optional
             %argument RefDir
             arguments
                 path {mustBeTextScalar};
@@ -165,7 +165,7 @@ classdef PathUtils
             if isempty(Settings.RefDir)
                 %Get path of this file
                 m = mfilename("fullpath");
-                refPath = CoakView.Utilities.FileLoading.PathUtils.CleanPath(string(m) + filesep + ".." + filesep + ".." + filesep + ".." + filesep + ".." + filesep);%This sets refPath to be the absolute path to the "CoakView\coakview\CoakView" inner folder - ApplicationDir of Controller
+                refPath = Palladium.Utilities.PathUtils.CleanPath(string(m) + filesep + ".." + filesep + ".." + filesep + ".." + filesep + ".." + filesep);%This sets refPath to be the absolute path to the "Palladium\Palladium\Palladium" inner folder - ApplicationDir of Controller
             else
                 refPath = string(Settings.RefDir);
             end            

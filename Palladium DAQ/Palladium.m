@@ -1,6 +1,6 @@
-classdef CoakView < handle
-    %COAKVIEW Overall container class of a CoakView instance - adds a
-    %Controller and a View (usually the CoakView_DefaultGUI GUI, but can be
+classdef Palladium < handle
+    %PALLADIUM Overall container class of a Palladium DAQ instance - adds a
+    %Controller and a View (usually the Palladium_DefaultGUI GUI, but can be
     %a command-line-only implementation or any other user-defined one if
     %desired)
 
@@ -15,18 +15,18 @@ classdef CoakView < handle
 
     methods
         %% Constructor
-        function this = CoakView(Settings)
+        function this = Palladium(Settings)
             arguments
-                Settings.View = "CoakView_DefaultGUI";
+                Settings.View = "Palladium_DefaultGUI";
                 Settings.Preset = [];
             end
 
             %Check that new enough Matlab version is installed, toolboxes
             %are there.. etc etc. Will throw error if not
-            CoakView.Utilities.ErrorChecking.Verification.ValidateInstall(MatlabVersion="R2025b", ToolboxNames = {"Instrument Control Toolbox"});
+            Palladium.Utilities.Verification.ValidateInstall(MatlabVersion="R2025b", ToolboxNames = {"Instrument Control Toolbox"});
    
             %Set application paths for loading of child classes later - make
-            %all paths relative to this, the filepath of the CoakView.m file
+            %all paths relative to this, the filepath of the Palladium.m file
             %- if we don't do this they will be relative to the user's
             %current matlab open folder, which is a recipe for disaster
             applicationPath = mfilename('fullpath');
@@ -42,7 +42,7 @@ classdef CoakView < handle
 
             %Create a Controller class that will handle all the backend
             %logic
-            this.Controller = CoakView.Core.Controller( ...
+            this.Controller = Palladium.Core.Controller( ...
                 "ApplicationDir", applicationDir,...
                 "ApplicationPath", applicationPath...
                 );
@@ -193,9 +193,9 @@ classdef CoakView < handle
             %from the desired filename
 
             %Construct the needed paths
-            viewDir = applicationDir + "\\+CoakViewViews\\";
+            viewDir = applicationDir + "\\+Palladium\\+Views\\";
             fullViewCodeFilePath = viewDir + viewFileName;
-            namespaceClassPath = "CoakViewViews." + viewFileName;
+            namespaceClassPath = "Palladium.Views." + viewFileName;
 
             %Check that this file exists in the expected folder
             assert(exist(fullViewCodeFilePath + ".m", "file") || exist(fullViewCodeFilePath + ".mlapp", "file"), "View file " + fullViewCodeFilePath + " not found");
@@ -225,7 +225,7 @@ classdef CoakView < handle
                 assert(exist(presetPath,"file") == 2, "Preset file " + presetPath + " not found");
 
                 %Load the present in as a function handle
-                presetFn = CoakView.Utilities.FileLoading.PluginLoading.InstantiatePreset("CoakViewPresets", presetName);
+                presetFn = Palladium.Utilities.PluginLoading.InstantiatePreset("PalladiumPresets", presetName);
             catch err
                 this.Controller.HandleError("Error loading Preset", err);
             end

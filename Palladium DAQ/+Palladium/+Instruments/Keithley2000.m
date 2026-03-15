@@ -1,4 +1,4 @@
-classdef Keithley2000 < CoakView.Core.Instrument
+classdef Keithley2000 < Palladium.Core.Instrument
     %Instrument implementation for Keithley 2000 digital multimeters.
     %Assumes device has already been manually configured and is measuring
     %resistance.
@@ -9,7 +9,7 @@ classdef Keithley2000 < CoakView.Core.Instrument
 
     properties(Access = public, SetObservable)
         Name = "K2000";                                         %Instrument name
-        Connection_Type = CoakView.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
+        Connection_Type = Palladium.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         MeasMode;                                               %Resistance, Voltage, Current
         SourceMode;                                             %Current, Voltage  
     end

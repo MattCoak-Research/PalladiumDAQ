@@ -1,5 +1,5 @@
 classdef DataReader < handle
-    %DATAREADER - Handles the reading of data files in CoakView
+    %DATAREADER - Handles the reading of data files in Palladium
 
     properties
 

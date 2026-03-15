@@ -1,4 +1,4 @@
-classdef Keithley6430 < CoakView.Core.Instrument
+classdef Keithley6430 < Palladium.Core.Instrument
     %Instrument implementation for Keithley 6430 source meters.
 
     properties(Constant, Access = public)
@@ -7,7 +7,7 @@ classdef Keithley6430 < CoakView.Core.Instrument
 
     properties(Access = public, SetObservable)
         Name = 'SrcMtr';                            %Instrument name
-        Connection_Type = CoakView.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
+        Connection_Type = Palladium.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         MeasMode;                                   %Resistance, Voltage, Current
         SourceMode;                                 %Current, Voltage
     end

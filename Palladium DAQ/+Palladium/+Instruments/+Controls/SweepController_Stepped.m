@@ -1,4 +1,4 @@
-classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
+classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepController
     %SweepController_Stepped - Implementation of abstract SweepController, for setups where the sweep works by setting a new value each measurement step, rather than setting a ramp and then listening for when it completes.
     % Logic controller add-on object to be added on to an
     %Instrument object, where it will handle the logic of stepping through
@@ -33,24 +33,24 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
             sweepDetails = sweepDetailsIn;
 
             %Calculate extremal points based on what sectors are selected
-            targetPts = CoakView.Instruments.Controls.SweepController.CalculateExtremalPoints(sweepDetails.StartSectionNo, sweepDetails.EndSectionNo, sweepDetails.MinVal, sweepDetails.MidVal, sweepDetails.MaxVal);
+            targetPts = Palladium.Instruments.Controls.SweepController.CalculateExtremalPoints(sweepDetails.StartSectionNo, sweepDetails.EndSectionNo, sweepDetails.MinVal, sweepDetails.MidVal, sweepDetails.MaxVal);
             
             %Calculate the total amount the value must change over during
             %this sweep
-            totalMag = CoakView.Instruments.Controls.SweepController.CalculateTotalMagnitude(targetPts);
+            totalMag = Palladium.Instruments.Controls.SweepController.CalculateTotalMagnitude(targetPts);
 
             %Take the target number of steps (which will be empty if we are
             %choosing to set stepSize instead - by default in the GUI, as
             %these parameters are linked)
-            [targetNumSteps, stepSize] = CoakView.Instruments.Controls.SweepController_Stepped.CalculateSteps(sweepDetails.TargetNumSteps, sweepDetails.StepSize, totalMag, targetPts);
+            [targetNumSteps, stepSize] = Palladium.Instruments.Controls.SweepController_Stepped.CalculateSteps(sweepDetails.TargetNumSteps, sweepDetails.StepSize, totalMag, targetPts);
 
             %Calculate how long this will take
             updateTime = this.ProgrammeTargetUpdateTime;
             estimatedMinUpdateTime = 0.05; %In seconds. A hardcoded semi-guess at the moment.. the minimum time the programme takes to run if not update-time limited. Will add to the Settle Time for a real total time
-            timeMin = CoakView.Instruments.Controls.SweepController_Stepped.CalculateTotalTime(targetNumSteps, sweepDetails.SettleTime, updateTime, estimatedMinUpdateTime);
+            timeMin = Palladium.Instruments.Controls.SweepController_Stepped.CalculateTotalTime(targetNumSteps, sweepDetails.SettleTime, updateTime, estimatedMinUpdateTime);
 
             %Trim any duplicate extremal points
-            extremalPoints = CoakView.Instruments.Controls.SweepController.TrimExtremalPoints(targetPts);
+            extremalPoints = Palladium.Instruments.Controls.SweepController.TrimExtremalPoints(targetPts);
 
             %Check for an empty sweep being entered
             if(isempty(extremalPoints) || length(extremalPoints) < 2)
@@ -60,7 +60,7 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
             end
 
             %Generate the individual points
-            points = CoakView.Instruments.Controls.SweepController.CalculatePoints(extremalPoints, stepSize);
+            points = Palladium.Instruments.Controls.SweepController.CalculatePoints(extremalPoints, stepSize);
 
             %Assign the newly-calculated parameters and values into the
             %output struct
@@ -86,7 +86,7 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
             %Create grid and Sweepcontrol component and position them in the
             %tab.
             grid = uigridlayout(tab, "ColumnWidth", {10, 'fit', '1x'}, "RowHeight", {10, 'fit', 10, '1x'}, 'RowSpacing', 2);
-            comp = CoakView.Instruments.Controls.SweepSetupControl_Stepped(grid);
+            comp = Palladium.Instruments.Controls.SweepSetupControl_Stepped(grid);
             comp.Layout.Row = 2;
             comp.Layout.Column = 2;
 
@@ -223,7 +223,7 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
 
             %Calculate the remaining time
             totalTimeMin = this.ControlDetailsStruct.SweepDetails.TotalTimeMin;
-            this.ControlDetailsStruct.SweepDetails.RemainingTimeMin = CoakView.Instruments.Controls.SweepController_Stepped.CalculateTimeRemaining(totalTimeMin, this.StepNo, this.TotalPoints);
+            this.ControlDetailsStruct.SweepDetails.RemainingTimeMin = Palladium.Instruments.Controls.SweepController_Stepped.CalculateTimeRemaining(totalTimeMin, this.StepNo, this.TotalPoints);
 
             %Update the View GUI
             this.GUIView.StepComplete(this.StepNo, valueToSet);
@@ -377,7 +377,7 @@ classdef SweepController_Stepped < CoakView.Instruments.Controls.SweepController
             strct.TotalTimeMin = this.ControlDetailsStruct.SweepDetails.TotalTimeMin;
 
             %Write the metadata to file
-            stringLine = CoakView.DataWriting.DataWriter.BuildMetadataLineStringFromStruct("", strct);
+            stringLine = Palladium.DataWriting.DataWriter.BuildMetadataLineStringFromStruct("", strct);
         end
 
         %% GetHeaders

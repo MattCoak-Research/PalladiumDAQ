@@ -1,4 +1,4 @@
-classdef Agilent_53220A_FreqCounter < CoakView.Core.Instrument
+classdef Agilent_53220A_FreqCounter < Palladium.Core.Instrument
     %Instrument implementation for Agilent 53220A Frequency Counter.
     %Assumes device has already been manually configured and is measuring
     %frequency.
@@ -9,7 +9,7 @@ classdef Agilent_53220A_FreqCounter < CoakView.Core.Instrument
     
     properties(Access = public, SetObservable)
         Name = 'A53220A';                                           %Instrument name
-        Connection_Type = CoakView.Enums.ConnectionType.GPIB;      %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
+        Connection_Type = Palladium.Enums.ConnectionType.GPIB;      %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
     end
     
     

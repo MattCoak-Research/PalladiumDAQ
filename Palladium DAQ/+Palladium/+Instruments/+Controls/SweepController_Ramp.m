@@ -1,4 +1,4 @@
-classdef SweepController_Ramp < CoakView.Instruments.Controls.SweepController
+classdef SweepController_Ramp < Palladium.Instruments.Controls.SweepController
     %SweepController_Ramp - Implementation of abstract SweepController, for setups where the sweep works by setting a ramp and then listening for when it completes.
     % Logic controller add-on object to be added on to an
     %Instrument object, where it will handle the logic of stepping through
@@ -26,17 +26,17 @@ classdef SweepController_Ramp < CoakView.Instruments.Controls.SweepController
             sweepDetails = sweepDetailsIn;
 
             %Calculate extremal points based on what sectors are selected
-            targetPts = CoakView.Instruments.Controls.SweepController.CalculateExtremalPoints(sweepDetails.StartSectionNo, sweepDetails.EndSectionNo, sweepDetails.MinVal, sweepDetails.MidVal, sweepDetails.MaxVal);
+            targetPts = Palladium.Instruments.Controls.SweepController.CalculateExtremalPoints(sweepDetails.StartSectionNo, sweepDetails.EndSectionNo, sweepDetails.MinVal, sweepDetails.MidVal, sweepDetails.MaxVal);
             
             %Calculate the total amount the value must change over during
             %this sweep
-            totalMag = CoakView.Instruments.Controls.SweepController.CalculateTotalMagnitude(targetPts);
+            totalMag = Palladium.Instruments.Controls.SweepController.CalculateTotalMagnitude(targetPts);
 
             %Calculate how long this will take
-            timeMin = CoakView.Instruments.Controls.SweepController_Ramp.CalculateTotalTime(totalMag, sweepDetails.RampRate_min);
+            timeMin = Palladium.Instruments.Controls.SweepController_Ramp.CalculateTotalTime(totalMag, sweepDetails.RampRate_min);
 
             %Trim any duplicate extremal points
-            extremalPoints = CoakView.Instruments.Controls.SweepController.TrimExtremalPoints(targetPts);
+            extremalPoints = Palladium.Instruments.Controls.SweepController.TrimExtremalPoints(targetPts);
 
             %Check for an empty sweep being entered
             if(isempty(extremalPoints) || length(extremalPoints) < 2)
@@ -69,7 +69,7 @@ classdef SweepController_Ramp < CoakView.Instruments.Controls.SweepController
             %Create grid and Sweepcontrol component and position them in the
             %tab.
             grid = uigridlayout(tab, "ColumnWidth", {10, 'fit', '1x'}, "RowHeight", {10, 'fit', 10, '1x'}, 'RowSpacing', 2);
-            comp = CoakView.Instruments.Controls.SweepSetupControl_Ramp(grid);
+            comp = Palladium.Instruments.Controls.SweepSetupControl_Ramp(grid);
             comp.Layout.Row = 2;
             comp.Layout.Column = 2;
 
@@ -240,7 +240,7 @@ classdef SweepController_Ramp < CoakView.Instruments.Controls.SweepController
 
             %Calculate the remaining time
             totalTimeMin = this.ControlDetailsStruct.SweepDetails.TotalTimeMin;
-            this.ControlDetailsStruct.SweepDetails.RemainingTimeMin = CoakView.Instruments.Controls.SweepController_Ramp.CalculateTimeRemaining(totalTimeMin, this.TimeElapsed_s / 60);
+            this.ControlDetailsStruct.SweepDetails.RemainingTimeMin = Palladium.Instruments.Controls.SweepController_Ramp.CalculateTimeRemaining(totalTimeMin, this.TimeElapsed_s / 60);
 
             %Update the View GUI
             this.GUIView.UpdateTimeRemainingDisplay(this.ControlDetailsStruct.SweepDetails.RemainingTimeMin);

@@ -1,4 +1,4 @@
-classdef MagnetController < CoakView.Core.InstrumentControlBase
+classdef MagnetController < Palladium.Core.InstrumentControlBase
     %MagnetController - Logic controller add-on object to be added on to an
     %Instrument object, where it will handle the logic of controlling a
     %superconducting magnet - for now an Oxford Mercury IPS120
@@ -24,7 +24,7 @@ classdef MagnetController < CoakView.Core.InstrumentControlBase
             grid = uigridlayout(tab, "ColumnWidth", {'fit', '1x'}, "RowHeight", {10, '1x', 10}, 'RowSpacing', 2);
 
             %Create a .mlapp custom GUI control and add it to the grid
-            comp = CoakView.Instruments.Controls.MagnetControlPanel(grid);
+            comp = Palladium.Instruments.Controls.MagnetControlPanel(grid);
             this.GUIView = comp;
             comp.Layout.Row = 2;
             comp.Layout.Column = 1;

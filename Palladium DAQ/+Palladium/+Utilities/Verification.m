@@ -50,7 +50,7 @@ classdef Verification
 
             try
                 %Make sure user has the required matlab version first of all
-                CoakView.Utilities.ErrorChecking.Verification.VerifyMatlabVersion(Settings.MatlabVersion);
+                Palladium.Utilities.Verification.VerifyMatlabVersion(Settings.MatlabVersion);
             catch err
                 %Throw error message - note we don't have a Logger yet, and
                 %need to use simpler functions
@@ -61,7 +61,7 @@ classdef Verification
                 %Make sure the user has the required toolboxes installed
                 if ~isempty(Settings.ToolboxNames)
                     for i = 1 : length(Settings.ToolboxNames)
-                        CoakView.Utilities.ErrorChecking.Verification.VerifyToolboxInstalled(Settings.ToolboxNames{i});
+                        Palladium.Utilities.Verification.VerifyToolboxInstalled(Settings.ToolboxNames{i});
                     end
                 end
 

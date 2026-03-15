@@ -1,4 +1,4 @@
-classdef Lakeshore370 < CoakView.Core.Instrument
+classdef Lakeshore370 < Palladium.Core.Instrument
     %Instrument implementation for a Lakeshore 370 temperature controller.
 
     properties(Constant, Access = public)
@@ -7,7 +7,7 @@ classdef Lakeshore370 < CoakView.Core.Instrument
 
     properties(Access = public, SetObservable)
         Name = "Ls370";                                         %Instrument name
-        Connection_Type = CoakView.Enums.ConnectionType.Debug;  %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
+        Connection_Type = Palladium.Enums.ConnectionType.Debug;  %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         Ch_Name = "Sample Temperature (K)";                     %Change these to change how the readings are displayed in headers and graph axes
         Reading;                                                %Measure Temperature (K) or Resistance.
         HeaterResistance = 100;                                 %When instrument is being used to supply heater power, it needs to know the resistance of that external heater (in Ohms) to calculate power.

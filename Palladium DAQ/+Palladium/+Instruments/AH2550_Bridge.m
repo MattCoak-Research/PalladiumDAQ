@@ -1,4 +1,4 @@
-classdef AH2550_Bridge < CoakView.Core.Instrument
+classdef AH2550_Bridge < Palladium.Core.Instrument
     %Instrument implementation for Andeen Hagerling 2550 and 2550A
     %capacitance bridge. Assumes instrument has already been set measuring,
     %and grabs latest values only.
@@ -9,7 +9,7 @@ classdef AH2550_Bridge < CoakView.Core.Instrument
 
     properties(Access = public, SetObservable)
         Name = "AH_Br";             %Instrument name
-        Connection_Type = CoakView.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
+        Connection_Type = Palladium.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         Loss_Units;                 %Selected units of capacitive loss, for column headers and extracting data from measurement string. 'TanDelta', 'kOhm' supported at this time.
         Continuous_Mode = true;     %If false, bridge will perform single measurement only on Measure call. If true, bridge should be set to be continuously measure, and Measure will read the screen display - default.
         Record_Times = false;       %Set this to true to create additional data columns of universal time in minutes before the measurement and immediately after it - AH Bridge measurements can take a long time, during which temperaature etc can change

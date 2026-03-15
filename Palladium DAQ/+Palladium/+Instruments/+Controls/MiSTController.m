@@ -1,4 +1,4 @@
-classdef MiSTController < CoakView.Core.InstrumentControlBase
+classdef MiSTController < Palladium.Core.InstrumentControlBase
     %MiSTController - Logic controller add-on object to be added on to an
     %MiST Instrument object, where it will create a nice visualisation GUI
     %for each channel (ie 4 MiSTChannelDisplay controls)
@@ -42,7 +42,7 @@ classdef MiSTController < CoakView.Core.InstrumentControlBase
             %Make stuff for each channel
             for i = 1 : this.NUM_CHANNELS
                 %Create a .mlapp custom GUI control and add it to the grid
-                comp = CoakView.Instruments.Controls.MiSTChannelDisplayControl(channelsGrid);
+                comp = Palladium.Instruments.Controls.MiSTChannelDisplayControl(channelsGrid);
                 comp.ChannelIndex = i; 
                 this.GUIViews{i} = comp;
                 comp.Layout.Row = 1;

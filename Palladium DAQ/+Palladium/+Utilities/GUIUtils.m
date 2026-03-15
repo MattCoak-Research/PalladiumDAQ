@@ -28,7 +28,7 @@ classdef GUIUtils
                     % change - use that to indicate proeprties that should
                     % appear in the GUI too.
                     if( prop.SetAccess == "public" && ~prop.Hidden && prop.SetObservable)
-                        if CoakView.Utilities.GUI.GUIUtils.IsPropertyValidToUse(prop.Name)
+                        if Palladium.Utilities.GUIUtils.IsPropertyValidToUse(prop.Name)
                             propertyList(end+1, 1) = prop.Name;
                         end
                     end
@@ -49,7 +49,7 @@ classdef GUIUtils
                     % change - use that to indicate proeprties that should
                     % appear in the GUI too.
                     if( prop.SetAccess == "public" && prop.DefiningClass.Name == objectClass && ~prop.Hidden && prop.SetObservable)
-                        if CoakView.Utilities.GUI.GUIUtils.IsPropertyValidToUse(prop.Name)
+                        if Palladium.Utilities.GUIUtils.IsPropertyValidToUse(prop.Name)
                             propertyList(end+1, 1) = prop.Name;
                         end
                     end

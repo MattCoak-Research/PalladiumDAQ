@@ -1,4 +1,4 @@
-classdef MIST < CoakView.Core.Instrument
+classdef MIST < Palladium.Core.Instrument
     %Instrument implementation for MIST
 
     properties(Constant, Access = public)
@@ -7,7 +7,7 @@ classdef MIST < CoakView.Core.Instrument
 
     properties(Access = public, SetObservable)
         Name = 'MiST';                            %Instrument name
-        Connection_Type = CoakView.Enums.ConnectionType.Ethernet;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
+        Connection_Type = Palladium.Enums.ConnectionType.Ethernet;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
     
         SettlingTime_us = 500; % Microseconds
         DataRate_Hz = 200;  % Data rate, in Hertz
@@ -48,7 +48,7 @@ classdef MIST < CoakView.Core.Instrument
         %% Connect
         function Connect(this)
             switch(this.Connection_Type)
-                case(CoakView.Enums.ConnectionType.Debug)
+                case(Palladium.Enums.ConnectionType.Debug)
                     %Do not make a physical connection to a real instrument
                     %- this places the class into SimulationMode, for
                     %testing without a real piece of hardware connected
@@ -107,7 +107,7 @@ classdef MIST < CoakView.Core.Instrument
             %This (so far) looks to be common behaviour across all instruments.
             %Can override this function in implementing class if more behaviour needed.
             switch(this.Connection_Type)
-                case(CoakView.Enums.ConnectionType.Debug)
+                case(Palladium.Enums.ConnectionType.Debug)
                     %Just print a message
                     disp("Disconnected from simulated " + this.Name + " instrument.");
                 otherwise
@@ -302,7 +302,7 @@ classdef MIST < CoakView.Core.Instrument
              end
 
              newVals = this.SendQuery('setCurrent', int32(currentsArray_muA));
-             this.Current_uA = CoakView.Instruments.MIST.ConvertIntTuple(newVals{1});
+             this.Current_uA = Palladium.Instruments.MIST.ConvertIntTuple(newVals{1});
         end
 
         %% SetGainValues
@@ -313,7 +313,7 @@ classdef MIST < CoakView.Core.Instrument
              end
 
              newVals = this.SendQuery('setGainValues', int32(gainValuesArray));
-             this.Gain = CoakView.Instruments.MIST.ConvertIntTuple(newVals{1});
+             this.Gain = Palladium.Instruments.MIST.ConvertIntTuple(newVals{1});
         end
 
     end
@@ -339,7 +339,7 @@ classdef MIST < CoakView.Core.Instrument
         %% AddDriversToPythonPath
         function AddDriversToPythonPath(this)
             %Ok we need to do this properly..
-            %Should probably be a static CoakView util even (other
+            %Should probably be a static Palladium util even (other
             %instruments could have python drivers)
 
 
@@ -359,7 +359,7 @@ classdef MIST < CoakView.Core.Instrument
             end
 
             %This.. should just do the same as above? Is the above needed?
-            CoakView.Utilities.PythonUtils.PythonUtils.AppendFolderToPythonPath(pathOfThisInstrumentDriversFolder);
+            Palladium.Utilities.PythonUtils.AppendFolderToPythonPath(pathOfThisInstrumentDriversFolder);
         end
 
         %% ChannelEnabled
@@ -404,12 +404,12 @@ classdef MIST < CoakView.Core.Instrument
             c = cell(result);
 
             %Unpack the result, stored in a tuple of lists
-            mP0Avg = CoakView.Instruments.MIST.ConvertTuple(c{1});
-            mP1Avg = CoakView.Instruments.MIST.ConvertTuple(c{2});
-            mP2Avg = CoakView.Instruments.MIST.ConvertTuple(c{3});
-            mP3Avg = CoakView.Instruments.MIST.ConvertTuple(c{4});
-            mdataAvg = CoakView.Instruments.MIST.ConvertTuple(c{5});
-            offstAvg = CoakView.Instruments.MIST.ConvertTuple(c{6});
+            mP0Avg = Palladium.Instruments.MIST.ConvertTuple(c{1});
+            mP1Avg = Palladium.Instruments.MIST.ConvertTuple(c{2});
+            mP2Avg = Palladium.Instruments.MIST.ConvertTuple(c{3});
+            mP3Avg = Palladium.Instruments.MIST.ConvertTuple(c{4});
+            mdataAvg = Palladium.Instruments.MIST.ConvertTuple(c{5});
+            offstAvg = Palladium.Instruments.MIST.ConvertTuple(c{6});
         end
 
         %% SendCommand

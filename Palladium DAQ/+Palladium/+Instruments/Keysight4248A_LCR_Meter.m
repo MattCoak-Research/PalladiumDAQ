@@ -1,4 +1,4 @@
-classdef Keysight4248A_LCR_Meter < CoakView.Core.Instrument
+classdef Keysight4248A_LCR_Meter < Palladium.Core.Instrument
     %Instrument implementation for Keysight 4248A LCR Meter. Assumes instrument has already been set measuring,
     %and grabs latest values only.
 
@@ -8,7 +8,7 @@ classdef Keysight4248A_LCR_Meter < CoakView.Core.Instrument
 
     properties(Access = public, SetObservable)
         Name = "LCR_Mtr";             %Instrument name
-        Connection_Type = CoakView.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
+        Connection_Type = Palladium.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
     end
 
 

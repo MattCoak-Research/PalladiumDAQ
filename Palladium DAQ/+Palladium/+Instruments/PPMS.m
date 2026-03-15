@@ -1,4 +1,4 @@
-classdef PPMS < CoakView.Core.Instrument
+classdef PPMS < Palladium.Core.Instrument
     %Instrument implementation for communicating with a Quantum Design PPMS
     %croystat. This assumes the PPMS control PC is a separate machine to
     %the one running this, and they have a direct network link.
@@ -13,7 +13,7 @@ classdef PPMS < CoakView.Core.Instrument
 
     properties(Access = public, SetObservable)
         Name = 'PPMS';                                              %Instrument name
-        Connection_Type = CoakView.Enums.ConnectionType.Ethernet;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
+        Connection_Type = Palladium.Enums.ConnectionType.Ethernet;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         RotatorInstalled = false;                                   %Set to true if using rotation option - rotation angle will be logged
     end
 
@@ -67,13 +67,13 @@ classdef PPMS < CoakView.Core.Instrument
         %% Connect
         function Connect(this)
             switch(this.Connection_Type)
-                case(CoakView.Enums.ConnectionType.Debug)
+                case(Palladium.Enums.ConnectionType.Debug)
                     disp("Connecting to simulated " + this.Name + " instrument...");
                     this.SimulationMode = true;
                     this.Interface = this.ConnectToInterface(true, this.PPMSCommDirectory, this.DllDirectory, this.InterfacePath);
                     disp("Connected to simulated " + this.Name);
 
-                case(CoakView.Enums.ConnectionType.Ethernet)
+                case(Palladium.Enums.ConnectionType.Ethernet)
                     disp("Connecting to " + this.Name + " instrument.");
                     this.SimulationMode = false;
                     this.Interface = this.ConnectToInterface(false, this.PPMSCommDirectory, this.DllDirectory, this.InterfacePath, this.IP_Address, this.ConnectionSettings.Port);
@@ -149,7 +149,7 @@ classdef PPMS < CoakView.Core.Instrument
 
             %Get full path to the folder - if it is on the MATLAB search
             %path, otherwise will return empty
-            ppmsCommDir_Full = CoakView.Utilities.FileLoading.PathUtils.GetPathOfFolderOnSearchPath(ppmsCommDir);
+            ppmsCommDir_Full = Palladium.Utilities.PathUtils.GetPathOfFolderOnSearchPath(ppmsCommDir);
             fullDir = ppmsCommDir_Full + "\" + dllDir;
 
             %Check the driver folder is there

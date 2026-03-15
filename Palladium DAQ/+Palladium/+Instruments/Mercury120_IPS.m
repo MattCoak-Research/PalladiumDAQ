@@ -1,4 +1,4 @@
-classdef Mercury120_IPS < CoakView.Core.Instrument
+classdef Mercury120_IPS < Palladium.Core.Instrument
     %Instrument implementation for Mercury 120 IPS Magnet power supply from
     %Oxford Instruments
     %Note on the communication commands - the instrument sends a reply to
@@ -14,7 +14,7 @@ classdef Mercury120_IPS < CoakView.Core.Instrument
 
     properties(Access = public, SetObservable)
         Name = "120IPS";             %Instrument name
-        Connection_Type = CoakView.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
+        Connection_Type = Palladium.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
     end
     
     properties(Access = private)
@@ -43,7 +43,7 @@ classdef Mercury120_IPS < CoakView.Core.Instrument
         function Connect(this)
             %Override to also place instrument in remote mode, after
             %executing base functions here
-            Connect@CoakView.Core.Instrument(this);
+            Connect@Palladium.Core.Instrument(this);
 
             %Response to a built-in IDN query will still be in the buffer
             %here - perform a Read to empty it
@@ -65,24 +65,14 @@ classdef Mercury120_IPS < CoakView.Core.Instrument
 
             %Override base class Close function - still call the base
             %function, but place instrument in local mode first
-            Close@CoakView.Core.Instrument(this);
+            Close@Palladium.Core.Instrument(this);
         end
 
         %% GetHeaders
         function [Headers, Units] = GetHeaders(this)
             Headers = [this.Name + " - Field (T)", this.Name + " - Current (A)"];
             Units = ["T", "A"];
-        end
-       
-        %% GetSupportedConnectionTypes
-        function connectionTypes = GetSupportedConnectionTypes(this)
-            connectionTypes = [...
-                CoakView.Enums.ConnectionType.Debug,...
-                CoakView.Enums.ConnectionType.GPIB,...
-                CoakView.Enums.ConnectionType.Serial,...
-                CoakView.Enums.ConnectionType.VISA
-                ];
-        end 
+        end       
         
         %% GetSweepUnitsString
         function [str, limits, xlabelStr, ylabelStr] = GetSweepUnitsString(this)

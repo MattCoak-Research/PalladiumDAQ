@@ -1,4 +1,4 @@
-classdef SR7265_Lockin < CoakView.Core.Instrument
+classdef SR7265_Lockin < Palladium.Core.Instrument
     %Instrument implementation for Signal Recovery 7265 or 7260 Model lockin
     %amplifiers
     
@@ -8,7 +8,7 @@ classdef SR7265_Lockin < CoakView.Core.Instrument
 
     properties(Access = public, SetObservable)
         Name = "SR7265";             %Instrument name
-        Connection_Type = CoakView.Enums.ConnectionType.Debug;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
+        Connection_Type = Palladium.Enums.ConnectionType.Debug;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         AutoSensitivity = true;    %Toggle if the instrument should change voltage range automatically
     end
     

@@ -1,4 +1,4 @@
-classdef LakeshoreHeaterControl < CoakView.Core.InstrumentControlBase
+classdef LakeshoreHeaterControl < Palladium.Core.InstrumentControlBase
     %LakeshoreHeaterControl - Logic controller add-on object to be added on to an
     %Instrument object, where it will handle the logic of adding a
     %Lakeshore-style heater control panel for PID and setpoint settings.
@@ -25,7 +25,7 @@ classdef LakeshoreHeaterControl < CoakView.Core.InstrumentControlBase
             grid = uigridlayout(tab, "ColumnWidth", {'1x', 'fit', '1x'}, "RowHeight", {10, 'fit', 10, '1x'}, 'RowSpacing', 2);
 
             %Create a .mlapp custom GUI control and add it to the grid
-            comp = CoakView.Instruments.Controls.LakeshoreTempControl(grid);
+            comp = Palladium.Instruments.Controls.LakeshoreTempControl(grid);
             this.GUIView = comp;
             comp.Layout.Row = 2;
             comp.Layout.Column = 2;

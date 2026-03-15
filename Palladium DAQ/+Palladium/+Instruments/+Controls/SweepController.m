@@ -1,4 +1,4 @@
-classdef SweepController < CoakView.Core.InstrumentControlBase
+classdef SweepController < Palladium.Core.InstrumentControlBase
     %SWEEPCONTROLLER - Logic controller add-on object to be added on to an
     %Instrument object, where it will handle the logic of stepping through
     %a Sweep, programmed by a SweepSetupPanel in the GUI
@@ -146,7 +146,7 @@ classdef SweepController < CoakView.Core.InstrumentControlBase
                 noOfSteps = max(2, round(abs(extremalPts(i) - extremalPts(i+1)) / stepSize) + 1);    
 
                 %Generate this set of points
-                points = [points, CoakView.Instruments.Controls.SweepController.GenerateSweepPoints(extremalPts(i), extremalPts(i+1), 0, noOfSteps)];
+                points = [points, Palladium.Instruments.Controls.SweepController.GenerateSweepPoints(extremalPts(i), extremalPts(i+1), 0, noOfSteps)];
 
                 %Remove last point if this is not the final iteration, to
                 %avoid duplicates

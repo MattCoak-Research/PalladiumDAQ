@@ -1,4 +1,4 @@
-classdef Keithley6220 < CoakView.Core.Instrument
+classdef Keithley6220 < Palladium.Core.Instrument
     %Instrument implementation for Keithley 6220 precision current source.
     %Assumes device has already been manually configured and is measuring.
     %Just grabs latest reading
@@ -17,7 +17,7 @@ classdef Keithley6220 < CoakView.Core.Instrument
 
     properties(Access = public, SetObservable)
         Name = "K6220";             %Instrument name
-        Connection_Type = CoakView.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
+        Connection_Type = Palladium.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         DeltaMode = true; %If true, measurements are being carried out with a parried nanovoltmeter in Delta Mode (this is the intended usage)
         Units;                                 %Volts, Ohms, Watts, Seimens  
     end

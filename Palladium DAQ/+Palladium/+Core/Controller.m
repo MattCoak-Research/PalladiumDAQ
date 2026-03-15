@@ -1,13 +1,10 @@
 classdef Controller < handle
-    %CONTROLLER Logic and measurement loop for CoakView Programme. 
+    %CONTROLLER Logic and measurement loop for Palladium DAQ Programme. 
 
     properties       
-
         %Paths and Directories
         ApplicationPath;    %These will be set in StartUp Fcn of the UiFigure
-        ApplicationDir;     %These will be set in StartUp Fcn of the UiFigure
-
-       
+        ApplicationDir;     %These will be set in StartUp Fcn of the 
     end
 
     properties(GetAccess = public, SetAccess = private)
@@ -40,7 +37,7 @@ classdef Controller < handle
     end
 
     properties(Constant)
-        PresetsDirectory = filesep + "+CoakViewPresets";
+        PresetsDirectory = filesep + "+PalladiumPresets";
     end
 
     events
@@ -69,14 +66,14 @@ classdef Controller < handle
             this.ApplicationPath = Settings.ApplicationPath;
 
             %Create a helper class for managing Instruments
-            this.InstrumentController = CoakView.Core.InstrumentController(this);
+            this.InstrumentController = Palladium.Core.InstrumentController(this);
            
             %Create a helper class for controlling the main
             %measurement/timing loop, Start/Pause/Resume etc
-            this.TimingLoopController = CoakView.Core.TimingLoopController(this);
+            this.TimingLoopController = Palladium.Core.TimingLoopController(this);
            
             %And one for handling all things Plotting
-            this.PlottingController = CoakView.Core.PlottingController();
+            this.PlottingController = Palladium.Core.PlottingController();
         end
 
         %% AttachView
@@ -164,10 +161,10 @@ classdef Controller < handle
             canStart = false;
             try
                 %Verify directory and path valid
-                if(~CoakView.Utilities.FileLoading.PathUtils.IsDirectoryValid(this.FileWriteDetails.Directory))
+                if(~Palladium.Utilities.FileLoading.PathUtils.IsDirectoryValid(this.FileWriteDetails.Directory))
                     error(['Error - directory not valid: ' strrep(this.FileWriteDetails.Directory, '\', '\\')]);
                 end
-                if(~CoakView.Utilities.FileLoading.PathUtils.IsFileNameValid(this.FileWriteDetails.FileName))
+                if(~Palladium.Utilities.FileLoading.PathUtils.IsFileNameValid(this.FileWriteDetails.FileName))
                     error(['Error - file name not valid: ' strrep(this.FileWriteDetails.FileName, '\', '\\')]);
                 end
             catch err
@@ -193,7 +190,7 @@ classdef Controller < handle
             %Show error message and ask if we want to stop measurements
             halt = this.HandleError("Error in main measurement loop - Collect Data from " + instr.FullName, e);
             if(halt)
-                CoakView.Logging.Logger.Log("Info", "Measurements aborted by User from Error Dialogue");
+                Palladium.Logging.Logger.Log("Info", "Measurements aborted by User from Error Dialogue");
                 this.TimingLoopController.Stop();
                 this.TimingLoopController.OnStopped();
             end
@@ -218,7 +215,7 @@ classdef Controller < handle
             try
                 this.ShowStatus("Red", "Error: " + msg);
                 drawnow();
-                CoakView.Logging.Logger.Log("Error", msg, "FullMessage", msg + " : " + string(getReport(error, "extended", "hyperlinks", "on")));
+                Palladium.Logging.Logger.Log("Error", msg, "FullMessage", msg + " : " + string(getReport(error, "extended", "hyperlinks", "on")));
             catch e
                 warning("An error was thrown while.. trying to handle an error.. : " + string(e.message));
             end
@@ -226,7 +223,7 @@ classdef Controller < handle
             %Pass on the error to the Error Handler to show a dialogue box
             %- user can choose whether to stop the measurement loop, and
             %separately whether to suppress this error going forward
-            [Halt, suppressError] = CoakView.Logging.Logger.HandleError(message, error, this.UIFigureHandle);
+            [Halt, suppressError] = Palladium.Logging.Logger.HandleError(message, error, this.UIFigureHandle);
 
             %User could have chosen to Suppress this error message in the
             %dialogue box, so it will not be shown in the future - handle
@@ -236,7 +233,7 @@ classdef Controller < handle
             %later if that turns out to be clearer for the user
             if(suppressError)
                 %Log the fact that we are suppressing an error
-                CoakView.Logging.Logger.Log("Info", "Error Suppressed by User: " + msg);
+                Palladium.Logging.Logger.Log("Info", "Error Suppressed by User: " + msg);
 
                 %Add this error to the list
                 this.SuppressedErrorMessages = [this.SuppressedErrorMessages, msg];
@@ -277,7 +274,7 @@ classdef Controller < handle
             %need to keep a reference to it, as it has a pseudo-static
             %singleton model where it can then be accessed with static
             %calls while remembering these settings
-            CoakView.Logging.Logger(this,...
+            Palladium.Logging.Logger(this,...
                 logSettings.LogFileDirectory, logSettings.LogFileFileName,...
                 "CommandWindowMessageLevel", logSettings.CommandWindowMessageLevel,...
                 "GUIMessageLevel", logSettings.GUIMessageLevel,...
@@ -300,18 +297,18 @@ classdef Controller < handle
                 this.SetFilePathsFileName(this.PathSettings.DefaultFileName);
 
                 %Set the default path for the DataViewer programme too
-                this.DefaultDataDir = CoakView.Utilities.FileLoading.PathUtils.CleanPath(this.PathSettings.DefaultDirectory);
+                this.DefaultDataDir = Palladium.Utilities.PathUtils.CleanPath(this.PathSettings.DefaultDirectory);
 
                 %Retrieve iconPath to pass to a GUI
-                this.WindowSettings.CoakViewIconPath = this.ApplicationDir + "\+CoakView\+Components\Graphics\CoakViewIcon.png";
+                this.WindowSettings.PalladiumIconPath = this.ApplicationDir + "\+Palladium\+Components\Graphics\PalladiumIcon.png";
 
                 %Send settings to the GUI
-                args = CoakView.Events.SettingsChangedEventData(this.PathSettings, this.WindowSettings);
+                args = Palladium.Events.SettingsChangedEventData(this.PathSettings, this.WindowSettings);
                 notify(this, "SettingsApplied", args);
 
                 %Load plugins
                 this.Log("Debug", "Initialising plugins", "Yellow", "Initialising plugins...");
-                this.InstrumentController.LoadInstrumentClasses(this.ApplicationDir + "\+CoakView\+Instruments");
+                this.InstrumentController.LoadInstrumentClasses(this.ApplicationDir + "\+Palladium\+Instruments");
                 this.Log("Debug", "Plugins intialised", "Green", "Plugins intialised");
 
                 %Initialise TimingLoopController
@@ -327,11 +324,11 @@ classdef Controller < handle
         %% InitialiseDataWriting
         function InitialiseDataWriting(this)
             %Create a DataWriter object to log all data
-            this.DataWriter = CoakView.DataWriting.DataWriter(this.FileWriteDetails);
+            this.DataWriter = Palladium.DataWriting.DataWriter(this.FileWriteDetails);
             this.FileWriteDetails.FileName = this.DataWriter.ValidateFilePath();
 
             %Update the View to display the file write settings
-            args = CoakView.Events.ValueChangedEventData(this.FileWriteDetails);
+            args = Palladium.Events.ValueChangedEventData(this.FileWriteDetails);
             notify(this, "FileWriteOptionsChanged", args);
 
             %Clean up Plotters list, remove any that have been deleted
@@ -415,7 +412,7 @@ classdef Controller < handle
             end
             %Pass through to the Logger and to the status strip in the
             %bottom of the GUI
-            CoakView.Logging.Logger.Log(level, logText);
+            Palladium.Logging.Logger.Log(level, logText);
             this.ShowStatus(colour, statusText);
         end
         
@@ -453,7 +450,7 @@ classdef Controller < handle
             try
                 %Update data plots & Update any Big Number Display windows
                 this.PlottingController.PlotData(dataRow, this.DataTable);
-                args = CoakView.Events.DataRowAddedEventData(dataRow, this.Headers);
+                args = Palladium.Events.DataRowAddedEventData(dataRow, this.Headers);
                 notify(this, "DataRowUpdated", args);
             catch e
                 CatchMeasurementLoopError(this, e);
@@ -476,7 +473,7 @@ classdef Controller < handle
                     %Show error message and ask if we want to stop measurements
                     halt = this.HandleError("Error in main measurement loop", e);
                     if(halt)
-                        CoakView.Logging.Logger.Log("Info", "Measurements aborted by User from Error Dialogue");
+                        Palladium.Logging.Logger.Log("Info", "Measurements aborted by User from Error Dialogue");
                         this.TimingLoopController.OnStopped();
                     end
                 end
@@ -494,7 +491,7 @@ classdef Controller < handle
         %% OnLoaded
         function OnLoaded(this)
             %Display a status message in the logger
-            this.Log("Info", "CoakView loaded", "Green", "Ready");
+            this.Log("Info", "Palladium loaded", "Green", "Ready");
 
             try
                 %Let the user interact with the GUI now it is loaded and ready
@@ -524,7 +521,7 @@ classdef Controller < handle
         function OpenSequenceEditor(this)
             try
                 %Create a SequenceViewerController
-                this.SequenceEditorController = CoakView.Sequence.SequenceEditorController(...
+                this.SequenceEditorController = Palladium.Sequence.SequenceEditorController(...
                     this,...
                     "DefaultSequenceDirectory", this.PathSettings.DefaultSequenceDirectory,...
                     "SequenceFileExtension", this.PathSettings.SequenceFileExtension);
@@ -581,10 +578,10 @@ classdef Controller < handle
         %% SetFilePathsDirectory
         function SetFilePathsDirectory(this, directory)
             try
-                this.FileWriteDetails.Directory = CoakView.Utilities.FileLoading.PathUtils.CleanPath(directory);
+                this.FileWriteDetails.Directory = Palladium.Utilities.PathUtils.CleanPath(directory);
 
                 %Update the View
-                args = CoakView.Events.ValueChangedEventData(this.FileWriteDetails);
+                args = Palladium.Events.ValueChangedEventData(this.FileWriteDetails);
                 notify(this, "FileWriteOptionsChanged", args);
             catch err
                 this.HandleError("Error in SetFilePathsDirectory", err);
@@ -597,7 +594,7 @@ classdef Controller < handle
                 this.FileWriteDetails.FileExtension = fileExtension;
 
                 %Pass through to View
-                args = CoakView.Events.ValueChangedEventData(this.FileWriteDetails);
+                args = Palladium.Events.ValueChangedEventData(this.FileWriteDetails);
                 notify(this, "FileWriteOptionsChanged", args);
             catch err
                 this.HandleError("Error in SetFilePathsFileExtension", err);
@@ -610,7 +607,7 @@ classdef Controller < handle
                 this.FileWriteDetails.DescriptionText = descriptionText;
 
                 %Pass through to View
-                args = CoakView.Events.ValueChangedEventData(this.FileWriteDetails);
+                args = Palladium.Events.ValueChangedEventData(this.FileWriteDetails);
                 notify(this, "FileWriteOptionsChanged", args);
             catch err
                 this.HandleError("Error in SetFilePathsDescription", err);
@@ -622,16 +619,16 @@ classdef Controller < handle
             try
                 %Make sure the filename doesn't have an extra file extension
                 %included by user by mistake - we will add an extension on
-                fileNameNoExt = CoakView.Utilities.FileLoading.PathUtils.StripExtension(fileName);
+                fileNameNoExt = Palladium.Utilities.PathUtils.StripExtension(fileName);
 
                 %Helpfully replace <DATE> tag with today's actual date
-                fileNameDateRp = CoakView.Utilities.FileLoading.PathUtils.ReplaceDateTag(fileNameNoExt);
+                fileNameDateRp = Palladium.Utilities.PathUtils.ReplaceDateTag(fileNameNoExt);
 
                 %Set the variable
                 this.FileWriteDetails.FileName = fileNameDateRp;
 
                 %Pass through to View
-                args = CoakView.Events.ValueChangedEventData(this.FileWriteDetails);
+                args = Palladium.Events.ValueChangedEventData(this.FileWriteDetails);
                 notify(this, "FileWriteOptionsChanged", args);
             catch err
                 this.HandleError("Error setting file name", err);
@@ -644,7 +641,7 @@ classdef Controller < handle
                 this.FileWriteDetails.SaveFile = saveFileBool;
 
                 %Pass through to View
-                args = CoakView.Events.ValueChangedEventData(this.FileWriteDetails);
+                args = Palladium.Events.ValueChangedEventData(this.FileWriteDetails);
                 notify(this, "FileWriteOptionsChanged", args);
             catch err
                 this.HandleError("Error setting save file bool", err);
@@ -657,7 +654,7 @@ classdef Controller < handle
                 this.FileWriteDetails.WriteMode = writeMode;
 
                 %Pass through to View
-                args = CoakView.Events.ValueChangedEventData(this.FileWriteDetails);
+                args = Palladium.Events.ValueChangedEventData(this.FileWriteDetails);
                 notify(this, "FileWriteOptionsChanged", args);
             catch err
                 this.HandleError("Error setting write mode", err);
@@ -675,7 +672,7 @@ classdef Controller < handle
 
         %% ShowProgress
         function ShowProgress(this, msg, title)
-          args = CoakView.Events.MessageEventData(msg, title);
+          args = Palladium.Events.MessageEventData(msg, title);
           notify(this, "StartedShowingProgress", args);
         end
 
@@ -683,11 +680,11 @@ classdef Controller < handle
         function ShowStatus(this, colour, msg)
             switch(colour)
                 case('Green')
-                    notify(this, "GreenStatus", CoakView.Events.MessageEventData(msg));
+                    notify(this, "GreenStatus", Palladium.Events.MessageEventData(msg));
                 case('Yellow')
-                    notify(this, "YellowStatus", CoakView.Events.MessageEventData(msg));
+                    notify(this, "YellowStatus", Palladium.Events.MessageEventData(msg));
                 case('Red')
-                    notify(this, "RedStatus", CoakView.Events.MessageEventData(msg));
+                    notify(this, "RedStatus", Palladium.Events.MessageEventData(msg));
                 otherwise
                     error('Colour unsupported in ShowStatus');
             end
@@ -703,7 +700,7 @@ classdef Controller < handle
                 message {mustBeTextScalar}
             end
 
-            args = CoakView.Events.ProgressUpdateEventData(progress, message);
+            args = Palladium.Events.ProgressUpdateEventData(progress, message);
             notify(this, "UpdatedProgress", args);
         end
         
@@ -724,7 +721,7 @@ classdef Controller < handle
         %% LoadSettings
         function [logSettings, pathSettings, windowSettings, plotterSettings] = LoadSettings(this)
             %Load the settings file into struct
-            configIO = CoakView.Utilities.FileLoading.ConfigIO();
+            configIO = Palladium.Utilities.FileLoading.ConfigIO();
             settingsStruct = configIO.LoadConfig();
 
             %Parse the entries neatly into the PathSettings struct property
@@ -745,9 +742,9 @@ classdef Controller < handle
             end
    
             %Clean the paths up, removing extra \\..\\.. loops etc
-            pathSettings.DefaultDirectory = CoakView.Utilities.FileLoading.PathUtils.CleanPath(pathSettings.DefaultDirectory);
-            logSettings.LogFileDirectory = CoakView.Utilities.FileLoading.PathUtils.CleanPath(logSettings.LogFileDirectory);
-            pathSettings.DefaultSequenceDirectory = CoakView.Utilities.FileLoading.PathUtils.CleanPath(pathSettings.DefaultSequenceDirectory);
+            pathSettings.DefaultDirectory = Palladium.Utilities.PathUtils.CleanPath(pathSettings.DefaultDirectory);
+            logSettings.LogFileDirectory = Palladium.Utilities.PathUtils.CleanPath(logSettings.LogFileDirectory);
+            pathSettings.DefaultSequenceDirectory = Palladium.Utilities.PathUtils.CleanPath(pathSettings.DefaultSequenceDirectory);
 
             %Verify that the DefaultDirectory exists - if it doesn't, try to make that folder. If that fails, set to a fallback
             %and warn user.

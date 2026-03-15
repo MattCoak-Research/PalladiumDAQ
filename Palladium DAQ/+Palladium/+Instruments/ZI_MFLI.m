@@ -1,4 +1,4 @@
-classdef ZI_MFLI < CoakView.Core.Instrument
+classdef ZI_MFLI < Palladium.Core.Instrument
     % ZI_MFLI - Zurich Instruments MFLI medium-frequency lockin, Instrument implementation
     %The connection code allows multiple MFLI instruments to be connected
     %at once. Due to how MFLIs run an on-instrument server as well as the
@@ -24,7 +24,7 @@ classdef ZI_MFLI < CoakView.Core.Instrument
 
     properties(Access = public, SetObservable)
         Name = 'ZI MFLI';
-        Connection_Type = CoakView.Enums.ConnectionType.Ethernet;       %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
+        Connection_Type = Palladium.Enums.ConnectionType.Ethernet;       %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         DeviceID = 'DEV7779';                                           %Instrument hardware address
         ConnectedCurrentSource;                                         %Do we have a current source connected that will turn voltage out into a current?
         AmplifierGain = 1;                                              %Gain of any externally-added amplifiers or transformers to take into account.
@@ -134,7 +134,7 @@ classdef ZI_MFLI < CoakView.Core.Instrument
             % Function to connect to MFLI instrument.
 
             switch(this.Connection_Type)
-                case(CoakView.Enums.ConnectionType.Debug)
+                case(Palladium.Enums.ConnectionType.Debug)
                     %Do not make a physical connection to a real instrument
                     %- this places the class into SimulationMode, for
                     %testing without a real piece of hardware connected
@@ -143,11 +143,11 @@ classdef ZI_MFLI < CoakView.Core.Instrument
                     disp("Connected to simulated " + this.Name + " instrument.");
                     this.SimulationMode = true;
 
-                case(CoakView.Enums.ConnectionType.Ethernet)
+                case(Palladium.Enums.ConnectionType.Ethernet)
                     %Connect to instrument via ZI Matlab API
                     this.DeviceHandle = this.ZIConnect(this.DeviceID, '1GbE');
 
-                case(CoakView.Enums.ConnectionType.USB)
+                case(Palladium.Enums.ConnectionType.USB)
                     %Connect to instrument via ZI Matlab API
                     this.DeviceHandle = this.ZIConnect(this.DeviceID, '1GbE'); %Don't tell it USB, keep it 1GbE instead - we actually connect to the dataserver on LocalHost (to allow connecting multiple instruments) - so USB errors out, even if the device is connected to the dataserver by USB. Let's hide the user from this, stop them panicking that USB is not a supported option
 
@@ -254,7 +254,7 @@ classdef ZI_MFLI < CoakView.Core.Instrument
             %This (so far) looks to be common behaviour across all instruments.
             %Can override this function in implementing class if more behaviour needed.
             switch(this.Connection_Type)
-                case(CoakView.Enums.ConnectionType.Debug)
+                case(Palladium.Enums.ConnectionType.Debug)
                     %Just print a message
                     disp("Disconnected from simulated " + this.Name + " instrument.");
                 otherwise
@@ -2530,7 +2530,7 @@ classdef ZI_MFLI < CoakView.Core.Instrument
             %Connect to a dataserver if not already connected, then connect
             %this device to that. Assumes LabOne is installed and running on
             %the PC, not internally on the MFLI. See comments in ZI_HandleConnect_LabOneServerRunningOnPC
-            deviceHandle = CoakView.Instruments.ZI_MFLI.ZI_HandleConnect_LabOneServerRunningOnPC(deviceID, interface, supported_apilevel);
+            deviceHandle = Palladium.Instruments.ZI_MFLI.ZI_HandleConnect_LabOneServerRunningOnPC(deviceID, interface, supported_apilevel);
 
             %Check the API and firmware are the same version. Not required but
             %a nice error check
@@ -2578,7 +2578,7 @@ classdef ZI_MFLI < CoakView.Core.Instrument
             %the MDS option and the 2.5. Running LabOne on a Separate PC
             %section - LabOne can run on the internal PC in the instrument
             %with no installation on the PC, but we need to run it on the
-            %PC running CoakView (which is a 'seperate PC' in this
+            %PC running Palladium (which is a 'seperate PC' in this
             %parlance, it means separate to the MFLI's internals). This
             %function connects to MFLIs configured in that manner
 

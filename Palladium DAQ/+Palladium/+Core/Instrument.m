@@ -41,12 +41,12 @@ classdef(Abstract) Instrument < handle
 
     properties(Access = private)
         AllowedConnectionTypes = [...
-                CoakView.Enums.ConnectionType.Debug,...
-                CoakView.Enums.ConnectionType.GPIB,...
-                CoakView.Enums.ConnectionType.VISA,...
-                CoakView.Enums.ConnectionType.Ethernet,...
-                CoakView.Enums.ConnectionType.Serial,...
-                CoakView.Enums.ConnectionType.USB...
+                Palladium.Enums.ConnectionType.Debug,...
+                Palladium.Enums.ConnectionType.GPIB,...
+                Palladium.Enums.ConnectionType.VISA,...
+                Palladium.Enums.ConnectionType.Ethernet,...
+                Palladium.Enums.ConnectionType.Serial,...
+                Palladium.Enums.ConnectionType.USB...
                 ];
         ControlClasses = [];
         ControlDetailsStructs = []; % List of structs that define the options for later creating Control Classes
@@ -86,7 +86,7 @@ classdef(Abstract) Instrument < handle
             %This (so far) looks to be common behaviour across all instruments.
             %Can override this function in implementing class if more behaviour needed.
             switch(this.Connection_Type)
-                case(CoakView.Enums.ConnectionType.Debug)
+                case(Palladium.Enums.ConnectionType.Debug)
                     %Just print a message
                     disp("Disconnected from simulated " + this.Name + " instrument.");
                 otherwise
@@ -101,7 +101,7 @@ classdef(Abstract) Instrument < handle
                     try
                         this.DeviceHandle = [];
                     catch e
-                        CoakView.Utilities.ErrorHandler.HandleError("Error disconnecting from " + this.Name, e);
+                        error("Error disconnecting from " + this.Name, e);
                     end
             end
         end
@@ -126,21 +126,21 @@ classdef(Abstract) Instrument < handle
         %% Connect
         function Connect(this)
             switch(this.Connection_Type)
-                case(CoakView.Enums.ConnectionType.Debug)
+                case(Palladium.Enums.ConnectionType.Debug)
                     %Do not make a physical connection to a real instrument
                     %- this places the class into SimulationMode, for
                     %testing without a real piece of hardware connected
                     disp("Connected to simulated " + this.Name + " instrument.");
                     this.SimulationMode = true;
-                case(CoakView.Enums.ConnectionType.Ethernet)
+                case(Palladium.Enums.ConnectionType.Ethernet)
                     this.ConnectTCPIP();
-                case(CoakView.Enums.ConnectionType.GPIB)
+                case(Palladium.Enums.ConnectionType.GPIB)
                     this.ConnectGPIB();
-                case(CoakView.Enums.ConnectionType.VISA)
+                case(Palladium.Enums.ConnectionType.VISA)
                     this.ConnectVISA();
-                case(CoakView.Enums.ConnectionType.USB)
+                case(Palladium.Enums.ConnectionType.USB)
                     this.ConnectUSB();
-                case(CoakView.Enums.ConnectionType.Serial)
+                case(Palladium.Enums.ConnectionType.Serial)
                     this.ConnectSerial();
                 otherwise
                     error("Unsupported connection type: " + this.Connection_Type + ". ConnectionType can be tcpip, gpib, serial, usb, or visa.");
@@ -211,7 +211,7 @@ classdef(Abstract) Instrument < handle
         function DefineSupportedConnectionTypes(this, connectionTypes)
             arguments
                 this
-                connectionTypes (:,1) CoakView.Enums.ConnectionType;
+                connectionTypes (:,1) Palladium.Enums.ConnectionType;
             end
             
             this.AllowedConnectionTypes = connectionTypes;
@@ -283,17 +283,17 @@ classdef(Abstract) Instrument < handle
             %in GPIB connection mode, don't show the Serial Address, etc
 
             switch(this.Connection_Type)
-                case(CoakView.Enums.ConnectionType.Debug)
+                case(Palladium.Enums.ConnectionType.Debug)
                     propertiesToIgnore = {"GPIB_Address", "IP_Address", "Serial_Address", "VISA_Address"};
-                case(CoakView.Enums.ConnectionType.Ethernet)
+                case(Palladium.Enums.ConnectionType.Ethernet)
                     propertiesToIgnore = {"GPIB_Address", "Serial_Address", "VISA_Address"};
-                case(CoakView.Enums.ConnectionType.GPIB)
+                case(Palladium.Enums.ConnectionType.GPIB)
                     propertiesToIgnore = {"IP_Address", "Serial_Address", "VISA_Address"};
-                case(CoakView.Enums.ConnectionType.VISA)
+                case(Palladium.Enums.ConnectionType.VISA)
                     propertiesToIgnore = {"GPIB_Address", "IP_Address", "Serial_Address"};
-                case(CoakView.Enums.ConnectionType.Serial)
+                case(Palladium.Enums.ConnectionType.Serial)
                     propertiesToIgnore = {"GPIB_Address", "IP_Address", "VISA_Address"};
-                case(CoakView.Enums.ConnectionType.USB)
+                case(Palladium.Enums.ConnectionType.USB)
                     propertiesToIgnore = {"GPIB_Address", "IP_Address", "Serial_Address", "VISA_Address"};
                 otherwise
                     error("Unsupported connection type: " + this.ConnectionType + ". ConnectionType can be tcpip, gpib, serial, or visa.");
@@ -363,7 +363,7 @@ classdef(Abstract) Instrument < handle
             %Otherwise turn the struct into a human readable one-line
             %string...
             preInfStr = this.Name + " Settings: ";
-            stringLine = CoakView.DataWriting.DataWriter.BuildMetadataLineStringFromStruct(preInfStr, result);
+            stringLine = Palladium.DataWriting.DataWriter.BuildMetadataLineStringFromStruct(preInfStr, result);
         end
         
         %% UpdateAndMeasure
@@ -625,7 +625,7 @@ classdef(Abstract) Instrument < handle
             %changed properties and that they should update
             %evnt contains the following info:
             %  PropertyEvent with properties:
-            %AffectedObject: [1×1 CoakView.Instruments.Keithley2000]
+            %AffectedObject: [1×1 Palladium.Instruments.Keithley2000]
             %  Source: [1×1 meta.property]
             %EventName: 'PostSet'
 

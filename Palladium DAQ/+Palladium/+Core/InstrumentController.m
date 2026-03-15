@@ -1,6 +1,6 @@
 classdef InstrumentController < handle
     %INSTRUMENTCONTROLLER - logic/container/manager class for handling
-    %instrument creation and management in CoakView, and liaising with
+    %instrument creation and management in Palladium, and liaising with
     %Instrument selection GUIs in the View
     
     properties
@@ -15,13 +15,13 @@ classdef InstrumentController < handle
     end
     
     properties (Access = private)
-        Controller; %Reference back to the overall CoakView Controller that handles all the main logic - feed things back to there
+        Controller; %Reference back to the overall Palladium Controller that handles all the main logic - feed things back to there
         AssignInstrumentRefsIntoWorkspace = true;
     end
 
     properties (Access = private, Constant)
-        Namespace string = "CoakView.Instruments";
-        ControlsNamespace string = "CoakView.Instruments.Controls";
+        Namespace string = "Palladium.Instruments";
+        ControlsNamespace string = "Palladium.Instruments.Controls";
     end
 
     events
@@ -53,7 +53,7 @@ classdef InstrumentController < handle
                 if cds.EnabledByDefault
                     %The View needs to handle GUI object creation, so send
                     %an event upstream. Note, no View = No control made!
-                    args = CoakView.Events.InstrumentControlAddEventData(instr, cds);
+                    args = Palladium.Events.InstrumentControlAddEventData(instr, cds);
                     notify(this, "DefaultEnabledInstrumentControlAdd", args);
                 end
             end
@@ -81,7 +81,7 @@ classdef InstrumentController < handle
                 assert(any(contains(this.ListOfAvailableInstrumentClassNameStrings, instrStringToAdd, "IgnoreCase", false)), string(instrStringToAdd) + " not found in list of avaliable Instruments");
 
                 %Make an instance of the selected datasource class
-                instRef = CoakView.Utilities.FileLoading.PluginLoading.InstantiateClass(this.Namespace, instrStringToAdd);
+                instRef = Palladium.Utilities.PluginLoading.InstantiateClass(this.Namespace, instrStringToAdd);
 
                 %Set the instrument name if that optional parameter was
                 %passed in. This is useful when setting up Instruments and
@@ -91,16 +91,16 @@ classdef InstrumentController < handle
                     instRef.Name = settings.Name;
                 end
 
-                if strcmp(settings.Name, "Auto") | CoakView.Utilities.FileLoading.PluginLoading.CheckForExistingInstrName(instRef.Name, this.SelectedInstruments)
+                if strcmp(settings.Name, "Auto") | Palladium.Utilities.PluginLoading.CheckForExistingInstrName(instRef.Name, this.SelectedInstruments)
                     %Give the newly created instrument a number at the end of its
                     %name ie Lakeshore350_1
-                    instRef.Name = CoakView.Utilities.FileLoading.PluginLoading.GetIncrementedInstrName(instRef, this.SelectedInstruments);
+                    instRef.Name = Palladium.Utilities.PluginLoading.GetIncrementedInstrName(instRef, this.SelectedInstruments);
                 end
 
                 %Set the instrument Connection Type if that optional parameter was
                 %passed in.
                 if ~strcmp(settings.ConnectionType, "Auto")
-                    instRef.Connection_Type = CoakView.Enums.ConnectionType(settings.ConnectionType);
+                    instRef.Connection_Type = Palladium.Enums.ConnectionType(settings.ConnectionType);
                 end
 
                 %Add the new instrument, and the name of its class, to the
@@ -131,7 +131,7 @@ classdef InstrumentController < handle
                 end
 
                 %Update the View
-                args = CoakView.Events.InstrumentAddedEventData(instrStringToAdd, instRef);
+                args = Palladium.Events.InstrumentAddedEventData(instrStringToAdd, instRef);
                 notify(this, "InstrumentAdded", args);
 
 
@@ -146,7 +146,7 @@ classdef InstrumentController < handle
         function controlClassRef = AddInstrumentControl(this, tab, instrRef, controlDetailsStruct)
             try
                 %Make an instance of the selected datasource class
-                controlClassRef = CoakView.Utilities.FileLoading.PluginLoading.InstantiateClass(this.ControlsNamespace, controlDetailsStruct.ControlClassFileName);
+                controlClassRef = Palladium.Utilities.FileLoading.PluginLoading.InstantiateClass(this.ControlsNamespace, controlDetailsStruct.ControlClassFileName);
                 controlClassRef.ControlDetailsStruct = controlDetailsStruct;
                 controlClassRef.ProgrammeTargetUpdateTime = this.Controller.TimingLoopController.TargetUpdateTime;
 
@@ -228,7 +228,7 @@ classdef InstrumentController < handle
                     else
                         %Just show a warning, do not halt execution
                         reportStr = string(e.message);
-                        CoakView.Logging.Logger.Log("Warning", "Measurement call to instrument " + this.Instruments{i}.Name + " failed in CollectMeasurement, data set to NaN for this tick. Error message: " + reportStr);
+                        Palladium.Logging.Logger.Log("Warning", "Measurement call to instrument " + this.Instruments{i}.Name + " failed in CollectMeasurement, data set to NaN for this tick. Error message: " + reportStr);
                     end
                 end
             end
@@ -242,13 +242,13 @@ classdef InstrumentController < handle
                 catch e
                     %Just show a warning, do not halt execution
                     reportStr = string(e.message);
-                    CoakView.Logging.Logger.Log("Warning", "Last dataRow update call to instrument " + this.Instruments{i}.Name + " failed in CollectMeasurement. Error message: " + reportStr);
+                    Palladium.Logging.Logger.Log("Warning", "Last dataRow update call to instrument " + this.Instruments{i}.Name + " failed in CollectMeasurement. Error message: " + reportStr);
 
                 end
             end
 
             %Fire event for data row collected
-            notify(this, "DataRowCollected", CoakView.Events.DataRowAddedEventData(DataRow, this.Controller.Headers));
+            notify(this, "DataRowCollected", Palladium.Events.DataRowAddedEventData(DataRow, this.Controller.Headers));
         end
 
         %% GetHeaders
@@ -283,7 +283,7 @@ classdef InstrumentController < handle
                 catch e
                     %Just show a warning, do not halt execution
                     reportStr = string(e.message);
-                    CoakView.Logging.Logger.Log("Warning", "Last dataRow update call to instrument " + this.Instruments{i}.Name + " failed in CollectMeasurement. Error message: " + reportStr);
+                    Palladium.Logging.Logger.Log("Warning", "Last dataRow update call to instrument " + this.Instruments{i}.Name + " failed in CollectMeasurement. Error message: " + reportStr);
 
                 end
             end
@@ -315,7 +315,7 @@ classdef InstrumentController < handle
             [headers, headersString, units] = this.GetHeaders();
 
             %Verify that those headers are valid - no duplicates
-            [duplicateHeaderValues, duplicateHeaderValuesString] = CoakView.Utilities.ErrorChecking.Verification.CheckForDuplicatesInHeadersArray(headers);
+            [duplicateHeaderValues, duplicateHeaderValuesString] = Palladium.Utilities.Verification.CheckForDuplicatesInHeadersArray(headers);
             assert(isempty(duplicateHeaderValues), "Some variable names appear twice, this is not allowed. Duplicate variables: " + duplicateHeaderValuesString);
 
         end
@@ -362,7 +362,7 @@ classdef InstrumentController < handle
 
         %% LoadInstrumentClasses
         function LoadInstrumentClasses(this, folderPath)
-            classNames = CoakView.Utilities.FileLoading.PluginLoading.LoadPluginNames(folderPath);
+            classNames = Palladium.Utilities.PluginLoading.LoadPluginNames(folderPath);
             this.PopulateInstrumentList(classNames);
         end
 
@@ -374,7 +374,7 @@ classdef InstrumentController < handle
             this.ListOfAvailableInstrumentClassNameStrings = cellArrayOfInstrumentNameStrings;
 
             %Pass through to the View
-            args = CoakView.Events.ValueChangedEventData(cellArrayOfInstrumentNameStrings);
+            args = Palladium.Events.ValueChangedEventData(cellArrayOfInstrumentNameStrings);
             notify(this, "InstrumentListPopulated", args);
         end     
               
@@ -385,7 +385,7 @@ classdef InstrumentController < handle
             end
 
             %Update the View (before we delete the reference!)
-            args = CoakView.Events.ValueChangedEventData(instrumentRef);
+            args = Palladium.Events.ValueChangedEventData(instrumentRef);
             notify(this, "InstrumentRemoved", args);
 
             %Remove it from the list held here

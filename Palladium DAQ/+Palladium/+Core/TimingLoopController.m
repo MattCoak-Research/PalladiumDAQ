@@ -127,7 +127,7 @@ classdef TimingLoopController < handle
                 this.TargetUpdateTime = targetTime_s;
 
                 %Update the View to reflect the change
-                args = CoakView.Events.ValueChangedEventData(targetTime_s);
+                args = Palladium.Events.ValueChangedEventData(targetTime_s);
                 notify(this, "TargetUpdateTimeChanged", args);
             catch err
                 this.Controller.HandleError("Error setting update time", err);
@@ -196,7 +196,7 @@ classdef TimingLoopController < handle
             %headers locked in.
 
             %Fire event
-            args = CoakView.Events.MeasurementsInitialisedEventData(headers);
+            args = Palladium.Events.MeasurementsInitialisedEventData(headers);
             notify(this, "MeasurementsInitialised", args);
         end
 
@@ -269,7 +269,7 @@ classdef TimingLoopController < handle
                     try
                         %Fire event to allow updating the time elapsed this frame in the GUI
                         elapsedTimeSinceLastTick_s = this.Timer.InstantPeriod;
-                        args = CoakView.Events.ValueChangedEventData(elapsedTimeSinceLastTick_s);
+                        args = Palladium.Events.ValueChangedEventData(elapsedTimeSinceLastTick_s);
                         notify(this, "UpdateTimeChanged", args);
                     catch e
                         warning("Measurement time update failed: " + string(e.message));
@@ -296,7 +296,7 @@ classdef TimingLoopController < handle
                     %Show error message and ask if we want to stop measurements
                     halt = this.Controller.HandleError("Error in main measurement loop", e);
                     if(halt)
-                        CoakView.Logging.Logger.Log("Info", "Measurements aborted by User from Error Dialogue");
+                        Palladium.Logging.Logger.Log("Info", "Measurements aborted by User from Error Dialogue");
                         this.OnStopped();
                     end
                % end

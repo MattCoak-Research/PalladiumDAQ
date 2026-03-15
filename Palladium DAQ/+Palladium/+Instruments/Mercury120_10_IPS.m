@@ -1,4 +1,4 @@
-classdef Mercury120_10_IPS < CoakView.Core.Instrument
+classdef Mercury120_10_IPS < Palladium.Core.Instrument
     %Instrument implementation for Mercury 120-10 IPS Magnet power supply from
     %Oxford Instruments. This is an old (c 1991) version, beige rather than white, older than the
     %'120' version also included here, and the manual was only available
@@ -30,7 +30,7 @@ classdef Mercury120_10_IPS < CoakView.Core.Instrument
 
     properties(Access = public, SetObservable)
         Name = "120-10IPS";             %Instrument name
-        Connection_Type = CoakView.Enums.ConnectionType.Serial;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
+        Connection_Type = Palladium.Enums.ConnectionType.Serial;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
     end    
 
     properties(Access = private)
@@ -58,7 +58,7 @@ classdef Mercury120_10_IPS < CoakView.Core.Instrument
         function Connect(this)
             %Override to also place instrument in remote mode, after
             %executing base functions here
-            Connect@CoakView.Core.Instrument(this);
+            Connect@Palladium.Core.Instrument(this);
 
             %Response to a built-in IDN query will still be in the buffer
             %here - perform a Read to empty it
@@ -80,7 +80,7 @@ classdef Mercury120_10_IPS < CoakView.Core.Instrument
 
             %Override base class Close function - still call the base
             %function, but place instrument in local mode first
-            Close@CoakView.Core.Instrument(this);
+            Close@Palladium.Core.Instrument(this);
         end        
         
         %% GetHeaders

@@ -45,7 +45,7 @@ classdef PlottingController < handle
         %% CreateNewPlotter
         function pltr = CreateNewPlotter(this, parent, size)
             %Create plotter component
-            pltr = CoakView.Components.PlotterPanel(parent);
+            pltr = Palladium.Components.PlotterPanel(parent);
 
             %Apply settings loaded from json file
             plotterSettings = this.PlotterSettings;
@@ -56,7 +56,7 @@ classdef PlottingController < handle
         %% CreateNewSimplePlotter
         function pltr = CreateNewSimplePlotter(this, parent, size)
             %Create plotter component
-            pltr = CoakView.Components.SimplePlotterPanel(parent);
+            pltr = Palladium.Components.SimplePlotterPanel(parent);
 
             %Apply settings loaded from json file
             plotterSettings = this.PlotterSettings;

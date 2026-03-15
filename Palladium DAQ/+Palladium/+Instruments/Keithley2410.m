@@ -1,4 +1,4 @@
-classdef Keithley2410 < CoakView.Core.Instrument
+classdef Keithley2410 < Palladium.Core.Instrument
     %Instrument implementation for Keithley 2400 and 2410 source meters.
     %Note that this assumes the instrument is measuring already - just reads data.
 
@@ -8,7 +8,7 @@ classdef Keithley2410 < CoakView.Core.Instrument
 
     properties(Access = public, SetObservable)
         Name = "K2410_SrcMtr";                            %Instrument name
-        Connection_Type = CoakView.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
+        Connection_Type = Palladium.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         MeasMode;                                   %Resistance, Voltage, Current
         SourceMode;                                 %Current, Voltage
         OffsetComp = false;

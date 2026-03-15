@@ -130,7 +130,7 @@ classdef InstrumentControlBase < handle
                 return;
             end
 
-            stringLine = CoakView.DataWriting.DataWriter.BuildMetadataLineStringFromHeaderValuePair("", hdrsRow, dataRow);
+            stringLine = Palladium.DataWriting.DataWriter.BuildMetadataLineStringFromHeaderValuePair("", hdrsRow, dataRow);
         end
 
         %% GetParameterValueFromLastMeasurementRow
@@ -187,7 +187,7 @@ classdef InstrumentControlBase < handle
             %chosen replacement too
             fileWriteDetails.FileName = this.ProcessFileName(fileWriteDetails.FileName);
 
-            dataWriter = CoakView.DataWriting.DataWriter(fileWriteDetails);
+            dataWriter = Palladium.DataWriting.DataWriter(fileWriteDetails);
         end
 
         %% InsertEndMetadataIntoFile

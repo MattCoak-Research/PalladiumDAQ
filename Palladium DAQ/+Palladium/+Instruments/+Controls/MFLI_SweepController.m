@@ -1,4 +1,4 @@
-classdef MFLI_SweepController < CoakView.Core.InstrumentControlBase
+classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
     %MFLI_SweepController - Logic controller add-on object to be added on to an
     %Instrument object, where it will handle the logic of controlling data
     %collection and independent logging of sweeps on a Zurich Instruments
@@ -39,7 +39,7 @@ classdef MFLI_SweepController < CoakView.Core.InstrumentControlBase
             grid = uigridlayout(tab, "ColumnWidth", {'fit', '1x'}, "RowHeight", {10, '1x', 10}, 'RowSpacing', 2);
 
             %Create a .mlapp custom GUI control and add it to the grid
-            comp = CoakView.Instruments.Controls.MFLISweepControlPanel(grid);
+            comp = Palladium.Instruments.Controls.MFLISweepControlPanel(grid);
             comp.Layout.Row = 2;
             comp.Layout.Column = 1;
 
@@ -249,7 +249,7 @@ classdef MFLI_SweepController < CoakView.Core.InstrumentControlBase
 
             stringLine = "SweepType: " + SweepName;
 
-            sweepParamsStr = CoakView.DataWriting.DataWriter.BuildMetadataLineStringFromStruct("", SweepParams);
+            sweepParamsStr = Palladium.DataWriting.DataWriter.BuildMetadataLineStringFromStruct("", SweepParams);
 
             stringLine = stringLine + " || Parameters: " + sweepParamsStr;
         end

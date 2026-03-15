@@ -1,4 +1,4 @@
-classdef TemplateInstrumentClass < CoakView.Core.Instrument
+classdef TemplateInstrumentClass < Palladium.Core.Instrument
     %Instrument implementation for .. insert details here
     %Make a copy of this class and modify it when adding a new instrument
 
@@ -8,7 +8,7 @@ classdef TemplateInstrumentClass < CoakView.Core.Instrument
 
     properties(Access = public, SetObservable)
         Name = 'NAME';                            %Instrument name
-        Connection_Type = CoakView.Enums.ConnectionType.Ethernet;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
+        Connection_Type = Palladium.Enums.ConnectionType.Ethernet;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
     end
 
 

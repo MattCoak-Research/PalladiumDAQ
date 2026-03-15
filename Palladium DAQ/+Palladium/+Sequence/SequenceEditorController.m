@@ -16,7 +16,7 @@ classdef SequenceEditorController < handle
     methods
         function this = SequenceEditorController(controller, Settings)
             arguments
-                controller (1,1) CoakView.Core.Controller;
+                controller (1,1) Palladium.Core.Controller;
                 Settings.DefaultSequenceDirectory {mustBeText};
                 Settings.SequenceFileExtension {mustBeText};
             end
@@ -27,7 +27,7 @@ classdef SequenceEditorController < handle
             %Construct a DataReader object to handle the nuts and bolts of
             %reading files (designed like this so we can easily extend to
             %different file encoding types later)
-            this.DataReader = CoakView.DataWriting.DataReader();
+            this.DataReader = Palladium.DataWriting.DataReader();
 
             %Construct a DataWriter object - for saving figures
              %Assign into private property struct FileWriteDetails
@@ -37,7 +37,7 @@ classdef SequenceEditorController < handle
             fileWriteDetails.FileExtension = Settings.SequenceFileExtension;
             fileWriteDetails.SaveFile = true;
             fileWriteDetails.WriteMode = "Overwrite File";
-            this.DataWriter = CoakView.DataWriting.DataWriter(fileWriteDetails);
+            this.DataWriter = Palladium.DataWriting.DataWriter(fileWriteDetails);
         end
 
         %% CreateView
@@ -52,9 +52,9 @@ classdef SequenceEditorController < handle
             %from the desired filename
 
             %Construct the needed paths
-            viewDir = applicationDir + "\\+CoakView\\+Sequence\\+Views\\";
+            viewDir = applicationDir + "\\+Palladium\\+Sequence\\+Views\\";
             fullViewCodeFilePath = viewDir + viewFileName;
-            namespaceClassPath = "CoakView.Sequence.Views." + viewFileName;
+            namespaceClassPath = "Palladium.Sequence.Views." + viewFileName;
 
             %Check that this file exists in the expected folder
             assert(exist(fullViewCodeFilePath + ".m", "file") || exist(fullViewCodeFilePath + ".mlapp", "file"), "View file " + fullViewCodeFilePath + " not found");

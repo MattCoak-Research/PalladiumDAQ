@@ -45,7 +45,7 @@ classdef DataWriter < handle
                 fclose(fid);
 
                 %Find which line is the END METADATA line
-                mask = strcmp(lines, CoakView.DataWriting.DataWriter.END_METADATA_LINES_STRING);
+                mask = strcmp(lines, Palladium.DataWriting.DataWriter.END_METADATA_LINES_STRING);
                 endLineIdx = find(mask);
 
                 %Error checking
@@ -82,7 +82,7 @@ classdef DataWriter < handle
                 warning("Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying...");
                 errMess = string(err.message);
                 warning(errMess);
-                CoakView.Logging.Logger.Log("Info", "Writing of file to " + this.FileWriteDetails.FilePath + " failed." + " Error message: " + errMess);
+                Palladium.Logging.Logger.Log("Info", "Writing of file to " + this.FileWriteDetails.FilePath + " failed." + " Error message: " + errMess);
             end
         end
 
@@ -95,13 +95,13 @@ classdef DataWriter < handle
                 %Add '-Fig' to the filename, and then any needed 00x
                 %numbers to prevent file overwriting if multiple figures
                 %were saved on this same filename
-                fileNameWithoutExtension = CoakView.Utilities.FileLoading.PathUtils.GetIncrementedFileName(fullfile(string(directory), string(fileNameWithoutExtension)) + "-Fig.fig");
+                fileNameWithoutExtension = Palladium.Utilities.PathUtils.GetIncrementedFileName(fullfile(string(directory), string(fileNameWithoutExtension)) + "-Fig.fig");
 
                 %Save a .fig and a .png
                 saveas(figure, fullfile(directory, fileNameWithoutExtension + ".fig"));
                 saveas(figure, fullfile(directory, fileNameWithoutExtension + ".png"));
             catch e
-                CoakView.Utilities.ErrorHandling.ErrorHandler.HandleError('Error saving figure in DataWriter', e);
+                Palladium.Utilities.ErrorHandling.ErrorHandler.HandleError('Error saving figure in DataWriter', e);
             end
         end
 
@@ -111,7 +111,7 @@ classdef DataWriter < handle
             if(this.FileWriteDetails.SaveFile)
                 switch(this.FileWriteDetails.WriteMode)
                     case('Increment File No.')
-                        newFileName = CoakView.Utilities.FileLoading.PathUtils.GetIncrementedFileName(fullfile(string(this.FileWriteDetails.Directory), string(newFileName)) + string(this.FileWriteDetails.FileExtension));
+                        newFileName = Palladium.Utilities.PathUtils.GetIncrementedFileName(fullfile(string(this.FileWriteDetails.Directory), string(newFileName)) + string(this.FileWriteDetails.FileExtension));
                     case('Overwrite File')
                         if(exist(newFileName, 'file') == 2)  %If file exists already
                             delete(newFileName);    %delete the existing file, then carry on as if it neever existed!
@@ -160,7 +160,7 @@ classdef DataWriter < handle
                 end
             end
 
-            fprintf(fid, '%s\r\n', CoakView.DataWriting.DataWriter.END_METADATA_LINES_STRING);
+            fprintf(fid, '%s\r\n', Palladium.DataWriting.DataWriter.END_METADATA_LINES_STRING);
             fprintf(fid, '%s\r\n', "");
             fprintf(fid, '%s\r\n', headers);
             fclose(fid);
@@ -181,13 +181,13 @@ classdef DataWriter < handle
                      warning("Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying...");
                      errMess = string(err.message);
                      warning(errMess);
-                     CoakView.Logging.Logger.Log("Info", "Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying..." + " Error message: " + errMess);
+                     Palladium.Logging.Logger.Log("Info", "Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying..." + " Error message: " + errMess);
                  end
              end
 
              %If we got here, we tried N times to write to the file and it
              %didn't work - warn
-             CoakView.Logging.Logger.Log("Warning", "Writing of file to " + this.FileWriteDetails.FilePath + " failed after " + num2str(numRetries) + " attempts. Data have been lost." + " Last error: " + errMess);
+             Palladium.Logging.Logger.Log("Warning", "Writing of file to " + this.FileWriteDetails.FilePath + " failed after " + num2str(numRetries) + " attempts. Data have been lost." + " Last error: " + errMess);
          end
 
         %% WriteLine
@@ -203,13 +203,13 @@ classdef DataWriter < handle
                     warning("Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying...");
                     errMess = string(err.message);
                     warning(errMess);
-                    CoakView.Logging.Logger.Log("Info", "Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying..." + " Error message: " + errMess);
+                    Palladium.Logging.Logger.Log("Info", "Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying..." + " Error message: " + errMess);
                 end
             end
 
             %If we got here, we tried N times to write to the file and it
             %didn't work - warn
-            CoakView.Logging.Logger.Log("Warning", "Writing of file to " + this.FileWriteDetails.FilePath + " failed after " + num2str(numRetries) + " attempts. Data have been lost." + " Last error: " + errMess);
+            Palladium.Logging.Logger.Log("Warning", "Writing of file to " + this.FileWriteDetails.FilePath + " failed after " + num2str(numRetries) + " attempts. Data have been lost." + " Last error: " + errMess);
         end
     end
 

@@ -1,4 +1,4 @@
-classdef TestInstrument < CoakView.Core.Instrument
+classdef TestInstrument < Palladium.Core.Instrument
     %Instrument implementation for .. insert details here
     %Make a copy of this class and modify it when adding a new instrument
 
@@ -8,7 +8,7 @@ classdef TestInstrument < CoakView.Core.Instrument
 
     properties(Access = public, SetObservable)
         Name = 'TestInstrument';                            %Instrument name
-        Connection_Type = CoakView.Enums.ConnectionType.Debug;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
+        Connection_Type = Palladium.Enums.ConnectionType.Debug;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
     end
 
     properties(Access = private)

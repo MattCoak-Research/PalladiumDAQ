@@ -1,23 +1,23 @@
-function Testing(coakView, gui)
-%Testing - Testing preset for CoakView for developing on office PCs - all
+function Testing(palladium, gui)
+%Testing - Testing preset for Palladium for developing on office PCs - all
 %debug, no hardware, testing new commands etc
 
 %Programmatically sets various parameters and GUI
 %preferences to suit a particular setup or experiment. 
 
 %Settings and values
-coakView.SetUpdateTime(0.2);
+palladium.SetUpdateTime(0.2);
 
 
 %Add the Lakeshore 370 temperature controller and configure it
-ls370 = coakView.AddInstrument("Lakeshore370");
-ls370.Connection_Type = CoakView.Enums.ConnectionType.Debug;
+ls370 = palladium.AddInstrument("Lakeshore370");
+ls370.Connection_Type = Palladium.Enums.ConnectionType.Debug;
 ls370.Ch_Name = "Sample Temperature (K)";
 
 
 %Add the Lakeshore 340 temperature controller and configure it
-ls350 = coakView.AddInstrument("Lakeshore350");
-ls350.Connection_Type = CoakView.Enums.ConnectionType.Debug;
+ls350 = palladium.AddInstrument("Lakeshore350");
+ls350.Connection_Type = Palladium.Enums.ConnectionType.Debug;
 ls350.Ch_A_Name = "1K Plate Temperature (K)";
 ls350.Ch_B_Name = "Sorb Temperature (K)";
 ls350.ControlChannel = "B";
@@ -25,8 +25,8 @@ ls350.ControlChannel = "B";
 
 
 %Add a Keithley
-k = coakView.AddInstrument("Keithley2000");
-k.Connection_Type = CoakView.Enums.ConnectionType.Debug;
+k = palladium.AddInstrument("Keithley2000");
+k.Connection_Type = Palladium.Enums.ConnectionType.Debug;
 %Add the first listed control
 gui.AddInstrumentControl(k, k.GetControlOption("Sweep Control"));
 

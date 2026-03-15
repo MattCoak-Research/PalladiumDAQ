@@ -1,6 +1,6 @@
 classdef Logger < handle
     %Logger - Singleton static instance class for handling logging to
-    %command line / file / GUI in CoakView
+    %command line / file / GUI in Palladium
     %Create an instance of this from Controller initialisation
 
 
@@ -16,7 +16,7 @@ classdef Logger < handle
         %% Constructor
         function this = Logger(controller, LogFileDirectory, LogFileFileName, Settings)
             arguments
-                controller                                          (1,1) CoakView.Core.Controller;
+                controller                                          (1,1) Palladium.Core.Controller;
                 LogFileDirectory                                    {mustBeTextScalar};
                 LogFileFileName                                     {mustBeTextScalar};
                 Settings.CommandWindowMessageLevel                  {mustBeTextScalar, mustBeMember(Settings.CommandWindowMessageLevel, ["Off", "Debug", "Info", "Warning", "Error"])}  = "Debug";      %Messages at or above this severity level will be passed on to Command Window
@@ -29,7 +29,7 @@ classdef Logger < handle
 
             %This slightly clumsy pass-through boilerplate allows choosing
             %Logger settings on constructing it, then those options
-            CoakView.Logging.Logger.Log("Debug", "Logger created",...
+            Palladium.Logging.Logger.Log("Debug", "Logger created",...
                 "LogFileDirectory", LogFileDirectory,...
                 "LogFileFileName", LogFileFileName,...
                 "CommandWindowMessageLevel", Settings.CommandWindowMessageLevel,...
@@ -176,20 +176,20 @@ classdef Logger < handle
             end
 
             %Logging to CommandWindow
-            if CoakView.Logging.Logger.IsSeverityLevelAboveCutoff(level, CommandWindowMessageLevel)
-                CoakView.Logging.Logger.LogToCommandWindow(level, string(message), PrintStackTraceInCommandWindow);
+            if Palladium.Logging.Logger.IsSeverityLevelAboveCutoff(level, CommandWindowMessageLevel)
+                Palladium.Logging.Logger.LogToCommandWindow(level, string(message), PrintStackTraceInCommandWindow);
             end
 
             %Logging to GUI
-            if CoakView.Logging.Logger.IsSeverityLevelAboveCutoff(level, GUIMessageLevel)
-                CoakView.Logging.Logger.LogToGUI(level, string(message), Controller);
+            if Palladium.Logging.Logger.IsSeverityLevelAboveCutoff(level, GUIMessageLevel)
+                Palladium.Logging.Logger.LogToGUI(level, string(message), Controller);
             end
 
             %Logging to File - note that this will use FullMessage, others
             %will not
-            if CoakView.Logging.Logger.IsSeverityLevelAboveCutoff(level, LogFileMessageLevel)
-                filePath = CoakView.Logging.Logger.ConstructFilePath(LogFileDirectory, LogFileFileName);
-                CoakView.Logging.Logger.LogToFile(level, string(fullMessage), filePath);
+            if Palladium.Logging.Logger.IsSeverityLevelAboveCutoff(level, LogFileMessageLevel)
+                filePath = Palladium.Logging.Logger.ConstructFilePath(LogFileDirectory, LogFileFileName);
+                Palladium.Logging.Logger.LogToFile(level, string(fullMessage), filePath);
             end
 
         end
@@ -200,7 +200,7 @@ classdef Logger < handle
 
         %% ConstructFilePath
         function path = ConstructFilePath(logFileDirectory, logFileFileName)
-            fileName = CoakView.Logging.Logger.ReplaceDateTag(logFileFileName);
+            fileName = Palladium.Logging.Logger.ReplaceDateTag(logFileFileName);
 
             %Make the config folder if it doesn't exist already
             if ~exist(logFileDirectory, 'dir')
@@ -289,7 +289,7 @@ classdef Logger < handle
                     %Add a bit of text before the message to indicate its severity
                     %ie [INFO] : "Here is some info"
                     %Only both doing this for warnings and errors
-                    fullMessage = CoakView.Logging.Logger.GetLevelText(level) + message;
+                    fullMessage = Palladium.Logging.Logger.GetLevelText(level) + message;
                     if(printStackTraceInCommandWindow)
                         warning(fullmessage, "backtrace", "on", "verbose", "on");
                     else
@@ -317,7 +317,7 @@ classdef Logger < handle
             end
 
             %Pass through the message and a colour to symbolise its
-            %severity to the CoakView controller, to display however it
+            %severity to the Palladium controller, to display however it
             %seems best
             if ~isempty(controller)
                 controller.ShowMessageInGUI(colour, message);
@@ -330,7 +330,7 @@ classdef Logger < handle
 
             %Add a bit of text before the message to indicate its severity
             %ie [INFO] : "Here is some info"
-            fullMessage = CoakView.Logging.Logger.GetLevelText(level) + "(" + CoakView.Logging.Logger.GetTimeStamp() + ") : " + string(message);
+            fullMessage = Palladium.Logging.Logger.GetLevelText(level) + "(" + Palladium.Logging.Logger.GetTimeStamp() + ") : " + string(message);
 
             for i = 1 : 3   %try 3 times to open the file
                 try
