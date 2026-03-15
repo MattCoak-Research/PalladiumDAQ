@@ -3,7 +3,7 @@ classdef ConfigIO < handle
     %settings to and from (XML) files.
     
     properties(Access = public)
-        ConfigDirectory = filesep + ".." + filesep + ".." + filesep + ".." + filesep + ".." + filesep + ".." + filesep + "CoakViewSettings" + filesep;
+        ConfigDirectory = filesep + ".." + filesep + ".." + filesep + ".." + filesep + ".." + filesep + ".." + filesep + "Palladium DAQ - Settings" + filesep;
         PromptForGUIEntryOfSettings = true;
     end
 
@@ -28,7 +28,7 @@ classdef ConfigIO < handle
                     %Show a warning in the command window - note that we do
                     %not have a Logger yet and so cannot use that
                     fprintf("\n");
-                    disp("[INFO] - Config file not found at " + CoakView.Utilities.FileLoading.PathUtils.CleanPath(configPath));
+                    disp("[INFO] - Config file not found at " + Palladium.Utilities.PathUtils.CleanPath(configPath));
                     
                     if this.PromptForGUIEntryOfSettings
                         disp("Opening GUI window for config settings entry.");
@@ -102,7 +102,7 @@ classdef ConfigIO < handle
         function s = GenerateDefaultConfigStruct(this)
 
              %% ------- Edit default config values / add new ones here ----
-                s.LogSettings.LogFileDirectory = filesep + ".." + filesep + ".." + filesep + "CoakViewTesting" + filesep + "Logs";
+                s.LogSettings.LogFileDirectory = filesep + ".." + filesep + ".." + filesep + "Palladium DAQ - Testing" + filesep + "Logs";
                 s.LogSettings.LogFileFileName = "<DATE>_Log.txt";
                 s.LogSettings.LogFileDirectoryIsRelativePath = true;
                 s.LogSettings.CommandWindowMessageLevel = "Debug";
@@ -112,8 +112,8 @@ classdef ConfigIO < handle
                 s.LogSettings.ErrorOnAllInstrumentErrors = false;
                
                 s.PathSettings.DefaultFileName = "<DATE>_Filename";
-                s.PathSettings.DefaultDirectory = filesep + ".." + filesep + ".." + filesep + "CoakViewTesting";
-                s.PathSettings.DefaultSequenceDirectory = filesep + ".." + filesep + ".." + filesep + "CoakViewTesting";
+                s.PathSettings.DefaultDirectory = filesep + ".." + filesep + ".." + filesep + "Palladium DAQ - Testing";
+                s.PathSettings.DefaultSequenceDirectory = filesep + ".." + filesep + ".." + filesep + "Palladium DAQ - Testing";
                 s.PathSettings.DataDirectoryIsRelativePath = true;
                 s.PathSettings.SequenceDirectoryIsRelativePath = true;
                 s.PathSettings.DataFileExtension = ".dat";
@@ -146,7 +146,7 @@ classdef ConfigIO < handle
         %% ShowConfigEntryGUI
         function con = ShowConfigEntryGUI(this, initialConfig)  
             con = initialConfig;
-            c = CoakView.Components.ConfigInputWindow();
+            c = Palladium.Components.ConfigInputWindow();
 
             c.SetInitialValues(...
                 "DefaultDataDirectory", initialConfig.PathSettings.DefaultDirectory,...
@@ -175,11 +175,11 @@ classdef ConfigIO < handle
 
                 %Clean up file paths and make desired ones relative instead
                 %of absolute
-                con.PathSettings.DefaultDirectory = CoakView.Utilities.FileLoading.PathUtils.CleanPath(con.PathSettings.DefaultDirectory);
-                con.LogSettings.LogFileDirectory = CoakView.Utilities.FileLoading.PathUtils.CleanPath(con.LogSettings.LogFileDirectory);
+                con.PathSettings.DefaultDirectory = Palladium.Utilities.PathUtils.CleanPath(con.PathSettings.DefaultDirectory);
+                con.LogSettings.LogFileDirectory = Palladium.Utilities.PathUtils.CleanPath(con.LogSettings.LogFileDirectory);
 
                 if con.PathSettings.DataDirectoryIsRelativePath
-                    [p, success] = CoakView.Utilities.FileLoading.PathUtils.MakeFilePathRelative(con.PathSettings.DefaultDirectory);
+                    [p, success] = Palladium.Utilities.PathUtils.MakeFilePathRelative(con.PathSettings.DefaultDirectory);
                     if success
                         con.PathSettings.DefaultDirectory = p;
                     else %Handle case of failing to find a relative path to extract - if the folder given was on a different drive for instance. Path remains absolute, and disable the relative toggle
@@ -188,7 +188,7 @@ classdef ConfigIO < handle
                 end
 
                 if con.LogSettings.LogFileDirectoryIsRelativePath
-                    [p, success] = CoakView.Utilities.FileLoading.PathUtils.MakeFilePathRelative(con.LogSettings.LogFileDirectory);
+                    [p, success] = Palladium.Utilities.PathUtils.MakeFilePathRelative(con.LogSettings.LogFileDirectory);
                     if success
                         con.LogSettings.LogFileDirectory = p;
                     else
@@ -209,7 +209,7 @@ classdef ConfigIO < handle
             %the config struct that appear in the default reference one,
             %and remove any that are not found in the ref (and therefore
             %must be obseleted)
-            [changesDetected, con] = CoakView.Utilities.FileLoading.ConfigIO.AdjustStructsToMatch(con, df, changesDetected);
+            [changesDetected, con] = Palladium.Utilities.ConfigIO.AdjustStructsToMatch(con, df, changesDetected);
 
             %Grab these again, as they may have changed above (but should
             %now match)
@@ -223,7 +223,7 @@ classdef ConfigIO < handle
                 cfName = conFlds{i};
 
                 %Clean up this sub-struct
-                [changesDetected, newStrct] = CoakView.Utilities.FileLoading.ConfigIO.AdjustStructsToMatch(con.(cfName), df.(cfName), changesDetected);
+                [changesDetected, newStrct] = Palladium.Utilities.ConfigIO.AdjustStructsToMatch(con.(cfName), df.(cfName), changesDetected);
                 con.(cfName) = newStrct;
             end
             
