@@ -69,9 +69,9 @@ classdef Logger < handle
             %user's error.
             message = string(message) + ": " + string(err.message);
             if( strcmp(UserErrorFile, TopErrorFile))
-                ErrorString = sprintf("Error in " + TopErrorName + " - line " + num2str(TopErrorLine) + "\n\n" + message);
+                ErrorString = string(sprintf("Error in " + TopErrorName + " - line " + num2str(TopErrorLine) + "\n\n")) + string(message);
             else
-                ErrorString = sprintf("Error in Matlab function " + TopErrorName + " - line " + num2str(TopErrorLine) + ":\n\n" + message + "\n\nError in user function " + UserErrorName + " - line " + num2str(UserErrorLine) + ".");
+                ErrorString = string(sprintf("Error in Matlab function " + TopErrorName + " - line " + num2str(TopErrorLine) + ":\n\n")) + string(message) + string(sprintf("\n\nError in user function " + UserErrorName + " - line " + num2str(UserErrorLine) + "."));
             end
 
             if isempty(uiFigureHandle)  %If we do not have a uiFigure GUI to create modal dialogue boses in..
@@ -79,7 +79,7 @@ classdef Logger < handle
                 %to do
                 msg = ErrorString;
                 title = "Error";
-                ErrorQuestResult = questdlg(sprintf(msg), title, ...
+                ErrorQuestResult = questdlg(string(msg), title, ...
                     "Stop Measurements", "Stop & Go to Code", "Ignore", "Ignore");
             else
                 %Show a modal dialogue box asking the user what they want
@@ -87,7 +87,7 @@ classdef Logger < handle
                 fig = uiFigureHandle;
                 msg = ErrorString;
                 title = "Error";
-                ErrorQuestResult = uiconfirm(fig, sprintf(msg), title, ...
+                ErrorQuestResult = uiconfirm(fig, string(msg), title, ...
                     "Options", ["Stop Measurements", "Stop & Go to Code", "Suppress Error", "Ignore"], ...
                     "Icon","warning", "Interpreter", "HTML",...
                     "DefaultOption", 1, "CancelOption", 4);
@@ -293,7 +293,7 @@ classdef Logger < handle
                     if(printStackTraceInCommandWindow)
                         warning(fullmessage, "backtrace", "on", "verbose", "on");
                     else
-                        fprintf(2, "\n" + fullMessage + "\n\n");    %fprintf with red text writes to command window in RED
+                        fprintf(2, "\n" + strrep(fullMessage, '\', '\\') + "\n\n");    %fprintf with red text writes to command window in RED. Replace any '\' with '\\, assuming them to be file path separators
                     end
                 otherwise
                     error("Unsupported level in Logger: " + level);
