@@ -300,7 +300,7 @@ classdef Controller < handle
                 this.DefaultDataDir = Palladium.Utilities.PathUtils.CleanPath(this.PathSettings.DefaultDirectory);
 
                 %Retrieve iconPath to pass to a GUI
-                this.WindowSettings.PalladiumIconPath = this.ApplicationDir + "\+Palladium\+Components\Graphics\PalladiumIcon.png";
+                this.WindowSettings.PalladiumIconPath = this.ApplicationDir + "\+Palladium\+Components\Graphics\PalladiumDAQIcon.png";
 
                 %Send settings to the GUI
                 args = Palladium.Events.SettingsChangedEventData(this.PathSettings, this.WindowSettings);
@@ -482,7 +482,7 @@ classdef Controller < handle
 
         %% OnFigureClosed
         function OnFigureClosed(this)
-            this.Log("Debug", "Coak View closed", "Yellow", "Closing");
+            this.Log("Debug", "Palladium DAQ closed", "Yellow", "Closing");
             this.Closing = true;
             this.TimingLoopController.CloseTimer();
             this.InstrumentController.CloseAll();

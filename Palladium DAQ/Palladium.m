@@ -58,7 +58,9 @@ classdef Palladium < handle
             %Apply a preset, if specified in the optional arguments
             if ~isempty(Settings.Preset)
                 presetFn = this.LoadPreset(Settings.Preset);
-                this.ApplyPreset(presetFn, view);
+                if ~isempty(presetFn)   %ie did it load succesfully
+                    this.ApplyPreset(presetFn, view);
+                end
             end
 
             %Tell the controller we have finished loading everything and
@@ -212,6 +214,7 @@ classdef Palladium < handle
 
         %% LoadPreset
         function presetFn = LoadPreset(this, presetName)
+            presetFn = [];
             %Display a status message in the logger
             this.Controller.ShowStatus('Yellow', 'Loading Preset');
 
@@ -221,8 +224,8 @@ classdef Palladium < handle
                 presetPath = fullfile(presetsDir, presetName) + ".m";
 
                 %Error checking
-                assert(exist(presetsDir,"dir") == 7, "Presets directory " + presetsDir + " not found");
-                assert(exist(presetPath,"file") == 2, "Preset file " + presetPath + " not found");
+                assert(exist(presetsDir,"dir") == 7, "Presets directory " + string(presetsDir) + " not found");
+                assert(exist(presetPath,"file") == 2, "Preset file " + string(presetPath) + " not found");
 
                 %Load the present in as a function handle
                 presetFn = Palladium.Utilities.PluginLoading.InstantiatePreset("PalladiumPresets", presetName);
