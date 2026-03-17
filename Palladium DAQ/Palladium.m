@@ -78,13 +78,26 @@ classdef Palladium < handle
             end
 
             %Pass through to Controller
-            instRef = this.Controller.InstrumentController.AddInstrument(instrumentClassName, Name=settings.Name, ConnectionType=settings.ConnectionType);
+            instRef = this.Controller.InstrumentController.AddInstrument(string(instrumentClassName), Name=string(settings.Name), ConnectionType=settings.ConnectionType);
         end
 
         %% AddInstrumentControl
         function cont = AddInstrumentControl(this, instrRef, controlDetailsStruct)
             %Pass on to the View
             cont = this.View.AddInstrumentControl(instrRef, controlDetailsStruct);
+        end
+
+        %% Close
+        function Close(this)
+            if ~isempty(this.View)
+                this.View.Close();
+            else
+                this.Controller.OnFigureClosed();
+            end
+            delete(this.View);
+            delete(this.Controller);
+            this.View = [];
+            this.Controller = [];
         end
 
         %% GetAllInstrumentClassNames

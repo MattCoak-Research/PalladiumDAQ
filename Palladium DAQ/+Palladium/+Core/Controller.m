@@ -173,7 +173,7 @@ classdef Controller < handle
             end
 
             canStart = true;
-        end       
+        end      
 
         %% CloseProgress
         function CloseProgress(this)
