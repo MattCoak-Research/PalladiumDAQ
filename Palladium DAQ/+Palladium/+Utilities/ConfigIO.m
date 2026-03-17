@@ -3,7 +3,7 @@ classdef ConfigIO < handle
     %settings to and from (XML) files.
     
     properties(Access = public)
-        ConfigDirectory = filesep + ".." + filesep + ".." + filesep + ".." + filesep + ".." + filesep + "Palladium DAQ - Settings" + filesep;
+        ConfigDirectory = filesep + ".." + filesep + ".." + filesep + ".." + filesep + "Palladium DAQ - Settings" + filesep;
         PromptForGUIEntryOfSettings = true;
     end
 
