@@ -21,14 +21,17 @@ helpsearch*/
 slprj/
 sccprj/
 
+# Settings folder
+Palladium DAQ - Settings/
+
 # Drivers
-CoakView/Instrument Drivers/Paragraf MIST/
-CoakView/Instrument Drivers/Zurich Instruments/
-CoakView/Instrument Drivers/Quantum Design/
+Palladium DAQ/Instrument Drivers/Paragraf MIST/
+Palladium DAQ/Instrument Drivers/Zurich Instruments/
+Palladium DAQ/Instrument Drivers/Quantum Design/
 
 # Presets other than the default example and the PPMS example
-CoakView/+CoakViewPresets/ADR.m
-CoakView/+CoakViewPresets/Testing.m
+Palladium DAQ/+PalladiumPresets/ADR.m
+Palladium DAQ/+PalladiumPresets/Testing.m
 
 # Batch script
 coakviewpush.bat
