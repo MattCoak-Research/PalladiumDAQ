@@ -25,9 +25,8 @@ To run CoakView MATLAB version 2025b is required with the Instrument Control Too
 * Open the **Test Browser** App and use this to select which of the test files to run.
 * Run the tests using the **Run** button.
 * To run individual tests in a test file:
-    * Open the file in the editor window
-    * Move the cursor to the required test
-    * Select 'Run Current Test' from the editor toolbar
+    * Right click on the required test in the Test Browser
+    * Select 'Run Test' from the dropdown menu
 * Test results will be shown in the Test Browser dialog.
 
 ## License

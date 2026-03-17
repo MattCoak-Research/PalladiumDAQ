@@ -60,13 +60,15 @@ classdef DataReader < handle
             cellArray = strsplit(line, "\t");
             for i = 1 : length(cellArray)
                 if ~isempty(cellArray{i})
+                    % Check that header line is not purely numeric
+                    % (probably first line of data due to missing headers)
                     assert(isnan(str2double(cellArray{i})), 'DataReader:NumericHeaderString', "Numeric data in headers row");
                     headersStrArray = [headersStrArray string(cellArray{i})];
                 end
             end
 
 
-            %Error checking
+            % Error checking - that header is not missing
             assert(~isempty(headersStrArray), 'DataReader:NoHeaderString', "Headers row loaded from file empty");
         end
 
