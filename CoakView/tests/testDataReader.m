@@ -4,6 +4,7 @@ classdef testDataReader < matlab.unittest.TestCase
         FileName = fullfile('data', 'DataReaderTest.dat');
         NoMetaMarkerFile = fullfile('data', 'DataReaderNoMetaMarker.dat');
         NoHeaderStringFile = fullfile('data', 'DataReaderNoHeaderString.dat');
+        HeaderStringSpaceFile = fullfile('data', 'DataReaderHeaderStringSpace.dat')
         expectedMetadata = ["<<< CoakView data file 3.0 >>>", "", "" "<Instrument Settings and Metadata>"];
         expectedColNames = ["Time (mins)"	"Channel A Temperature (K)"	"Channel B Temperature (K)"	"Ls331_1 Heater Power (W)"];
         expectedDataArray = [29545432.2083213	100.814723686393	100.905791937076	0.452857203366604;
@@ -43,13 +44,21 @@ classdef testDataReader < matlab.unittest.TestCase
            verifyError(testCase, @() testCase.reader.ReadFile(''), 'DataReader:OpenFileFailure');
        end
 
+       % Meta data marker <<< END METADATA LINES >>> is missing
        function testNoMetadataMarker(testCase)
            verifyError(testCase, @() testCase.reader.ReadFile(testCase.NoMetaMarkerFile), ...
                'DataReader:NoMetadataMarker');
        end
 
+       % If no header string will read first row of data instead
        function testNoHeaderString(testCase)
            verifyError(testCase, @() testCase.reader.ReadFile(testCase.NoHeaderStringFile), ...
+               'DataReader:NumericHeaderString');
+       end
+
+       % No header string but extra line space in file so reads empty row
+       function testHeaderStringSpace(testCase)
+           verifyError(testCase, @() testCase.reader.ReadFile(testCase.HeaderStringSpaceFile), ...
                'DataReader:NoHeaderString');
        end
       

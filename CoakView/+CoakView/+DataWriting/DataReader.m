@@ -60,6 +60,7 @@ classdef DataReader < handle
             cellArray = strsplit(line, "\t");
             for i = 1 : length(cellArray)
                 if ~isempty(cellArray{i})
+                    assert(isnan(str2double(cellArray{i})), 'DataReader:NumericHeaderString', "Numeric data in headers row");
                     headersStrArray = [headersStrArray string(cellArray{i})];
                 end
             end
