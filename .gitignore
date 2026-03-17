@@ -24,6 +24,7 @@ sccprj/
 # Drivers
 CoakView/Instrument Drivers/Paragraf MIST/
 CoakView/Instrument Drivers/Zurich Instruments/
+CoakView/Instrument Drivers/Quantum Design/
 
 # Presets other than the default example and the PPMS example
 CoakView/+CoakViewPresets/ADR.m
