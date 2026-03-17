@@ -21,13 +21,13 @@ classdef testDataReader < matlab.unittest.TestCase
     methods (TestMethodSetup)
         % Setup for each test
         function SetupDataReader(testCase)
-            testCase.reader = CoakView.DataWriting.DataReader();
+            testCase.reader = Palladium.DataWriting.DataReader();
         end
     end
 
     methods (Test)
         function testReadFile(testCase)
-            % reader = CoakView.DataWriting.DataReader();
+            % reader = Palladium.DataWriting.DataReader();
             [headerMetadataLines, dataColNames, dataArray] = testCase.reader.ReadFile(testCase.FileName);
 
             % Verify metadata lines
