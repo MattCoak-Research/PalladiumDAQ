@@ -14,6 +14,9 @@ classdef DataReader < handle
         function [headerMetadataLines, dataColNames, dataArray] = ReadFile(this, filePath)
             % Open the text file.
             fileID = fopen(filePath, 'r');
+            if fileID == -1
+                error('DataReader:OpenFileFailure','Failed to open data file');
+            end
 
             %Read metadata (and work out how many lines it was so we know
             %where to read the Headers Row)
@@ -57,13 +60,16 @@ classdef DataReader < handle
             cellArray = strsplit(line, "\t");
             for i = 1 : length(cellArray)
                 if ~isempty(cellArray{i})
+                    % Check that header line is not purely numeric
+                    % (probably first line of data due to missing headers)
+                    assert(isnan(str2double(cellArray{i})), 'DataReader:NumericHeaderString', "Numeric data in headers row");
                     headersStrArray = [headersStrArray string(cellArray{i})];
                 end
             end
 
 
-            %Error checking
-            assert(~isempty(headersStrArray), "Headers row loaded from file empty");
+            % Error checking - that header is not missing
+            assert(~isempty(headersStrArray), 'DataReader:NoHeaderString', "Headers row loaded from file empty");
         end
 
         %% ScanFileForMetadataRows
@@ -103,7 +109,7 @@ classdef DataReader < handle
             %Handle the case where we never found the header string and
             %reached end of file
             if(~success)
-                error('Could not find headers in datafile');
+                error('DataReader:NoMetadataMarker','Could not find headers in datafile');
             end
         end
     end
