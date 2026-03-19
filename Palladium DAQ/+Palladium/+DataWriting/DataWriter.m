@@ -87,10 +87,19 @@ classdef DataWriter < handle
         end
 
         %% SaveFigure
-        function SaveFigure(~, figure, directory, fileNameWithoutExtension)
+        function SaveFigure(~, figure, ax, directory, fileNameWithoutExtension)
             try
-                %Add a title to the plot
-                title(strrep(fileNameWithoutExtension, '_', ' '));
+                %Add a title to the plot, if the axes don't already have
+                %one
+                if isempty(ax.Title.String)
+                    title(strrep(fileNameWithoutExtension, '_', ' '));
+                else
+                    if iscell(ax.Title.String)
+                        fileNameWithoutExtension = ax.Title.String{1};
+                    else
+                        fileNameWithoutExtension = string(ax.Title.String);
+                    end
+                end
 
                 %Add '-Fig' to the filename, and then any needed 00x
                 %numbers to prevent file overwriting if multiple figures
@@ -101,7 +110,7 @@ classdef DataWriter < handle
                 saveas(figure, fullfile(directory, fileNameWithoutExtension + ".fig"));
                 saveas(figure, fullfile(directory, fileNameWithoutExtension + ".png"));
             catch e
-                Palladium.Utilities.ErrorHandling.ErrorHandler.HandleError('Error saving figure in DataWriter', e);
+                error("Error saving figure in DataWriter" + string(e.message));
             end
         end
 

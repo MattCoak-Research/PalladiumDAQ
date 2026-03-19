@@ -801,7 +801,7 @@ classdef Controller < handle
             try
                 %Save the figure and a png to file using the existing
                 %DataWriter
-                this.DataWriter.SaveFigure(eventData.Figure, this.FileWriteDetails.Directory, this.FileWriteDetails.FileName);
+                this.DataWriter.SaveFigure(eventData.Figure, eventData.Axes, this.FileWriteDetails.Directory, this.FileWriteDetails.FileName);
 
                 %Display a status message in the logger
                 this.Log("Info", "Plot saved", "Green", "Plot saved");

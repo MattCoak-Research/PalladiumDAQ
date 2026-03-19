@@ -149,9 +149,10 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
            this.Aborted = false;
            this.ClearData();
 
-           if this.ControlDetailsStruct.SweepDetails.SaveSweepFile
-               this.CreateDataFile();
-           end
+           %Set up a DataWriter, which will do things like generate the
+           %Sweep Name, and pass in a bool to say if it will actually do any writing to file 
+           this.CreateDataFile(this.ControlDetailsStruct.SweepDetails.SaveSweepFile);
+           this.UpdatePlotterSavedPlotTitle();
         end
 
         %% RefreshUnitsAndLimits
@@ -327,7 +328,7 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
     methods (Access = private)
 
         %% CreateDataFile
-        function CreateDataFile(this)
+        function CreateDataFile(this, writeToFile)
             %Create or reset the data writer class
             fileNameSuffix = this.ControlDetailsStruct.SweepDetails.FileName;
             this.DataWriter = this.InitialiseDataWriter(fileNameSuffix);
@@ -347,7 +348,7 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
 
             %Create new file and write metadata and headers
             extraMetadataLines = [sweepMetadataDescLine, sweepMetadataLine];
-            this.StartNewDataFile(this.DataWriter, headers, extraMetadataLines);
+            this.StartNewDataFile(this.DataWriter, headers, extraMetadataLines, writeToFile);
         end
 
         %% ClearData
@@ -423,6 +424,11 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
                 end
             end
         end 
+
+        %% UpdatePlotterSavedPlotTitle
+        function UpdatePlotterSavedPlotTitle(this)
+            this.Plotter.TitleForCopiedPlots = this.DataWriter.FileWriteDetails.FileName;
+        end
 
     end
 

@@ -261,7 +261,7 @@ classdef InstrumentControlBase < handle
         end
 
         %% StartNewDataFile
-        function StartNewDataFile(this, dataWriter, headers, extraMetadataLines)
+        function StartNewDataFile(this, dataWriter, headers, extraMetadataLines, writeToFile)
 
             %This will increment the number of the filename etc
             dataWriter.ValidateFilePath();
@@ -275,8 +275,12 @@ classdef InstrumentControlBase < handle
             metadataDescLine = this.Instrument.FullName + " Scan - Measurement data at Scan Start:";
             metadataLine = this.Instrument.GrabMetadataString();
 
-            %Write to file
-            dataWriter.WriteHeaders(headers, "MetadataLines", [metadataDescLine, dataRowMetadataLine, metadataLine, extraMetadataLines]);
+            %Write to file  - we can set this as false so we still generate
+            %all the names etc for the Sweep via the DataWriter, but never
+            %actually write anything
+            if (writeToFile)
+                dataWriter.WriteHeaders(headers, "MetadataLines", [metadataDescLine, dataRowMetadataLine, metadataLine, extraMetadataLines]);
+            end
         end
 
     end
