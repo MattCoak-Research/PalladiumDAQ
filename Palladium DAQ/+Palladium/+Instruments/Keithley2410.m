@@ -28,6 +28,9 @@ classdef Keithley2410 < Palladium.Core.Instrument
             this.GPIB_Address = 24;      %Default Address
             this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];
 
+            %Define the Instrument Controls that can be added 
+            this.DefineInstrumentControl(Name = "Sweep Control", ClassName = "SweepController_Stepped", TabName = "Sweep Control", EnabledByDefault = false);
+     
             %Make sure to set values for Properties of Categorical type
             %like these
             this.MeasMode = this.MeasType("Resistance");
