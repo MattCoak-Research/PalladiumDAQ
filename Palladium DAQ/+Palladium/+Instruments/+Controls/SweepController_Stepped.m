@@ -85,7 +85,8 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
             
             %Create grid and Sweepcontrol component and position them in the
             %tab.
-            grid = uigridlayout(tab, "ColumnWidth", {10, 'fit', '1x'}, "RowHeight", {10, 'fit', 10, '1x'}, 'RowSpacing', 2);
+            grid = uigridlayout(tab, "ColumnWidth", {10, 500, '1x'}, "RowHeight", {10, '1x', 10}, 'RowSpacing', 2);
+            grid.Scrollable = true;
             comp = Palladium.Instruments.Controls.SweepSetupControl_Stepped(grid);
             comp.Layout.Row = 2;
             comp.Layout.Column = 2;
@@ -118,13 +119,13 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
                     %Don't register the plotter centrally, as we will push data to it only when the sweep is running, 
                     %and clear it on sweep start.                  
                     this.Plotter = controller.AddNewPlotter(grid, Size="Medium", RegisterPlotter=false);    %Don't register the plotter centrally, as we will push data to it only when the sweep is running, and clear it on sweep start. This does mean, for now at least, that the Plotter is not hooked up
-                    this.Plotter.Layout.Row = [2 4];
+                    this.Plotter.Layout.Row = 2;
                     this.Plotter.Layout.Column = 3;
                     ltr = addlistener(this.Plotter, 'AxesSelectionChange', @(src,evnt)this.PlotterAxesSelectionChange(src));
                     this.RegisterEventListener(ltr);
                 case("Simple")
                     this.Plotter = controller.AddNewSimplePlotter(grid, "Medium");
-                    this.Plotter.Layout.Row = [2 4];
+                    this.Plotter.Layout.Row = 2;
                     this.Plotter.Layout.Column = 3;
                 otherwise
                     error("Unsupported Plotter type in SweepController_Stepped");
