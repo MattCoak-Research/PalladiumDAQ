@@ -34,4 +34,4 @@ Palladium DAQ/+PalladiumPresets/ADR.m
 Palladium DAQ/+PalladiumPresets/Testing.m
 
 # Batch script
-coakviewpush.bat
+palladium_push.bat
