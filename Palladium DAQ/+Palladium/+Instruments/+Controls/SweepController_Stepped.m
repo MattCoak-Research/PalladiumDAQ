@@ -101,6 +101,7 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
             addlistener(comp, 'Run', @(src,evnt)this.SweepRun(src, evnt));
             addlistener(comp, 'Abort', @(src,evnt)this.SweepAbort(src, evnt));
             addlistener(comp, 'SweepDataChange', @(src,evnt)this.SweepDataChanged(src, evnt));
+            addlistener(comp, 'InsertSmartTag', @(src,evnt)this.InsertSmartTagRequest(src, evnt, controller));
 
             %And to the event fired when instrument properties change! Note
             %that we have to store and register this listener handle
@@ -176,6 +177,7 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
         %% MeasurementsInitialised
         function MeasurementsInitialised(this, src, eventArgs)
             headers = eventArgs.Headers;
+            this.AvailableHeaders = headers;
             this.GUIView.UpdateAvailableDataColumnHeaders(headers);
             this.Plotter.UpdateVariables(headers);
         end

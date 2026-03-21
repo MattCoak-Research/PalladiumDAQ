@@ -11,6 +11,7 @@ classdef InstrumentControlBase < handle
 
     properties (Access = protected)
         Instrument;
+        AvailableHeaders = [];
     end
 
     properties (Access = private)
@@ -41,8 +42,9 @@ classdef InstrumentControlBase < handle
         end
 
         %% MeasurementsInitialised
-        function MeasurementsInitialised(this, src, eventArgs)
-
+        function MeasurementsInitialised(this, src, eventArgs)  
+            headers = eventArgs.Headers;
+            this.AvailableHeaders = headers;
         end
 
         %% MeasurementsStarted
@@ -150,7 +152,7 @@ classdef InstrumentControlBase < handle
             hdrsRow = this.Instrument.FullHeadersRow;
 
             %Initialise to empty
-            stringVal = "<VAL-MISSING>";
+            stringVal = "!!VAL-MISSING!!";
 
             %Error checking
             if isempty(dataRow)
@@ -187,6 +189,14 @@ classdef InstrumentControlBase < handle
             %chosen replacement too
             fileWriteDetails.FileName = this.ProcessFileName(fileWriteDetails.FileName);
 
+            %Handle the case of the file name ending in a number - this
+            %will get auto-incremented as it will think it is the -001
+            %added to files.. we want to avoid that, just add a space
+            c = char(fileWriteDetails.FileName);
+            if ~isnan(str2double(c(end)))%is the last character something we can convert to a number successfully?
+                fileWriteDetails.FileName = fileWriteDetails.FileName + "-";
+            end
+
             dataWriter = Palladium.DataWriting.DataWriter(fileWriteDetails);
         end
 
@@ -199,6 +209,71 @@ classdef InstrumentControlBase < handle
             dataRowMetadataLine = this.CreateDataRowHeaderString();
 
             dataWriter.InsertMetadataLines([metadataDescLine, dataRowMetadataLine]);
+        end
+
+        %% InsertSmartTagRequest
+        function InsertSmartTagRequest(this, src, evt, controller)
+            % Add smart text like [Sample Temperature(K),%6.2f] to eg a Sweep File name, triggered by a button press in a GUI. 
+            % This text will auto-update and be repalced with the values corresponding to that data column.
+            %This function shows a GUI with dropdown to select the value
+            %desired, to make this easier for the user, and is probably
+            %generally useful across different sweeps etc
+            controlGUIToSendDataBackTo = src;
+            originalStr = evt.Value;
+            newStr = originalStr;            
+
+            precisionStr = "%6.2f";
+            parameterName = [];
+            cancel = true;
+
+            %Open and configure a little GUI
+            optionsFig = uifigure(WindowStyle="modal", Position=[300,300, 400, 170], Icon=controller.WindowSettings.PalladiumIconPath);
+            gr = uigridlayout(optionsFig, [4,4], "ColumnWidth", {10, 200, 20, 100, 10}, "RowHeight", {10, 30, 30, 10, 50, 10}, "RowSpacing", 2);
+
+            l1 = uilabel(gr, Text="Data Column", HorizontalAlignment="Center", FontSize=14, FontName="Georgia");
+            l1.Layout.Row = 2; 
+            l1.Layout.Column = 2; 
+            l2 = uilabel(gr, Text="Precision", HorizontalAlignment="Center", FontSize=14, FontName="Georgia");
+            l2.Layout.Row = 2; 
+            l2.Layout.Column = 4; 
+            d = uidropdown(gr, FontSize=14, FontName="Georgia", Items= controller.Headers);
+            d.Layout.Row = 3; 
+            d.Layout.Column = 2; 
+            pr = uieditfield(gr, "text", Value=precisionStr, HorizontalAlignment="Center", FontSize=14, FontName="Georgia");
+            pr.Layout.Row = 3; 
+            pr.Layout.Column = 4; 
+
+            buttonsGrid = uigridlayout(gr, [1,5], "ColumnWidth", {'1x', 90, 20, 90, '1x'}, "RowHeight", {'1x'});
+            buttonsGrid.Layout.Row = 5;
+            buttonsGrid.Layout.Column = [1 5];
+
+            okb = uibutton(buttonsGrid, Text="OK", FontSize=14, FontName="Georgia", ButtonPushedFcn=@(src,event) OK(d, pr));
+            okb.Layout.Column = 2; 
+            canb = uibutton(buttonsGrid, Text="Cancel", FontSize=14, FontName="Georgia", ButtonPushedFcn=@(src,event) Cancel());
+            canb.Layout.Column = 4; 
+
+            function OK(d,pr)
+                precisionStr = pr.Value;
+                parameterName = d.Value;
+                cancel = false;
+                delete(optionsFig);
+            end
+
+            function Cancel()
+                cancel = true;
+                delete(optionsFig);
+            end
+
+            % Wait until OK/Cancel is pressed
+            uiwait(optionsFig);
+
+            if ~cancel
+                %Append to string
+                newStr = newStr + " [" + string(parameterName) + "," + string(precisionStr) + "]";
+
+                %Send the new string back to whatever GUI called this
+                controlGUIToSendDataBackTo.SetNewSweepName(newStr);
+            end
         end
 
         %% ProcessFileName
@@ -251,7 +326,7 @@ classdef InstrumentControlBase < handle
                 fileNameOut = replace(fileNameOut, segments(i), newSeg);
             end
 
-            %Remove the delimeters too
+            %Remove the delimiters too
             fileNameOut = replace(fileNameOut, delims(1), "");
             fileNameOut = replace(fileNameOut, delims(2), "");
 
