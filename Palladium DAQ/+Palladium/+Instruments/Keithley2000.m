@@ -49,7 +49,7 @@ classdef Keithley2000 < Palladium.Core.Instrument
                             Headers = [this.Name + " - Resistance_Ohms", this.Name + " - Voltage_V"];
                             Units = ["Ohms", "V"];
                         otherwise
-                            error("Invalid type");
+                            error('Keithley2000:InvalidSourceType',"Invalid type");
                     end
                 case(this.MeasType("Voltage"))
                     Headers = [this.Name + " - Current_A", this.Name + " - Voltage_V"];
