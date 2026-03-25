@@ -54,7 +54,7 @@ classdef testKeithley2000 < matlab.unittest.TestCase
             testCase.verifyEqual(units, expectedUnits);
         end
 
-        function testGetHeadersResistance(testCase)
+        function testGetHeadersInvalidSourceMode(testCase)
             % Invalid source type
             testCase.instrument.MeasMode = testCase.instrument.MeasType("Resistance");
             testCase.instrument.SourceMode = categorical("None");
