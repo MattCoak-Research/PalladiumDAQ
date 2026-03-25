@@ -41,7 +41,7 @@ classdef testKeithley2000 < matlab.unittest.TestCase
         end
         
         % GetHeader() tests
-        function testGetHeadersVoltage(testCase, dataArray)
+        function testGetHeadersCorrectInput(testCase, dataArray)
             % Tests for voltage measurement mode
             testCase.instrument.MeasMode = testCase.instrument.MeasType(dataArray(1));
             testCase.instrument.SourceMode = testCase.instrument.SourceType(dataArray(2));
