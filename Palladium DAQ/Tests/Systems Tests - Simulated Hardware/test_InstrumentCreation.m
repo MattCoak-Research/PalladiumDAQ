@@ -6,10 +6,6 @@ classdef test_InstrumentCreation < matlab.unittest.TestCase
         InstrumentNames = [];
     end
 
-    methods (TestClassSetup)
-        % Shared setup for the entire test class
-    end
-
     methods (TestMethodSetup)
 
         % Setup for each test
@@ -19,6 +15,14 @@ classdef test_InstrumentCreation < matlab.unittest.TestCase
             pd.Close();
         end
 
+    end
+
+    methods (TestMethodTeardown)
+        % Remove folder created during test
+        function TeardownFiles(testCase)
+            path = fullfile( '..','Palladium DAQ - Testing');
+            rmdir(path, 's')
+        end
     end
 
     methods (Test)

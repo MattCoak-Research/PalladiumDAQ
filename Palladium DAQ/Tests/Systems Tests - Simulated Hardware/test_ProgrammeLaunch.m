@@ -7,6 +7,14 @@ classdef test_ProgrammeLaunch < matlab.unittest.TestCase
         % Shared setup for the entire test class
     end
 
+    methods (TestClassTeardown)
+        % Remove folder created during test
+        function TeardownFiles(testCase)
+            path = fullfile( '..','Palladium DAQ - Testing');
+            rmdir(path, 's')
+        end
+    end
+
     methods (TestMethodSetup)
         % Setup for each test
     end
