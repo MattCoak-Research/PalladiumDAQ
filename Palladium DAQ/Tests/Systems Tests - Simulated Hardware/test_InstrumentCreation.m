@@ -16,6 +16,7 @@ classdef test_InstrumentCreation < matlab.unittest.TestCase
         function SetupListOfInstrumentClasses(testCase)
             pd = Palladium();
             testCase.InstrumentNames = pd.GetAllInstrumentClassNames();
+            pd.Close();
         end
 
     end
