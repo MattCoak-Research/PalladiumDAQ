@@ -102,7 +102,7 @@ classdef ConfigIO < handle
         function s = GenerateDefaultConfigStruct(this)
 
              %% ------- Edit default config values / add new ones here ----
-                s.LogSettings.LogFileDirectory = filesep + ".." + filesep + ".." + filesep + "Palladium DAQ - Testing" + filesep + "Logs";
+                s.LogSettings.LogFileDirectory = ".." + filesep + "Palladium DAQ - Testing" + filesep + "Logs";
                 s.LogSettings.LogFileFileName = "<DATE>_Log.txt";
                 s.LogSettings.LogFileDirectoryIsRelativePath = true;
                 s.LogSettings.CommandWindowMessageLevel = "Debug";
@@ -112,8 +112,8 @@ classdef ConfigIO < handle
                 s.LogSettings.ErrorOnAllInstrumentErrors = false;
                
                 s.PathSettings.DefaultFileName = "<DATE>_Filename";
-                s.PathSettings.DefaultDirectory = filesep + ".." + filesep + ".." + filesep + "Palladium DAQ - Testing";
-                s.PathSettings.DefaultSequenceDirectory = filesep + ".." + filesep + ".." + filesep + "Palladium DAQ - Testing";
+                s.PathSettings.DefaultDirectory = ".." + filesep + "Palladium DAQ - Testing";
+                s.PathSettings.DefaultSequenceDirectory = ".." + filesep + "Palladium DAQ - Testing";
                 s.PathSettings.DataDirectoryIsRelativePath = true;
                 s.PathSettings.SequenceDirectoryIsRelativePath = true;
                 s.PathSettings.DataFileExtension = ".dat";
