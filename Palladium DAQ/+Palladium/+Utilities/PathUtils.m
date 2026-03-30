@@ -76,6 +76,35 @@ classdef PathUtils
 
         end
 
+        %% EnsureExtension
+        function newPath = EnsureExtension(filepath, extension)
+            % Send in a string filepath and string extension, and ensure
+            % that the ouput contains that extension. Throw warnings if
+            % not, error on full mismatch
+            arguments
+                filepath    {mustBeTextScalar};
+                extension   {mustBeTextScalar};
+            end
+
+            %Make sure the extension starts with a '.'
+            chars = char(extension);
+            assert(chars(1)=='.', "Extension must start with a . character");
+
+            %Extract the exisiting extension (returns "" if not found)
+            [~, ~, ext] = fileparts(filepath);
+
+            %If there is an extension there already, assert it's the same
+            %as the requested one, then just return
+            if ext~=""      %Fileparts returns "" not [] if no extension found - this is empty string test
+                assert(strcmp(string(ext), string(extension)), "Extension of file path " + string(filepath) + " contained an extension different to the expected " + string(extension));
+                newPath = filepath;
+                return;
+            end
+
+            % Append the required extension to the filepath
+            newPath = strcat(filepath, extension);
+        end
+
         %% GetIncrementedFileName
         function newPath = GetIncrementedFileName(filepath)
             [directory, fileNameWithoutExt, Ext] = fileparts(filepath);
