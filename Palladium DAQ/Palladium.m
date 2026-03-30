@@ -208,8 +208,8 @@ classdef Palladium < handle
             %from the desired filename
 
             %Construct the needed paths
-            viewDir = applicationDir + "\\+Palladium\\+Views\\";
-            fullViewCodeFilePath = viewDir + viewFileName;
+            viewDir = fullfile(applicationDir,"+Palladium","+Views");
+            fullViewCodeFilePath = fullfile(viewDir,viewFileName);
             namespaceClassPath = "Palladium.Views." + viewFileName;
 
             %Check that this file exists in the expected folder
