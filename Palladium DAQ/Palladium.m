@@ -17,8 +17,9 @@ classdef Palladium < handle
         %% Constructor
         function this = Palladium(Settings)
             arguments
-                Settings.View = "PalladiumDAQ_DefaultGUI";
-                Settings.Preset = [];
+                Settings.ConfigFilePath = [];                  % Default is blank ([]) - enter a filepath instead to override default Config json file loading and pass in the path for another settings file to be loaded from
+                Settings.Preset = [];                          % Enter the name of a Preset script in the +PalladiumPresets folder, like "Example"
+                Settings.View = "PalladiumDAQ_DefaultGUI";     % Leave blank ([]) to run a 'headless' Palladium with no GUI attached
             end
 
             %Check that new enough Matlab version is installed, toolboxes
@@ -53,7 +54,7 @@ classdef Palladium < handle
             end
 
             %Initialise the Controller
-            this.Controller.Initialise();
+            this.Controller.Initialise(ConfigFilePath=Settings.ConfigFilePath);
 
             %Apply a preset, if specified in the optional arguments
             if ~isempty(Settings.Preset)

@@ -19,10 +19,20 @@ classdef ConfigIO < handle
         end        
         
         %% LoadConfig
-        function con = LoadConfig(this)
+        function con = LoadConfig(this, Settings)
+            arguments
+                this;
+                Settings.ConfigFilePath = [];                  % Default is blank ([]) - enter a filepath instead to override default Config json file loading and pass in the path for another settings file to be loaded from
+            end
+
             try
-                confDir = this.GetConfigDirPath();
-                configPath = confDir + "Config.json";
+                %Load the default path if no override given
+                if isempty(Settings.ConfigFilePath)
+                    confDir = this.GetConfigDirPath();
+                    configPath = confDir + "Config.json";
+                else
+                    configPath = Settings.ConfigFilePath;
+                end
 
                 if ~exist(configPath, 'file')
                     %Show a warning in the command window - note that we do
