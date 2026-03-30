@@ -8,7 +8,7 @@ classdef Palladium < handle
 
     end
 
-    properties (Access = private)
+    properties (Access = {?Palladium, ?matlab.unittest.TestCase})
         Controller;
         View = [];
     end
