@@ -53,6 +53,15 @@ classdef Palladium < handle
                 this.Controller.AttachView(view);
             end
 
+            %If an override config path has been given, check that it has
+            %the full path, including .json, and that the file exists
+            if ~isempty(Settings.ConfigFilePath) 
+                %Check the file extension, add if missing
+                Settings.ConfigFilePath = Palladium.Utilities.PathUtils.EnsureExtension(Settings.ConfigFilePath, ".json");
+                %Check the file exists
+                assert(isfile(Settings.ConfigFilePath), "Could not find override Config file at " + string(Settings.ConfigFilePath));
+            end
+
             %Initialise the Controller
             this.Controller.Initialise(ConfigFilePath=Settings.ConfigFilePath);
 
