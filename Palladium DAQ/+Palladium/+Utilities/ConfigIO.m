@@ -19,10 +19,20 @@ classdef ConfigIO < handle
         end        
         
         %% LoadConfig
-        function con = LoadConfig(this)
+        function con = LoadConfig(this, Settings)
+            arguments
+                this;
+                Settings.ConfigFilePath = [];                  % Default is blank ([]) - enter a filepath instead to override default Config json file loading and pass in the path for another settings file to be loaded from
+            end
+
             try
-                confDir = this.GetConfigDirPath();
-                configPath = confDir + "Config.json";
+                %Load the default path if no override given
+                if isempty(Settings.ConfigFilePath)
+                    confDir = this.GetConfigDirPath();
+                    configPath = confDir + "Config.json";
+                else
+                    configPath = Settings.ConfigFilePath;
+                end
 
                 if ~exist(configPath, 'file')
                     %Show a warning in the command window - note that we do
@@ -102,7 +112,7 @@ classdef ConfigIO < handle
         function s = GenerateDefaultConfigStruct(this)
 
              %% ------- Edit default config values / add new ones here ----
-                s.LogSettings.LogFileDirectory = filesep + ".." + filesep + ".." + filesep + "Palladium DAQ - Testing" + filesep + "Logs";
+                s.LogSettings.LogFileDirectory = ".." + filesep + "Palladium DAQ - Testing" + filesep + "Logs";
                 s.LogSettings.LogFileFileName = "<DATE>_Log.txt";
                 s.LogSettings.LogFileDirectoryIsRelativePath = true;
                 s.LogSettings.CommandWindowMessageLevel = "Debug";
@@ -112,8 +122,8 @@ classdef ConfigIO < handle
                 s.LogSettings.ErrorOnAllInstrumentErrors = false;
                
                 s.PathSettings.DefaultFileName = "<DATE>_Filename";
-                s.PathSettings.DefaultDirectory = filesep + ".." + filesep + ".." + filesep + "Palladium DAQ - Testing";
-                s.PathSettings.DefaultSequenceDirectory = filesep + ".." + filesep + ".." + filesep + "Palladium DAQ - Testing";
+                s.PathSettings.DefaultDirectory = ".." + filesep + "Palladium DAQ - Testing";
+                s.PathSettings.DefaultSequenceDirectory = ".." + filesep + "Palladium DAQ - Testing";
                 s.PathSettings.DataDirectoryIsRelativePath = true;
                 s.PathSettings.SequenceDirectoryIsRelativePath = true;
                 s.PathSettings.DataFileExtension = ".dat";

@@ -1,17 +1,24 @@
 classdef test_ProgrammeLaunch < matlab.unittest.TestCase
-% TEST_PROGRAMMELAUNCH Tests for Palladium 
-%
-% 
+    % TEST_PROGRAMMELAUNCH Tests for Palladium
+    %
+    %
+    properties
+        ConfigPath;
+    end
 
     methods (TestClassSetup)
         % Shared setup for the entire test class
+        function configPathSetup(testCase)
+            % Set up shared state for all tests.
+            testCase.ConfigPath = fullfile("..","TestingConfig.json");
+        end
     end
 
     methods (TestClassTeardown)
         % Remove folder created during test
         function TeardownFiles(testCase)
             path = fullfile( '..','Palladium DAQ - Testing');
-            rmdir(path, 's')
+            rmdir(path, 's');
         end
     end
 
@@ -21,25 +28,25 @@ classdef test_ProgrammeLaunch < matlab.unittest.TestCase
 
     methods (Test)
         % Test methods
-       
+
         function LaunchEmpty(testCase)
             % Warning doesn't seem to generate identifier so can't test for
             % that
-            pd = Palladium();
+            pd = Palladium(ConfigFilePath=testCase.ConfigPath);
             pd.Close();
         end
-        
+
         function LaunchEmptyNoView(testCase)
             % Warning doesn't seem to generate identifier so can't test for
             % that
-            pd = Palladium(View=[]);
-            pd.Close();      
+            pd = Palladium(View=[], ConfigFilePath=testCase.ConfigPath);
+            pd.Close();
         end
 
         function TestMeasurementLoop(testCase)
             % Warning doesn't seem to generate identifier so can't test for
             % that
-            pd = Palladium();
+            pd = Palladium(ConfigFilePath=testCase.ConfigPath);
             pd.Start();
             pause(0.2);
             pd.Pause();

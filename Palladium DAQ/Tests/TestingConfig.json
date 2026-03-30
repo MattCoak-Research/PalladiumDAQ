@@ -1,0 +1,64 @@
+{
+    "LogSettings": {
+        "LogFileDirectory": "..\\Palladium DAQ - Testing\\Logs",
+        "LogFileFileName": "<DATE>_Log.txt",
+        "LogFileDirectoryIsRelativePath": false,
+        "CommandWindowMessageLevel": "Debug",
+        "PrintStackTraceInCommandWindow": false,
+        "GUIMessageLevel": "Debug",
+        "LogFileMessageLevel": "Debug",
+        "ErrorOnAllInstrumentErrors": true
+    },
+    "PathSettings": {
+        "DefaultFileName": "<DATE>_Filenametest",
+        "DefaultDirectory": "..\\Palladium DAQ - Testing",
+        "DefaultSequenceDirectory": "..\\Palladium DAQ - Testing",
+        "DataDirectoryIsRelativePath": false,
+        "SequenceDirectoryIsRelativePath": true,
+        "DataFileExtension": ".dat",
+        "SequenceFileExtension": ".seq",
+        "SaveFile": true,
+        "FileWriteMode": "Increment File No.",
+        "DefaultDescription": ""
+    },
+    "WindowSettings": {
+        "DefaultSize": [
+            1400.0,
+            900.0
+        ],
+        "DefaultPosition": [],
+        "Maximised": false
+    },
+    "PlotterSettings": {
+        "Colours": [
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.6,
+            0.0,
+            1.0,
+            0.0,
+            1.0
+        ],
+        "FontSize": 20.0,
+        "LineStyles": [
+            "None",
+            "None",
+            "None",
+            "None"
+        ],
+        "LineWidth": 1.0,
+        "MarkerSize": 6.0,
+        "Markers": [
+            "o",
+            "o",
+            "+",
+            "*"
+        ],
+        "ShowLegends": true
+    }
+}

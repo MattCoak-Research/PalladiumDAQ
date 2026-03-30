@@ -259,11 +259,16 @@ classdef Controller < handle
         end
 
         %% Initialise
-        function Initialise(this)
+        function Initialise(this, Settings)
+            arguments
+                this;
+                Settings.ConfigFilePath = [];                  % Default is blank ([]) - enter a filepath instead to override default Config json file loading and pass in the path for another settings file to be loaded from
+            end
+
             %Initialise the Controller, loading and applying settings etc
             try
                 %Load settings from .json config files in the Settings directory
-                [logSettings, this.PathSettings, this.WindowSettings, this.PlottingController.PlotterSettings] = this.LoadSettings();
+                [logSettings, this.PathSettings, this.WindowSettings, this.PlottingController.PlotterSettings] = this.LoadSettings(ConfigFilePath=Settings.ConfigFilePath);
             catch e
                 %Note that we don't pass this in to any nice error handling
                 %because we haven't set that up yet
@@ -719,10 +724,15 @@ classdef Controller < handle
         end
 
         %% LoadSettings
-        function [logSettings, pathSettings, windowSettings, plotterSettings] = LoadSettings(this)
+        function [logSettings, pathSettings, windowSettings, plotterSettings] = LoadSettings(this, Settings)
+            arguments
+                this;
+                Settings.ConfigFilePath = [];                  % Default is blank ([]) - enter a filepath instead to override default Config json file loading and pass in the path for another settings file to be loaded from
+            end
+
             %Load the settings file into struct
             configIO = Palladium.Utilities.ConfigIO();
-            settingsStruct = configIO.LoadConfig();
+            settingsStruct = configIO.LoadConfig(ConfigFilePath=Settings.ConfigFilePath);
 
             %Parse the entries neatly into the PathSettings struct property
             logSettings = settingsStruct.LogSettings;
