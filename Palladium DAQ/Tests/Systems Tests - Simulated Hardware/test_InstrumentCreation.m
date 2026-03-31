@@ -4,15 +4,24 @@ classdef test_InstrumentCreation < matlab.unittest.TestCase
     %
     properties
         InstrumentNames = [];
+        ConfigPath;
+        Pd;
+    end
+
+    methods (TestClassSetup)
+        function configPathSetup(testCase)
+            % Set up shared state for all tests.
+            testCase.ConfigPath = fullfile("..","TestingConfig.json");
+        end
     end
 
     methods (TestMethodSetup)
 
         % Setup for each test
-        function SetupListOfInstrumentClasses(testCase)
-            pd = Palladium();
-            testCase.InstrumentNames = pd.GetAllInstrumentClassNames();
-            pd.Close();
+        function SetupPalladiumAndListOfInstrumentClasses(testCase)
+            testCase.Pd = Palladium("ConfigFilePath",testCase.ConfigPath);
+            testCase.InstrumentNames = testCase.Pd.GetAllInstrumentClassNames();
+            drawnow();
         end
 
     end
@@ -27,20 +36,29 @@ classdef test_InstrumentCreation < matlab.unittest.TestCase
 
     methods (Test)
         % Test methods
+        function AddSingleInstrument(testCase)
+            % Warning doesn't seem to generate identifier so can't test for
+            % that
+            testCase.Pd.AddInstrument("Keithley2000", ConnectionType="Debug");
+            drawnow();
+
+            pause(0.5);
+            testCase.Pd.Close();
+        end
 
         function AddAllInstruments(testCase)
             % Warning doesn't seem to generate identifier so can't test for
             % that
-            pd = Palladium();
 
             %Loop over all possible Instruments, and add them - in Debug
             %ConnectionType mode
             for i = 1 : length(testCase.InstrumentNames)
-                pd.AddInstrument(testCase.InstrumentNames{i}, ConnectionType="Debug");
+                testCase.Pd.AddInstrument(testCase.InstrumentNames{i}, ConnectionType="Debug");
+                drawnow();
             end
 
-            pause(2);
-            pd.Close();
+            pause(0.5);
+            testCase.Pd.Close();
         end
 
     end

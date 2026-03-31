@@ -52,8 +52,8 @@ classdef SequenceEditorController < handle
             %from the desired filename
 
             %Construct the needed paths
-            viewDir = applicationDir + "\\+Palladium\\+Sequence\\+Views\\";
-            fullViewCodeFilePath = viewDir + viewFileName;
+            viewDir = fullfile(applicationDir,"+Palladium","+Sequence","+Views");
+            fullViewCodeFilePath = fullfile(viewDir,viewFileName);
             namespaceClassPath = "Palladium.Sequence.Views." + viewFileName;
 
             %Check that this file exists in the expected folder
