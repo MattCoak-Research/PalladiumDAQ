@@ -4,16 +4,43 @@ classdef Palladium < handle
     %a command-line-only implementation or any other user-defined one if
     %desired)
 
+    %% Constant Private Properties
+    properties (Constant, Access = private)
+        % Update these to define the Palladium Version Number
+        MajorVersionNo = 3;
+        MinorVersionNo = 1;
+        BuildVersionNo = 1;
+        AuthorString = "M.J. Coak, University of Birmingham";
+    end
+
+    %% Public Properties
     properties (Access = public)
 
     end
 
+    %% Private Properties
     properties (Access = private)
         Controller;
         View = [];
     end
 
+    %% Static Public Methods
+    methods (Access = public, Static, Sealed)
+
+        function [versionString, fullversionString, major, minor, build, authorString] = ver()
+            versionString = sprintf('%d.%d.%d', Palladium.MajorVersionNo, Palladium.MinorVersionNo, Palladium.BuildVersionNo);
+            fullversionString = sprintf('Palladium DAQ Version %d.%d.%d', Palladium.MajorVersionNo, Palladium.MinorVersionNo, Palladium.BuildVersionNo);
+            major = Palladium.MajorVersionNo;
+            minor = Palladium.MinorVersionNo;
+            build = Palladium.BuildVersionNo;
+            authorString = Palladium.AuthorString;
+        end
+
+    end
+
+    %% Public Methods
     methods
+
         %% Constructor
         function this = Palladium(Settings)
             arguments
@@ -33,9 +60,13 @@ classdef Palladium < handle
             applicationPath = mfilename('fullpath');
             [applicationDir, ~, ~] = fileparts(applicationPath);
 
+            %Grab the version numbers, to e.g. send to a created View
+            [~, fullversionString, major, minor, build, authorString] = Palladium.ver();
+
             %Create the view/frontend/implementation/GUI
             if ~isempty(Settings.View)
                 view = this.CreateView(Settings.View, applicationDir);
+                view.SetVersionInformation(fullversionString, major, minor, build, authorString);
                 this.View = view;
             else
                 view = [];
@@ -63,7 +94,7 @@ classdef Palladium < handle
             end
 
             %Initialise the Controller
-            this.Controller.Initialise(ConfigFilePath=Settings.ConfigFilePath);
+            this.Controller.Initialise(fullversionString, ConfigFilePath=Settings.ConfigFilePath);
 
             %Apply a preset, if specified in the optional arguments
             if ~isempty(Settings.Preset)
@@ -78,7 +109,8 @@ classdef Palladium < handle
             this.Controller.OnLoaded();
         end
 
-        %% AddInstrument
+        %% Public Methods
+
         function instRef = AddInstrument(this, instrumentClassName, settings)
             arguments
                 this;
@@ -91,13 +123,11 @@ classdef Palladium < handle
             instRef = this.Controller.InstrumentController.AddInstrument(string(instrumentClassName), Name=string(settings.Name), ConnectionType=settings.ConnectionType);
         end
 
-        %% AddInstrumentControl
         function cont = AddInstrumentControl(this, instrRef, controlDetailsStruct)
             %Pass on to the View
             cont = this.View.AddInstrumentControl(instrRef, controlDetailsStruct);
         end
 
-        %% Close
         function Close(this)
             if ~isempty(this.View)
                 this.View.Close();
@@ -110,80 +140,67 @@ classdef Palladium < handle
             this.Controller = [];
         end
 
-        %% GetAllInstrumentClassNames
         function classNames = GetAllInstrumentClassNames(this)
             classNames = this.Controller.GetAllInstrumentClassNames();
         end
 
-        %% Pause
         function Pause(this)
             this.Controller.TimingLoopController.Pause();
         end
 
-        %% RemoveInstrument
         function RemoveInstrument(this, instRef)
             this.Controller.InstrumentController.RemoveInstrument(instRef);
         end
 
-        %% RemoveInstrumentControl
         function RemoveInstrumentControl(this, instRef, controlDetailsStruct)
             this.View.RemoveInstrumentControl(instRef, controlDetailsStruct);
         end
 
-        %% Resume
         function Resume(this)
             this.Controller.TimingLoopController.Resume();
         end
 
-        %% SetFilePathsDirectory
         function SetFilePathsDirectory(this, directory)
             this.Controller.SetFilePathsDirectory(directory);
         end
 
-        %% SetFilePathsFileExtension
         function SetFilePathsFileExtension(this, fileExtension)
             this.Controller.SetFilePathsFileExtension(fileExtension);
         end
 
-        %% SetFilePathsDescription
         function SetFilePathsDescription(this, descriptionText)
             this.Controller.SetFilePathsDescription(descriptionText);
         end
 
-        %% SetFilePathsFileName
         function SetFilePathsFileName(this, fileName)
             this.Controller.SetFilePathsFileName(fileName);
         end
 
-        %% SetFilePathsSaveFileBool
         function SetFilePathsSaveFileBool(this, saveFileBool)
             this.Controller.SetFilePathsSaveFileBool(saveFileBool);
         end
 
-        %% SetFilePathsWriteMode
         function SetFilePathsWriteMode(this, writeMode)
             this.Controller.SetFilePathsWriteMode(writeMode);
         end
 
-        %% SetUpdateTime
         function SetUpdateTime(this, time_s)
             this.Controller.TimingLoopController.SetUpdateTime(time_s);
         end
 
-        %% Start
         function Start(this)
             this.Controller.TimingLoopController.Start();
         end
 
-        %% Stop
         function Stop(this)
             this.Controller.TimingLoopController.Stop();
         end
+
     end
 
+    %% Private Methods
     methods (Access = private)
 
-        %% ApplyPreset
         function ApplyPreset(this, presetFn, view)
             try
                 %Display a status message in the logger
@@ -212,7 +229,6 @@ classdef Palladium < handle
             end
         end
 
-        %% CreateView
         function view = CreateView(~, viewFileName, applicationDir)
             %Instantiate an instance of the View/GUI class from file, just
             %from the desired filename
@@ -230,12 +246,10 @@ classdef Palladium < handle
             view = fnHandle();
         end
 
-        %% GetPresetsDir
         function dirPath = GetPresetsDir(this)
             dirPath = fullfile(this.Controller.ApplicationDir,  this.Controller.PresetsDirectory);
         end
 
-        %% LoadPreset
         function presetFn = LoadPreset(this, presetName)
             presetFn = [];
             %Display a status message in the logger
@@ -256,8 +270,6 @@ classdef Palladium < handle
                 this.Controller.HandleError("Error loading Preset", err);
             end
         end
-
-       
 
     end
 end
