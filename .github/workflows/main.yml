@@ -2,7 +2,7 @@ name: MATLAB Tests
 
 on:
   push:
-    branches: []
+    branches: [main]
   pull_request:
     branches: [main]
 
