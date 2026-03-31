@@ -15,6 +15,14 @@ classdef test_InstrumentCreation < matlab.unittest.TestCase
         end
     end
 
+    methods (TestClassTeardown)
+        % Remove folder created during test
+        function TeardownFiles(testCase)
+            path = fullfile( '..','Palladium DAQ - Testing');
+            rmdir(path, 's')
+        end
+    end
+
     methods (TestMethodSetup)
 
         % Setup for each test
@@ -23,33 +31,26 @@ classdef test_InstrumentCreation < matlab.unittest.TestCase
             testCase.InstrumentNames = testCase.Pd.GetAllInstrumentClassNames();
             drawnow();
         end
-
     end
 
     methods (TestMethodTeardown)
-        % Remove folder created during test
-        function TeardownFiles(testCase)
-            path = fullfile( '..','Palladium DAQ - Testing');
-            rmdir(path, 's')
+        % Close Palladium
+        function ClosePalladium(testCase)
+           testCase.Pd.Close();
         end
     end
 
     methods (Test)
         % Test methods
         function AddSingleInstrument(testCase)
-            % Warning doesn't seem to generate identifier so can't test for
-            % that
+           
             testCase.Pd.AddInstrument("Keithley2000", ConnectionType="Debug");
             drawnow();
 
             pause(0.5);
-            testCase.Pd.Close();
         end
 
         function AddAllInstruments(testCase)
-            % Warning doesn't seem to generate identifier so can't test for
-            % that
-
             %Loop over all possible Instruments, and add them - in Debug
             %ConnectionType mode
             for i = 1 : length(testCase.InstrumentNames)
@@ -58,7 +59,6 @@ classdef test_InstrumentCreation < matlab.unittest.TestCase
             end
 
             pause(0.5);
-            testCase.Pd.Close();
         end
 
     end
