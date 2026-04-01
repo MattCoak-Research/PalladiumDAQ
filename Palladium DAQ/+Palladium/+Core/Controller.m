@@ -259,9 +259,10 @@ classdef Controller < handle
         end
 
         %% Initialise
-        function Initialise(this, Settings)
+        function Initialise(this, versionString, Settings)
             arguments
                 this;
+                versionString {mustBeTextScalar};
                 Settings.ConfigFilePath = [];                  % Default is blank ([]) - enter a filepath instead to override default Config json file loading and pass in the path for another settings file to be loaded from
             end
 
@@ -289,6 +290,9 @@ classdef Controller < handle
             try
                 %Set logging/error setting parameters in Controller
                 this.InstrumentController.ErrorOnAllInstrumentErrors = logSettings.ErrorOnAllInstrumentErrors;
+
+                %Show startup message now we have the Logger
+                this.Log("Debug", "Initialising " + string(versionString), "Yellow", "Initialising " + string(versionString));
 
                 %Store default paths etc
                 this.FileWriteDetails.Directory = this.PathSettings.DefaultDirectory;
