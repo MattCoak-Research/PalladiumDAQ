@@ -907,10 +907,37 @@
                         </Info>
                     </File>
                 </File>
+                <File Location="UITests">
+                    <Info/>
+                    <DIR_SIGNIFIER Location="1">
+                        <Info/>
+                    </DIR_SIGNIFIER>
+                    <File Location="testInstrumentCreation.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="test"/>
+                            </Category>
+                        </Info>
+                    </File>
+                    <File Location="testProgramLaunch.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="test"/>
+                            </Category>
+                        </Info>
+                    </File>
+                </File>
             </File>
         </File>
         <File Location="README.md">
             <Info/>
+        </File>
+        <File Location="buildfile.m">
+            <Info>
+                <Category UUID="FileClassCategory">
+                    <Label UUID="design"/>
+                </Category>
+            </Info>
         </File>
     </Files>
     <Info Location="ProjectData">
@@ -929,6 +956,9 @@
         <Reference Location="3fd8fc39-c047-4bb1-aba0-abca5f28a022">
             <Info Ref="Palladium DAQ/Tests/Unit Tests/data" Type="Relative"/>
         </Reference>
+        <Reference Location="4feb6aeb-d05c-401d-9d2f-4ddb5e077133">
+            <Info Ref="Palladium DAQ/Tests/UITests" Type="Relative"/>
+        </Reference>
         <Reference Location="b5cd85bd-bcc2-4e4d-994a-8ed24850effd">
             <Info Ref="Palladium DAQ/Tests/Unit Tests" Type="Relative"/>
         </Reference>
@@ -943,6 +973,9 @@
             </Info>
             <Info name="SystemTests" type="FOLDERS">
                 <Info value="Palladium DAQ/Tests/Systems Tests - Simulated Hardware"/>
+            </Info>
+            <Info name="UI Tests" type="FOLDERS">
+                <Info value="Palladium DAQ/Tests/UITests"/>
             </Info>
         </Info>
     </Files>
