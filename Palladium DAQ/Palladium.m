@@ -14,12 +14,12 @@ classdef Palladium < handle
     end
 
     %% Public Properties
-    properties (Access = {?Palladium, ?matlab.unittest.TestCase})
+    properties (Access = public )
 
     end
 
     %% Private Properties
-    properties (Access = private)
+    properties (Access = {?Palladium, ?matlab.unittest.TestCase})
         Controller;
         View = [];
     end
