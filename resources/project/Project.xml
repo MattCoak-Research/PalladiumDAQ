@@ -932,6 +932,13 @@
         <File Location="README.md">
             <Info/>
         </File>
+        <File Location="buildfile.m">
+            <Info>
+                <Category UUID="FileClassCategory">
+                    <Label UUID="design"/>
+                </Category>
+            </Info>
+        </File>
     </Files>
     <Info Location="ProjectData">
         <Info Name="Palladium DAQ"/>
