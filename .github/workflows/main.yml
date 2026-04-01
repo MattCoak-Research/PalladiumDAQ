@@ -15,12 +15,10 @@ jobs:
         with:
           products: >
             Instrument_Control_Toolbox
-      - uses: matlab-actions/run-tests@v2
+      - uses: matlab-actions/run-build@v2
         with:
-          select-by-folder: Palladium DAQ/Tests/Unit Tests
-          test-results-junit: results/results.xml
+          tasks: package
       - uses: actions/upload-artifact@v4
-        if: always()
         with:
-          name: test-results
-          path: results/results.xml
+          name: toolbox
+          path: "Palladium DAQ/Release/PalladiumDAQ.mltbx"

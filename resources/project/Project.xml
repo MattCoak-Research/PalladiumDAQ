@@ -25,6 +25,18 @@
                 <Info Name="Test" ReadOnly="READ_ONLY"/>
             </Label>
         </Category>
+        <Category Location="Deployment_Category_72c058ae-ae84-4883-a5e8-0f917282d6b6">
+            <Info DataType="None" Name="Toolbox - Toolbox1" ReadOnly="0" SingleValued="0"/>
+            <Label Location="Deployment_ToolboxImageFile_72c058ae-ae84-4883-a5e8-0f917282d6b6">
+                <Info Name="Toolbox Image File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_ToolboxAppGalleryFiles_72c058ae-ae84-4883-a5e8-0f917282d6b6">
+                <Info Name="App Gallery File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_GettingStartedGuideFile_72c058ae-ae84-4883-a5e8-0f917282d6b6">
+                <Info Name="Getting Started Guide" ReadOnly="WRITABLE"/>
+            </Label>
+        </Category>
     </Categories>
     <Files Location="Root">
         <File Location=".gitattributes">
@@ -93,7 +105,11 @@
                             <Info/>
                         </File>
                         <File Location="PalladiumDAQIcon.png">
-                            <Info/>
+                            <Info>
+                                <Category UUID="Deployment_Category_72c058ae-ae84-4883-a5e8-0f917282d6b6">
+                                    <Label UUID="Deployment_ToolboxImageFile_72c058ae-ae84-4883-a5e8-0f917282d6b6"/>
+                                </Category>
+                            </Info>
                         </File>
                     </File>
                     <File Location="InstrumentBrowserPanel.mlapp">
@@ -928,6 +944,9 @@
                     </File>
                 </File>
             </File>
+            <File Location="toolbox.ignore">
+                <Info/>
+            </File>
         </File>
         <File Location="README.md">
             <Info/>
@@ -978,5 +997,17 @@
                 <Info value="Palladium DAQ/Tests/UITests"/>
             </Info>
         </Info>
+    </Files>
+    <Files Location="MathWorksDeploymentConfig{1dcbeca0-4c8d-486c-9564-d296b0b3900b}">
+        <DIR_SIGNIFIER Location="1">
+            <Info/>
+        </DIR_SIGNIFIER>
+        <Info ToolboxConfigModel="{&quot;entries&quot;:[{&quot;content&quot;:{&quot;appGalleryLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_72c058ae-ae84-4883-a5e8-0f917282d6b6&quot;,&quot;labelID&quot;:&quot;Deployment_ToolboxAppGalleryFiles_72c058ae-ae84-4883-a5e8-0f917282d6b6&quot;},&quot;type&quot;:&quot;deployment.toolbox.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;d63d460d-365a-4065-85e8-4ec6b6c39376&quot;},&quot;authorEmail&quot;:&quot;m.j.coak@bham.ac.uk&quot;,&quot;authorName&quot;:&quot;Matthew Coak&quot;,&quot;authorOrganization&quot;:&quot;University of Birmingham&quot;,&quot;description&quot;:&quot;Description&quot;,&quot;gettingStartedGuideLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_72c058ae-ae84-4883-a5e8-0f917282d6b6&quot;,&quot;labelID&quot;:&quot;Deployment_GettingStartedGuideFile_72c058ae-ae84-4883-a5e8-0f917282d6b6&quot;},&quot;type&quot;:&quot;deployment.toolbox.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;abac9ee6-9bfd-4cc9-b137-f66c2e2b2671&quot;},&quot;maxRelease&quot;:&quot;R2025b&quot;,&quot;minRelease&quot;:&quot;R2025a&quot;,&quot;outputFileName&quot;:&quot;PalladiumDAQ.mltbx&quot;,&quot;outputFolder&quot;:&quot;Palladium DAQ/Release&quot;,&quot;summary&quot;:&quot;Summary&quot;,&quot;supportedPlatforms&quot;:[&quot;Windows&quot;,&quot;Linux&quot;,&quot;Mac&quot;],&quot;toolboxFolder&quot;:&quot;Palladium DAQ&quot;,&quot;toolboxImgLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_72c058ae-ae84-4883-a5e8-0f917282d6b6&quot;,&quot;labelID&quot;:&quot;Deployment_ToolboxImageFile_72c058ae-ae84-4883-a5e8-0f917282d6b6&quot;},&quot;type&quot;:&quot;deployment.toolbox.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;605981e5-9b9b-4a35-9bdb-92db84cf8b85&quot;},&quot;toolboxName&quot;:&quot;Palladium DAQ&quot;,&quot;toolboxVersion&quot;:&quot;3.1.1&quot;,&quot;uniqueId&quot;:&quot;a519aa5c-b089-43be-b733-6bb3f9c08cf9&quot;},&quot;type&quot;:&quot;deployment.toolbox.model.ToolboxConfiguration&quot;,&quot;uuid&quot;:&quot;82c30c32-fb88-41d7-8718-87508db54d15&quot;},{&quot;content&quot;:{},&quot;type&quot;:&quot;deployment.toolbox.model.ProjectStateValidationIssueList&quot;,&quot;uuid&quot;:&quot;bb37ee89-f5c7-41d6-b5a4-1ce5d1cbbd05&quot;}],&quot;packageUris&quot;:[&quot;http://schema.mathworks.com/mf0/deployment_toolbox_model/1.0.0&quot;],&quot;version&quot;:&quot;1.0&quot;}" displayName="Toolbox1" lastAccessed="1775050724303" taskID="10f38d42-fd9f-42cb-b54a-7c18d26a1d44" type="Toolbox" uniqueId="72c058ae-ae84-4883-a5e8-0f917282d6b6"/>
+    </Files>
+    <Files Location="MathWorksDeploymentConfigs">
+        <Info configMapData="{&quot;Toolbox1&quot;:&quot;MathWorksDeploymentConfig{1dcbeca0-4c8d-486c-9564-d296b0b3900b}&quot;}"/>
+        <DIR_SIGNIFIER Location="1">
+            <Info/>
+        </DIR_SIGNIFIER>
     </Files>
 </project>
