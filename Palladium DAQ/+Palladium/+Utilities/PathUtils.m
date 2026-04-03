@@ -74,6 +74,52 @@ classdef PathUtils
 
         end
 
+        function CopyFiles(filesToCopy, sourceInstrumentDir, destInstrumentDir, Settings)
+          % COPYFILES - Copy listed files if missing in the dest directory
+          %
+          % Input arguments:
+          % filesToCopy           - string array of filenames to copy
+          % sourceInstrumentDir   - source directory path (text scalar)
+          % destInstrumentDir     - destination directory path (text scalar)
+          %
+          % Name-Value Pairs (Optional)
+          % Overwrite - default false. Set to true to have file copy and
+          % overwrite if a file of the same name already exists in
+          % destination
+            
+            arguments
+                filesToCopy             string;
+                sourceInstrumentDir     {mustBeTextScalar};
+                destInstrumentDir       {mustBeTextScalar};
+                Settings.Overwrite      (1,1) logical = false;
+            end
+
+            % Iterate over each filename and copy when not already present
+            for i = 1 : length(filesToCopy)
+                cls = filesToCopy(i);
+                if ~exist(fullfile(destInstrumentDir, cls), "file") || Settings.Overwrite
+                    copyfile(fullfile(sourceInstrumentDir, cls), fullfile(destInstrumentDir, cls));
+                end
+            end
+        end
+
+        function newDirCreated = EnsureDirectoryExists(dirPath)
+            arguments
+                dirPath {mustBeTextScalar};
+            end
+
+            if Palladium.Utilities.PathUtils.IsDirectoryValid(dirPath)
+                %Directory exists, no need to do anything
+                newDirCreated = false;
+                return;
+            else
+                %Make the directory
+                mkdir(dirPath);
+                newDirCreated = true;
+            end
+        end
+
+
         function newPath = EnsureExtension(filepath, extension)
             % Send in a string filepath and string extension, and ensure
             % that the ouput contains that extension. Throw warnings if
@@ -140,6 +186,23 @@ classdef PathUtils
             dirs = regexp(path, pathsep,'split');          %cell of all individual paths
             temp = unique(cellfun(@(P) strjoin(P(1:find(strcmp(esctofind, P),1,'last')),filesep), regexp(dirs,filesep,'split'), 'uniform', 0));    %don't let the blue smoke escape
             dirPath = temp(~cellfun(@isempty,temp));     %non-empty results only
+        end
+
+        function userDirectoryPath = GetUserDirectory()
+          % GETUSERDIRECTORY - Return current user's home directory as
+          % string, on all platforms
+          %
+          % Output arguments:
+          % userDirectoryPath - user's home directory path (string)
+          if ispc
+              % Use Windows registry to get the "Personal" folder path
+              userDirectoryPath = string(winqueryreg('HKEY_CURRENT_USER',...
+                  ['Software\Microsoft\Windows\CurrentVersion\' ...
+                  'Explorer\Shell Folders'],'Personal'));
+          else
+              % Fallback: use Java system property for non-Windows platforms
+              userDirectoryPath = string(java.lang.System.getProperty('user.home'));
+          end
         end
 
         function valid = IsDirectoryValid(directory)

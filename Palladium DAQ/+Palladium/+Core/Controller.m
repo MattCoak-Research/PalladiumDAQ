@@ -1,11 +1,19 @@
 classdef Controller < handle
     %CONTROLLER Logic and measurement loop for Palladium DAQ Programme.
 
+    %% Properties (Constant, Private)
+    properties(Constant, Access = private)
+        UserFolderName = "Palladium User Files";
+        UserInstrumentFolderName = "Instruments";
+        UserPresetFolderName = "Presets";
+    end
+
     %% Properties (Public)
     properties (Access = public)
         %Paths and Directories
         ApplicationPath;    %These will be set in StartUp Fcn of the UiFigure
         ApplicationDir;     %These will be set in StartUp Fcn of the
+        UserFilesDir;       %Parent directory that holds the Presets & User Instruments folders, editable by User
     end
 
     %% Properties (Public, Private Set)
@@ -24,6 +32,10 @@ classdef Controller < handle
         TimingLoopController;
         InstrumentController;
         DataWriter;
+
+        %File paths
+        UserInstrumentsDir;
+        UserPresetsDir;
     end
 
     %% Properties (Private)
@@ -307,17 +319,36 @@ classdef Controller < handle
                 %Set the default path for the DataViewer programme too
                 this.DefaultDataDir = Palladium.Utilities.PathUtils.CleanPath(this.PathSettings.DefaultDirectory);
 
+                %Set the User Files path, and create the directory if it
+                %doesn't exist
+                this.UserFilesDir = Palladium.Utilities.PathUtils.CleanPath(this.PathSettings.UserFilesDirectory);
+                this.EnsureUserFilesDirExists(this.UserFilesDir);
+
+                %Copy example/template Instrument class files into that
+                %folder if they don't yet exist
+                classesToCopy = "TemplateInstrumentClass.m";
+                Palladium.Utilities.PathUtils.CopyFiles(classesToCopy,...
+                    fullfile(this.ApplicationDir, "+Palladium", "+Instruments"), this.UserInstrumentsDir,...
+                    Overwrite=false);
+ 
+                %Copy example/template Preset class files into that
+                %folder if they don't yet exist
+                classesToCopy = "Example.m";
+                Palladium.Utilities.PathUtils.CopyFiles(classesToCopy,...
+                    fullfile(this.ApplicationDir, "+PalladiumPresets"), this.UserPresetsDir,...
+                    Overwrite=false);
+
                 %Retrieve iconPath to pass to a GUI
-                this.WindowSettings.PalladiumIconPath = this.ApplicationDir + "\+Palladium\+Components\Graphics\PalladiumDAQIcon.png";
+                this.WindowSettings.PalladiumIconPath = fullfile(this.ApplicationDir, "+Palladium", "+Components", "Graphics", "PalladiumDAQIcon.png");
 
                 %Send settings to the GUI
                 args = Palladium.Events.SettingsChangedEventData(this.PathSettings, this.WindowSettings);
                 notify(this, "SettingsApplied", args);
 
-                %Load plugins
-                this.Log("Debug", "Initialising plugins", "Yellow", "Initialising plugins...");
-                this.InstrumentController.LoadInstrumentClasses(this.ApplicationDir + "\+Palladium\+Instruments");
-                this.Log("Debug", "Plugins intialised", "Green", "Plugins intialised");
+                %Load Instrument Classes
+                this.Log("Debug", "Initialising Instrument Classes", "Yellow", "Initialising Instruments...");
+                this.InstrumentController.LoadInstrumentClasses(fullfile(this.ApplicationDir, "+Palladium", "+Instruments"));
+                this.Log("Debug", "Instrument Classes intialised", "Green", "Instruments intialised");
 
                 %Initialise TimingLoopController
                 this.TimingLoopController.Initialise();
@@ -701,6 +732,31 @@ classdef Controller < handle
                 this.DataTable = dataRow;
             else
                 this.DataTable = [this.DataTable; dataRow];
+            end
+        end
+
+        function EnsureUserFilesDirExists(this, pathToDir)
+            userDirPath = fullfile(pathToDir, this.UserFolderName);
+
+            %Create the directory if it doesn't exist
+            newDirCreated = Palladium.Utilities.PathUtils.EnsureDirectoryExists(userDirPath);
+            if newDirCreated
+                this.Log("Info", "User directory at " + string(userDirPath) + " not found - creating new empty directory", "Green", "Creating User Directories");
+            end
+
+
+            %Set up the User Instrument Directory
+            this.UserInstrumentsDir = fullfile(pathToDir, this.UserFolderName, this.UserInstrumentFolderName);
+            newDirCreated = Palladium.Utilities.PathUtils.EnsureDirectoryExists(this.UserInstrumentsDir);
+            if newDirCreated
+                this.Log("Info", "User directory at " + string(this.UserInstrumentsDir) + " not found - creating new empty directory", "Green", "Creating User Directories");
+            end
+
+            %Set up the Presets Directory
+            this.UserPresetsDir = fullfile(pathToDir, this.UserFolderName, this.UserPresetFolderName);
+            newDirCreated = Palladium.Utilities.PathUtils.EnsureDirectoryExists(this.UserPresetsDir);
+            if newDirCreated
+                this.Log("Info", "User directory at " + string(this.UserPresetsDir) + " not found - creating new empty directory", "Green", "Creating User Directories");
             end
         end
 

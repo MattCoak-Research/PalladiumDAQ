@@ -118,12 +118,14 @@ classdef ConfigIO < handle
             s.LogSettings.GUIMessageLevel = "Warning";
             s.LogSettings.LogFileMessageLevel = "Debug";
             s.LogSettings.ErrorOnAllInstrumentErrors = false;
-
+ 
+            s.PathSettings.UserFilesDirectory = Palladium.Utilities.PathUtils.GetUserDirectory();
+            s.PathSettings.UserFilesDirectoryIsRelativePath = false;
             s.PathSettings.DefaultFileName = "<DATE>_Filename";
             s.PathSettings.DefaultDirectory = ".." + filesep + "Palladium DAQ - Testing";
             s.PathSettings.DefaultSequenceDirectory = ".." + filesep + "Palladium DAQ - Testing";
-            s.PathSettings.DataDirectoryIsRelativePath = true;
-            s.PathSettings.SequenceDirectoryIsRelativePath = true;
+            s.PathSettings.DataDirectoryIsRelativePath = false;
+            s.PathSettings.SequenceDirectoryIsRelativePath = false;
             s.PathSettings.DataFileExtension = ".dat";
             s.PathSettings.SequenceFileExtension = ".seq";
             s.PathSettings.SaveFile = true;
@@ -160,6 +162,8 @@ classdef ConfigIO < handle
                 "DefaultLogFileDirectory", initialConfig.LogSettings.LogFileDirectory,...
                 "DefaultLogFileDirectoryIsRelativePath", initialConfig.LogSettings.LogFileDirectoryIsRelativePath,...
                 "DefaultFileName", initialConfig.PathSettings.DefaultFileName,...
+                "UserFilesDirectory", initialConfig.PathSettings.UserFilesDirectory,...
+                "UserFilesDirectoryIsRelativePath", initialConfig.PathSettings.UserFilesDirectoryIsRelativePath,...
                 "WindowWidth", initialConfig.WindowSettings.DefaultSize(1),...
                 "WindowHeight", initialConfig.WindowSettings.DefaultSize(2),...
                 "WindowStartsMaximised", initialConfig.WindowSettings.Maximised);

@@ -2,7 +2,7 @@ classdef InstrumentController < handle
     %INSTRUMENTCONTROLLER - logic/container/manager class for handling
     %instrument creation and management in Palladium, and liaising with
     %Instrument selection GUIs in the View
-    
+
     %% Properties (Constant, Private)
     properties (Access = private, Constant)
         Namespace string = "Palladium.Instruments";
@@ -21,14 +21,14 @@ classdef InstrumentController < handle
         SelectedInstruments;
         Instruments;
     end
-    
+
     %% Properties (Private)
     properties (Access = private)
         Controller; %Reference back to the overall Palladium Controller that handles all the main logic - feed things back to there
         AssignInstrumentRefsIntoWorkspace = true;
     end
 
-%% Events
+    %% Events
     events
         DataRowCollected;
         DefaultEnabledInstrumentControlAdd;
@@ -36,8 +36,8 @@ classdef InstrumentController < handle
         InstrumentListPopulated;
         InstrumentRemoved;
     end
-    
-        %% Constructor
+
+    %% Constructor
     methods
         function this = InstrumentController(controller)
             this.Controller = controller;
@@ -64,8 +64,8 @@ classdef InstrumentController < handle
                     notify(this, "DefaultEnabledInstrumentControlAdd", args);
                 end
             end
-        end     
-        
+        end
+
         function instRef = AddInstrument(this, instrStringToAdd, settings)
             %Add an instrument just from a string of the name of its class
             arguments
@@ -146,7 +146,7 @@ classdef InstrumentController < handle
             catch err
                 this.Controller.HandleError("Error adding instrument " + instrStringToAdd, err);
             end
-        end    
+        end
 
         function controlClassRef = AddInstrumentControl(this, tab, instrRef, controlDetailsStruct)
             try
@@ -173,9 +173,9 @@ classdef InstrumentController < handle
                 ltr = addlistener(this.Controller.TimingLoopController, 'Stopped', @(src,evnt)controlClassRef.MeasurementsStopped(src, evnt));
                 controlClassRef.RegisterEventListener(ltr);
                 ltr = addlistener(this.Controller.TimingLoopController, 'MeasurementsInitialised', @(src,evnt)controlClassRef.MeasurementsInitialised(src, evnt));
-                controlClassRef.RegisterEventListener(ltr);              
+                controlClassRef.RegisterEventListener(ltr);
                 ltr = addlistener(this.Controller.TimingLoopController, 'TargetUpdateTimeChanged', @(src,evnt)controlClassRef.TargetUpdateTimeChanged(src, evnt));
-                controlClassRef.RegisterEventListener(ltr);  
+                controlClassRef.RegisterEventListener(ltr);
                 ltr = addlistener(this, 'DataRowCollected', @(src,evnt)controlClassRef.DataRowCollected(evnt.DataRow, evnt.Headers));
                 controlClassRef.RegisterEventListener(ltr);
 
@@ -291,7 +291,7 @@ classdef InstrumentController < handle
             end
         end
 
-        function instRefs = GetInstruments(this)            
+        function instRefs = GetInstruments(this)
             instRefs = this.SelectedInstruments;
         end
 
@@ -372,8 +372,8 @@ classdef InstrumentController < handle
             %Pass through to the View
             args = Palladium.Events.ValueChangedEventData(cellArrayOfInstrumentNameStrings);
             notify(this, "InstrumentListPopulated", args);
-        end     
-              
+        end
+
         function RemoveInstrument(this, instrumentRef)
             if isempty(instrumentRef)
                 return;
@@ -398,12 +398,12 @@ classdef InstrumentController < handle
         end
 
         function RemoveInstrumentControl(~, instrRef, controlDetailsStruct)
-       
+
             %Get a reference to the InstrumentControlBase object assigned
             %to this Instrument, of this name
             controlClassName = controlDetailsStruct.Name;
             objsList = instrRef.GetRegisteredControlObjectsFromName(controlClassName);
-          
+
             %Error checking
             assert(~isempty(objsList), "Could not find control to remove on Instrument " + instrRef.Name);
             assert(isscalar(objsList), "Expected to find exactly 1 InstrumentControl..");
@@ -414,15 +414,15 @@ classdef InstrumentController < handle
 
             %Un-subscribe from events
             controlClass.UnsubscribeFromEvents();
-            
+
             %Send the remove command
             controlClass.RemoveControl(instrRef);
 
-            %Delete the reference 
+            %Delete the reference
             delete(controlClass);
         end
     end
-    
-    
+
+
 end
 
