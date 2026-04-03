@@ -118,17 +118,17 @@ classdef DataWriter < handle
         function newFileName = ValidateFilePath(this)
             newFileName = this.FileWriteDetails.FileName;
             if(this.FileWriteDetails.SaveFile)
-                switch(this.FileWriteDetails.WriteMode)
-                    case('Increment File No.')
+                switch(string(this.FileWriteDetails.WriteMode))
+                    case("Increment File No.")
                         newFileName = Palladium.Utilities.PathUtils.GetIncrementedFileName(fullfile(string(this.FileWriteDetails.Directory), string(newFileName)) + string(this.FileWriteDetails.FileExtension));
-                    case('Overwrite File')
+                    case("Overwrite File")
                         if(exist(newFileName, 'file') == 2)  %If file exists already
                             delete(newFileName);    %delete the existing file, then carry on as if it neever existed!
                         end
-                    case('Append To File')
+                    case("Append To File")
                         %No action needed
                     otherwise
-                        error("Unsupported file write option");
+                        error("Unsupported file write option: " + string(this.FileWriteDetails.WriteMode));
                 end
             end
 

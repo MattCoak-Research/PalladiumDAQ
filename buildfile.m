@@ -16,7 +16,7 @@ end
 
 function packageTask(~)
     opts = matlab.addons.toolbox.ToolboxOptions("PalladiumDAQ.prj"); 
-    verStr = Palladium.ver();
-    opts.ToolboxVersion = string(verStr);
+    verStruct = Palladium.ver();    
+    opts.ToolboxVersion = string(verStruct.VersionString);
     matlab.addons.toolbox.packageToolbox(opts);
 end
