@@ -8,22 +8,25 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
     %recognised, and will echo the command if it worked, so we could build
     %in some verification on this.
 
+    %% Properties (Constant, Public)
     properties(Constant, Access = public)
         FullName = "Mercury 120 IPS";     %Full name, just for displaying on GUI
     end
 
+    %% Properties (Public, Set Observable)
+    % These properties will appear in the Instrument Settings GUI and are editable there
     properties(Access = public, SetObservable)
         Name = "120IPS";             %Instrument name
         Connection_Type = Palladium.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
     end
-    
+
+    %% Properties (Private)
     properties(Access = private)
         TargetFieldValue = 0;
     end
-    
+
+    %% Constructor
     methods
-    
-        %% Constructor
         function this = Mercury120_IPS()
             %Specify communication options and settings
             this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Serial", "VISA"]);
@@ -34,12 +37,46 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
             this.VISA_Address = "ASRL4::INSTR";
             this.Serial_Address = "COM4";
 
-            %Define the Instrument Controls that can be added 
+            %Define the Instrument Controls that can be added
             this.DefineInstrumentControl(Name = "Magnet Control", ClassName = "MagnetController", TabName = "Magnet Control", EnabledByDefault = true);
             this.DefineInstrumentControl(Name = "Sweep Control", ClassName = "SweepController_Ramp", TabName = "Sweep Control", EnabledByDefault = false);
         end
+    end
 
-        %% Connect
+    %% Methods (Public)
+    methods (Access = public)
+
+        function AbortRamp(this)
+            this.SetState_Hold();
+        end
+
+        function rampStatus = CheckRampStatus(this, timeElapsed_s, tDiff, currentTarget, rampRate_min) %#ok<INUSD>
+            %Return simulated data only if we are debugging without a
+            %physical instrument connected
+            if this.SimulationMode
+                rampStatus = this.SweepController.SimulateRamping(tDiff, currentTarget, rampRate_min);
+                this.SimulatedData.Field_T = rampStatus.CurrentField;
+                this.SimulatedData.Current_A = rampStatus.CurrentField*12;
+                return;
+            end
+
+            %Actual instrument commands here
+            isRamping = this.GetRampStatus();
+            rampStatus.TargetReached = ~isRamping;
+        end
+
+        function Close(this)
+            %Place in local mode now we are done.. if we connected in the
+            %first place (ie not if we are aborting a failed connect())
+            if ~isempty(this.DeviceHandle)
+                this.SetLocal();
+            end
+
+            %Override base class Close function - still call the base
+            %function, but place instrument in local mode first
+            Close@Palladium.Core.Instrument(this);
+        end
+
         function Connect(this)
             %Override to also place instrument in remote mode, after
             %executing base functions here
@@ -55,67 +92,6 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
             this.SetRemote();
         end
 
-         %% Close
-        function Close(this)
-            %Place in local mode now we are done.. if we connected in the
-            %first place (ie not if we are aborting a failed connect())
-            if ~isempty(this.DeviceHandle)
-                this.SetLocal();
-            end
-
-            %Override base class Close function - still call the base
-            %function, but place instrument in local mode first
-            Close@Palladium.Core.Instrument(this);
-        end
-
-        %% GetHeaders
-        function [Headers, Units] = GetHeaders(this)
-            Headers = [this.Name + " - Field (T)", this.Name + " - Current (A)"];
-            Units = ["T", "A"];
-        end       
-        
-        %% GetSweepUnitsString
-        function [str, limits, xlabelStr, ylabelStr] = GetSweepUnitsString(this)
-            %Tells the Sweep controller what the units and limits are of
-            %the parameter it is sweeping
-            str = "T";
-            limits = [-6, 6];    
-            xlabelStr = "Time (mins)";
-            ylabelStr = "Field (T)";
-        end
-       
-        %% Measure
-        function [dataRow] = Measure(this)
-            %Get measurement values 
-            field = this.GetField();
-            current = this.GetCurrent();
-            
-            %Assign data to output data row 
-            dataRow = [field, current];
-        end
-
-        %% AbortRamp
-        function AbortRamp(this)
-            this.SetState_Hold();
-        end
-
-        %% CheckRampStatus
-        function rampStatus = CheckRampStatus(this, timeElapsed_s, tDiff, currentTarget, rampRate_min)
-            %Return simulated data only if we are debugging without a
-            %physical instrument connected
-            if this.SimulationMode
-                rampStatus = this.SweepController.SimulateRamping(tDiff, currentTarget, rampRate_min);
-                this.SimulatedData.Field_T = rampStatus.CurrentField;
-                this.SimulatedData.Current_A = rampStatus.CurrentField*12;
-                return;
-            end
-
-            %Actual instrument commands here
-            isRamping = this.GetRampStatus();
-            rampStatus.TargetReached = ~isRamping;
-        end
-
-        %% GatherStatusStructForControlPanel
         function statusStruct = GatherStatusStructForControlPanel(this)
             %This will get called by the MagnetController Control, if added
             statusStruct.Current_A = this.GetCurrent();
@@ -127,7 +103,7 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
             statusStruct.StatusString = status.SweepStatus;
         end
 
-        %% GetCurrent
+
         function current_A = GetCurrent(this)
             if this.SimulationMode
                 current_A = this.RetrieveSimulatedDataValue("Current_A");
@@ -137,7 +113,6 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
             current_A = this.QueryAndParseIPSCommand("R2");
         end
 
-        %% GetCurrentLimits
         function [upperLimit, lowerLimit] = GetCurrentLimits(this)
             if this.SimulationMode
                 upperLimit = 60;
@@ -148,8 +123,7 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
             upperLimit = this.QueryAndParseIPSCommand("R22");
             lowerLimit = this.QueryAndParseIPSCommand("R21");
         end
-        
-        %% GetCurrentRampRate
+
         function currentRampRate_Amin = GetCurrentRampRate(this)
             if this.SimulationMode
                 currentRampRate_Amin = 1.1;
@@ -159,7 +133,6 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
             currentRampRate_Amin = this.QueryAndParseIPSCommand("R6");
         end
 
-        %% GetField
         function field_T = GetField(this)
             if this.SimulationMode
                 field_T = this.RetrieveSimulatedDataValue("Field_T");
@@ -169,7 +142,6 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
             field_T = this.QueryAndParseIPSCommand("R7");
         end
 
-        %% GetFieldRampRate
         function fieldRampRate_Tmin = GetFieldRampRate(this)
             if this.SimulationMode
                 fieldRampRate_Tmin = 0.1;
@@ -179,7 +151,11 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
             fieldRampRate_Tmin = this.QueryAndParseIPSCommand("R9");
         end
 
-        %% GetMagnetInductance
+        function [Headers, Units] = GetHeaders(this)
+            Headers = [this.Name + " - Field (T)", this.Name + " - Current (A)"];
+            Units = ["T", "A"];
+        end
+
         function inductance_H = GetMagnetInductance(this)
             if this.SimulationMode
                 inductance_H = 0;
@@ -189,38 +165,12 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
             inductance_H = this.QueryAndParseIPSCommand("R24");
         end
 
-        %% GetSetPointCurrent
-        function setPtCurrent_A = GetSetPointCurrent(this)
-            if this.SimulationMode
-                setPtCurrent_A = 0;
-                return;
-            end
-            setPtCurrent_A = NaN;
-
-            while(isnan(setPtCurrent_A))
-                setPtCurrent_A = this.QueryAndParseIPSCommand("R5");
-                pause(0.01);
-            end
-        end
-        
-        %% GetSetPointField
-        function setPtField_T = GetSetPointField(this)
-            if this.SimulationMode
-                setPtField_T = 0;
-                return;
-            end
-
-            setPtField_T = this.QueryAndParseIPSCommand("R8");
-        end
-
-        %% GetRampStatus
         function isRamping = GetRampStatus(this)
             %Query general status, then extract the ramp
             status = this.GetStatus();
             isRamping = ~strcmp(status.SweepStatus, "At rest");
         end
 
-        %% GetStatus
         function status = GetStatus(this)
             if this.SimulationMode
                 %Example string, to test the parsing below
@@ -364,27 +314,66 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
             polarityStatusString = statusString(14:14);
             switch(polarityStatusString)
                 case('0')
-                    status.PolarityStatus = "Mag Pos - Comm Pos";     
+                    status.PolarityStatus = "Mag Pos - Comm Pos";
                 case('1')
-                    status.PolarityStatus = "Mag Pos - Comm Neg";    
+                    status.PolarityStatus = "Mag Pos - Comm Neg";
                 case('2')
-                    status.PolarityStatus = "Mag Neg - Comm Pos";    
+                    status.PolarityStatus = "Mag Neg - Comm Pos";
                 case('3')
-                    status.PolarityStatus = "Mag Neg - Comm Neg";    
+                    status.PolarityStatus = "Mag Neg - Comm Neg";
                 case('4')
-                    status.PolarityStatus = "Mag Pos - Comm Pos";  
+                    status.PolarityStatus = "Mag Pos - Comm Pos";
                 case('5')
-                    status.PolarityStatus = "Mag Pos - Comm Neg";     
+                    status.PolarityStatus = "Mag Pos - Comm Neg";
                 case('6')
-                    status.PolarityStatus = "Mag Neg - Comm Pos";  
+                    status.PolarityStatus = "Mag Neg - Comm Pos";
                 case('7')
-                    status.PolarityStatus = "Mag Neg - Comm Neg";      
+                    status.PolarityStatus = "Mag Neg - Comm Neg";
                 otherwise
                     error("Error parsing IPS status - " + "Polarity status string " + string(polarityStatusString) + " not recognised." + "Total status string: " + string(statusString));
             end
         end
 
-        %% SetLocal
+        function setPtCurrent_A = GetSetPointCurrent(this)
+            if this.SimulationMode
+                setPtCurrent_A = 0;
+                return;
+            end
+            setPtCurrent_A = NaN;
+
+            while(isnan(setPtCurrent_A))
+                setPtCurrent_A = this.QueryAndParseIPSCommand("R5");
+                pause(0.01);
+            end
+        end
+
+        function setPtField_T = GetSetPointField(this)
+            if this.SimulationMode
+                setPtField_T = 0;
+                return;
+            end
+
+            setPtField_T = this.QueryAndParseIPSCommand("R8");
+        end
+
+        function [str, limits, xlabelStr, ylabelStr] = GetSweepUnitsString(~)
+            %Tells the Sweep controller what the units and limits are of
+            %the parameter it is sweeping
+            str = "T";
+            limits = [-6, 6];
+            xlabelStr = "Time (mins)";
+            ylabelStr = "Field (T)";
+        end
+
+        function [dataRow] = Measure(this)
+            %Get measurement values
+            field = this.GetField();
+            current = this.GetCurrent();
+
+            %Assign data to output data row
+            dataRow = [field, current];
+        end
+
         function SetLocal(this)
             %C0 - Local & Locked (LOC/REM button) - default state
             %C1 - Remote & Locked
@@ -393,62 +382,16 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
             this.QueryString("C2");
         end
 
-        %% SetMode_Amps
         function SetMode_Amps(this)
             %Selects CURRENT or FIELD mode for the display
             this.QueryString("M8");
         end
 
-        %% SetMode_Tesla
         function SetMode_Tesla(this)
             %Selects CURRENT or FIELD mode for the display
             this.QueryString("M9");
         end
 
-        %% SetRemote
-        function SetRemote(this)
-            %C0 - Local & Locked (LOC/REM button) - default state
-            %C1 - Remote & Locked
-            %C2 - Local & Unlocked
-            %C3 - Remote & Unlocked
-            this.QueryString("C3");
-        end
-
-        %% SetState_Clamp
-        function SetState_Clamp(this)
-            %Default state upon instrument power-up. Note that in this
-            %state, Ramp to SetPt or Ramp to Zero commands will not be
-            %recongnised - give SetState_Hold command first. So - give hold
-            %at start of any Sweep Start commands in case the instrument
-            %jsut powered on
-            this.QueryString("A4"); 
-        end
-
-        %% SetState_Hold
-        function SetState_Hold(this)
-            this.QueryString("A0"); 
-        end
-
-        %% SetState_RampToSetPoint
-        function SetState_RampToSetPoint(this)
-            %Check the current status of the power supply first. In
-            %particular, if we are in the default 'Clamp' state, we need to
-            %move to hold first before ramping..
-            status = this.GetStatus();
-            if strcmp(status.ActivityStatus, "Clamped")
-                this.SetState_Hold();
-                pause(0.1);
-            end
-
-            this.QueryString("A1"); 
-        end
-
-        %% SetState_RampToZero
-        function SetState_RampToZero(this)
-            this.QueryString("A2"); 
-        end
-
-        %% SetRampRate_AmpsMin
         function SetRampRate_AmpsMin(this, currentRampRate_Amin)
             arguments
                 this
@@ -460,7 +403,6 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
             this.QueryString(commandStr);
         end
 
-        %% SetRampRate_TeslaMin
         function SetRampRate_TeslaMin(this, fieldRampRate_Tmin)
             arguments
                 this
@@ -482,10 +424,54 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
 
             %Error if these do not match
             assert(achievedRate == fieldRampRate_Tmin, "Failed to set magnet ramp rate on " + this.Name + ". Requested " + num2str(fieldRampRate_Tmin) + " T/min, achieved " + num2str(achievedRate) + " T/min.");
-  
+
         end
 
-        %% SetTargetCurrent
+        function SetRemote(this)
+            %C0 - Local & Locked (LOC/REM button) - default state
+            %C1 - Remote & Locked
+            %C2 - Local & Unlocked
+            %C3 - Remote & Unlocked
+            this.QueryString("C3");
+        end
+
+        function SetRampingToTarget(this, target, rate, ~)
+            %Called by SweepController_Ramp
+            this.SetRampRate_TeslaMin(rate);
+            this.SetTargetField(target);
+            this.SetState_RampToSetPoint();
+        end
+        
+        function SetState_Clamp(this)
+            %Default state upon instrument power-up. Note that in this
+            %state, Ramp to SetPt or Ramp to Zero commands will not be
+            %recongnised - give SetState_Hold command first. So - give hold
+            %at start of any Sweep Start commands in case the instrument
+            %jsut powered on
+            this.QueryString("A4");
+        end
+
+        function SetState_Hold(this)
+            this.QueryString("A0");
+        end
+
+        function SetState_RampToSetPoint(this)
+            %Check the current status of the power supply first. In
+            %particular, if we are in the default 'Clamp' state, we need to
+            %move to hold first before ramping..
+            status = this.GetStatus();
+            if strcmp(status.ActivityStatus, "Clamped")
+                this.SetState_Hold();
+                pause(0.1);
+            end
+
+            this.QueryString("A1");
+        end
+
+        function SetState_RampToZero(this)
+            this.QueryString("A2");
+        end
+
         function SetTargetCurrent(this, current_A)
             arguments
                 this
@@ -508,7 +494,6 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
             assert(achievedSetPt == current_A, "Failed to set magnet set point on " + this.Name + ". Requested " + num2str(current_A) + " A, achieved " + num2str(achievedSetPt) + " A.");
         end
 
-        %% SetTargetField
         function SetTargetField(this, field_T)
             arguments
                 this
@@ -531,15 +516,6 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
             assert(achievedSetPt == field_T, "Failed to set magnet set point on " + this.Name + ". Requested " + num2str(field_T) + " T, achieved " + num2str(achievedSetPt) + " T.");
         end
 
-        %% SetRampingToTarget
-        function SetRampingToTarget(this, target, rate, settings)
-            %Called by SweepController_Ramp
-            this.SetRampRate_TeslaMin(rate);
-            this.SetTargetField(target);
-            this.SetState_RampToSetPoint();
-        end
-
-        %% SweepComplete
         function SweepComplete(this)
             %Called by a SweepController once the sweep is completed
             this.SetState_Hold();
@@ -547,9 +523,9 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
 
     end
 
+    %% Methods (Private)
     methods (Access = private)
-        
-        %% QueryAndParseIPSCommand
+
         function value = QueryAndParseIPSCommand(this, commandStr)
             %Avoiding code duplication with a little wrapper function for
             %queries of values - just snips an extra character off the
@@ -558,7 +534,7 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
                 this;
                 commandStr {mustBeTextScalar};
             end
-                        
+
             resultStr = this.QueryString(commandStr);
             resultSubStr = resultStr(2:end);
             value = str2double(resultSubStr);

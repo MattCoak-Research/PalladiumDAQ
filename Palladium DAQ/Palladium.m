@@ -14,8 +14,7 @@ classdef Palladium < handle
     % To launch with a Preset, enter the name of a file in the Presets
     % folder as the Preset argument, ie Palladium(Preset="Example");
 
-
-    %% Constant Private Properties
+    %% Properties(Constant, Private)
     properties (Constant, Access = private)
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         % Palladium Version Information
@@ -37,20 +36,18 @@ classdef Palladium < handle
         %Author information
         AuthorString = "M.J. Coak, University of Birmingham";
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+        %Path to directory of built-in Preset files
+        PresetsDirectory = filesep + "+PalladiumPresets";    
     end
 
-    %% Public Properties
-    properties (Access = public )
-
-    end
-
-    %% Private Properties
+    %% Properties (Private)
     properties (Access = {?Palladium, ?matlab.unittest.TestCase})
         Controller; %The reference to the Controller.m logic class that centrally coordinates everything in Palladium
         View = [];  %An optional GUI attached to the Palladium instance, with buttons and graphs etc. Not actually required to run the Programme
     end
 
-    %% Static Public Methods
+    %% Methods (Static, Public)
     methods (Access = public, Static, Sealed)
 
         function verStruct = ver()
@@ -74,10 +71,9 @@ classdef Palladium < handle
 
     end
 
-    %% Public Methods
-    methods
 
-        %% Constructor
+    %% Constructor
+    methods
         function this = Palladium(Settings)
             % PALLADIUM - Construct Palladium application object
             %
@@ -98,6 +94,9 @@ classdef Palladium < handle
             %
             % Input arguments (optional, see arguments block):
             %  - ConfigFilePath (string or empty/null []. Default is []) - Default is blank ([]) - enter a filepath instead to override default Config json file loading and pass in the path for another settings file to be loaded from
+            %  - DebugMode (logical. Default is false) - set to true to
+            %  throw full errors on all Instrument error messages. This is
+            %  for use when debugging issues or testing in development.
             %  - Preset (string or []. Default is []) - Optionally, enter the name of a Preset script in the +PalladiumPresets folder, like "Example"
             %  - View (string or []. Default is "PalladiumDAQ_DefaultGUI") -
             %  Enter blank ([]) to run a 'headless' Palladium with no GUI
@@ -105,6 +104,7 @@ classdef Palladium < handle
             %  to use that GUI/View instead of the default.
             arguments
                 Settings.ConfigFilePath = [];
+                Settings.DebugMode (1,1) logical = false;
                 Settings.Preset = [];
                 Settings.View = "PalladiumDAQ_DefaultGUI";
             end
@@ -135,7 +135,8 @@ classdef Palladium < handle
             %Create a Controller class that will handle all the backend logic
             this.Controller = Palladium.Core.Controller( ...
                 "ApplicationDir", applicationDir,...
-                "ApplicationPath", applicationPath...
+                "ApplicationPath", applicationPath,...
+                "DebugMode", Settings.DebugMode...
                 );
 
             %Register the view with the Controller
@@ -167,8 +168,10 @@ classdef Palladium < handle
             %are ready to go
             this.Controller.OnLoaded();
         end
+    end
 
-        %% Public Methods
+    %% Methods (Public)
+    methods
 
         function instRef = AddInstrument(this, instrumentClassName, settings)
             % ADDINSTRUMENT - Add or an Instrument instance to Palladium,
@@ -286,10 +289,10 @@ classdef Palladium < handle
         end
 
         function RemoveInstrument(this, instrRef)
-          % REMOVEINSTRUMENT - Remove an instrument 
-          %
-          % Input arguments:
-          % instrRef - reference to the Palladium.Core.Instrument to remove
+            % REMOVEINSTRUMENT - Remove an instrument
+            %
+            % Input arguments:
+            % instrRef - reference to the Palladium.Core.Instrument to remove
             arguments
                 this;
                 instrRef (1,1) Palladium.Core.Instrument;
@@ -299,13 +302,13 @@ classdef Palladium < handle
         end
 
         function RemoveInstrumentControl(this, instrRef, controlName)
-          % REMOVEINSTRUMENTCONTROL - Remove a named Instrument Control
-          % from an instrument. This will error if a Control of this name
-          % has not previously been added to that Instrument
-          %
-          % Input arguments:
-          % instrRef    - Palladium.Core.Instrument reference to modify
-          % controlName - name of control to remove (text scalar)
+            % REMOVEINSTRUMENTCONTROL - Remove a named Instrument Control
+            % from an instrument. This will error if a Control of this name
+            % has not previously been added to that Instrument
+            %
+            % Input arguments:
+            % instrRef    - Palladium.Core.Instrument reference to modify
+            % controlName - name of control to remove (text scalar)
             arguments
                 this;
                 instrRef (1,1) Palladium.Core.Instrument;
@@ -318,18 +321,18 @@ classdef Palladium < handle
             %Pass through to function below - this one is basically a nice
             %wrapper for it
             this.RemoveInstrumentControl(instrRef, controlDetailsStruct);
-       end
+        end
 
-       function RemoveInstrumentControlFromStruct(this, instrRef, controlDetailsStruct)
-          % REMOVEINSTRUMENTCONTROLFROMSTRUCT - Remove a Control tied to an
-          % instrument (e.g. a SweepController). This function is an
-          % advanced utility function for scripting. Easier to use
-          % REMOVEINSTRUMENTCONTROL, which just needs the name of the
-          % Control's class.
-          %
-          % Input arguments:t
-          % instrRef - Palladium.Core.Instrument instance reference
-          % controlDetailsStruct - struct describing the control to remove
+        function RemoveInstrumentControlFromStruct(this, instrRef, controlDetailsStruct)
+            % REMOVEINSTRUMENTCONTROLFROMSTRUCT - Remove a Control tied to an
+            % instrument (e.g. a SweepController). This function is an
+            % advanced utility function for scripting. Easier to use
+            % REMOVEINSTRUMENTCONTROL, which just needs the name of the
+            % Control's class.
+            %
+            % Input arguments:t
+            % instrRef - Palladium.Core.Instrument instance reference
+            % controlDetailsStruct - struct describing the control to remove
             arguments
                 this;
                 instrRef (1,1) Palladium.Core.Instrument;
@@ -344,12 +347,12 @@ classdef Palladium < handle
         end
 
         function SetDescription(this, descriptionText)
-          % SETDESCRIPTION - Set textual description for the current data
-          % file. Will be written into the top-of-file metadata on
-          % measurement Start
-          %
-          % Input arguments:
-          % descriptionText - text or string describing the object
+            % SETDESCRIPTION - Set textual description for the current data
+            % file. Will be written into the top-of-file metadata on
+            % measurement Start
+            %
+            % Input arguments:
+            % descriptionText - text or string describing the object
             arguments
                 this;
                 descriptionText {mustBeText};
@@ -360,11 +363,11 @@ classdef Palladium < handle
         end
 
         function SetDirectory(this, directory)
-          % SETDIRECTORY - Set Palladium's working directory, where data
-          % files will be saved
-          %
-          % Input arguments:
-          % directory - target directory as text scalar
+            % SETDIRECTORY - Set Palladium's working directory, where data
+            % files will be saved
+            %
+            % Input arguments:
+            % directory - target directory as text scalar
             arguments
                 this;
                 directory {mustBeTextScalar};
@@ -375,11 +378,11 @@ classdef Palladium < handle
         end
 
         function SetFileExtension(this, fileExtension)
-          % SETFILEEXTENSION - Set the file extension that will be used for
-          % data files Palladium writes
-          %
-          % Input arguments:
-          % fileExtension - text scalar specifying the new file extension
+            % SETFILEEXTENSION - Set the file extension that will be used for
+            % data files Palladium writes
+            %
+            % Input arguments:
+            % fileExtension - text scalar specifying the new file extension
             arguments
                 this;
                 fileExtension {mustBeTextScalar};
@@ -390,10 +393,10 @@ classdef Palladium < handle
         end
 
         function SetFileName(this, fileName)
-          % SETFILENAME - Set the filename for this object
-          %
-          % Input arguments:
-          % fileName - text scalar specifying the new filename
+            % SETFILENAME - Set the filename for this object
+            %
+            % Input arguments:
+            % fileName - text scalar specifying the new filename
             arguments
                 this;
                 fileName {mustBeTextScalar};
@@ -404,12 +407,12 @@ classdef Palladium < handle
         end
 
         function SetSaveFileBool(this, saveFileBool)
-          % SETSAVEFILEBOOL - Set flag controlling whether to save to file.
-          % If this is false, no data file will be written to disk. By
-          % default this is true
-          %
-          % Input arguments:
-          % saveFileBool - logical scalar, true to enable saving
+            % SETSAVEFILEBOOL - Set flag controlling whether to save to file.
+            % If this is false, no data file will be written to disk. By
+            % default this is true
+            %
+            % Input arguments:
+            % saveFileBool - logical scalar, true to enable saving
             arguments
                 this;
                 saveFileBool (1,1) logical;
@@ -420,10 +423,10 @@ classdef Palladium < handle
         end
 
         function SetUpdateTime(this, time_s)
-          % SETUPDATETIME - Set target update interval for the measurement loop, in seconds
-          %
-          % Input arguments:
-          % time_s - update interval in seconds (positive scalar)
+            % SETUPDATETIME - Set target update interval for the measurement loop, in seconds
+            %
+            % Input arguments:
+            % time_s - update interval in seconds (positive scalar)
             arguments
                 this;
                 time_s (1,1) double {mustBePositive};
@@ -462,7 +465,7 @@ classdef Palladium < handle
 
     end
 
-    %% Private Methods
+    %% Methods (Private)
     methods (Access = private)
 
         function ApplyPreset(this, presetFn, view)
@@ -511,7 +514,7 @@ classdef Palladium < handle
         end
 
         function dirPath = GetPresetsDir(this)
-            dirPath = fullfile(this.Controller.ApplicationDir,  this.Controller.PresetsDirectory);
+            dirPath = fullfile(this.Controller.ApplicationDir,  this.PresetsDirectory);
         end
 
         function presetFn = LoadPreset(this, presetName)

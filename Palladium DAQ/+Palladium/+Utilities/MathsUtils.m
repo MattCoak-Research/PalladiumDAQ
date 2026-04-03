@@ -1,9 +1,9 @@
 classdef MathsUtils
     %MATHSUTILS Static methods for helping with maths or science things
         
-    methods(Static)
+    %% Methods (Static, Public)
+    methods(Static, Access = public)
 
-        %% ConvertExponentToSIPrefix
         function prefixStr = ConvertExponentToSIPrefix(log103Max)
             switch (log103Max)
                 case(-30)

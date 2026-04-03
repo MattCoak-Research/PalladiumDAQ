@@ -2,15 +2,18 @@ classdef(Abstract) Instrument < handle
     %Instrument - Abstract base class all instrument implementations must
     %inherit from.
 
-    properties(Abstract, Constant)
+    %% Properties (Abstract, Constant, Public)
+    properties(Abstract, Constant, Access = public)
         FullName;   %Will be displayed on eg instrument settings tab
     end
 
-    properties(Abstract)
+    %% Properties (Abstract, Public)
+    properties(Abstract, Access = public)
         Name;
         Connection_Type;   %Type of connection to use to communicate with the instrument. Value will be a member of the ConnectionType Enum
     end
 
+    %% Properties (Public, SetObservable)
     properties(Access = public, SetObservable)
         GPIB_Address    (1,1) {mustBeInteger, mustBeBetween(GPIB_Address, 0, 30)} = 0;
         IP_Address      {mustBeTextScalar}  = '192.0.0.0.0';
@@ -18,15 +21,17 @@ classdef(Abstract) Instrument < handle
         VISA_Address    {mustBeTextScalar} = "VISA_ADDRESS";
     end
 
+    %% Properties (Public)
     properties(Access = public) %Properties that will not get detected by the GUI and have buttons added for them
         LastFullDataRow = [];           %Each tick, the Controller will store the complete DataRow in each Instrument here. This is used when Instruments write their own data files, for things like independent sweeps
         FullHeadersRow = [];            %On measurements start, this will get cached with the full array of headers for the whole setup - again, for instrument-driven data writing.
         FileWriteDetails = [];
     end
 
+    %% Properties (Protected)
     properties(Access = protected)
         SimulationMode = false;         %Set to true if testing code while not actually connected to a physical instrument - dummy data will be generated. Set via constructor of instance classes only.
-        DeviceHandle = [];              %Reference to the instrument connection/session, set when calling Connect()     
+        DeviceHandle = [];              %Reference to the instrument connection/session, set when calling Connect()
         SettingsToApply = [];           %Either null, or a struct of all the settings to apply in the next Measure command (keep these calls synchronous, they come originally from events)
         SimulatedData = [];             %Empty placeholder where an Instrument can define struct properties like SimulatedData.SourceLevel for testing things like SweepControl
 
@@ -39,39 +44,47 @@ classdef(Abstract) Instrument < handle
             );
     end
 
+    %% Properties (Private)
     properties(Access = private)
         AllowedConnectionTypes = [...
-                Palladium.Enums.ConnectionType.Debug,...
-                Palladium.Enums.ConnectionType.GPIB,...
-                Palladium.Enums.ConnectionType.VISA,...
-                Palladium.Enums.ConnectionType.Ethernet,...
-                Palladium.Enums.ConnectionType.Serial,...
-                Palladium.Enums.ConnectionType.USB...
-                ];
+            Palladium.Enums.ConnectionType.Debug,...
+            Palladium.Enums.ConnectionType.GPIB,...
+            Palladium.Enums.ConnectionType.VISA,...
+            Palladium.Enums.ConnectionType.Ethernet,...
+            Palladium.Enums.ConnectionType.Serial,...
+            Palladium.Enums.ConnectionType.USB...
+            ];
         ControlClasses = [];
         ControlDetailsStructs = []; % List of structs that define the options for later creating Control Classes
-    end   
-    
-    % Events with associated public callbacks
+    end
+
+    %% Events
     events (NotifyAccess = private)
         PropertyChanged;
     end
 
-    methods(Abstract)
+    %% Methods (Abstract, Public)
+    methods(Abstract, Access = public)
         [Headers, Units] = GetHeaders(this);
         [dataRow] = Measure(this);
-    end 
+    end
 
-    methods(Access = public)
-
-        %% Constructor
+    %% Constructor
+    methods
         function this = Instrument()
             %Register events that will auto-fire when we modify
             %SetObservable events on this instance ("PropertyChanged")
             this.RegisterPropertyChangedEvents();
         end
+    end
 
-        %% CheckForSettingsToApply
+    %% Methods (Public)
+    methods(Access = public)
+        function AbortRamp(this)
+            %Override in base classes to support SweepController_Ramp
+            %functionality
+        end
+
         function CheckForSettingsToApply(this)
             %Apply heater control settings, if Set has been pressed on a
             %ControlPanel somewhere
@@ -81,7 +94,6 @@ classdef(Abstract) Instrument < handle
             end
         end
 
-        %% Close
         function Close(this)
             %This (so far) looks to be common behaviour across all instruments.
             %Can override this function in implementing class if more behaviour needed.
@@ -106,8 +118,7 @@ classdef(Abstract) Instrument < handle
             end
         end
 
-        %% CollectMetadata
-        function metadataStruct = CollectMetaData(this)
+        function metadataStruct = CollectMetaData(this) %#ok<*MANU>
             %Does nothing by default - implementations of individual
             %instruments can override this to give functionality.
             %This returns an empty [] and therefore no line will be added
@@ -123,7 +134,6 @@ classdef(Abstract) Instrument < handle
             metadataStruct = [];
         end
 
-        %% Connect
         function Connect(this)
             switch(this.Connection_Type)
                 case(Palladium.Enums.ConnectionType.Debug)
@@ -146,8 +156,7 @@ classdef(Abstract) Instrument < handle
                     error("Unsupported connection type: " + this.Connection_Type + ". ConnectionType can be tcpip, gpib, serial, usb, or visa.");
             end
         end
-      
-        %% GetControlOption
+
         function controlDetailsStruct = GetControlOption(this, controlName)
             arguments
                 this;
@@ -175,7 +184,6 @@ classdef(Abstract) Instrument < handle
             error("Could not find Control Detail Struct with name " + string(controlName) + ". Supported options: " + listOfPotentialNames);
         end
 
-        %% GetRegisteredControlObjects
         function [objsList, controlDetailsStructsList] = GetRegisteredControlObjects(this)
             objsList = [];
             controlDetailsStructsList = [];
@@ -183,13 +191,12 @@ classdef(Abstract) Instrument < handle
             %Scan through all the Registered InstrumentControl classes and
             %return all the ones with Name matching the input name
             for i = 1 : length(this.ControlClasses)
-                objsList = [objsList this.ControlClasses(i)];
+                objsList = [objsList this.ControlClasses(i)]; %#ok<AGROW>
                 strct = this.ControlClasses(i).ControlDetailsStruct;
-                controlDetailsStructsList = [controlDetailsStructsList strct];
+                controlDetailsStructsList = [controlDetailsStructsList strct]; %#ok<AGROW>
             end
         end
-            
-        %% GetRegisteredControlObjectsFromName
+
         function objsList = GetRegisteredControlObjectsFromName(this, name)
             objsList = [];
 
@@ -197,32 +204,20 @@ classdef(Abstract) Instrument < handle
             %return all the ones with Name matching the input name
             for i = 1 : length(this.ControlClasses)
                 if(strcmp(name, this.ControlClasses(i).GetName()))
-                    objsList = [objsList this.ControlClasses(i)];
+                    objsList = [objsList this.ControlClasses(i)]; %#ok<AGROW>
                 end
             end
         end
-      
-        %% GetSupportedConnectionTypes
+
         function connectionTypes = GetSupportedConnectionTypes(this)
             connectionTypes = this.AllowedConnectionTypes;
-        end  
-
-        %% DefineSupportedConnectionTypes
-        function DefineSupportedConnectionTypes(this, connectionTypes)
-            arguments
-                this
-                connectionTypes (:,1) Palladium.Enums.ConnectionType;
-            end
-            
-            this.AllowedConnectionTypes = connectionTypes;
         end
 
-        %% Initialise
         function [success, msg] = Initialise(this)
             try
                 this.Connect();
             catch err
-                
+
                 success = false;
                 msg = "Could not connect to Instrument:\n" + this.FullName + " - " + this.Name + "\n" + "Connection type " + string(this.Connection_Type) + "\n\nError message: " + err.message;
                 return;
@@ -232,41 +227,17 @@ classdef(Abstract) Instrument < handle
             msg = "";
 
             this.OnInitialised();
-        end
+        end      
 
-        %% RegisterControlObject
-        function RegisterControlObject(this, classRef)
-            name = classRef.GetName();
-
-            %Check we didn't already register a control of this name to
-            %avoid duplication
-            if ~isempty(this.GetRegisteredControlObjectsFromName(name))
-                error("A Control object of name " + name + " has already been added to Instrument " + this.Name);
-            end
-
-            %Add to the list of tracked things
-            if isempty(this.ControlClasses)
-                this.ControlClasses = classRef;
-            else
-                this.ControlClasses = [this.ControlClasses, classRef];
-            end
-        end
-
-        %% RemoveControlObject
-        function RemoveControlObject(this, className)
-            for i = length(this.ControlClasses) : -1 : 1
-                if(strcmp(className, this.ControlClasses(i).GetName()))
-                    this.ControlClasses(i) = [];
-                end
-            end
-        end
-
-        %% SetNewSweepStepValue
         function SetNewSweepStepValue(this, value) %#ok<INUSD>
             warning("An override method for SetNewSweepStepValue has not been defined for this Instrument. A SweepController_Stepped is probably trying to tell this Instrument to go to the next step in its sweep but the Instrument doesn't have a function written to tell it how. Look at the Keithley2000 class for an example");
         end
 
-        %% SettingsInput
+        function SetRampingToTarget(this, target, rate, settings) %#ok<INUSD>
+            %Override in base classes to support SweepController_Ramp
+            %functionality
+        end
+
         function SettingsInput(this, settings)
             %This is triggered by e.g. the event raised by a
             %LakeshoreTempControl component. Unpack the data and pass it on
@@ -276,7 +247,6 @@ classdef(Abstract) Instrument < handle
             end
         end
 
-        %% ShowProperty
         function value = ShowProperty(this, propertyName)
             %Returns true/false to determine whether a property should be
             %shown in the Instrument Options panel - primarily, if we are
@@ -309,7 +279,7 @@ classdef(Abstract) Instrument < handle
             %Allow ignoring additional properties specified by an
             %Instrument by overriding this call:
             propertiesToIgnore = this.GetPropertiesToIgnore();
-             for i = 1 : length(propertiesToIgnore)
+            for i = 1 : length(propertiesToIgnore)
                 if(strcmp(propertiesToIgnore{i}, propertyName))
                     value = false;
                     return;
@@ -319,35 +289,31 @@ classdef(Abstract) Instrument < handle
             value = true;
         end
 
-        %% AbortRamp
-        function AbortRamp(this)
-            %Override in base classes to support SweepController_Ramp
-            %functionality
-        end
-
-        %% SetRampingToTarget
-        function SetRampingToTarget(this, target, rate, settings)
-            %Override in base classes to support SweepController_Ramp
-            %functionality
-        end
-        
     end
 
+    %% Methods (Public, Sealed)
     methods (Access = public, Sealed)
-    
-        %% GetAvailableControlOptions
+
+        function DefineSupportedConnectionTypes(this, connectionTypes)
+            arguments
+                this
+                connectionTypes (:,1) Palladium.Enums.ConnectionType;
+            end
+
+            this.AllowedConnectionTypes = connectionTypes;
+        end
+        
         function [controlDetailsStructs] = GetAvailableControlOptions(this)
             controlDetailsStructs = this.ControlDetailsStructs;
         end
 
-        %% GrabMetadataString
         function stringLine = GrabMetadataString(this)
             %This function calls the CollectMetadata function, which should
             %be defined/overwritten in any Instrument that wants
             %metadata/settings to be recorded in the data file header.
             %Controller.InitialiseMeasurements is going to call this
             %automatically.
-            
+
             %Get the metadata, which is either empty or a struct
             result = this.CollectMetaData();
 
@@ -365,8 +331,32 @@ classdef(Abstract) Instrument < handle
             preInfStr = this.Name + " Settings: ";
             stringLine = Palladium.DataWriting.DataWriter.BuildMetadataLineStringFromStruct(preInfStr, result);
         end
-        
-        %% UpdateAndMeasure
+
+        function RegisterControlObject(this, classRef)
+            name = classRef.GetName();
+
+            %Check we didn't already register a control of this name to
+            %avoid duplication
+            if ~isempty(this.GetRegisteredControlObjectsFromName(name))
+                error("A Control object of name " + name + " has already been added to Instrument " + this.Name);
+            end
+
+            %Add to the list of tracked things
+            if isempty(this.ControlClasses)
+                this.ControlClasses = classRef;
+            else
+                this.ControlClasses = [this.ControlClasses, classRef];
+            end
+        end
+
+        function RemoveControlObject(this, className)
+            for i = length(this.ControlClasses) : -1 : 1
+                if(strcmp(className, this.ControlClasses(i).GetName()))
+                    this.ControlClasses(i) = [];
+                end
+            end
+        end
+
         function dataRow = UpdateAndMeasure(this, headers)
             %UpdateAndMeasure is the entry point to Measure commands from
             %the InstrumentController Loop. It will call Update methods on
@@ -382,23 +372,22 @@ classdef(Abstract) Instrument < handle
             %last-acquired dataRow
             this.UpdateControlsData(dataRow, headers);
         end
+
     end
 
+    %% Methods (Protected)
     methods(Access = protected)
 
-        %% ApplySettings
-        function ApplySettings(this, settings)
+        function ApplySettings(this, settings) %#ok<INUSD>
             %Does nothing by default - implementations can override this to
             %give functionality
         end
 
-        %% ConnectGPIB
         function ConnectGPIB(this)
             this.DeviceHandle = visadev("GPIB::" + num2str(this.GPIB_Address) + "::" + num2str(this.ConnectionSettings.GPIB_BoardIndex) + "::INSTR");
             configureTerminator(this.DeviceHandle, this.ConnectionSettings.GPIB_Terminators(1), this.ConnectionSettings.GPIB_Terminators(2));
         end
 
-        %% ConnectSerial
         function ConnectSerial(this)
             %Connect to instrument via serial/COM interface
             this.DeviceHandle = serialport(this.Serial_Address, this.ConnectionSettings.SerialSettings.BaudRate);
@@ -410,7 +399,6 @@ classdef(Abstract) Instrument < handle
             configureTerminator(this.DeviceHandle, this.ConnectionSettings.SerialSettings.Terminator);
         end
 
-        %% ConnectTCPIP
         function ConnectTCPIP(this)
             %Connect to instrument via ethernet/tcpip
 
@@ -419,7 +407,7 @@ classdef(Abstract) Instrument < handle
             %https://uk.mathworks.com/help/instrument/transition-your-code-to-tcpclient-interface.html
 
             %Check for existing connection -  Find a tcpip object at this address and port.
-            existingHandle = tcpclientfind("Address", char(this.IP_Address), 'RemotePort', this.ConnectionSettings.Port); %This requires Matlab 2024a 
+            existingHandle = tcpclientfind("Address", char(this.IP_Address), 'RemotePort', this.ConnectionSettings.Port); %This requires Matlab 2024a
 
             if(~isempty(existingHandle))    %If we already are connected, don't try to connect again - will error
                 this.DeviceHandle = existingHandle;
@@ -431,12 +419,10 @@ classdef(Abstract) Instrument < handle
             end
         end
 
-        %% ConnectUSB
         function ConnectUSB(this)
             this.ConnectVISA();
         end
 
-        %% ConnectVISA
         function ConnectVISA(this)
             %Connect to instrument via VISA interface
 
@@ -445,7 +431,7 @@ classdef(Abstract) Instrument < handle
             %https://uk.mathworks.com/help/instrument/transition-your-code-to-visadev-interface.html
 
             %Check for existing connection -  Find a tcpip object at this address and port.
-            existingHandle = visadevfind(Name=this.VISA_Address);   %This requires Matlab 2024a 
+            existingHandle = visadevfind(Name=this.VISA_Address);   %This requires Matlab 2024a
             if(~isempty(existingHandle))    %If we already are connected, don't try to connect again - will error
                 this.DeviceHandle = existingHandle;
                 disp("Existing connection to " + this.Name + " found, using that");
@@ -454,7 +440,6 @@ classdef(Abstract) Instrument < handle
             end
         end
 
-        %% ConvertToCategorical
         function catOut = ConvertToCategorical(~, inputStr, catNamesStrArray)
             %Convert an input string into a categorical with categories set
             %by catNameStrArray. This function mainly handles the
@@ -481,7 +466,6 @@ classdef(Abstract) Instrument < handle
             end
         end
 
-        %% DefineInstrumentControl
         function DefineInstrumentControl(this, Settings)
             %Normally call this in the Constructor of an Instrument
             %implementation - specify a Control class, like a
@@ -494,9 +478,9 @@ classdef(Abstract) Instrument < handle
                 Settings.ClassName          {mustBeTextScalar}
                 Settings.TabName            {mustBeTextScalar}
                 Settings.EnabledByDefault   (1,1) logical = false;
-                Settings.UserData = []; %Spare field to use for specific Control data flexibly 
+                Settings.UserData = []; %Spare field to use for specific Control data flexibly
             end
-            
+
             s = struct(...
                 "Name", Settings.Name,...
                 "ControlClassFileName", Settings.ClassName,...
@@ -507,17 +491,50 @@ classdef(Abstract) Instrument < handle
             this.ControlDetailsStructs = [this.ControlDetailsStructs, s];
         end
 
-        %% GetPropertiesToIgnore
         function propertiesToIgnore = GetPropertiesToIgnore(this)
             propertiesToIgnore = {};
         end
 
-        %% OnInitialised
         function OnInitialised(this)
             %No default functionality - override in Implementation classes
         end
 
-        %% ReadString
+        function val = QueryDouble(this, command)
+            arguments
+                this;
+                command (1,1) string;
+            end
+
+            if(this.SimulationMode)
+                val = rand() + 100;
+            else
+                %Quickly check to make sure we are (in theory at least)
+                %connected before sending command - warn if not
+                assert(~isempty(this.DeviceHandle), "Device Handle is empty - device is not connected yet when sending Query command (" + this.FullName + ")");
+
+                %Send query
+                val = str2double(query(this.DeviceHandle, command));
+            end
+        end
+
+        function val = QueryString(this, command)
+            arguments
+                this;
+                command (1,1) string;
+            end
+
+            if(this.SimulationMode)
+                val = 'null';
+            else
+                %Quickly check to make sure we are (in theory at least)
+                %connected before sending command - warn if not
+                assert(~isempty(this.DeviceHandle), "Device Handle is empty - device is not connected yet when sending Query command (" + this.FullName + ")");
+
+                %Send query
+                val = query(this.DeviceHandle, command);
+            end
+        end
+
         function data = ReadString(this)
             if(this.SimulationMode)
                 data = 'null';
@@ -530,11 +547,10 @@ classdef(Abstract) Instrument < handle
             end
         end
 
-        %% RetrieveSimulatedDataValue
         function val = RetrieveSimulatedDataValue(this, propName, defaultValue)
             arguments
-                this; 
-                propName {mustBeTextScalar}; 
+                this;
+                propName {mustBeTextScalar};
                 defaultValue = 0;
             end
             %Handle retrieving a previously stored SimulatedData struct
@@ -559,45 +575,7 @@ classdef(Abstract) Instrument < handle
             val = this.SimulatedData.(propName);
         end
 
-        %% QueryDouble
-        function val = QueryDouble(this, command)
-            arguments
-                this;
-                command (1,1) string;
-            end
-            
-            if(this.SimulationMode)
-                val = rand() + 100;
-            else
-                %Quickly check to make sure we are (in theory at least)
-                %connected before sending command - warn if not
-                assert(~isempty(this.DeviceHandle), "Device Handle is empty - device is not connected yet when sending Query command (" + this.FullName + ")");
 
-                %Send query
-                val = str2double(query(this.DeviceHandle, command));
-            end
-        end
-
-        %% QueryString
-        function val = QueryString(this, command)
-            arguments
-                this;
-                command (1,1) string;
-            end
-
-            if(this.SimulationMode)
-                val = 'null';
-            else
-                %Quickly check to make sure we are (in theory at least)
-                %connected before sending command - warn if not
-                assert(~isempty(this.DeviceHandle), "Device Handle is empty - device is not connected yet when sending Query command (" + this.FullName + ")");
-
-                %Send query
-                val = query(this.DeviceHandle, command);
-            end
-        end
-
-        %% WriteCommand
         function WriteCommand(this, command)
             arguments
                 this;
@@ -613,12 +591,11 @@ classdef(Abstract) Instrument < handle
             fprintf(this.DeviceHandle, command);
         end
 
-
     end
 
-    methods (Access = private) 
+    %% Methods (Private)
+    methods (Access = private)
 
-        %% HandlePropEvents
         function HandlePropEvents(this, ~, evnt)
             %Gets called internally (by Matlab) on properties marked as
             %'properties (SetObservable)' - pass on events to tell GUIs we have
@@ -633,11 +610,9 @@ classdef(Abstract) Instrument < handle
             notify(this, "PropertyChanged", evnt);
         end
 
-        %% RegisterPropertyChangedEvents
         function RegisterPropertyChangedEvents(this)
             mc = metaclass(this);
             metaprops = [mc(:).Properties];
-            prop = [];
             for i = length(metaprops): -1 : 1
                 prop = metaprops(i);
                 if(prop{1}.SetObservable)
@@ -647,21 +622,18 @@ classdef(Abstract) Instrument < handle
             end
         end
 
-        %% UpdateControls
         function UpdateControls(this)
             for i = 1 : length(this.ControlClasses)
                 this.ControlClasses(i).Update();
             end
         end
 
-        %% UpdateControlsData
         function UpdateControlsData(this, dataRow, headers)
             for i = 1 : length(this.ControlClasses)
                 this.ControlClasses(i).UpdateData(dataRow, headers);
             end
         end
 
-        
     end
 end
 

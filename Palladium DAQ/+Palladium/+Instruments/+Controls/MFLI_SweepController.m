@@ -4,15 +4,13 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
     %collection and independent logging of sweeps on a Zurich Instruments
     %MFLI
 
-    properties
-
-    end
-
+    %% Properties (Public, Private Set)
     properties (GetAccess = public, SetAccess = protected)
         Running = false;
         TimeElapsed_s = 0;
     end
 
+    %% Properties (Private)
     properties (Access = private)
         SweepHandle = [];
         CachedSweepData = [];
@@ -23,13 +21,21 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
         timerVal;   %Used for tracking Elapsed Time since sweep started, with tic/toc
     end
 
+    %% Constructor
     methods
-
-        %% Constructor
         function this = MFLI_SweepController()
         end
+    end
 
-        %% CreateInstrumentControlGUI
+    %% Methods (Public)
+    methods (Access = public)
+
+        function AbortSweep(this, ~, ~)
+            this.Running = false;
+            this.TimeElapsed_s = 0;
+            this.OnSweepAbort();
+        end
+
         function CreateInstrumentControlGUI(this, controller, tab, instrRef)
             %Make a specific reference to and from the Instrument Class
             this.Instrument = instrRef;
@@ -57,31 +63,7 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
             this.Plotter.Layout.Column = 2;
         end
 
-        %% RemoveControl
-        function RemoveControl(this, instrRef)
-            
-            %Delete GUI objects
-            delete(this.GUIView);
-            this.GUIView = [];
-        end
 
-        %% RunSweep
-        function RunSweep(this, ~, eventData)
-            this.Running = true;
-            this.TimeElapsed_s = 0;
-            this.timerVal = tic();
-            this.OnSweepRun(eventData.Value);
-        end
-
-        %% AbortSweep
-        function AbortSweep(this, ~, ~)
-            this.Running = false;
-            this.TimeElapsed_s = 0;
-            this.OnSweepAbort();
-        end
-
-
-        %% OnSweepAbort
         function OnSweepAbort(this)
 
             %Write the data (will check if Save to File is selected)
@@ -93,7 +75,6 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
             this.Instrument.Sweep_Abort(this.SweepHandle);
         end
 
-        %% OnSweepComplete
         function OnSweepComplete(this, sweepData)
             this.SweepHandle = [];
             this.Running = false;
@@ -110,7 +91,6 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
             end
         end
 
-        %% OnSweepRun
         function OnSweepRun(this, eventData)
             %Unpack the settings from the eventData struct for convenience
             SweepName = eventData.SweepName;
@@ -148,9 +128,21 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
 
         end
 
-        %% Update
+        function RemoveControl(this, ~)
+            %Delete GUI objects
+            delete(this.GUIView);
+            this.GUIView = [];
+        end
+
+        function RunSweep(this, ~, eventData)
+            this.Running = true;
+            this.TimeElapsed_s = 0;
+            this.timerVal = tic();
+            this.OnSweepRun(eventData.Value);
+        end
+
         function Update(this)
-            
+
             if isempty(this.SweepHandle)
                 return;
             end
@@ -165,9 +157,9 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
                 this.CachedSweepData = SweepData;
 
                 %Plot any data - this is a relic of having a SimplePlotter
-               % if ~isempty(SweepData.SweepValues)
-              %      this.UpdateData(SweepData.SweepValues, SweepData.Amplitude);
-              %  end
+                % if ~isempty(SweepData.SweepValues)
+                %      this.UpdateData(SweepData.SweepValues, SweepData.Amplitude);
+                %  end
 
                 %Handle the sweep completion if it is finished
                 if complete
@@ -176,37 +168,31 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
             end
         end
 
-        %% UpdateData
-        function UpdateData(this, dataRow, headers)      
-            
+        function UpdateData(this, dataRow, headers) %#ok<INUSD>
         end
 
-        %% MeasurementsStarted
-        function MeasurementsStarted(this, src, ~, ~)
-            this.UnlockRunButton();            
+        function MeasurementsStarted(this, ~, ~, ~)
+            this.UnlockRunButton();
         end
-        
-        %% MeasurementsStopped
-        function MeasurementsStopped(this, src, ~, ~)
+
+        function MeasurementsStopped(this, ~, ~, ~)
             this.GUIView.AbortSweep();
             this.LockRunButton();
         end
 
-        %% LockRunButton
         function LockRunButton(this)
             this.GUIView.LockRunButton();
         end
 
-        %% UnlockRunButton
         function UnlockRunButton(this)
             this.GUIView.UnlockRunButton();
         end
+
     end
 
+    %% Methods (Private)
     methods (Access = private)
 
-
-        %% CreateDataFile
         function CreateDataFile(this, sweepParams)
             %Create or reset the data writer class
             fileNameSuffix = this.ControlDetailsStruct.SweepDetails.FileName;
@@ -230,22 +216,19 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
             this.StartNewDataFile(this.DataWriter, headers, extraMetadataLines);
         end
 
-        %% ClearData
-        function ClearData(this)
+        function ClearData(this) %#ok<MANU>
             %this.Plotter.ClearData();
-          %  this.Plotter.LabelAxes("", "");
+            %  this.Plotter.LabelAxes("", "");
         end
 
-        %% SweepEnded
         function SweepEnded(this)
             this.InsertEndMetadataIntoFile(this.DataWriter);
         end
 
-        %% CreateSweepMetaDataLine
-        function stringLine = CreateSweepMetaDataLine(this, sweepParams)
+        function stringLine = CreateSweepMetaDataLine(this, sweepParams) %#ok<INUSD>
             SweepName = sweepParams.SweepName;
             SweepParams = sweepParams.SweepParams;
-            FileParams = sweepParams.FileParams;
+            FileParams = sweepParams.FileParams; %#ok<NASGU>
 
             stringLine = "SweepType: " + SweepName;
 
@@ -254,10 +237,9 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
             stringLine = stringLine + " || Parameters: " + sweepParamsStr;
         end
 
-        %% GetHeaders
-        function headersString = GetHeaders(this, sweepParams)
+        function headersString = GetHeaders(this, sweepParams) %#ok<INUSD>
             SweepName = sweepParams.SweepName;
-            SweepParams = sweepParams.SweepParams;
+            SweepParams = sweepParams.SweepParams; %#ok<NASGU>
 
             switch(SweepName)
                 case("Frequency")
@@ -280,10 +262,9 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
             end
 
             %Update the plotter axes labels
-%            this.Plotter.LabelAxes(xAx, "Amplitude (V)");
+            %            this.Plotter.LabelAxes(xAx, "Amplitude (V)");
         end
 
-        %% WriteData
         function WriteData(this, sweepData)
 
             %Write final details to file if option selected

@@ -1,24 +1,27 @@
 classdef ConfigIO < handle
     %ConfigIO - Class to handling reading and writing of local Config
     %settings to and from (XML) files.
-    
+
+    %% Properties (Public)
     properties(Access = public)
         ConfigDirectory = filesep + ".." + filesep + ".." + filesep + ".." + filesep + "Palladium DAQ - Settings" + filesep;
         PromptForGUIEntryOfSettings = true;
     end
 
+    %% Properties (Private)
     properties (Access = private)
         EnteredSettingsStruct = []; %Hold enetered details (fired from event) in temp property that code can then access when execution resumes
     end
-        
-    %% Methods
+
+    %% Constructor
+    methods
+        function this = ConfigIO()
+        end
+    end
+
+    %% Methods (Public)
     methods(Access = public)
 
-        %% Constructor
-        function this = ConfigIO()
-        end        
-        
-        %% LoadConfig
         function con = LoadConfig(this, Settings)
             arguments
                 this;
@@ -39,10 +42,10 @@ classdef ConfigIO < handle
                     %not have a Logger yet and so cannot use that
                     fprintf("\n");
                     disp("[INFO] - Config file not found at " + Palladium.Utilities.PathUtils.CleanPath(configPath));
-                    
+
                     if this.PromptForGUIEntryOfSettings
                         disp("Opening GUI window for config settings entry.");
-                        defaultConfig = this.GenerateDefaultConfigStruct();                        
+                        defaultConfig = this.GenerateDefaultConfigStruct();
                         enteredConfig = this.ShowConfigEntryGUI(defaultConfig);
                         this.SaveConfig(enteredConfig);
                     else
@@ -68,93 +71,86 @@ classdef ConfigIO < handle
                 error("Error loading Config file in ConfigIO: " + e.message);
             end
         end
-        
-        %% SaveConfig
+
         function SaveConfig(this, config)
             try
                 confDir = this.GetConfigDirPath();
-                
+
                 %Make the config folder if it doesn't exist already
                 if ~exist(confDir, 'dir')
                     mkdir(confDir);
                 end
-                
+
                 configPath = [confDir 'Config.json'];
                 writestruct(config, configPath, "FileType", "json");
             catch e
                 error("Error saving Config file in ConfigIO: " + e.message);
             end
         end
-        
-        %% SaveDefaultConfig
+
         function SaveDefaultConfig(this)
-            try                
-                s = this.GenerateDefaultConfigStruct();                
+            try
+                s = this.GenerateDefaultConfigStruct();
                 this.SaveConfig(s);
             catch e
                 error("Error saving new default Config file in ConfigIO: " + e.message);
             end
-        end     
-
+        end
         
-                
     end
-    
+
+    %% Methods (Private)
     methods(Access = private)
-        
-        %% ConfigEntryComplete
+
         function ConfigEntryComplete(this, ~, eventData)
             settingsStruct = eventData.Value;
             this.EnteredSettingsStruct = settingsStruct;
         end
 
-        %% GenerateDefaultConfigStruct
-        function s = GenerateDefaultConfigStruct(this)
+        function s = GenerateDefaultConfigStruct(~)
 
-             %% ------- Edit default config values / add new ones here ----
-                s.LogSettings.LogFileDirectory = ".." + filesep + "Palladium DAQ - Testing" + filesep + "Logs";
-                s.LogSettings.LogFileFileName = "<DATE>_Log.txt";
-                s.LogSettings.LogFileDirectoryIsRelativePath = true;
-                s.LogSettings.CommandWindowMessageLevel = "Debug";
-                s.LogSettings.PrintStackTraceInCommandWindow = false;
-                s.LogSettings.GUIMessageLevel = "Warning";
-                s.LogSettings.LogFileMessageLevel = "Debug";
-                s.LogSettings.ErrorOnAllInstrumentErrors = false;
-               
-                s.PathSettings.DefaultFileName = "<DATE>_Filename";
-                s.PathSettings.DefaultDirectory = ".." + filesep + "Palladium DAQ - Testing";
-                s.PathSettings.DefaultSequenceDirectory = ".." + filesep + "Palladium DAQ - Testing";
-                s.PathSettings.DataDirectoryIsRelativePath = true;
-                s.PathSettings.SequenceDirectoryIsRelativePath = true;
-                s.PathSettings.DataFileExtension = ".dat";
-                s.PathSettings.SequenceFileExtension = ".seq";
-                s.PathSettings.SaveFile = true;
-                s.PathSettings.FileWriteMode = "Increment File No.";
-                s.PathSettings.DefaultDescription = "";
+            %% ------- Edit default config values / add new ones here ----
+            s.LogSettings.LogFileDirectory = ".." + filesep + "Palladium DAQ - Testing" + filesep + "Logs";
+            s.LogSettings.LogFileFileName = "<DATE>_Log.txt";
+            s.LogSettings.LogFileDirectoryIsRelativePath = true;
+            s.LogSettings.CommandWindowMessageLevel = "Debug";
+            s.LogSettings.PrintStackTraceInCommandWindow = false;
+            s.LogSettings.GUIMessageLevel = "Warning";
+            s.LogSettings.LogFileMessageLevel = "Debug";
+            s.LogSettings.ErrorOnAllInstrumentErrors = false;
 
-                s.WindowSettings.DefaultSize = [1000, 700];
-                s.WindowSettings.DefaultPosition = [];  %If empty, window will be centred
-                s.WindowSettings.Maximised = true;
+            s.PathSettings.DefaultFileName = "<DATE>_Filename";
+            s.PathSettings.DefaultDirectory = ".." + filesep + "Palladium DAQ - Testing";
+            s.PathSettings.DefaultSequenceDirectory = ".." + filesep + "Palladium DAQ - Testing";
+            s.PathSettings.DataDirectoryIsRelativePath = true;
+            s.PathSettings.SequenceDirectoryIsRelativePath = true;
+            s.PathSettings.DataFileExtension = ".dat";
+            s.PathSettings.SequenceFileExtension = ".seq";
+            s.PathSettings.SaveFile = true;
+            s.PathSettings.FileWriteMode = "Increment File No.";
+            s.PathSettings.DefaultDescription = "";
 
-                s.PlotterSettings.Colours = [1 0 0, 0 0 1, 0 0.6 0, 1 0 1];
-                s.PlotterSettings.FontSize = 20;
-                s.PlotterSettings.LineStyles = ["None", "None", "None", "None"];
-                s.PlotterSettings.LineWidth = 1;
-                s.PlotterSettings.MarkerSize = 6;
-                s.PlotterSettings.Markers = ["o"; "o"; "+"; "*"];
-                s.PlotterSettings.ShowLegends = true;
-                % ------------------------------------------------------------
+            s.WindowSettings.DefaultSize = [1000, 700];
+            s.WindowSettings.DefaultPosition = [];  %If empty, window will be centred
+            s.WindowSettings.Maximised = true;
+
+            s.PlotterSettings.Colours = [1 0 0, 0 0 1, 0 0.6 0, 1 0 1];
+            s.PlotterSettings.FontSize = 20;
+            s.PlotterSettings.LineStyles = ["None", "None", "None", "None"];
+            s.PlotterSettings.LineWidth = 1;
+            s.PlotterSettings.MarkerSize = 6;
+            s.PlotterSettings.Markers = ["o"; "o"; "+"; "*"];
+            s.PlotterSettings.ShowLegends = true;
+            % ------------------------------------------------------------
         end
 
-        %% GetConfigDirPath
-        function dirPath = GetConfigDirPath(this)            
+        function dirPath = GetConfigDirPath(this)
             functionPath = mfilename('fullpath');
             [directoryOfThisFunction, ~, ~] = fileparts(functionPath);
             dirPath = fullfile(directoryOfThisFunction, char(this.ConfigDirectory));
-        end  
+        end
 
-        %% ShowConfigEntryGUI
-        function con = ShowConfigEntryGUI(this, initialConfig)  
+        function con = ShowConfigEntryGUI(this, initialConfig)
             con = initialConfig;
             c = Palladium.Components.ConfigInputWindow();
 
@@ -208,7 +204,6 @@ classdef ConfigIO < handle
             end
         end
 
-        %% VerifyConfigStruct
         function [con, changesDetected] = VerifyConfigStruct(this, con)
             changesDetected = false;
 
@@ -236,14 +231,14 @@ classdef ConfigIO < handle
                 [changesDetected, newStrct] = Palladium.Utilities.ConfigIO.AdjustStructsToMatch(con.(cfName), df.(cfName), changesDetected);
                 con.(cfName) = newStrct;
             end
-            
+
         end
 
     end
 
+    %% Methods (Static, Private)
     methods (Static, Access = private)
 
-        %% AdjustStructsToMatch
         function [changesDetected, configStruct] = AdjustStructsToMatch(configStruct, defaultStructToCompareTo, changesDetectedAlready)
             changesDetected = changesDetectedAlready;
 

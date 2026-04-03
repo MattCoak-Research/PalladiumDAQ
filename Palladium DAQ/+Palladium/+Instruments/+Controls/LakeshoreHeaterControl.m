@@ -2,26 +2,25 @@ classdef LakeshoreHeaterControl < Palladium.Core.InstrumentControlBase
     %LakeshoreHeaterControl - Logic controller add-on object to be added on to an
     %Instrument object, where it will handle the logic of adding a
     %Lakeshore-style heater control panel for PID and setpoint settings.
-    
-    properties
 
-    end
-
+    %% Properties (Private)
     properties (Access = private)
         GUIView;
         Plotter;
     end
-    
-    methods
 
-        %% Constructor
+    %% Constructor
+    methods
         function this = LakeshoreHeaterControl()
         end
+    end
 
-        %% CreateInstrumentControlGUI
+    %% Methods (Public)
+    methods (Access = public)
+
         function CreateInstrumentControlGUI(this, controller, tab, instrRef)
             %Create grid and TempControl component and position them in the
-            %tab. 
+            %tab.
             grid = uigridlayout(tab, "ColumnWidth", {'1x', 'fit', '1x'}, "RowHeight", {10, 'fit', 10, '1x'}, 'RowSpacing', 2);
 
             %Create a .mlapp custom GUI control and add it to the grid
@@ -43,9 +42,9 @@ classdef LakeshoreHeaterControl < Palladium.Core.InstrumentControlBase
                     comp.SetTempControllerModel("370");
                 case("Lakeshore 372")
                     comp.SetTempControllerModel("370"); %372 is the same as 370 here
-                otherwise 
+                otherwise
                     error(l.FullName + " not currently supported in LakeshoreHeaterControl");
-            end       
+            end
 
             %Add a plotter as well underneath
             this.Plotter = controller.AddNewPlotter(grid, Size="Medium");
@@ -57,37 +56,32 @@ classdef LakeshoreHeaterControl < Palladium.Core.InstrumentControlBase
 
             %Set instrument-specific default plotter var names etc
             this.UpdateVarNames();
-            
+
             %Subscribe to events
-            addlistener(comp, 'HeaterSettingsInput', @(src,evnt)this.HeaterSettingsInput(src,evnt));            
+            addlistener(comp, 'HeaterSettingsInput', @(src,evnt)this.HeaterSettingsInput(src,evnt));
         end
 
-        %% DisplayData
         function DisplayData(this, settingStruct, heaterPercent, heaterEnabled, heaterPower)
             %Pass through to GUI View
             this.GUIView.DisplayData(settingStruct, heaterPercent, heaterEnabled, heaterPower)
         end
-        
-        %% HeaterSettingsInput
+
         function HeaterSettingsInput(this, ~, eventData)
             %Pass event-triggered function call through to the Instrument
             this.Instrument.SettingsInput(eventData.Settings);
         end
 
-        %% RemoveControl
-        function RemoveControl(this, instrRef)
+        function RemoveControl(this, ~)
             %Delete GUI objects
             delete(this.GUIView);
             this.GUIView = [];
         end
 
-        %% UpdateData
         function UpdateData(this, dataRow, headers) %#ok<INUSD>
-             [settings, heaterLevelPct, heaterEnabled, heaterPower] = this.Instrument.CollectHeaterControlSettings();
-             this.DisplayData(settings, heaterLevelPct, heaterEnabled, heaterPower);
+            [settings, heaterLevelPct, heaterEnabled, heaterPower] = this.Instrument.CollectHeaterControlSettings();
+            this.DisplayData(settings, heaterLevelPct, heaterEnabled, heaterPower);
         end
-        
-        %% UpdateVarNames
+
         function UpdateVarNames(this)
             %Set instrument-model-specific options
             switch(this.Instrument.FullName)
@@ -99,20 +93,20 @@ classdef LakeshoreHeaterControl < Palladium.Core.InstrumentControlBase
                     this.ConfigureForLS370(this.Instrument, this.Plotter);
                 case("Lakeshore 372")
                     this.ConfigureForLS370(this.Instrument, this.Plotter);
-                otherwise 
+                otherwise
                     error(l.FullName + " not currently supported in LakeshoreHeaterControl");
-            end       
+            end
 
         end
     end
 
+    %% Methods (Private)
     methods (Access = private)
 
-        %% ConfigureForLS340
         function ConfigureForLS340(this, instrRef, pltr)
             %Set default displayed axes for the plotter
             controlChnl = string(instrRef.ControlChannel);
-            switch(controlChnl) 
+            switch(controlChnl)
                 case("A")
                     %Commenting for now - these evaluate too early, and
                     %then the channel name has been changed by the time it
@@ -121,43 +115,40 @@ classdef LakeshoreHeaterControl < Palladium.Core.InstrumentControlBase
                     %change etc...
                     %pltr.SetDefaultYAxis(1, string(instrRef.Ch_A_Name));
                 case("B")
-                    %pltr.SetDefaultYAxis(1, string(instrRef.Ch_B_Name));                    
+                    %pltr.SetDefaultYAxis(1, string(instrRef.Ch_B_Name));
             end
 
             %Set 2nd y axis to be the heater power, and set that to the RHS
             %axis
-          %  pltr.SetDefaultYAxis(2, instrRef.Name + " Heater Power (W)");
-           % pltr.SetAxisSide(2, "Right");
+            %  pltr.SetDefaultYAxis(2, instrRef.Name + " Heater Power (W)");
+            % pltr.SetAxisSide(2, "Right");
         end
 
-        %% ConfigureForLS350
         function ConfigureForLS350(this, instrRef, pltr)
             controlChnl = string(instrRef.ControlChannel);
-            switch(controlChnl) 
+            switch(controlChnl)
                 case("A")
-                 %   pltr.SetDefaultYAxis(1, string(instrRef.Ch_A_Name));
+                    %   pltr.SetDefaultYAxis(1, string(instrRef.Ch_A_Name));
                 case("B")
-                  %  pltr.SetDefaultYAxis(1, string(instrRef.Ch_B_Name));
+                    %  pltr.SetDefaultYAxis(1, string(instrRef.Ch_B_Name));
                 case("C")
-                   % pltr.SetDefaultYAxis(1, string(instrRef.Ch_C_Name));
+                    % pltr.SetDefaultYAxis(1, string(instrRef.Ch_C_Name));
                 case("D")
-                   % pltr.SetDefaultYAxis(1, string(instrRef.Ch_D_Name));
+                    % pltr.SetDefaultYAxis(1, string(instrRef.Ch_D_Name));
             end
 
             %Set some more default axes for the plotter
-           %pltr.SetDefaultYAxis(2, instrRef.Name + " Heater Power (W)");
-           % pltr.SetAxisSide(2, "Right");   %Set 2nd y axis to be the heater power, and set that to the RHS axis
+            %pltr.SetDefaultYAxis(2, instrRef.Name + " Heater Power (W)");
+            % pltr.SetAxisSide(2, "Right");   %Set 2nd y axis to be the heater power, and set that to the RHS axis
         end
 
-
-        %% ConfigureForLS370
-        function ConfigureForLS370(this, instrRef, pltr)   %LS372 treated as the same as 370        
+        function ConfigureForLS370(this, instrRef, pltr)   %LS372 treated as the same as 370
             %Set default displayed axes for the plotter
-          %  pltr.SetDefaultYAxis(1, instrRef.Ch_Name); 
+            %  pltr.SetDefaultYAxis(1, instrRef.Ch_Name);
 
             %Set some more default axes for the plotter
-           % pltr.SetDefaultYAxis(2, instrRef.Name + " Heater Power (W)");
-           % pltr.SetAxisSide(2, "Right");   %Set 2nd y axis to be the heater power, and set that to the RHS axis
+            % pltr.SetDefaultYAxis(2, instrRef.Name + " Heater Power (W)");
+            % pltr.SetAxisSide(2, "Right");   %Set 2nd y axis to be the heater power, and set that to the RHS axis
         end
     end
 end

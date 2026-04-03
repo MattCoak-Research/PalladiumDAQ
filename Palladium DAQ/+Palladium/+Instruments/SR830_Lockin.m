@@ -2,10 +2,13 @@ classdef SR830_Lockin < Palladium.Core.Instrument
     %Instrument implementation for Stanford Research 830 Model lockin
     %amplifiers
 
+    %% Properties (Constant, Public)
     properties(Constant, Access = public)
         FullName = "SR830 lockin";     %Full name, just for displaying on GUI
     end
 
+    %% Properties (Public, Set Observable)
+    % These properties will appear in the Instrument Settings GUI and are editable there
     properties(Access = public, SetObservable)
         Name = "SR830";             %Instrument name
         Connection_Type = Palladium.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
@@ -14,13 +17,13 @@ classdef SR830_Lockin < Palladium.Core.Instrument
         AmplifierGain = 1;  %Gain of any externally-added amplifiers or transformers to take into account.
     end
 
-
+    %% Categoricals
     methods
-
-        %% Categoricals
         function catOut = CurrentSource(this, inputStr); catOut = this.ConvertToCategorical(inputStr, ["None", "200 uA/V"]); end
-      
-        %% Constructor
+    end
+
+    %% Constructor
+    methods
         function this = SR830_Lockin()
             %Specify communication options and settings
             this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Serial"]);
@@ -28,8 +31,26 @@ classdef SR830_Lockin < Palladium.Core.Instrument
             this.GPIB_Address = 8;
             this.ConnectedCurrentSource = this.CurrentSource("200 uA/V");
         end
+    end
 
-        %% GetHeaders
+    %% Methods (Public)
+    methods (Access = public)
+
+        function metadataStruct = CollectMetaData(this)
+            %Does nothing by default - implementations of individual
+            %instruments can override this to give functionality.
+            %Delete this function if no metadata is desired for this
+            %instrument.
+            %If a struct is returned it will be parsed
+            %into a string and that added as a line in the data file
+            %header.
+            %Use this to record instrument settings and metadata like
+            %frequency, voltage, measurement mode, that will not change
+            %during the measurement and therefore don't merit logging each
+            %step
+            metadataStruct.Frequency_Hz = this.GetFrequency();
+        end
+
         function [Headers, Units] = GetHeaders(this)
             Headers = [this.Name + " - Vx (V)", this.Name + " - Vy (V)"];
             Units = ["V", "V"];
@@ -59,23 +80,43 @@ classdef SR830_Lockin < Palladium.Core.Instrument
             end
         end
 
-        %% CollectMetadata
-        function metadataStruct = CollectMetaData(this)
-            %Does nothing by default - implementations of individual
-            %instruments can override this to give functionality.
-            %Delete this function if no metadata is desired for this
-            %instrument.
-            %If a struct is returned it will be parsed
-            %into a string and that added as a line in the data file
-            %header.
-            %Use this to record instrument settings and metadata like
-            %frequency, voltage, measurement mode, that will not change
-            %during the measurement and therefore don't merit logging each
-            %step
-            metadataStruct.Frequency_Hz = this.GetFrequency();
+        function freq_Hz = GetFrequency(this)
+            if(this.SimulationMode)
+                freq_Hz = 78.67;
+                return;
+            end
+
+            freq_Hz = this.QueryDouble("FREQ?");
         end
 
-        %% Measure
+        function level = GetOutputLevel(this)
+            if(this.SimulationMode)
+                level = 2;
+                return;
+            end
+
+            level = this.QueryDouble("SLVL?");
+        end
+
+        function [magnitude, unit, name] = GetSuppliedVoltageOrCurrentAndUnits(this)
+
+            %Get the size of voltage being output at the signal out port
+            vOut = this.GetOutputLevel();
+
+            switch(this.ConnectedCurrentSource)
+                case(this.CurrentSource("None"))
+                    magnitude = vOut;
+                    unit = "V";
+                    name = "Voltage";
+                case(this.CurrentSource("200 uA/V"))
+                    magnitude = 200e-6 * vOut;
+                    unit = "A";
+                    name = "Current";
+                otherwise
+                    error("Connected current source option " + this.ConnectedCurrentSource + " not implemented in SR830 code file");
+            end
+        end
+
         function [dataRow] = Measure(this)
             if(this.SimulationMode)
                 data = "0.0705876,0.00256349";
@@ -93,14 +134,14 @@ classdef SR830_Lockin < Palladium.Core.Instrument
             %Get measurement values from the split string
             x = str2double(splitData{1});
             y = str2double(splitData{2});
-            
+
             %Get the VOsc ouput level
             output = this.GetSuppliedVoltageOrCurrentAndUnits();
 
             %Assign data to output data row
             dataRow = [x, y, output];
-            
-            %Calculate resistance if current source attached   
+
+            %Calculate resistance if current source attached
             switch(this.ConnectedCurrentSource)
                 case(this.CurrentSource("None"))
                     %Do nothing
@@ -116,51 +157,11 @@ classdef SR830_Lockin < Palladium.Core.Instrument
             end
         end
 
-        %% GetFrequency
-        function freq_Hz = GetFrequency(this)
-            if(this.SimulationMode)
-                freq_Hz = 78.67;
-                return;
-            end
-
-            freq_Hz = this.QueryDouble("FREQ?");
-        end
-
-        %% GetOutputLevel
-        function level = GetOutputLevel(this)
-            if(this.SimulationMode)
-                level = 2;
-                return;
-            end
-
-            level = this.QueryDouble("SLVL?");
-        end
-
-
-        %% GetSuppliedVoltageOrCurrentAndUnits
-        function [magnitude, unit, name] = GetSuppliedVoltageOrCurrentAndUnits(this)
-
-            %Get the size of voltage being output at the signal out port
-            vOut = this.GetOutputLevel();  
-
-            switch(this.ConnectedCurrentSource)
-                case(this.CurrentSource("None"))
-                    magnitude = vOut;
-                    unit = "V";
-                    name = "Voltage";
-                case(this.CurrentSource("200 uA/V"))
-                    magnitude = 200e-6 * vOut;
-                    unit = "A";
-                    name = "Current";
-                otherwise
-                    error("Connected current source option " + this.ConnectedCurrentSource + " not implemented in SR830 code file");
-            end
-        end
     end
 
+    %% Methods (Private)
     methods (Access = private)
 
-        %% AutoTuneSensitivity
         function AutoTuneSensitivity(this, vx, vy)
             %Automatically increase or decrease sensitivity range by 1 if
             %voltage outside useful range
@@ -197,7 +198,6 @@ classdef SR830_Lockin < Palladium.Core.Instrument
             end
         end
 
-        %% QuerySensitivityLevel
         function sensitivityIndex = QuerySensitivityLevel(this)
             %Returns an integer corresponding to the current
             %sensitivity / voltage range of the instrument. Runs from 0 (2nV)
@@ -210,10 +210,9 @@ classdef SR830_Lockin < Palladium.Core.Instrument
             sensitivityIndex = this.QueryDouble("SENS?");
         end
 
-        %% SetSensitivityLevel
         function SetSensitivityLevel(this, levelIndex)
             %Set a sensitivity level by passing an integer index from 0 to 26)
-            arguments 
+            arguments
                 this;
                 levelIndex (1,1) {mustBeInteger, mustBeInRange(levelIndex, 0, 26)};
             end
@@ -226,9 +225,9 @@ classdef SR830_Lockin < Palladium.Core.Instrument
         end
     end
 
-    methods(Static)
+    %% Methods (Static, Public)
+    methods(Static, Access = public)
 
-        %% SensLevelToRange
         function range = SensLevelToRange(level)
             %Converts the sensitivity index to the corresponding voltage range
             %value, returned as a number

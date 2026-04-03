@@ -1,10 +1,13 @@
 classdef Lakeshore370 < Palladium.Core.Instrument
     %Instrument implementation for a Lakeshore 370 temperature controller.
 
+    %% Properties (Constant, Public)
     properties(Constant, Access = public)
         FullName = "Lakeshore 370";                             %Full name, just for displaying on GUI
     end
 
+    %% Properties (Public, Set Observable)
+    % These properties will appear in the Instrument Settings GUI and are editable there
     properties(Access = public, SetObservable)
         Name = "Ls370";                                         %Instrument name
         Connection_Type = Palladium.Enums.ConnectionType.Debug;  %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
@@ -12,67 +15,34 @@ classdef Lakeshore370 < Palladium.Core.Instrument
         Reading;                                                %Measure Temperature (K) or Resistance.
         HeaterResistance = 100;                                 %When instrument is being used to supply heater power, it needs to know the resistance of that external heater (in Ohms) to calculate power.
     end
-    
 
+
+    %% Categoricals
     methods
-
-        %% Categoricals
         function catOut = MeasType(this, inputStr);     catOut = this.ConvertToCategorical(inputStr, ["Temperature", "Resistance"]); end
         function catOut = HeaterRange(this, inputStr);  catOut = this.ConvertToCategorical(inputStr, ["Off (0)", "32 muA (1)", "100 muA (2)", "316 muA (3)", "  1 mA (4)", "  3 mA (5)", " 10 mA (6)", " 32 mA (7)", "100 mA (8)"]); end
         function catOut = ControlMode(this, inputStr);  catOut = this.ConvertToCategorical(inputStr, ["Closed Loop PID", "Zone", "Open Loop", "Off"]); end
-    
-        %% Constructor
+    end
+
+    %% Constructor
+    methods
         function this = Lakeshore370()
             %Specify communication options and settings
             this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "Serial", "USB", "VISA"]);
             this.GPIB_Address = 12;      %Default Address
 
-            %Define the Instrument Controls that can be added 
+            %Define the Instrument Controls that can be added
             this.DefineInstrumentControl(Name = "🕹️ Heater Control", ClassName = "LakeshoreHeaterControl", TabName = "Heater Control", EnabledByDefault = true);
-     
+
             %Make sure to set values for Properties of Categorical type
             %like these
             this.Reading = this.MeasType("Temperature");
         end
+    end
 
-        %% GetHeaders
-        function [Headers, Units] = GetHeaders(this)
-            Headers = [];
-            Units = [];
-            
-            switch(this.Reading)
-                case(this.MeasType("Temperature"))
-                    Headers = [Headers, this.Ch_Name, this.Name + " - Resistance (Ohms)"];
-                    Units = [Units "K" "Ohms"];
-                case(this.MeasType("Resistance"))
-                    Headers = [Headers, this.Name + " - Resistance (Ohms)"];
-                    Units = [Units "Ohms"];
-            end
+    %% Methods (Public)
+    methods (Access = public)
 
-            % Add columns for heater control data too
-            Headers = [Headers, this.Name + " Heater Power (W)"];
-            Units = [Units, "W"];
-        end
-
-        %% Measure
-        function [dataRow] = Measure(this)
-            dataRow = [];
-            %Query all parameters
-            switch(this.Reading)
-                case(this.MeasType("Temperature"))
-                    dataRow = [dataRow this.GetTemperature(), dataRow this.GetResistance()];
-                case(this.MeasType("Resistance"))
-                    dataRow = [dataRow this.GetResistance()];
-                otherwise
-                    error("Unsupported measurement type " + string(this.Reading));
-            end
-
-            %Append heater status columns to the data row
-            hterPower = this.GetHeaterPower();
-            dataRow = [dataRow hterPower];
-        end     
-
-        %% CollectHeaterControlSettings
         function [settings, heaterLevelPct, heaterEnabled, heaterPower] = CollectHeaterControlSettings(this)
             %This is all the same as for the LS350.. except as there is
             %only one channel we don't need to tell each function which
@@ -91,140 +61,6 @@ classdef Lakeshore370 < Palladium.Core.Instrument
             heaterPower = this.GetHeaterPower();
         end
 
-        %% GetTemperature
-        function temp = GetTemperature(this)
-            if this.SimulationMode
-                temp = 24.6 + 0.05*rand();
-            else
-                temp = this.QueryDouble("RDGK?");
-            end
-        end
-
-        %% GetResistance
-        function res = GetResistance(this)
-            if this.SimulationMode
-                res = 1024.6 + 0.05*rand();
-            else
-                res = this.QueryDouble("RDGR?");
-            end
-        end
-
-        %% GetHeaterPower
-        function power = GetHeaterPower(this)
-            %Returns heater power, in W, taking into account the entered heater
-            %resistance
-            level = this.GetHeaterLevel();
-            range = this.GetHeaterRange();
-            current = this.GetHeaterCurrentFromRange(range) * level / 100; %Level is a percent
-            power = this.HeaterResistance * current * current;
-        end
-
-        %% GetHeaterLevel
-        function [htrLevel, htrEnabled] = GetHeaterLevel(this)
-            if this.SimulationMode
-                %Dummy values for testing
-                htrLevel = 60 + rand();
-                htrEnabled = true;
-                return;
-            end
-
-            %Returns the heater output, in %, and if it is currently on.
-            %HeaterChannel should be an int, 1 or 2
-            %Query heater output level
-            htrLevel = this.QueryDouble("HTR?");
-
-            %Check if the heater is in 'Off' range or not
-            htrRange = this.GetHeaterRange();
-            if(htrRange == this.GetHeaterRangeIndex(this.HeaterRange("Off (0)")))
-                htrEnabled = false;
-            else
-                htrEnabled = true;
-            end
-        end
-
-        %% GetHeaterRange
-        function htrRange = GetHeaterRange(this)
-            %Returns the int signifying the range currently selected
-            if(this.SimulationMode)
-                %Dummy values
-                htrRange = 1;
-            else
-                htrRange = this.QueryDouble("HTRRNG?");
-            end
-        end
-
-        %% SetHeaterRange
-        function SetHeaterRange(this, range)
-            %Set the heater range 
-            %The range setting has no effect if an output is in the Off mode, and does not apply to an output in Monitor Out mode.
-            %range is a member of the LS370_Heaterrange enum, or string matching one of its members. 0 = Off, 1 = 31.6 ?A, 2 = 100 ?A, 3 = 316 ?A, 4 = 1.00 mA, 5 = 3.16 mA, 6 = 10.0 mA, 7 = 31.6 mA, 8 = 100 mA
-
-            index = this.GetHeaterRangeIndex(range);
-            this.WriteCommand("HTRRNG " + num2str(index));
-        end
-
-        %% SetHeaterSetpoint
-        function SetHeaterSetpoint(this, setPt)
-            %Set a heater setpoint on specified channel
-            this.WriteCommand("SETP " + num2str(setPt));
-        end
-
-        %% GetHeaterSetpoint
-        function setPt = GetHeaterSetpoint(this)
-            %Get the current heater setpoint value on specified channel
-            setPt = this.QueryDouble("SETP?");
-        end
-
-        %% GetRamp
-        function [enabled, rate] = GetRamp(this)
-            %Get status (enabled on/off and rate) of ramping on channel/control loop.
-
-            %Select channel (hard coded right now)
-            output = "0";   %0 = sample heater, 1 = output 1 (warm-up heater).
-
-            if(this.SimulationMode)
-                %Dummy values
-                enabled = true;
-                rate = 1.2;
-            else
-                %Query real values for all other connection types
-                result = strsplit(this.QueryString("RAMP? " + output),',');
-                enabled = strcmp(result{1}, '1');
-                rateStr = strsplit(result{2},':');
-                rateStr1 = rateStr{1};
-                rate = str2double(rateStr1);
-            end
-        end
-
-        %% SetRamp
-        function SetRamp(this, enabled, rate)
-            %Set status (enabled on/off and rate) of ramping on channel/control loop.
-            if(enabled)
-                enabledStr = "1";
-            else
-                enabledStr = "0";
-            end
-
-            output = "0";   %0 = sample heater, 1 = output 1 (warm-up heater).
-            rate = abs(rate); %positive value expected
-            this.WriteCommand("RAMP " + output + "," + enabledStr + "," + num2str(rate));
-        end
-
-        %% GetSensorReading
-        function reading = GetSensorReading(this, channel)
-            %Get the currently displayed reading
-            reading = this.QueryDouble("SRDG? " + channel);
-        end
-
-        %% SetControlMode
-        function SetControlMode(this, controlMode)
-            %Set the control mode: Off, Closed Loop PID,
-            %Zone, or Open Loop.
-            modeIndex = this.GetControlModeIndex(controlMode);
-            this.WriteCommand("CMODE " + num2str(modeIndex) +"\n");
-        end
-
-        %% GetControlMode
         function controlMode = GetControlMode(this)
             %Returns the currently selected control mode, off, closed loop pid,
             %zone, open loop. Channel 1 or 2
@@ -249,13 +85,82 @@ classdef Lakeshore370 < Palladium.Core.Instrument
             end
         end
 
-        %% SetPIDValues
-        function SetPIDValues(this, P, I, D)
-            %Set PID Values (numerical inputs)
-            this.WriteCommand(['PID' ' ' num2str(P) ',' num2str(I) ',' num2str(D)]);
+        function [Headers, Units] = GetHeaders(this)
+            Headers = [];
+            Units = [];
+
+            switch(this.Reading)
+                case(this.MeasType("Temperature"))
+                    Headers = [Headers, this.Ch_Name, this.Name + " - Resistance (Ohms)"];
+                    Units = [Units "K" "Ohms"];
+                case(this.MeasType("Resistance"))
+                    Headers = [Headers, this.Name + " - Resistance (Ohms)"];
+                    Units = [Units "Ohms"];
+            end
+
+            % Add columns for heater control data too
+            Headers = [Headers, this.Name + " Heater Power (W)"];
+            Units = [Units, "W"];
         end
 
-        %% GetPIDValues
+        function [htrLevel, htrEnabled] = GetHeaterLevel(this)
+            if this.SimulationMode
+                %Dummy values for testing
+                htrLevel = 60 + rand();
+                htrEnabled = true;
+                return;
+            end
+
+            %Returns the heater output, in %, and if it is currently on.
+            %HeaterChannel should be an int, 1 or 2
+            %Query heater output level
+            htrLevel = this.QueryDouble("HTR?");
+
+            %Check if the heater is in 'Off' range or not
+            htrRange = this.GetHeaterRange();
+            if(htrRange == this.GetHeaterRangeIndex(this.HeaterRange("Off (0)")))
+                htrEnabled = false;
+            else
+                htrEnabled = true;
+            end
+        end
+
+        function power = GetHeaterPower(this)
+            %Returns heater power, in W, taking into account the entered heater
+            %resistance
+            level = this.GetHeaterLevel();
+            range = this.GetHeaterRange();
+            current = this.GetHeaterCurrentFromRange(range) * level / 100; %Level is a percent
+            power = this.HeaterResistance * current * current;
+        end
+        
+        function htrRange = GetHeaterRange(this)
+            %Returns the int signifying the range currently selected
+            if(this.SimulationMode)
+                %Dummy values
+                htrRange = 1;
+            else
+                htrRange = this.QueryDouble("HTRRNG?");
+            end
+        end
+
+        function setPt = GetHeaterSetpoint(this)
+            %Get the current heater setpoint value on specified channel
+            setPt = this.QueryDouble("SETP?");
+        end
+
+        function output = GetManualOutputPercent(this)
+            %Note - set display on instrument to be in 'Current' Units not
+            %'Power',  on the ControlSetup button on the front panel
+            if this.SimulationMode
+                output = 60;
+                return;
+            end
+
+            %Get the manual output setting if active. Channel 1, 2
+            output = this.QueryDouble("MOUT?");
+        end
+
         function [P, I, D] = GetPIDValues(this)
             %Get PID settings
             if(this.SimulationMode)
@@ -273,30 +178,114 @@ classdef Lakeshore370 < Palladium.Core.Instrument
             end
         end
 
-        %% GetManualOutputPercent
-        function output = GetManualOutputPercent(this)
-            %Note - set display on instrument to be in 'Current' Units not
-            %'Power',  on the ControlSetup button on the front panel
-            if this.SimulationMode
-                output = 60;
-                return;
-            end
+        function [enabled, rate] = GetRamp(this)
+            %Get status (enabled on/off and rate) of ramping on channel/control loop.
 
-            %Get the manual output setting if active. Channel 1, 2
-            output = this.QueryDouble("MOUT?");
+            %Select channel (hard coded right now)
+            output = "0";   %0 = sample heater, 1 = output 1 (warm-up heater).
+
+            if(this.SimulationMode)
+                %Dummy values
+                enabled = true;
+                rate = 1.2;
+            else
+                %Query real values for all other connection types
+                result = strsplit(this.QueryString("RAMP? " + output),',');
+                enabled = strcmp(result{1}, '1');
+                rateStr = strsplit(result{2},':');
+                rateStr1 = rateStr{1};
+                rate = str2double(rateStr1);
+            end
         end
 
-        %% SetManualOutputPercent
+        function res = GetResistance(this)
+            if this.SimulationMode
+                res = 1024.6 + 0.05*rand();
+            else
+                res = this.QueryDouble("RDGR?");
+            end
+        end
+
+        function reading = GetSensorReading(this, channel)
+            %Get the currently displayed reading
+            reading = this.QueryDouble("SRDG? " + channel);
+        end
+
+        function temp = GetTemperature(this)
+            if this.SimulationMode
+                temp = 24.6 + 0.05*rand();
+            else
+                temp = this.QueryDouble("RDGK?");
+            end
+        end
+
+        function [dataRow] = Measure(this)
+            dataRow = [];
+            %Query all parameters
+            switch(this.Reading)
+                case(this.MeasType("Temperature"))
+                    dataRow = [dataRow this.GetTemperature(), dataRow this.GetResistance()];
+                case(this.MeasType("Resistance"))
+                    dataRow = [dataRow this.GetResistance()];
+                otherwise
+                    error("Unsupported measurement type " + string(this.Reading));
+            end
+
+            %Append heater status columns to the data row
+            hterPower = this.GetHeaterPower();
+            dataRow = [dataRow hterPower];
+        end
+
+        function SetControlMode(this, controlMode)
+            %Set the control mode: Off, Closed Loop PID,
+            %Zone, or Open Loop.
+            modeIndex = this.GetControlModeIndex(controlMode);
+            this.WriteCommand("CMODE " + num2str(modeIndex) +"\n");
+        end
+
+        function SetHeaterRange(this, range)
+            %Set the heater range
+            %The range setting has no effect if an output is in the Off mode, and does not apply to an output in Monitor Out mode.
+            %range is a member of the LS370_Heaterrange enum, or string matching one of its members. 0 = Off, 1 = 31.6 ?A, 2 = 100 ?A, 3 = 316 ?A, 4 = 1.00 mA, 5 = 3.16 mA, 6 = 10.0 mA, 7 = 31.6 mA, 8 = 100 mA
+
+            index = this.GetHeaterRangeIndex(range);
+            this.WriteCommand("HTRRNG " + num2str(index));
+        end
+
+        function SetHeaterSetpoint(this, setPt)
+            %Set a heater setpoint on specified channel
+            this.WriteCommand("SETP " + num2str(setPt));
+        end
+
         function SetManualOutputPercent(this, percentage)
             %Set the manual output setting.
             assert(percentage <= 100 && percentage  >=0, 'Invalid output percentage');
             this.WriteCommand("MOUT " + num2str(percentage));
         end
+
+        function SetPIDValues(this, P, I, D)
+            %Set PID Values (numerical inputs)
+            this.WriteCommand(['PID' ' ' num2str(P) ',' num2str(I) ',' num2str(D)]);
+        end
+
+        function SetRamp(this, enabled, rate)
+            %Set status (enabled on/off and rate) of ramping on channel/control loop.
+            if(enabled)
+                enabledStr = "1";
+            else
+                enabledStr = "0";
+            end
+
+            output = "0";   %0 = sample heater, 1 = output 1 (warm-up heater).
+            rate = abs(rate); %positive value expected
+            this.WriteCommand("RAMP " + output + "," + enabledStr + "," + num2str(rate));
+        end
+
     end
 
+    %% Methods (Protected)
     methods (Access = protected)
 
-        %% ApplySettings
         function ApplySettings(this, settings)
             this.SetControlMode(settings.ControlMode);
             this.SetHeaterRange(settings.HeaterRange);
@@ -318,9 +307,9 @@ classdef Lakeshore370 < Palladium.Core.Instrument
 
     end
 
+    %% Methods (Private)
     methods (Access = private)
 
-        %% GetControlModeIndex
         function index = GetControlModeIndex(this, controlMode)
             switch(controlMode)
                 case(this.ControlMode("Closed Loop PID"))
@@ -336,7 +325,6 @@ classdef Lakeshore370 < Palladium.Core.Instrument
             end
         end
 
-        %% GetHeaterRangeIndex
         function index = GetHeaterRangeIndex(this, heaterRange)
             switch(heaterRange)
                 case(this.HeaterRange("Off (0)"))
@@ -364,9 +352,9 @@ classdef Lakeshore370 < Palladium.Core.Instrument
 
     end
 
+    %% Methods (Static, Private)
     methods(Static, Access = private)
 
-        %% GetHeaterCurrentFromRange
         function currentRange = GetHeaterCurrentFromRange(heaterRangeIdx)
             %See p134 of LS370 manual, HTRRNG documentation
             switch(heaterRangeIdx)
@@ -392,7 +380,7 @@ classdef Lakeshore370 < Palladium.Core.Instrument
                     error("Unsupported heater range index in LS370: " + string(heaterRangeIdx));
             end
         end
-    
+
     end
 
 end

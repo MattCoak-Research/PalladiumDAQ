@@ -1,29 +1,33 @@
 classdef DataWriter < handle
     %DATAWRITER - Handles the writing of data files in Palladium DAQ
 
-    properties
+    %% Properties (Constant, Public)
+    properties (Constant, Access = public)
+        END_METADATA_LINES_STRING = "<<< END METADATA LINES >>>";
+    end
+
+    %% Properties (Public)
+    properties (Access = public)
         FileWriteDetails;
         FileInfo = "<<< Palladium DAQ data file 3.0 >>>";
     end
 
-    properties (Constant)
-        END_METADATA_LINES_STRING = "<<< END METADATA LINES >>>";
-    end
 
+    %% Constructor
     methods
-        %% Constructor
         function this = DataWriter(fileWriteDetails)
             this.FileWriteDetails = fileWriteDetails;
 
             this.ConstructPath();
         end
+    end
 
-        %% ConstructPath
+    %% Public Methods
+    methods (Access = public)
         function ConstructPath(this)
             this.FileWriteDetails.FilePath = fullfile(string(this.FileWriteDetails.Directory), string(this.FileWriteDetails.FileName) + string(this.FileWriteDetails.FileExtension));
         end
 
-        %% InsertMetadataLines
         function InsertMetadataLines(this, stringLinesArray)
             %Use at end of file writing, to insert an extra line of
             %metadata into the header section of the file - inserts a new
@@ -86,7 +90,6 @@ classdef DataWriter < handle
             end
         end
 
-        %% SaveFigure
         function SaveFigure(~, figure, ax, directory, fileNameWithoutExtension)
             try
                 %Add a title to the plot, if the axes don't already have
@@ -114,7 +117,6 @@ classdef DataWriter < handle
             end
         end
 
-        %% ValidateFilePath
         function newFileName = ValidateFilePath(this)
             newFileName = this.FileWriteDetails.FileName;
             if(this.FileWriteDetails.SaveFile)
@@ -136,7 +138,6 @@ classdef DataWriter < handle
             this.ConstructPath();
         end
 
-        %% WriteHeaders
         function WriteHeaders(this, headers, Settings)
             arguments
                 this;
@@ -175,31 +176,29 @@ classdef DataWriter < handle
             fclose(fid);
         end
 
-         %% WriteData
-         function WriteData(this, data)
-             %Write multiple lines of data in a matrix all in one go
-             %Right now this is actually identical to WriteLine...
-             numRetries = 3; %Have seen in testing that (due to copying across of files?) we can get 'Permission denied' errors on the data file. These are infrequent. If we get them, just pause a short time, try writing again, and return if we fail after this many attempts
-             errMess = [];
+        function WriteData(this, data)
+            %Write multiple lines of data in a matrix all in one go
+            %Right now this is actually identical to WriteLine...
+            numRetries = 3; %Have seen in testing that (due to copying across of files?) we can get 'Permission denied' errors on the data file. These are infrequent. If we get them, just pause a short time, try writing again, and return if we fail after this many attempts
+            errMess = [];
 
-             for i = 1 : numRetries
-                 try
-                     writematrix(data, this.FileWriteDetails.FilePath, 'WriteMode', 'append', 'delimiter', '\t');
-                     return;
-                 catch err
-                     warning("Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying...");
-                     errMess = string(err.message);
-                     warning(errMess);
-                     Palladium.Logging.Logger.Log("Info", "Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying..." + " Error message: " + errMess);
-                 end
-             end
+            for i = 1 : numRetries
+                try
+                    writematrix(data, this.FileWriteDetails.FilePath, 'WriteMode', 'append', 'delimiter', '\t');
+                    return;
+                catch err
+                    warning("Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying...");
+                    errMess = string(err.message);
+                    warning(errMess);
+                    Palladium.Logging.Logger.Log("Info", "Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying..." + " Error message: " + errMess);
+                end
+            end
 
-             %If we got here, we tried N times to write to the file and it
-             %didn't work - warn
-             Palladium.Logging.Logger.Log("Warning", "Writing of file to " + this.FileWriteDetails.FilePath + " failed after " + num2str(numRetries) + " attempts. Data have been lost." + " Last error: " + errMess);
-         end
+            %If we got here, we tried N times to write to the file and it
+            %didn't work - warn
+            Palladium.Logging.Logger.Log("Warning", "Writing of file to " + this.FileWriteDetails.FilePath + " failed after " + num2str(numRetries) + " attempts. Data have been lost." + " Last error: " + errMess);
+        end
 
-        %% WriteLine
         function WriteLine(this, data)
             numRetries = 3; %Have seen in testing that (due to copying across of files?) we can get 'Permission denied' errors on the data file. These are infrequent. If we get them, just pause a short time, try writing again, and return if we fail after this many attempts
             errMess = [];
@@ -222,9 +221,9 @@ classdef DataWriter < handle
         end
     end
 
-    methods (Static)
+    %% Methods (Static, Public)
+    methods (Static, Access = public)
 
-        %% BuildMetadataLineStringFromStruct
         function stringLine = BuildMetadataLineStringFromStruct(initialString, strct)
             %Take a struct of parameters and turn into a nicely formatted
             %single line of text that can be written to file as
@@ -258,7 +257,6 @@ classdef DataWriter < handle
             end
         end
 
-        %% BuildMetadataLineStringFromHeaderValuePair
         function stringLine = BuildMetadataLineStringFromHeaderValuePair(initialString, headerRow, dataRow)
             %Take a row of header strings and a row of data, and make into
             %a nicely formatted string to log as a metadata line

@@ -3,11 +3,13 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
     % Logic controller add-on object to be added on to an
     %Instrument object, where it will handle the logic of stepping through
     %a Sweep, programmed by a SweepSetupPanel in the GUI
-    
-    properties
+
+    %% Properties (Public)
+    properties (Access = public)
         PlotterType = "Default"; %Default or Simple - call before constructing GUI
     end
 
+    %% Properties (Private)
     properties (Access = private)
         StepNo = 0;
         TotalPoints;
@@ -20,21 +22,24 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
         CachedData = [];            %CachedData for the last iteration, ready to be written (need to wait until data fomr other instruments come in)
         DataArray = [];             %Store entire array of dataRows taken during this sweep - need it if we change axes on a Plotter mid-sweep
     end
-    
-    methods
-        %% Constructor
-        function this = SweepController_Stepped()
-            
-        end
 
-        %% Calculate
+    %% Constructor
+    methods
+        function this = SweepController_Stepped()
+
+        end
+    end
+
+    %% Methods (Public)
+    methods (Access = public)
+
         function sweepDetails = Calculate(this, sweepDetailsIn)
             %Copy current SweepDetails
             sweepDetails = sweepDetailsIn;
 
             %Calculate extremal points based on what sectors are selected
             targetPts = Palladium.Instruments.Controls.SweepController.CalculateExtremalPoints(sweepDetails.StartSectionNo, sweepDetails.EndSectionNo, sweepDetails.MinVal, sweepDetails.MidVal, sweepDetails.MaxVal);
-            
+
             %Calculate the total amount the value must change over during
             %this sweep
             totalMag = Palladium.Instruments.Controls.SweepController.CalculateTotalMagnitude(targetPts);
@@ -76,13 +81,21 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
             %points are hit, can give extra points that then don't get
             %included
             this.TotalPoints = length(sweepDetails.Points);
-        end 
+        end
 
-        %% CreateInstrumentControlGUI
+        function ClearData(this)
+            this.Data.X = [];
+            this.Data.Y = [];
+            this.CachedData = [];
+            this.DataArray = [];
+
+            this.Plotter.ClearData();
+        end
+
         function CreateInstrumentControlGUI(this, controller, tab, instrRef)
             %Make a specific reference to and from the Instrument Class
             this.Instrument = instrRef;
-            
+
             %Create grid and Sweepcontrol component and position them in the
             %tab.
             grid = uigridlayout(tab, "ColumnWidth", {10, 540, 10, '1x'}, "RowHeight", {10, '1x', 10}, 'RowSpacing', 2);
@@ -95,7 +108,7 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
             this.GUIView = comp;
 
             %Set title and metadata
-            comp.SetTitle(instrRef.Name + " Sweep Control");           
+            comp.SetTitle(instrRef.Name + " Sweep Control");
 
             %Subscribe to events
             addlistener(comp, 'Run', @(src,evnt)this.SweepRun(src, evnt));
@@ -107,18 +120,18 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
             %that we have to store and register this listener handle
             %properly, or when we remove this control  the orphaned listener still lives on the instrument.
             %When you then change a dropdown (e.g., SourceMode), the PostSet → PropertyChanged event fires, the orphaned listener
-            %tries to call RefreshUnitsAndLimits() on a deleted handle object, and MATLAB crashes.            
+            %tries to call RefreshUnitsAndLimits() on a deleted handle object, and MATLAB crashes.
             ltr = addlistener(instrRef, 'PropertyChanged', @(src,evnt)this.RefreshUnitsAndLimits());
             this.RegisterEventListener(ltr);
 
-            %Set up the defaults and populate parameters 
+            %Set up the defaults and populate parameters
             this.RefreshUnitsAndLimits();
 
             %Add a plotter of the desired sort as well, to the right
             switch(this.PlotterType)
                 case("Default")
-                    %Don't register the plotter centrally, as we will push data to it only when the sweep is running, 
-                    %and clear it on sweep start.                  
+                    %Don't register the plotter centrally, as we will push data to it only when the sweep is running,
+                    %and clear it on sweep start.
                     this.Plotter = controller.AddNewPlotter(grid, Size="Medium", RegisterPlotter=false);    %Don't register the plotter centrally, as we will push data to it only when the sweep is running, and clear it on sweep start. This does mean, for now at least, that the Plotter is not hooked up
                     this.Plotter.Layout.Row = 2;
                     this.Plotter.Layout.Column = 4;
@@ -132,32 +145,102 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
                     error("Unsupported Plotter type in SweepController_Stepped");
             end
 
-        end  
+        end
 
-        %% OnSweepAbort
+        function DataRowCollected(this, dataRow, headers)
+            %Gets triggered every tick once the loop has collected the
+            %entire dataRow from all instruments. Use to e.g. write sweep
+            %data that includes columns from other instruments
+
+            if isempty(this.CachedData)
+                return;
+            end
+
+            %Append to the cached dataarray (this is the whole
+            %programme-wide dataRow, so we can plot anything - but only
+            %lines since the sweep started are to be stored)
+            this.DataArray = [this.DataArray; dataRow];
+
+            switch(this.PlotterType)
+                case("Simple")
+                    this.Plotter.PlotData(this.Data.X, this.Data.Y);
+                case("Default")
+                    success = this.Plotter.TryAppendData(dataRow);
+                    if ~success
+                        this.Plotter.PlotData(this.DataArray);
+                    end
+            end
+
+            if this.ControlDetailsStruct.SweepDetails.SaveSweepFile
+                this.DataWriter.WriteLine(this.GetDataRowToWrite(this.CachedData, dataRow, headers));
+
+                if  ~this.Running
+                    %Add in an end-of sweep metadata line if this is the
+                    %last update
+                    this.InsertEndMetadataIntoFile(this.DataWriter);
+                end
+            end
+
+            this.CachedData = [];
+        end
+
+        function dataRowToWrite = GetDataRowToWrite(this, instrDataRow, dataRow, headers)
+            dataRowToWrite = instrDataRow;
+
+            if ~isempty(this.ExtraDataColHeaders)
+                for i = 1 : length(this.ExtraDataColHeaders)
+                    [~,idx] = ismember(this.ExtraDataColHeaders(i), headers);
+
+                    if isempty(idx)
+                        error("Invalid header in sweep");
+                    end
+
+                    dataRowToWrite = [dataRowToWrite, dataRow(idx)]; %#ok<AGROW>
+                end
+            end
+        end
+
+        function LockRunButton(this)
+            this.GUIView.LockRunButton();
+        end
+        
+        function MeasurementsInitialised(this, ~, eventArgs)
+            headers = eventArgs.Headers;
+            this.AvailableHeaders = headers;
+            this.GUIView.UpdateAvailableDataColumnHeaders(headers);
+            this.Plotter.UpdateVariables(headers);
+        end
+
+        function MeasurementsStarted(this, ~, ~, ~)
+            this.UnlockRunButton();
+        end
+
+        function MeasurementsStopped(this, ~, ~, ~)
+            this.GUIView.OnAbortButtonPushed();
+            this.LockRunButton();
+            this.CachedData = [];
+        end
+
         function OnSweepAbort(this)
-           this.Aborted = true;
+            this.Aborted = true;
         end
 
-        %% OnSweepComplete
-        function OnSweepComplete(~)  
-            
+        function OnSweepComplete(~)
+
         end
 
-        %% OnSweepRun
         function OnSweepRun(this)
-           %Reset the current step number
-           this.StepNo = 0;
-           this.Aborted = false;
-           this.ClearData();
+            %Reset the current step number
+            this.StepNo = 0;
+            this.Aborted = false;
+            this.ClearData();
 
-           %Set up a DataWriter, which will do things like generate the
-           %Sweep Name, and pass in a bool to say if it will actually do any writing to file 
-           this.CreateDataFile(this.ControlDetailsStruct.SweepDetails.SaveSweepFile);
-           this.UpdatePlotterSavedPlotTitle();
+            %Set up a DataWriter, which will do things like generate the
+            %Sweep Name, and pass in a bool to say if it will actually do any writing to file
+            this.CreateDataFile(this.ControlDetailsStruct.SweepDetails.SaveSweepFile);
+            this.UpdatePlotterSavedPlotTitle();
         end
 
-        %% RefreshUnitsAndLimits
         function RefreshUnitsAndLimits(this)
             [unitsStr, limits, xlabelStr, ylabelStr] = this.Instrument.GetSweepUnitsString();
             this.GUIView.SetUnitsString(unitsStr);
@@ -167,45 +250,17 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
             this.YLabelStr = ylabelStr;
         end
 
-        %% RemoveControl
-        function RemoveControl(this, instrRef)            
+        function RemoveControl(this, ~)
             %Delete GUI objects
             delete(this.GUIView);
             this.GUIView = [];
         end
 
-        %% MeasurementsInitialised
-        function MeasurementsInitialised(this, src, eventArgs)
-            headers = eventArgs.Headers;
-            this.AvailableHeaders = headers;
-            this.GUIView.UpdateAvailableDataColumnHeaders(headers);
-            this.Plotter.UpdateVariables(headers);
-        end
-
-        %% MeasurementsStarted
-        function MeasurementsStarted(this, ~, ~, ~)
-            this.UnlockRunButton(); 
-        end
-        
-        %% MeasurementsStopped
-        function MeasurementsStopped(this, ~, ~, ~)
-            this.GUIView.OnAbortButtonPushed();
-            this.LockRunButton();
-            this.CachedData = [];
-        end
-
-        %% LockRunButton
-        function LockRunButton(this)
-            this.GUIView.LockRunButton();
-        end
-
-        %% UnlockRunButton
         function UnlockRunButton(this)
             this.GUIView.UnlockRunButton();
         end
-        
-        %% Update
-        function Update(this)            
+
+        function Update(this)
             if this.Running
                 %Set the new value on the Instrument
                 valueToSet = this.UpdateValueToSet();
@@ -217,25 +272,7 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
             end
         end
 
-        %% UpdateValueToSet
-        function valueToSet = UpdateValueToSet(this)
-            %Increment the step number
-            this.StepNo = this.StepNo + 1;
-
-            %Tick onto next value from the list
-            valueToSet = this.ControlDetailsStruct.SweepDetails.Points(this.StepNo);
-
-            %Calculate the remaining time
-            totalTimeMin = this.ControlDetailsStruct.SweepDetails.TotalTimeMin;
-            this.ControlDetailsStruct.SweepDetails.RemainingTimeMin = Palladium.Instruments.Controls.SweepController_Stepped.CalculateTimeRemaining(totalTimeMin, this.StepNo, this.TotalPoints);
-
-            %Update the View GUI
-            this.GUIView.StepComplete(this.StepNo, valueToSet);
-            this.GUIView.UpdateTimeRemainingDisplay(this.ControlDetailsStruct.SweepDetails.RemainingTimeMin);
-        end
-
-        %% UpdateData
-        function UpdateData(this, dataRow, headers)
+        function UpdateData(this, dataRow, ~)
             if this.Running
                 %Instrument calls this to add latest x and y values to be
                 %plotted and logged to file
@@ -266,71 +303,31 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
             end
         end
 
-        %% DataRowCollected
-        function DataRowCollected(this, dataRow, headers)
-            %Gets triggered every tick once the loop has collected the
-            %entire dataRow from all instruments. Use to e.g. write sweep
-            %data that includes columns from other instruments
+        function valueToSet = UpdateValueToSet(this)
+            %Increment the step number
+            this.StepNo = this.StepNo + 1;
 
-            if isempty(this.CachedData)
-                return;
-            end
+            %Tick onto next value from the list
+            valueToSet = this.ControlDetailsStruct.SweepDetails.Points(this.StepNo);
 
-            %Append to the cached dataarray (this is the whole
-            %programme-wide dataRow, so we can plot anything - but only
-            %lines since the sweep started are to be stored)
-            this.DataArray = [this.DataArray; dataRow];
+            %Calculate the remaining time
+            totalTimeMin = this.ControlDetailsStruct.SweepDetails.TotalTimeMin;
+            this.ControlDetailsStruct.SweepDetails.RemainingTimeMin = Palladium.Instruments.Controls.SweepController_Stepped.CalculateTimeRemaining(totalTimeMin, this.StepNo, this.TotalPoints);
 
-            switch(this.PlotterType)
-                case("Simple")
-                 this.Plotter.PlotData(this.Data.X, this.Data.Y);
-                case("Default")
-                 success = this.Plotter.TryAppendData(dataRow);
-                 if ~success
-                     this.Plotter.PlotData(this.DataArray);
-                 end
-            end
-
-            if this.ControlDetailsStruct.SweepDetails.SaveSweepFile
-                this.DataWriter.WriteLine(this.GetDataRowToWrite(this.CachedData, dataRow, headers));
-
-                if  ~this.Running
-                    %Add in an end-of sweep metadata line if this is the
-                    %last update
-                    this.InsertEndMetadataIntoFile(this.DataWriter);
-                end
-            end
-
-            this.CachedData = [];
+            %Update the View GUI
+            this.GUIView.StepComplete(this.StepNo, valueToSet);
+            this.GUIView.UpdateTimeRemainingDisplay(this.ControlDetailsStruct.SweepDetails.RemainingTimeMin);
         end
 
-        %% GetDataRowToWrite
-        function dataRowToWrite = GetDataRowToWrite(this, instrDataRow, dataRow, headers)
-            dataRowToWrite = instrDataRow;
-
-            if ~isempty(this.ExtraDataColHeaders)
-                for i = 1 : length(this.ExtraDataColHeaders)
-                     [~,idx] = ismember(this.ExtraDataColHeaders(i), headers);
-
-                     if isempty(idx)
-                         error("Invalid header in sweep");
-                     end
-
-                     dataRowToWrite = [dataRowToWrite, dataRow(idx)];
-                end
-            end
-        end
-
-        %% WaitSettleTime
         function WaitSettleTime(this)
             pauseTime = this.ControlDetailsStruct.SweepDetails.SettleTime;  %This is in seconds
             pause(pauseTime);
         end
     end
 
+    %% Methods (Private)
     methods (Access = private)
 
-        %% CreateDataFile
         function CreateDataFile(this, writeToFile)
             %Create or reset the data writer class
             fileNameSuffix = this.ControlDetailsStruct.SweepDetails.FileName;
@@ -354,17 +351,7 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
             this.StartNewDataFile(this.DataWriter, headers, extraMetadataLines, writeToFile);
         end
 
-        %% ClearData
-        function ClearData(this)
-            this.Data.X = [];
-            this.Data.Y = [];
-            this.CachedData = [];
-            this.DataArray = [];
 
-            this.Plotter.ClearData();
-        end
-
-        %% CreateSweepMetaDataLine
         function stringLine = CreateSweepMetaDataLine(this)
             %Copy only the required properties into a new temporary struct
             %for metadata writing
@@ -384,9 +371,8 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
             stringLine = Palladium.DataWriting.DataWriter.BuildMetadataLineStringFromStruct("", strct);
         end
 
-        %% GetHeaders
         function headersString = GetHeaders(this)
-           % headers = [this.XLabelStr, this.YLabelStr];
+            % headers = [this.XLabelStr, this.YLabelStr];
             headers = this.Instrument.GetHeaders();
 
             %Get any additional extra headers added in the GUI - extra
@@ -404,7 +390,6 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
             end
         end
 
-        %% PlotterAxesSelectionChange
         function PlotterAxesSelectionChange(this, pltr)
             %This is needed for the case where we want to change the
             %displayed data in a Plotter, but the loop is not running.
@@ -426,18 +411,17 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
                     pltr.PlotData(this.DataArray);
                 end
             end
-        end 
+        end
 
-        %% UpdatePlotterSavedPlotTitle
         function UpdatePlotterSavedPlotTitle(this)
             this.Plotter.TitleForCopiedPlots = this.DataWriter.FileWriteDetails.FileName;
         end
 
     end
 
-    methods (Static)
+    %% Methods (Static, Public)
+    methods (Static, Access = public)
 
-        %% CalculateSteps
         function [targetNumSteps, stepSize] = CalculateSteps(targetNumStepsIn, stepSizeIn, totalMag, targetPts)
             arguments
                 targetNumStepsIn;   %Can be [] to signify we are using set stepsize
@@ -465,7 +449,6 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
             end
         end
 
-        %% CalculateTimeRemaining
         function remainingTimeMin = CalculateTimeRemaining(totalTimeMin, currentStep, totalSteps)
             arguments
                 totalTimeMin (1,1) double;
@@ -476,7 +459,6 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
             remainingTimeMin = totalTimeMin * (1 - currentStep / totalSteps);
         end
 
-        %% CalculateTotalTime
         function timeMin = CalculateTotalTime(totalSteps, pauseTime, updateTime, estimatedMinUpdateTime)
             arguments
                 totalSteps (1,1) double;

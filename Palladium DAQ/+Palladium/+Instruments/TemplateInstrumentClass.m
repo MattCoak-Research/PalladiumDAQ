@@ -2,39 +2,35 @@ classdef TemplateInstrumentClass < Palladium.Core.Instrument
     %Instrument implementation for .. insert details here
     %Make a copy of this class and modify it when adding a new instrument
 
+    %% Properties (Constant, Public)
     properties(Constant, Access = public)
         FullName = 'FULLNAME';       %Full name, just for displaying on GUI
     end
 
+    %% Properties (Public, Set Observable)
+    % These properties will appear in the Instrument Settings GUI and are editable there
     properties(Access = public, SetObservable)
         Name = 'NAME';                            %Instrument name
         Connection_Type = Palladium.Enums.ConnectionType.Ethernet;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
     end
 
 
+    %% Constructor
     methods
-
-        %% Constructor
         function this = TemplateInstrumentClass()
             %Specify communication options and settings
             this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "Serial", "USB", "VISA"]);
             this.GPIB_Address = 22;      %Default Address
-            this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];  
+            this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];
 
-            %Define the Instrument Controls that can be added 
+            %Define the Instrument Controls that can be added
             this.DefineInstrumentControl(Name = "Sweep Control", ClassName = "SweepController_Stepped", TabName = "Sweep Control", EnabledByDefault = false);
-       end
-
-        %% GetHeaders
-        function [Headers, Units] = GetHeaders(this)
-            %Gets the column headers for data columns returned by this
-            %instrument. There must be the same number as Measure returns.
-            Headers = [this.Name + " - Resistance_Ohms", this.Name + " - Current_A"];
-            Units = ["Ohms", "A"];
-
         end
+    end
 
-        %% CollectMetadata
+    %% Methods (Public)
+    methods (Access = public)
+
         function metadataStruct = CollectMetaData(this)
             %Does nothing by default - implementations of individual
             %instruments can override this to give functionality.
@@ -49,9 +45,22 @@ classdef TemplateInstrumentClass < Palladium.Core.Instrument
             %step
             metadataStruct.ExampleProperty1 = "String Prop";
             metadataStruct.ExampleProperty2 = 10.3;
+            metadataStruct.ExampleReading = this.GetExampleReading();
         end
 
-        %% Measure
+        function [Headers, Units] = GetHeaders(this)
+            %Gets the column headers for data columns returned by this
+            %instrument. There must be the same number as Measure returns.
+            Headers = [this.Name + " - Resistance_Ohms", this.Name + " - Current_A"];
+            Units = ["Ohms", "A"];
+        end
+
+        function exampleReading_Unit = GetExampleReading(this)
+            %Make this actually do something - query the hardware for a
+            %voltage, a frequency..
+            exampleReading_Unit = this.QueryDouble("Example");
+        end
+
         function [dataRow] = Measure(this)
 
             if(this.SimulationMode)
@@ -59,20 +68,26 @@ classdef TemplateInstrumentClass < Palladium.Core.Instrument
                 dataRow = [500 0.1 nan];
                 return;
             end
-        
+
             %Write code that communicates with the hardware to get values
             %to return here
             dataRow = [500 0.1 nan];
         end
 
+        function SetParameter(this, valueToSet)
+            %Make this actually do something - send a command to the
+            %hardware
+            this.WriteCommand(string(valueToSet));
+        end
+
     end
 
+    %% Methods (Protected)
     methods(Access = protected)
 
-        %% GetPropertiesToIgnore
-        function propertiesToIgnore = GetPropertiesToIgnore(this)
-            %MFLI does not connect in the usual way, has a device ID only -
-            %hide all these connection options in the GUI..
+        function propertiesToIgnore = GetPropertiesToIgnore(~)
+            %Set properties in the underlying Instrument class that should
+            %be ignored here
             propertiesToIgnore = {"GPIB_Address", "IP_Address", "Serial_Address", "VISA_Address"};
         end
 

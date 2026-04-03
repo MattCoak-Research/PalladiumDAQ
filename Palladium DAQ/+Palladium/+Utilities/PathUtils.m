@@ -2,9 +2,9 @@ classdef PathUtils
     %PATHUTILS static functions to help with verify and handling paths to
     %files and folders
 
-    methods (Static)
+    %% Methods (Static, Public)
+    methods (Static, Access = public)
 
-        %% CleanPath
         function cleanPath = CleanPath(pathStr)
             %CLEANPATH Clean a file path name. Removes redundant characters from
             %   the path name, e.g. '//', '/./' as well as initial './' and circular
@@ -48,17 +48,15 @@ classdef PathUtils
             %Return a proper string
             cleanPath = string(pathStr);
 
-            %% reduce_updir
             function new_path_name = reduce_updir(path_name)
                 pre_updir ='';
                 [pre_updir, path_name] = r_reduce_updir(pre_updir, path_name);
                 new_path_name = [pre_updir path_name];
             end
 
-            %% r_reduce_updir
             function [new_pre_updir, new_path_name] = r_reduce_updir(pre_updir, path_name)
                 while (length(path_name) > 3) && strcmp(path_name(1:3), ['..' filesep])
-                    pre_updir = [pre_updir '..' filesep];
+                    pre_updir = [pre_updir '..' filesep]; %#ok<AGROW>
                     path_name = path_name(4:end);
                 end
                 % search for the first occurrence of '/../'
@@ -76,7 +74,6 @@ classdef PathUtils
 
         end
 
-        %% EnsureExtension
         function newPath = EnsureExtension(filepath, extension)
             % Send in a string filepath and string extension, and ensure
             % that the ouput contains that extension. Throw warnings if
@@ -105,7 +102,6 @@ classdef PathUtils
             newPath = strcat(filepath, extension);
         end
 
-        %% GetIncrementedFileName
         function newPath = GetIncrementedFileName(filepath)
             [directory, fileNameWithoutExt, Ext] = fileparts(filepath);
 
@@ -134,7 +130,6 @@ classdef PathUtils
             newPath = fileNameWithoutExt;
         end
 
-        %% GetPathOfFolderOnSearchPath
         function dirPath = GetPathOfFolderOnSearchPath(dirName)
             %See https://uk.mathworks.com/matlabcentral/answers/347892-get-full-path-of-directory-that-is-on-matlab-search-path
             %Get the actual directory file path to a folder that is on the
@@ -147,7 +142,6 @@ classdef PathUtils
             dirPath = temp(~cellfun(@isempty,temp));     %non-empty results only
         end
 
-        %% IsDirectoryValid
         function valid = IsDirectoryValid(directory)
             valid = false;
 
@@ -163,7 +157,6 @@ classdef PathUtils
             valid = true;
         end
 
-        %% IsFileNameValid
         function valid = IsFileNameValid(filename)
             valid = false;
 
@@ -179,7 +172,6 @@ classdef PathUtils
             valid = true;
         end
 
-        %% MakeFilePathRelative
         function [newPath, successfullyMadeRelative] = MakeFilePathRelative(path, Settings)
             %Make an absolute path into a relative one, relative to the
             %Palladium folder by default, or to that given as optional
@@ -260,7 +252,6 @@ classdef PathUtils
 
         end
 
-        %% ReplaceDateTag
         function outstr = ReplaceDateTag(str)
             %If a string has '<DATE>' in it, let's replace that with today's
             %date for convenience
@@ -271,9 +262,7 @@ classdef PathUtils
             outstr = strrep(str, '<DATE>', dateStr);
         end
 
-        %% StripExtension
         function newFileName = StripExtension(fileName)
-
             [~, newFileName, ~] = fileparts(fileName);
         end
 

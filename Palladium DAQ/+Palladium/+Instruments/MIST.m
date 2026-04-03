@@ -1,14 +1,22 @@
 classdef MIST < Palladium.Core.Instrument
     %Instrument implementation for MIST
 
+    %% Properties (Constant, Public)
     properties(Constant, Access = public)
         FullName = 'MiST';       %Full name, just for displaying on GUI
     end
 
+    %% Properties (Constant, Private)
+    properties(Constant, Access = private)
+        NUM_CHANNELS = 4;
+    end
+
+    %% Properties (Public, Set Observable)
+    % These properties will appear in the Instrument Settings GUI and are editable there
     properties(Access = public, SetObservable)
         Name = 'MiST';                            %Instrument name
         Connection_Type = Palladium.Enums.ConnectionType.Ethernet;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
-    
+
         SettlingTime_us = 500; % Microseconds
         DataRate_Hz = 200;  % Data rate, in Hertz
         Gain = [1000, 1000, 1000, 1000]; %Gain for the 4 channels (default = [1000 1000 1000 1000])
@@ -16,10 +24,12 @@ classdef MIST < Palladium.Core.Instrument
         EnableChannels = [1, 0, 0, 0];  %1s or 0s as booleans to toggle measurement channels on or off
     end
 
+    %% Properties (Public)
     properties(Access = public)
         MiSTControlPanel = [];
     end
 
+    %% Properties (Private)
     properties(Access = private)
         DefaultDebugDriverFile = "Debug_MIST_Python_Polling_Driver";
         DefaultDriverFile = "MIST_Python_Polling_Driver";
@@ -27,13 +37,8 @@ classdef MIST < Palladium.Core.Instrument
         InfoJSON;
     end
 
-    properties(Constant, Access = private)
-        NUM_CHANNELS = 4;
-    end
-
+    %% Constructor
     methods
-
-        %% Constructor
         function this = MIST()
             %Specify communication options and settings
             this.DefineSupportedConnectionTypes(["Debug", "Ethernet"]);
@@ -41,30 +46,31 @@ classdef MIST < Palladium.Core.Instrument
             %Configure Python install - needed for communication with MIST
             this.AddDriversToPythonPath();
 
-            %Define the Instrument Controls that can be added 
-            this.DefineInstrumentControl(Name = "MiST Control", ClassName = "MiSTController", TabName = "MiST Control", EnabledByDefault = true);       
+            %Define the Instrument Controls that can be added
+            this.DefineInstrumentControl(Name = "MiST Control", ClassName = "MiSTController", TabName = "MiST Control", EnabledByDefault = true);
+        end
+    end
+
+    %% Methods (Public)
+    methods (Access = public)
+
+        function CalibrateOffsets(this)
+            this.SendCommand('calibrateOffsets');
         end
 
-        %% Connect
-        function Connect(this)
+        function Close(this)
+            %This (so far) looks to be common behaviour across all instruments.
+            %Can override this function in implementing class if more behaviour needed.
             switch(this.Connection_Type)
                 case(Palladium.Enums.ConnectionType.Debug)
-                    %Do not make a physical connection to a real instrument
-                    %- this places the class into SimulationMode, for
-                    %testing without a real piece of hardware connected
-                    disp("Connecting to simulated " + this.Name + " instrument.");
-                    this.SimulationMode = true;
-                    this.DriverFile = this.DefaultDebugDriverFile;
+                    %Just print a message
+                    disp("Disconnected from simulated " + this.Name + " instrument.");
                 otherwise
-                    this.DriverFile = this.DefaultDriverFile;
+                    this.DisableSync();
+                    this.SendCommand('disconnectMiST');
             end
-
-            %Attempt to connect, with a timeout
-            timeOut = 10;    %s
-            this.DeviceHandle = this.ConnectMIST(timeOut);
         end
 
-        %% Configure
         function Configure(this, Settings)
             arguments
                 this;
@@ -102,23 +108,64 @@ classdef MIST < Palladium.Core.Instrument
             end
         end
 
-        %% Close
-        function Close(this)
-            %This (so far) looks to be common behaviour across all instruments.
-            %Can override this function in implementing class if more behaviour needed.
+        function Connect(this)
             switch(this.Connection_Type)
                 case(Palladium.Enums.ConnectionType.Debug)
-                    %Just print a message
-                    disp("Disconnected from simulated " + this.Name + " instrument.");
+                    %Do not make a physical connection to a real instrument
+                    %- this places the class into SimulationMode, for
+                    %testing without a real piece of hardware connected
+                    disp("Connecting to simulated " + this.Name + " instrument.");
+                    this.SimulationMode = true;
+                    this.DriverFile = this.DefaultDebugDriverFile;
                 otherwise
-                    this.DisableSync();
-                    this.SendCommand('disconnectMiST');
+                    this.DriverFile = this.DefaultDriverFile;
             end
+
+            %Attempt to connect, with a timeout
+            timeOut = 10;    %s
+            this.DeviceHandle = this.ConnectMIST(timeOut);
+        end
+
+        function DisableChannel(this, channelNo)
+            arguments
+                this;
+                channelNo (1,1) {mustBeInteger};
+            end
+
+            this.SendCommand('disableChannel', int32(channelNo));
+        end
+
+        function DisableSync(this, Settings)
+            arguments
+                this;
+                Settings.SyncOut (1,1) logical = true;
+            end
+
+            % this.SendCommand('set_synchronisation', false, Settings.SyncOut);
+            py.(this.DriverFile).set_synchronisation(this.DeviceHandle, false, Settings.SyncOut);
+        end
+
+        function EnableChannel(this, channelNo)
+            arguments
+                this;
+                channelNo (1,1) {mustBeInteger};
+            end
+
+            this.SendCommand('enableChannel', int32(channelNo));
+        end
+
+        function EnableSync(this, Settings)
+            arguments
+                this;
+                Settings.SyncOut (1,1) logical = true;
+            end
+
+            %  this.SendCommand('set_synchronisation', true, Settings.SyncOut);
+            py.(this.DriverFile).set_synchronisation(this.DeviceHandle, true, Settings.SyncOut);
         end
         
-        %% GetHeaders
         function [Headers, Units] = GetHeaders(this)
-   
+
             Headers = [];
             Units = [];
 
@@ -132,7 +179,7 @@ classdef MIST < Palladium.Core.Instrument
                         this.Name + " Ch" + num2str(i) + " - mP3Avg",...
                         this.Name + " Ch" + num2str(i) + " - mdataAvg",...
                         this.Name + " Ch" + num2str(i) + " - offstAvg",...
-                        ];
+                        ]; %#ok<AGROW>
 
                     Units = [Units,...
                         "V",...
@@ -141,13 +188,12 @@ classdef MIST < Palladium.Core.Instrument
                         "V",...
                         "V",...
                         "V",...
-                        ];
+                        ]; %#ok<AGROW>
                 end
             end
-           
+
         end
 
-        %% InitialiseMeasurements
         function InitialiseMeasurements(this)
             %Gets called automatically in OnInitialised, right after Connect, at programme start
 
@@ -169,7 +215,6 @@ classdef MIST < Palladium.Core.Instrument
             disp("MiST Initialisation Complete");
         end
 
-        %% Measure
         function [dataRow] = Measure(this)
 
             %Get last second of data from the MiST
@@ -179,22 +224,22 @@ classdef MIST < Palladium.Core.Instrument
             saturationPercent = [nan nan nan nan];
             for i = 1 : this.NUM_CHANNELS
                 if this.ChannelEnabled(i)
-                        dataRow = [dataRow,...
-                            double(mP0Avg(i)),...
-                            double(mP1Avg(i)),...
-                            double(mP2Avg(i)),...
-                            double(mP3Avg(i)),...
-                            double(mdataAvg(i)),...
-                            double(offstAvg(i))...
-                            ];
+                    dataRow = [dataRow,...
+                        double(mP0Avg(i)),...
+                        double(mP1Avg(i)),...
+                        double(mP2Avg(i)),...
+                        double(mP3Avg(i)),...
+                        double(mdataAvg(i)),...
+                        double(offstAvg(i))...
+                        ]; %#ok<AGROW>
 
-                        maxV = max([...
-                            abs(double(mP0Avg(i))),...
-                            abs(double(mP1Avg(i))),...
-                            abs(double(mP2Avg(i))),...
-                            abs(double(mP3Avg(i)))]);
+                    maxV = max([...
+                        abs(double(mP0Avg(i))),...
+                        abs(double(mP1Avg(i))),...
+                        abs(double(mP2Avg(i))),...
+                        abs(double(mP3Avg(i)))]);
 
-                        saturationPercent(i) = 100 * maxV / 4.096;
+                    saturationPercent(i) = 100 * maxV / 4.096;
                 end
             end
 
@@ -204,64 +249,6 @@ classdef MIST < Palladium.Core.Instrument
             end
         end
 
-        %% CalibrateOffsets
-        function CalibrateOffsets(this)
-            this.SendCommand('calibrateOffsets');
-        end
-
-
-        %% DisableChannel
-        function DisableChannel(this, channelNo)
-             arguments
-                this;
-                channelNo (1,1) {mustBeInteger};
-             end
-
-             this.SendCommand('disableChannel', int32(channelNo));
-        end
-
-        %% DisableSync
-        function DisableSync(this, Settings)
-            arguments
-                this;
-                Settings.SyncOut (1,1) logical = true;
-            end
-
-           % this.SendCommand('set_synchronisation', false, Settings.SyncOut);
-            py.(this.DriverFile).set_synchronisation(this.DeviceHandle, false, Settings.SyncOut);
-        end
-
-        %% EnableChannel
-        function EnableChannel(this, channelNo)
-             arguments
-                this;
-                channelNo (1,1) {mustBeInteger};
-             end
-
-             this.SendCommand('enableChannel', int32(channelNo));
-        end
-
-        %% EnableSync
-        function EnableSync(this, Settings)
-             arguments
-                this;
-                Settings.SyncOut (1,1) logical = true;
-             end
-
-          %  this.SendCommand('set_synchronisation', true, Settings.SyncOut);
-            py.(this.DriverFile).set_synchronisation(this.DeviceHandle, true, Settings.SyncOut);
-        end
-
-        %% StartMiST
-        function StartMiST(this, spinningEnabled)
-            arguments
-                this;
-                spinningEnabled (1,1) logical = true;
-            end
-            this.SendCommand('start_MiST', spinningEnabled);
-        end
-
-        %% RunMiST
         function RunMiST(this, duration, spinningEnabled)
             arguments
                 this;
@@ -273,7 +260,45 @@ classdef MIST < Palladium.Core.Instrument
             this.SendCommand('run_MiST', spinningEnabled, duration);
         end
 
-        %% StopMiST
+        function SetCurrents(this, currentsArray_muA)
+            arguments
+                this;
+                currentsArray_muA (1,4) {mustBeInteger};
+            end
+
+            newVals = this.SendQuery('setCurrent', int32(currentsArray_muA));
+            this.Current_uA = Palladium.Instruments.MIST.ConvertIntTuple(newVals{1});
+        end
+
+        function SetGainValues(this, gainValuesArray)
+            arguments
+                this;
+                gainValuesArray (1,4) {mustBeInteger};
+            end
+
+            newVals = this.SendQuery('setGainValues', int32(gainValuesArray));
+            this.Gain = Palladium.Instruments.MIST.ConvertIntTuple(newVals{1});
+        end
+
+        function SetSingleCurrentValue(this, index, current_uA)
+            this.Current_uA(index) = current_uA;
+            this.SetCurrents(this.Current_uA);
+        end
+
+        function SetSingleGainValue(this, index, gain)
+            this.Gain(index) = gain;
+            this.SetGainValues(this.Gain);
+        end
+
+        function StartMiST(this, spinningEnabled)
+            arguments
+                this;
+                spinningEnabled (1,1) logical = true;
+            end
+
+            this.SendCommand('start_MiST', spinningEnabled);
+        end
+
         function StopMiST(this, spinningEnabled)
             arguments
                 this;
@@ -282,51 +307,16 @@ classdef MIST < Palladium.Core.Instrument
             this.SendCommand('stop_MiST', spinningEnabled);
         end
 
-        %% SetSingleCurrentValue
-        function SetSingleCurrentValue(this, index, current_uA)
-            this.Current_uA(index) = current_uA;
-            this.SetCurrents(this.Current_uA);
-        end
-
-        %% SetSingleGainValue
-        function SetSingleGainValue(this, index, gain)
-            this.Gain(index) = gain;
-            this.SetGainValues(this.Gain);
-        end
-
-        %% SetCurrents
-        function SetCurrents(this, currentsArray_muA)
-             arguments
-                this;
-                currentsArray_muA (1,4) {mustBeInteger};
-             end
-
-             newVals = this.SendQuery('setCurrent', int32(currentsArray_muA));
-             this.Current_uA = Palladium.Instruments.MIST.ConvertIntTuple(newVals{1});
-        end
-
-        %% SetGainValues
-        function SetGainValues(this, gainValuesArray)
-             arguments
-                this;
-                gainValuesArray (1,4) {mustBeInteger};
-             end
-
-             newVals = this.SendQuery('setGainValues', int32(gainValuesArray));
-             this.Gain = Palladium.Instruments.MIST.ConvertIntTuple(newVals{1});
-        end
-
     end
 
+    %% Methods (Protected)
     methods(Access = protected)
-  
-        %% GetPropertiesToIgnore
-        function propertiesToIgnore = GetPropertiesToIgnore(this)
+
+        function propertiesToIgnore = GetPropertiesToIgnore(~)
             %MIST does not connect in the usual way, hide these connection options in the GUI as they are not used..
             propertiesToIgnore = {"IP_Address"};
         end
 
-        %% OnInitialised
         function OnInitialised(this)
             %This gets called right after Connect, at programme start
             this.InitialiseMeasurements();
@@ -334,10 +324,10 @@ classdef MIST < Palladium.Core.Instrument
 
     end
 
+    %% Methods (Private)
     methods(Access = private)
 
-        %% AddDriversToPythonPath
-        function AddDriversToPythonPath(this)
+        function AddDriversToPythonPath(~)
             %Ok we need to do this properly..
             %Should probably be a static Palladium util even (other
             %instruments could have python drivers)
@@ -362,7 +352,6 @@ classdef MIST < Palladium.Core.Instrument
             Palladium.Utilities.PythonUtils.AppendFolderToPythonPath(pathOfThisInstrumentDriversFolder);
         end
 
-        %% ChannelEnabled
         function enabledBool = ChannelEnabled(this, chIndex)
             if this.EnableChannels(chIndex)
                 enabledBool = true;
@@ -371,7 +360,6 @@ classdef MIST < Palladium.Core.Instrument
             end
         end
 
-        %% ConnectMIST
         function deviceHandle = ConnectMIST(this, timeOut)
             arguments
                 this;
@@ -395,9 +383,8 @@ classdef MIST < Palladium.Core.Instrument
 
             %Display message to say connection worked
             disp("MiST Connected, ID " + num2str(int32(deviceHandle)));
-        end    
+        end
 
-        %% PollData
         function [mP0Avg, mP1Avg, mP2Avg, mP3Avg, mdataAvg, offstAvg] = PollData(this, infoJSON)
             %Call the pollMiST function within the selected python driver
             result = py.(this.DriverFile).pollMiST(infoJSON);
@@ -412,7 +399,6 @@ classdef MIST < Palladium.Core.Instrument
             offstAvg = Palladium.Instruments.MIST.ConvertTuple(c{6});
         end
 
-        %% SendCommand
         function SendCommand(this, command, varargin)
             if isempty(varargin)
                 py.(this.DriverFile).(command)(this.DeviceHandle);
@@ -421,7 +407,6 @@ classdef MIST < Palladium.Core.Instrument
             end
         end
 
-        %% SendQuery
         function varout = SendQuery(this, command, varargin)
             if isempty(varargin)
                 varout = py.(this.DriverFile).(command)(this.DeviceHandle);
@@ -432,13 +417,36 @@ classdef MIST < Palladium.Core.Instrument
 
     end
 
-    methods (Access = private, Static)
+    %% Methods (Static, Private)
+    methods (Static, Access = private)
 
-        %% ConvertTuple
+        function intOut = ConvertIntTuple(pythonTupleIn)
+            %A try/catch for this is so dirty! Google said do isa
+            %'py.NoneType', but this didn't work (it's a single element
+            %list of NoneTypes?). Fix this properly later.
+
+            %Preassign for speed
+            intOut = nan(length(pythonTupleIn),1);
+
+            %Loop over all inputs
+            for i = 1 : length(pythonTupleIn)
+                try
+                    intOut(i) = int32(pythonTupleIn(i));
+                catch
+                    intOut(i) = nan;
+                end
+            end
+        end
+
         function doubleOut = ConvertTuple(pythonTupleIn)
             %A try/catch for this is so dirty! Google said do isa
             %'py.NoneType', but this didn't work (it's a single element
             %list of NoneTypes?). Fix this properly later.
+
+            %Preassign for speed
+            doubleOut = nan(length(pythonTupleIn),1);
+
+            %Loop over all inputs
             for i = 1 : length(pythonTupleIn)
                 try
                     doubleOut(i) = double(pythonTupleIn(i));
@@ -448,19 +456,6 @@ classdef MIST < Palladium.Core.Instrument
             end
         end
 
-        %% ConvertIntTuple
-        function intOut = ConvertIntTuple(pythonTupleIn)
-            %A try/catch for this is so dirty! Google said do isa
-            %'py.NoneType', but this didn't work (it's a single element
-            %list of NoneTypes?). Fix this properly later.
-            for i = 1 : length(pythonTupleIn)
-                try
-                    intOut(i) = int32(pythonTupleIn(i));
-                catch
-                    intOut(i) = nan;
-                end
-            end
-        end
     end
 
 end

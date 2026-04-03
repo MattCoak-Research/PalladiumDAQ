@@ -3,17 +3,13 @@ classdef Logger < handle
     %command line / file / GUI in Palladium
     %Create an instance of this from Controller initialisation
 
-
-    properties (Access = public)
-    end
-
+    %% Properties (Private)
     properties (Access = private)
         Controller;
     end
 
-
+    %% Constructor
     methods
-        %% Constructor
         function this = Logger(controller, LogFileDirectory, LogFileFileName, Settings)
             arguments
                 controller                                          (1,1) Palladium.Core.Controller;
@@ -38,11 +34,11 @@ classdef Logger < handle
                 "PrintStackTraceInCommandWindow", Settings.PrintStackTraceInCommandWindow...
                 );
         end
-
     end
 
-    methods (Static)
-        %% HandleError
+    %% Methods (Static, Public)
+    methods (Static, Access = public)
+        
         function [Halt, suppressError] = HandleError(message, err, uiFigureHandle)
             Halt = false;
             suppressError = false;
@@ -54,7 +50,7 @@ classdef Logger < handle
 
             %Get last user error; this has an exist type of 0;
             for i = 1:length(err.stack)
-                ExistsType(i,1) = exist(err.stack(i,1).name);
+                ExistsType(i,1) = exist(err.stack(i,1).name); %#ok<EXIST,AGROW>
             end
 
             %Get the details of the first function erroring which isn't a
@@ -112,7 +108,6 @@ classdef Logger < handle
             end
         end
 
-        %% Log
         function Log(level, message, Settings)
             %Print a message to a combination of command window, GUI and
             %log file on disk, depending on selected options and level of
@@ -196,9 +191,9 @@ classdef Logger < handle
 
     end
 
-    methods(Access = private, Static)
+    %% Methods (Static, Private)
+    methods(Static, Access = private)
 
-        %% ConstructFilePath
         function path = ConstructFilePath(logFileDirectory, logFileFileName)
             fileName = Palladium.Logging.Logger.ReplaceDateTag(logFileFileName);
 
@@ -211,8 +206,6 @@ classdef Logger < handle
             path = fullfile(logFileDirectory, fileName);
         end
 
-
-        %% GetLevelText
         function str = GetLevelText(level)
             %Get a string to put on the front of the message to indicate
             %its severity
@@ -230,7 +223,6 @@ classdef Logger < handle
             end
         end
 
-        %% GetTimeStamp
         function str = GetTimeStamp()
             %Return the string that will be printed in front of logfile
             %entries to give the time
@@ -239,7 +231,6 @@ classdef Logger < handle
             str = string(d, format);  %Today's date
         end
 
-        %% IsSeverityLevelAboveCutoff
         function tf = IsSeverityLevelAboveCutoff(level, cutoff)
             switch(cutoff)
                 case("Off")
@@ -277,7 +268,6 @@ classdef Logger < handle
             end
         end
 
-        %% LogToCommandWindow
         function LogToCommandWindow(level, message, printStackTraceInCommandWindow)
             %Write the message to the command window - make it scary orange
             %warning text for warnings and errors
@@ -300,7 +290,6 @@ classdef Logger < handle
             end
         end
 
-        %% LogToGUI
         function LogToGUI(level, message, controller)
             %Write the message to the main GUI
             switch(level)
@@ -324,7 +313,6 @@ classdef Logger < handle
             end
         end
 
-        %% LogToFile
         function LogToFile(level, message, path)
             %Write the message to the log file .txt on disk
 
@@ -352,7 +340,6 @@ classdef Logger < handle
             end
         end
 
-        %% ReplaceDateTag
         function outstr = ReplaceDateTag(str)
             %If a string has '<DATE>' in it, let's replace that with today's
             %date for convenience

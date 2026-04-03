@@ -3,10 +3,13 @@ classdef AH2550_Bridge < Palladium.Core.Instrument
     %capacitance bridge. Assumes instrument has already been set measuring,
     %and grabs latest values only.
 
+    %% Properties (Constant, Public)
     properties(Constant, Access = public)
         FullName = "AH Bridge";     %Full name, just for displaying on GUI
     end
 
+    %% Properties (Public, Set Observable)
+    % These properties will appear in the Instrument Settings GUI and are editable there
     properties(Access = public, SetObservable)
         Name = "AH_Br";             %Instrument name
         Connection_Type = Palladium.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
@@ -15,26 +18,13 @@ classdef AH2550_Bridge < Palladium.Core.Instrument
         Record_Times = false;       %Set this to true to create additional data columns of universal time in minutes before the measurement and immediately after it - AH Bridge measurements can take a long time, during which temperaature etc can change
     end
 
+    %% Properties (Dependent, Private)
     properties(Dependent, Access = private)
         LossUnit;
     end
 
-    
+    %% Get and Set Accessors
     methods
-
-        %% Categoricals
-        function catOut = LossUnitsType(this, inputStr); catOut = this.ConvertToCategorical(inputStr, ["TanDelta", "kOhm"]); end
-
-        %% Constructor
-        function this = AH2550_Bridge()
-            %Specify communication options and settings
-            this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "Serial", "USB", "VISA"]);
-            this.GPIB_Address = 22;      %Default Address
-            this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];
-            this.Loss_Units = this.LossUnitsType("TanDelta");
-        end
-
-        %% LossUnit Get Accessor
         function unitStr = get.LossUnit(this)
             switch(this.Loss_Units)
                 case(this.LossUnitsType("TanDelta"))
@@ -45,8 +35,27 @@ classdef AH2550_Bridge < Palladium.Core.Instrument
                     error('Unsupported Loss Units');
             end
         end
-        
-        %% GetHeaders
+    end
+
+    %% Categoricals
+    methods
+        function catOut = LossUnitsType(this, inputStr); catOut = this.ConvertToCategorical(inputStr, ["TanDelta", "kOhm"]); end
+    end
+
+    %% Constructor
+    methods
+        function this = AH2550_Bridge()
+            %Specify communication options and settings
+            this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "Serial", "USB", "VISA"]);
+            this.GPIB_Address = 22;      %Default Address
+            this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];
+            this.Loss_Units = this.LossUnitsType("TanDelta");
+        end
+    end
+
+    %% Methods (Public)
+    methods (Access = public)
+
         function [Headers, Units] = GetHeaders(this)
             if(this.Record_Times)
                 Headers = [this.Name + " - Cap (pF)", this.Name + " - Loss (" + string(this.LossUnit) + ")", "Voltage (V)", this.Name + " - Time before (min)", this.Name + " - Time after (min)"];
@@ -56,8 +65,7 @@ classdef AH2550_Bridge < Palladium.Core.Instrument
                 Units = ["pF", string(this.LossUnit), "V"];
             end
         end
-        
-        %% Measure        
+
         function [dataRow] = Measure(this)
             %Record the time just before querying the measurement - note
             %this is only really sensible in immediate mode, and is only
@@ -79,20 +87,20 @@ classdef AH2550_Bridge < Palladium.Core.Instrument
                     data = this.QueryString("SI");
                 end
 
-                switch(this.Loss_Units)
-                    case(this.LossUnitsType("TanDelta"))
-                        lossUnitsStr = "TODO";
-                    case(this.LossUnitsType("kOhm"))
-                        lossUnitsStr = " KO";
-                    otherwise
-                        error("Unsupported Loss Units");
-                end
+                % switch(this.Loss_Units)
+                %     case(this.LossUnitsType("TanDelta"))
+                %         lossUnitsStr = "TODO";
+                %     case(this.LossUnitsType("kOhm"))
+                %         lossUnitsStr = " KO";
+                %     otherwise
+                %         error("Unsupported Loss Units");
+                % end
 
                 xStr1 = strfind(data, "C=");
                 xStr2 = strfind(data, " PF");   %Potentially an issue? - unit may differ. Seems ok.
 
                 xStr3 = strfind(data, " L=");
-                xStr4 = strfind(data, lossUnitsStr);   %Problematic - unit may differ
+                %xStr4 = strfind(data, lossUnitsStr);   %Problematic - unit may differ
 
                 xStr5 = strfind(data, " V=");
                 xStr6 = strfind(data, "  V");
@@ -113,8 +121,8 @@ classdef AH2550_Bridge < Palladium.Core.Instrument
             if(this.Record_Times)
                 dataRow = [dataRow, beginTime, finishTime];
             end
-            
         end
+        
     end
 end
 

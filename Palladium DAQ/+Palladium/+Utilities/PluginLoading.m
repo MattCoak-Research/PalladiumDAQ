@@ -1,9 +1,9 @@
 classdef PluginLoading
     %PluginLoading - Static class to expose helper methods for
 
-    methods (Static)
+    %% Methods (Static, Public)
+    methods (Static, Access = public)
 
-        %% CheckForExistingInstrName
         function existsAlready = CheckForExistingInstrName(newName, itemsData)
             %Check the list itemsData - presumed to be a list of
             %Instruments - and see if any have the Name newName
@@ -16,7 +16,7 @@ classdef PluginLoading
 
             %Get names of existing instruments
             for n = 1 : length(itemsData)
-                existingNames(n) = string(itemsData{n}.Name);
+                existingNames(n) = string(itemsData{n}.Name); %#ok<AGROW>
             end
 
             %Check for duplicate
@@ -29,7 +29,6 @@ classdef PluginLoading
             existsAlready = false;
         end
 
-        %% GetIncrementedInstrName
         function NewName = GetIncrementedInstrName(instr, itemsData)
             %Prevent duplicate instrument names by appending 1,2,3 to the end
             %of them (can always be edited by user later) on instrument
@@ -45,7 +44,7 @@ classdef PluginLoading
 
             %Get names of existing instruments
             for n = 1 : length(itemsData)
-                existingNames(n) = string(itemsData{n}.Name);
+                existingNames(n) = string(itemsData{n}.Name); %#ok<AGROW>
             end
 
             %Initialise some variables
@@ -63,7 +62,6 @@ classdef PluginLoading
             NewName = tmpName;
         end
 
-        %% InstantiateClass
         function classInstance = InstantiateClass(namespace, className)
             %Instantiate an isntance of the named class (empty constructor)
 
@@ -77,7 +75,6 @@ classdef PluginLoading
             classInstance = fnHandle();
         end
 
-        %% InstantiateEnum
         function classInstance = InstantiateEnum(namespace, className, enumValueString)
             %Instantiate an isntance of the named enum
 
@@ -91,7 +88,6 @@ classdef PluginLoading
             classInstance = fnHandle(enumValueString);
         end
 
-        %% InstantiatePreset
         function presetFn = InstantiatePreset(namespace, presetName)
             %Instantiate an isntance of the named Preset (matlab function file, not a class)
 
@@ -104,7 +100,6 @@ classdef PluginLoading
             presetFn = str2func(presetPath);
         end
 
-        %% LoadPluginNames
         function classNames = LoadPluginNames(directory)
             %Get the names of all the classes in a plugin directory
             classNames = dir(fullfile(directory, '*.m'));

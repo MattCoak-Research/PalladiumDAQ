@@ -6,65 +6,50 @@ classdef PPMS < Palladium.Core.Instrument
     %has C# dll wrappers to allow MATLAB to interface with the QD server
     %Note that currently there is no way to UNload .NET assemblies in
     %MATLAB, but this is not a practical issue in this version of the code.
-    
+
+    %% Properties (Constant, Public)
     properties(Constant, Access = public)
         FullName = 'PPMS';                                          %Full name, just for displaying on GUI
     end
 
-    properties(Access = public, SetObservable)
-        Name = 'PPMS';                                              %Instrument name
-        Connection_Type = Palladium.Enums.ConnectionType.Ethernet;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
-        RotatorInstalled = false;                                   %Set to true if using rotation option - rotation angle will be logged
-    end
-
-    properties(Access = private)
-        Interface;
-    end
-
+    %% Properties (Constant, Private)
     properties(Constant, Access = private)
         InterfacePath = "QDInterface.dll";
         PPMSCommDirectory = "PPMS Communication";
         DllDirectory = "dll";
     end
 
-    methods
+    %% Properties (Public, Set Observable)
+    % These properties will appear in the Instrument Settings GUI and are editable there
+    properties(Access = public, SetObservable)
+        Name = 'PPMS';                                              %Instrument name
+        Connection_Type = Palladium.Enums.ConnectionType.Ethernet;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
+        RotatorInstalled = false;                                   %Set to true if using rotation option - rotation angle will be logged
+    end
 
-        %% Constructor
-        function this = PPMS()            
+    %% Properties (Private)
+    properties(Access = private)
+        Interface;
+    end
+
+    %% Constructor
+    methods
+        function this = PPMS()
             %Specify communication options and settings
             this.DefineSupportedConnectionTypes(["Debug", "Ethernet"]);
             this.IP_Address = "127.0.0.1";
             this.ConnectionSettings.Port = 11000;
         end
+    end
 
-        %% GetHeaders
-        function [Headers, Units] = GetHeaders(this)
-            %Gets the column headers for data columns returned by this
-            %instrument. There must be the same number as Measure returns.
-            Headers = [this.Name + " - Temperature_K", this.Name + " - Field_T"];
-            Units = ["K", "T"];
+    %% Methods (Public)
+    methods (Access = public)
 
-            if this.RotatorInstalled
-                Headers(end + 1) = this.Name + " - Rotator_Position_Deg";
-                Units(end + 1) = "Deg";
-            end
+        function Close(this)
+            delete(this.Interface);
+            this.Interface = [];
         end
 
-        %% Measure
-        function [dataRow] = Measure(this)
-
-            field_T = this.GetField();
-            temp_K = this.GetTemperature();
-
-            dataRow = [temp_K, field_T];
-
-            %Add rotation angle if rotator in use
-            if this.RotatorInstalled
-                dataRow(end + 1) = this.GetRotatorPosition();
-            end
-        end
-
-        %% Connect
         function Connect(this)
             switch(this.Connection_Type)
                 case(Palladium.Enums.ConnectionType.Debug)
@@ -84,21 +69,24 @@ classdef PPMS < Palladium.Core.Instrument
             end
         end
 
-        %% Close
-        function Close(this)
-            delete(this.Interface);
-            this.Interface = [];
-        end
-
-
-        %% GetField
         function B_T = GetField(this)
             assert(~isempty(this.Interface), "PPMS interface object is empty - call Connect first?");
             B_Oe = this.Interface.GetField();
             B_T = B_Oe / 10000;
         end
 
-        %% GetMapValue
+        function [Headers, Units] = GetHeaders(this)
+            %Gets the column headers for data columns returned by this
+            %instrument. There must be the same number as Measure returns.
+            Headers = [this.Name + " - Temperature_K", this.Name + " - Field_T"];
+            Units = ["K", "T"];
+
+            if this.RotatorInstalled
+                Headers(end + 1) = this.Name + " - Rotator_Position_Deg";
+                Units(end + 1) = "Deg";
+            end
+        end
+
         function val = GetMapValue(this, channel)
             arguments
                 this;
@@ -109,7 +97,6 @@ classdef PPMS < Palladium.Core.Instrument
             val = this.Interface.GetMapValue(channel);
         end
 
-        %% GetRotatorPosition
         function pos_Deg = GetRotatorPosition(this)
             assert(~isempty(this.Interface), "PPMS interface object is empty - call Connect first?");
             %pos_Deg = this.Interface.GetRotatorPosition();     %See
@@ -122,21 +109,29 @@ classdef PPMS < Palladium.Core.Instrument
             pos_Deg = this.Interface.GetMapValue(3);
         end
 
-        %% GetTemperature
         function T_K = GetTemperature(this)
             assert(~isempty(this.Interface), "PPMS interface object is empty - call Connect first?");
             T_K = this.Interface.GetTemperature();
         end
 
+        function [dataRow] = Measure(this)
+
+            field_T = this.GetField();
+            temp_K = this.GetTemperature();
+
+            dataRow = [temp_K, field_T];
+
+            %Add rotation angle if rotator in use
+            if this.RotatorInstalled
+                dataRow(end + 1) = this.GetRotatorPosition();
+            end
+        end
+
     end
 
-    methods(Access = private)
-
-    end
-
+    %% Methods (Static, Private)
     methods(Static, Access = private)
 
-        %% ConnectToInterface
         function interfaceObj = ConnectToInterface(simulationMode, ppmsCommDir, dllDir, dllPath, ipAddress, portNumber)
             arguments
                 simulationMode      (1,1) logical;
