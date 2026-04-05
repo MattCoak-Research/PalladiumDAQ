@@ -11,8 +11,8 @@ classdef test_InstrumentCreation < matlab.unittest.TestCase
     methods (TestClassSetup)
         function configPathSetup(testCase)
             % Set up shared state for all tests.
-            testCase.ConfigPath = fullfile("..","TestingConfig.json");
-        end
+            testCase.ConfigPath = fullfile("..","Palladium DAQ", "Tests", "TestingConfig.json");
+         end
     end
 
     methods (TestClassTeardown)

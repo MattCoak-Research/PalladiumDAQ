@@ -10,8 +10,8 @@ classdef testProgramLaunch < matlab.uitest.TestCase
         % Shared setup for the entire test class
         function configPathSetup(testCase)
             % Set up shared state for all tests.
-            testCase.ConfigPath = fullfile('..','Palladium DAQ - Testing');
-        end
+            testCase.ConfigPath = fullfile("..","Palladium DAQ", "Tests", "TestingConfig.json");
+            end
     end
 
     methods (TestClassTeardown)
@@ -35,6 +35,7 @@ classdef testProgramLaunch < matlab.uitest.TestCase
             pd = Palladium(ConfigFilePath=testCase.ConfigPath);
             verifyNotEmpty(testCase, pd.View);
             verifyNotEmpty(testCase, pd.Controller);
+            drawnow();
             pd.Close();
         end
         
@@ -51,6 +52,7 @@ classdef testProgramLaunch < matlab.uitest.TestCase
             pd = Palladium(ConfigFilePath=testCase.ConfigPath);
             verifyNotEmpty(testCase, pd.View);
             verifyNotEmpty(testCase, pd.Controller);
+            drawnow();
 
             %pd.Start();
             % The following 2 lines are commented until find solution to UI

@@ -10,13 +10,13 @@ classdef testInstrumentCreation < matlab.unittest.TestCase
      methods (TestClassSetup)
         function configPathSetup(testCase)
             % Set up shared state for all tests.
-            testCase.ConfigPath = fullfile('..','Palladium DAQ - Testing');
+            testCase.ConfigPath = fullfile("..","Palladium DAQ", "Tests", "TestingConfig.json");
         end
      end
 
     methods (TestClassTeardown)
         % Remove folder created during test
-        function TeardownFiles(testCase)
+        function TeardownFiles(~)
             path = fullfile( '..','Palladium DAQ - Testing');
             rmdir(path, 's');
         end
