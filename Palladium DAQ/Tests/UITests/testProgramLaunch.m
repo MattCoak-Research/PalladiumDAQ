@@ -16,7 +16,7 @@ classdef testProgramLaunch < matlab.uitest.TestCase
 
     methods (TestClassTeardown)
         % Remove folder created during test
-        function TeardownFiles(testCase)
+        function TeardownFiles(~)
             path = fullfile( '..','Palladium DAQ - Testing');
             rmdir(path, 's');
         end
@@ -32,7 +32,7 @@ classdef testProgramLaunch < matlab.uitest.TestCase
         function LaunchEmpty(testCase)
             % Test that view and controller have been created
             % Creates default view
-            pd = Palladium();
+            pd = Palladium(ConfigFilePath=testCase.ConfigPath);
             verifyNotEmpty(testCase, pd.View);
             verifyNotEmpty(testCase, pd.Controller);
             pd.Close();
@@ -40,7 +40,7 @@ classdef testProgramLaunch < matlab.uitest.TestCase
         
         function LaunchEmptyNoView(testCase)
             % Check that no view has been created
-            pd = Palladium(View=[]);
+            pd = Palladium(ConfigFilePath=testCase.ConfigPath, View=[]);
             verifyEmpty(testCase, pd.View);
             verifyNotEmpty(testCase, pd.Controller);
             pd.Close();      
@@ -48,7 +48,7 @@ classdef testProgramLaunch < matlab.uitest.TestCase
 
         function TestMeasurementLoop(testCase)
             % Test that view and controller have been created
-            pd = Palladium();
+            pd = Palladium(ConfigFilePath=testCase.ConfigPath);
             verifyNotEmpty(testCase, pd.View);
             verifyNotEmpty(testCase, pd.Controller);
 

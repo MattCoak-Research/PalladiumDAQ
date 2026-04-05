@@ -10,7 +10,7 @@ classdef test_ProgrammeLaunch < matlab.unittest.TestCase
         % Shared setup for the entire test class
         function configPathSetup(testCase)
             % Set up shared state for all tests.
-            testCase.ConfigPath = fullfile("..","TestingConfig.json");
+            testCase.ConfigPath = fullfile("..","Palladium DAQ", "Tests", "TestingConfig.json");
         end
     end
 

@@ -31,7 +31,7 @@ classdef testInstrumentCreation < matlab.unittest.TestCase
 
         function AddAllInstruments(testCase)
            
-            pd = Palladium();
+            pd = Palladium(ConfigFilePath=testCase.ConfigPath);
 
             %Loop over all instruments in InstrumentNames, and add them - in Debug
             %ConnectionType mode
@@ -41,7 +41,7 @@ classdef testInstrumentCreation < matlab.unittest.TestCase
             actSelected = pd.Controller.InstrumentController.SelectedInstrumentNames;
             verifyEqual(testCase, 3, length(actSelected));
             verifyEqual(testCase, testCase.InstrumentNames, actSelected);
-            pause(2);
+            pause(0.5);
             pd.Close();
         end
 

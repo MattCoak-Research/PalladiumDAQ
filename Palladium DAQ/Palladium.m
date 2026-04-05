@@ -149,6 +149,11 @@ classdef Palladium < handle
             if ~isempty(Settings.ConfigFilePath)
                 %Check the file extension, add if missing
                 Settings.ConfigFilePath = Palladium.Utilities.PathUtils.EnsureExtension(Settings.ConfigFilePath, ".json");
+                
+                %Make an absolute path by adding the directory of this file
+                Settings.ConfigFilePath = fullfile(applicationDir, Settings.ConfigFilePath);
+                Settings.ConfigFilePath = Palladium.Utilities.PathUtils.CleanPath(Settings.ConfigFilePath);
+                
                 %Check the file exists
                 assert(isfile(Settings.ConfigFilePath), "Could not find override Config file at " + string(Settings.ConfigFilePath));
             end

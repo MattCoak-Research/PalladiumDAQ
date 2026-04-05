@@ -17,7 +17,7 @@ classdef test_InstrumentCreation < matlab.unittest.TestCase
 
     methods (TestClassTeardown)
         % Remove folder created during test
-        function TeardownFiles(testCase)
+        function TeardownFiles(~)
             path = fullfile( '..','Palladium DAQ - Testing');
             rmdir(path, 's')
         end
