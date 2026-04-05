@@ -513,10 +513,6 @@ classdef Palladium < handle
             view = fnHandle();
         end
 
-        function dirPath = GetPresetsDir(this)
-            dirPath = fullfile(this.Controller.ApplicationDir,  this.PresetsDirectory);
-        end
-
         function presetFn = LoadPreset(this, presetName)
             presetFn = [];
             %Display a status message in the logger
@@ -524,7 +520,7 @@ classdef Palladium < handle
 
             try
                 %Fetch paths
-                presetsDir = this.GetPresetsDir();
+                presetsDir = this.Controller.UserPresetsDir;
                 presetPath = fullfile(presetsDir, presetName) + ".m";
 
                 %Error checking

@@ -4,8 +4,8 @@ classdef Controller < handle
     %% Properties (Constant, Private)
     properties(Constant, Access = private)
         UserFolderName = "Palladium DAQ - User Files";
-        UserInstrumentFolderName = "Instruments";
-        UserPresetFolderName = "Presets";
+        UserInstrumentFolderName = "+PalladiumInstruments";
+        UserPresetFolderName = "+PalladiumPresets";
     end
 
     %% Properties (Public)
@@ -736,6 +736,13 @@ classdef Controller < handle
         end
 
         function EnsureUserFilesDirExists(this, pathToDir)
+            % ENSUREUSERFILESDIREXISTS - Ensure a user files directory
+            % exists, along with its subfolders, and add to the path
+            %
+            % Input arguments:
+            % pathToDir  - full path of the directory to ensure exists
+
+            %Build the path to the 'Palladium DAQ - User Files' directory
             userDirPath = fullfile(pathToDir, this.UserFolderName);
 
             %Create the directory if it doesn't exist
@@ -758,6 +765,10 @@ classdef Controller < handle
             if newDirCreated
                 this.Log("Info", "User directory at " + string(this.UserPresetsDir) + " not found - creating new empty directory", "Green", "Creating User Directories");
             end
+
+
+            %Add the User Dir to the MATLAB path
+            addpath(userDirPath);
         end
 
         function [logSettings, pathSettings, windowSettings, plotterSettings] = LoadSettings(this, Settings)

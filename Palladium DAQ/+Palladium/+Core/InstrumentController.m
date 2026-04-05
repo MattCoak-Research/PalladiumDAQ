@@ -6,6 +6,7 @@ classdef InstrumentController < handle
     %% Properties (Constant, Private)
     properties (Access = private, Constant)
         Namespace string = "Palladium.Instruments";
+        UserNamespace string = "PalladiumInstruments";
         ControlsNamespace string = "Palladium.Instruments.Controls";
         InstrumentClassesToIgnore = {"TemplateInstrumentClass"};   %Instrument class names to NOT load into the Browser panel, even if they are in either built in or User instruments directories. Template Instrument is a good example - you don't actually want to ever create one
     end
@@ -88,7 +89,13 @@ classdef InstrumentController < handle
                 assert(any(contains(this.ListOfAvailableInstrumentClassNameStrings, instrStringToAdd, "IgnoreCase", false)), string(instrStringToAdd) + " not found in list of avaliable Instruments");
 
                 %Make an instance of the selected datasource class
-                instRef = Palladium.Utilities.PluginLoading.InstantiateClass(this.Namespace, instrStringToAdd);
+                if Palladium.Utilities.PluginLoading.CheckClassExistsInNamespace(this.Namespace, instrStringToAdd)  %We aren't sure if this Instrument is in the User or Built in Namespace, so check them in turn
+                    instRef = Palladium.Utilities.PluginLoading.InstantiateClass(this.Namespace, instrStringToAdd);
+                elseif Palladium.Utilities.PluginLoading.CheckClassExistsInNamespace(this.UserNamespace, instrStringToAdd)
+                    instRef = Palladium.Utilities.PluginLoading.InstantiateClass(this.UserNamespace, instrStringToAdd);
+                else
+                    error("InstrumentCreation:NotFoundInNamespace", "Could not find Instrument " + string(instrStringToAdd) + " in built in or user namespace. This should not be able to happen.");
+                end
 
                 %Set the instrument name if that optional parameter was
                 %passed in. This is useful when setting up Instruments and
