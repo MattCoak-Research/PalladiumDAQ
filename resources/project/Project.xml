@@ -615,13 +615,6 @@
                             </Category>
                         </Info>
                     </File>
-                    <File Location="MIST.m">
-                        <Info>
-                            <Category UUID="FileClassCategory">
-                                <Label UUID="design"/>
-                            </Category>
-                        </Info>
-                    </File>
                     <File Location="Mercury120_10_IPS.m">
                         <Info>
                             <Category UUID="FileClassCategory">
