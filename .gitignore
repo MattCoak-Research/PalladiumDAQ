@@ -29,9 +29,5 @@ Palladium DAQ/Instrument Drivers/Paragraf MIST/
 Palladium DAQ/Instrument Drivers/Zurich Instruments/
 Palladium DAQ/Instrument Drivers/Quantum Design/
 
-# Presets other than the default example and the PPMS example
-Palladium DAQ/+PalladiumPresets/ADR.m
-Palladium DAQ/+PalladiumPresets/Testing.m
-
 # Batch script
 palladium_push.bat
