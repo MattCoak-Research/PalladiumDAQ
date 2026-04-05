@@ -4,6 +4,41 @@ classdef Verification
     %% Methods (Static, Public)
     methods (Static, Access = public)
 
+        function [duplicates, combinedString] = CheckForDuplicatesInCellArrayOfStrings(cellArrayOfStrings)
+            duplicates = {};
+            combinedString = "";
+
+            %handle edge cases
+            if isempty(cellArrayOfStrings)
+                return;
+            end
+            if length(cellArrayOfStrings) < 2
+                return;
+            end
+
+            %Convert
+            strArray = string(cellArrayOfStrings);
+
+            % Find the indices of the unique strings
+            [~, uniqueIdx] = unique(strArray);
+
+            % remove the unique strings, anything left is a duplicate
+            strArray(uniqueIdx) = [];
+
+            % find the unique duplicates
+            duplicates = unique(strArray);
+
+            %Write the duplicates out in a nice string, to print in error
+            %messages: one, two, three
+            for i = 1 : length(duplicates)
+                if i == 1
+                    combinedString = combinedString + string(duplicates(i));
+                else
+                    combinedString = combinedString + ", " + string(duplicates(i));
+                end
+            end
+        end
+
         function [duplicates, combinedString] = CheckForDuplicatesInHeadersArray(headers)
             combinedString = "";
             duplicates = [];
@@ -17,7 +52,7 @@ classdef Verification
             end
 
             % Find the indices of the unique strings
-            [~, uniqueIdx] =unique(headers);
+            [~, uniqueIdx] = unique(headers);
 
             % Copy the original into a duplicate array
             duplicates = headers;
