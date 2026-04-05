@@ -347,7 +347,7 @@ classdef Controller < handle
 
                 %Load Instrument Classes
                 this.Log("Debug", "Initialising Instrument Classes", "Yellow", "Initialising Instruments...");
-                this.InstrumentController.LoadInstrumentClasses(fullfile(this.ApplicationDir, "+Palladium", "+Instruments"));
+                this.InstrumentController.LoadInstrumentClasses(fullfile(this.ApplicationDir, "+Palladium", "+Instruments"), this.UserInstrumentsDir);
                 this.Log("Debug", "Instrument Classes initialised", "Green", "Instruments intialised");
 
                 %Initialise TimingLoopController

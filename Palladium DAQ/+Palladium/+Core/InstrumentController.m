@@ -7,6 +7,7 @@ classdef InstrumentController < handle
     properties (Access = private, Constant)
         Namespace string = "Palladium.Instruments";
         ControlsNamespace string = "Palladium.Instruments.Controls";
+        InstrumentClassesToIgnore = {"TemplateInstrumentClass"};   %Instrument class names to NOT load into the Browser panel, even if they are in either built in or User instruments directories. Template Instrument is a good example - you don't actually want to ever create one
     end
 
     %% Properties (Public)
@@ -358,8 +359,33 @@ classdef InstrumentController < handle
             end
         end
 
-        function LoadInstrumentClasses(this, folderPath)
-            classNames = Palladium.Utilities.PluginLoading.LoadPluginNames(folderPath);
+        function LoadInstrumentClasses(this, builtInInstrsFolderPath, userInstrsFolderPath)
+            %Load the names of the classes from the built-in and User Files
+            %Instruments directories
+            builtInClassNames = Palladium.Utilities.PluginLoading.LoadPluginNames(builtInInstrsFolderPath);
+            userClassNames = Palladium.Utilities.PluginLoading.LoadPluginNames(userInstrsFolderPath);
+
+            %Combine the two lists
+            classNames = [builtInClassNames; userClassNames];
+
+            %Remove any entries that are specified to be exluded - like
+            %TemplateInstrumentClass
+            for i = 1 : length(this.InstrumentClassesToIgnore)
+                classNames(strcmp(classNames, this.InstrumentClassesToIgnore{i})) = [];
+            end
+
+            %Error on any duplicates
+            [duplicates, combinedString] = Palladium.Utilities.Verification.CheckForDuplicatesInCellArrayOfStrings(classNames);
+            if ~isempty(duplicates)
+                error("LoadInstrumentClass:DuplicatesError", "Error loading Instrument Classes - found duplicate names. Is an Instrument in the User Files Instrument folder named the same as one of the built in classes? \n\n Duplicates found: " + string(combinedString));
+            end
+
+            %Sort alphabetically - right now it is a design choice to have
+            %one combined list, rather than a separation into User and
+            %Built-In
+            classNames = sort(classNames);
+
+            %Set the list of instruments from these
             this.PopulateInstrumentList(classNames);
         end
 
