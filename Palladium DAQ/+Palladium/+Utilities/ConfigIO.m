@@ -4,7 +4,7 @@ classdef ConfigIO < handle
 
     %% Properties (Public)
     properties(Access = public)
-        ConfigDirectory = filesep + ".." + filesep + ".." + filesep + ".." + filesep + "Palladium DAQ - Settings" + filesep;
+        ConfigDirectory = filesep + ".." + filesep + ".." + filesep + ".." + filesep + ".." + filesep + "Palladium DAQ - Settings" + filesep;
         PromptForGUIEntryOfSettings = true;
     end
 
@@ -25,6 +25,7 @@ classdef ConfigIO < handle
         function con = LoadConfig(this, Settings)
             arguments
                 this;
+                Settings.ApplicationDir;
                 Settings.ConfigFilePath = [];                  % Default is blank ([]) - enter a filepath instead to override default Config json file loading and pass in the path for another settings file to be loaded from
             end
 
@@ -46,12 +47,12 @@ classdef ConfigIO < handle
                     if this.PromptForGUIEntryOfSettings
                         disp("Opening GUI window for config settings entry.");
                         defaultConfig = this.GenerateDefaultConfigStruct();
-                        enteredConfig = this.ShowConfigEntryGUI(defaultConfig);
-                        this.SaveConfig(enteredConfig);
+                        enteredConfig = this.ShowConfigEntryGUI(defaultConfig, Settings.ApplicationDir);
+                        this.SaveConfig(enteredConfig, configPath);
                     else
                         disp("Creating default, saving to file.");
                         fprintf("\n");
-                        this.SaveDefaultConfig();
+                        this.SaveDefaultConfig(configPath);
                     end
                 end
 
@@ -65,33 +66,33 @@ classdef ConfigIO < handle
                 [con, changesDetected] = this.VerifyConfigStruct(con);
                 if changesDetected
                     warndlg("Missing lines or obseleted properties found in Config file. Corrupted file or config version needs updating. Adding default values and saving new version of file.", "Config file verification");
-                    this.SaveConfig(con);
+                    this.SaveConfig(con, configPath);
                 end
             catch e
                 error("Error loading Config file in ConfigIO: " + e.message);
             end
         end
 
-        function SaveConfig(this, config)
+        function SaveConfig(~, config, configPath)
             try
-                confDir = this.GetConfigDirPath();
+                %Extract file parts
+                [confDir, ~, ~] = fileparts(configPath);
 
                 %Make the config folder if it doesn't exist already
                 if ~exist(confDir, 'dir')
                     mkdir(confDir);
                 end
 
-                configPath = [confDir 'Config.json'];
                 writestruct(config, configPath, "FileType", "json");
             catch e
                 error("Error saving Config file in ConfigIO: " + e.message);
             end
         end
 
-        function SaveDefaultConfig(this)
+        function SaveDefaultConfig(this, configPath)
             try
                 s = this.GenerateDefaultConfigStruct();
-                this.SaveConfig(s);
+                this.SaveConfig(s, configPath);
             catch e
                 error("Error saving new default Config file in ConfigIO: " + e.message);
             end
@@ -124,15 +125,15 @@ classdef ConfigIO < handle
             s.PathSettings.DefaultFileName = "<DATE>_Filename";
             s.PathSettings.DefaultDirectory = ".." + filesep + "Palladium DAQ - Testing";
             s.PathSettings.DefaultSequenceDirectory = ".." + filesep + "Palladium DAQ - Testing";
-            s.PathSettings.DataDirectoryIsRelativePath = false;
-            s.PathSettings.SequenceDirectoryIsRelativePath = false;
+            s.PathSettings.DataDirectoryIsRelativePath = true;
+            s.PathSettings.SequenceDirectoryIsRelativePath = true;
             s.PathSettings.DataFileExtension = ".dat";
             s.PathSettings.SequenceFileExtension = ".seq";
             s.PathSettings.SaveFile = true;
             s.PathSettings.FileWriteMode = "Increment File No.";
             s.PathSettings.DefaultDescription = "";
 
-            s.WindowSettings.DefaultSize = [1000, 700];
+            s.WindowSettings.DefaultSize = [1200, 900];
             s.WindowSettings.DefaultPosition = [];  %If empty, window will be centred
             s.WindowSettings.Maximised = true;
 
@@ -152,7 +153,7 @@ classdef ConfigIO < handle
             dirPath = fullfile(directoryOfThisFunction, char(this.ConfigDirectory));
         end
 
-        function con = ShowConfigEntryGUI(this, initialConfig)
+        function con = ShowConfigEntryGUI(this, initialConfig, applicationDir)
             con = initialConfig;
             c = Palladium.Components.ConfigInputWindow();
 
@@ -180,6 +181,8 @@ classdef ConfigIO < handle
                 con.PathSettings.DataDirectoryIsRelativePath = s.DataDirectoryIsRelativePath;
                 con.LogSettings.LogFileDirectoryIsRelativePath = s.LogFileDirectoryIsRelativePath;
                 con.PathSettings.DefaultFileName = s.DefaultFileName;
+                con.PathSettings.UserFilesDirectory = s.UserFilesDirectory;
+                con.PathSettings.UserFilesDirectoryIsRelativePath = s.UserFilesDirectoryIsRelativePath;
                 con.WindowSettings.DefaultSize = s.DefaultSize;
                 con.WindowSettings.Maximised = s.WindowStartsMaximised;
 
@@ -187,9 +190,10 @@ classdef ConfigIO < handle
                 %of absolute
                 con.PathSettings.DefaultDirectory = Palladium.Utilities.PathUtils.CleanPath(con.PathSettings.DefaultDirectory);
                 con.LogSettings.LogFileDirectory = Palladium.Utilities.PathUtils.CleanPath(con.LogSettings.LogFileDirectory);
+                con.PathSettings.UserFilesDirectory = Palladium.Utilities.PathUtils.CleanPath(con.PathSettings.UserFilesDirectory);
 
                 if con.PathSettings.DataDirectoryIsRelativePath
-                    [p, success] = Palladium.Utilities.PathUtils.MakeFilePathRelative(con.PathSettings.DefaultDirectory);
+                    [p, success] = Palladium.Utilities.PathUtils.MakeFilePathRelative(con.PathSettings.DefaultDirectory, RefDir=applicationDir);
                     if success
                         con.PathSettings.DefaultDirectory = p;
                     else %Handle case of failing to find a relative path to extract - if the folder given was on a different drive for instance. Path remains absolute, and disable the relative toggle
@@ -198,11 +202,20 @@ classdef ConfigIO < handle
                 end
 
                 if con.LogSettings.LogFileDirectoryIsRelativePath
-                    [p, success] = Palladium.Utilities.PathUtils.MakeFilePathRelative(con.LogSettings.LogFileDirectory);
+                    [p, success] = Palladium.Utilities.PathUtils.MakeFilePathRelative(con.LogSettings.LogFileDirectory, RefDir=applicationDir);
                     if success
                         con.LogSettings.LogFileDirectory = p;
                     else
                         con.LogSettings.LogFileDirectoryIsRelativePath = false;
+                    end
+                end
+
+                if con.PathSettings.UserFilesDirectoryIsRelativePath
+                    [p, success] = Palladium.Utilities.PathUtils.MakeFilePathRelative(con.PathSettings.UserFilesDirectory, RefDir=applicationDir);
+                    if success
+                        con.PathSettings.UserFilesDirectory = p;
+                    else %Handle case of failing to find a relative path to extract - if the folder given was on a different drive for instance. Path remains absolute, and disable the relative toggle
+                        con.PathSettings.UserFilesDirectoryIsRelativePath = false;
                     end
                 end
             end

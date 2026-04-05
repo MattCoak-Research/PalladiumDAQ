@@ -19,7 +19,9 @@
         "SequenceFileExtension": ".seq",
         "SaveFile": true,
         "FileWriteMode": "Increment File No.",
-        "DefaultDescription": ""
+        "DefaultDescription": "",
+        "UserFilesDirectory": "C:\\Users\\Matt\\Documents",
+        "UserFilesDirectoryIsRelativePath": false
     },
     "WindowSettings": {
         "DefaultSize": [

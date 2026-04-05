@@ -3,7 +3,7 @@ classdef Controller < handle
 
     %% Properties (Constant, Private)
     properties(Constant, Access = private)
-        UserFolderName = "Palladium User Files";
+        UserFolderName = "Palladium DAQ - User Files";
         UserInstrumentFolderName = "Instruments";
         UserPresetFolderName = "Presets";
     end
@@ -348,7 +348,7 @@ classdef Controller < handle
                 %Load Instrument Classes
                 this.Log("Debug", "Initialising Instrument Classes", "Yellow", "Initialising Instruments...");
                 this.InstrumentController.LoadInstrumentClasses(fullfile(this.ApplicationDir, "+Palladium", "+Instruments"));
-                this.Log("Debug", "Instrument Classes intialised", "Green", "Instruments intialised");
+                this.Log("Debug", "Instrument Classes initialised", "Green", "Instruments intialised");
 
                 %Initialise TimingLoopController
                 this.TimingLoopController.Initialise();
@@ -768,7 +768,7 @@ classdef Controller < handle
 
             %Load the settings file into struct
             configIO = Palladium.Utilities.ConfigIO();
-            settingsStruct = configIO.LoadConfig(ConfigFilePath=Settings.ConfigFilePath);
+            settingsStruct = configIO.LoadConfig(ApplicationDir=this.ApplicationDir, ConfigFilePath=Settings.ConfigFilePath);
 
             %Parse the entries neatly into the PathSettings struct property
             logSettings = settingsStruct.LogSettings;
@@ -786,11 +786,15 @@ classdef Controller < handle
             if(pathSettings.SequenceDirectoryIsRelativePath)
                 pathSettings.DefaultSequenceDirectory = fullfile(this.ApplicationDir, pathSettings.DefaultSequenceDirectory);
             end
+            if(pathSettings.UserFilesDirectoryIsRelativePath)
+                pathSettings.UserFilesDirectory = fullfile(this.ApplicationDir, pathSettings.UserFilesDirectory);
+            end
 
             %Clean the paths up, removing extra \\..\\.. loops etc
             pathSettings.DefaultDirectory = Palladium.Utilities.PathUtils.CleanPath(pathSettings.DefaultDirectory);
             logSettings.LogFileDirectory = Palladium.Utilities.PathUtils.CleanPath(logSettings.LogFileDirectory);
             pathSettings.DefaultSequenceDirectory = Palladium.Utilities.PathUtils.CleanPath(pathSettings.DefaultSequenceDirectory);
+            pathSettings.UserFilesDirectory = Palladium.Utilities.PathUtils.CleanPath(pathSettings.UserFilesDirectory);
 
             %Verify that the DefaultDirectory exists - if it doesn't, try to make that folder. If that fails, set to a fallback
             %and warn user.
