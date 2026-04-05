@@ -4,6 +4,39 @@ classdef PluginLoading
     %% Methods (Static, Public)
     methods (Static, Access = public)
 
+        function exists = CheckClassExistsInNamespace(namespaceName, className)
+            % CHECKCLASSEXISTSINNAMESPACE - Check if a class exists in a namespace
+            %
+            % Input arguments:
+            % namespaceName - namespace/package name (string or char scalar)
+            % className     - class name to check (string or char scalar)
+            %
+            % Output arguments:
+            % exists        - logical true if class exists in the given
+            % namespace
+            arguments
+                namespaceName   {mustBeTextScalar};
+                className       {mustBeTextScalar};
+            end
+
+            %Get the metadata of the given namespace from its name
+            metaData = matlab.metadata.Namespace.fromName(namespaceName);
+
+            %Check for an empty namespace (probably mistyped, handle it
+            %nicely)
+            if isempty(metaData)
+                error("CheckClassExistsInNameSpace:EmptyNamespace", "No classes found in Namespace " + string(namespaceName));
+            end
+
+            %Pull out the class names, will be e.g.
+            %"Palladium.Instruments.TestInstrument", as an array
+            classesInNamespace = string({metaData.ClassList.Name});
+
+            %Check if the className is found anywhere in that list, return
+            %result
+            exists = any(strcmp(classesInNamespace, namespaceName + "." + className));
+        end
+
         function existsAlready = CheckForExistingInstrName(newName, itemsData)
             %Check the list itemsData - presumed to be a list of
             %Instruments - and see if any have the Name newName
@@ -89,7 +122,7 @@ classdef PluginLoading
         end
 
         function presetFn = InstantiatePreset(namespace, presetName)
-            %Instantiate an isntance of the named Preset (matlab function file, not a class)
+            %Instantiate an instance of the named Preset (matlab function file, not a class)
 
             if(isempty(namespace))
                 presetPath = presetName;
