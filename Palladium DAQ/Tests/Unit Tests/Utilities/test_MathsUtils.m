@@ -1,20 +1,12 @@
-classdef testUtilities < matlab.unittest.TestCase
-% TESTUTILITIES Tests for Palladium utilities functions
-%
-% Currently tests only MathsUtils
+classdef test_MathsUtils < matlab.unittest.TestCase
+    % TEST_MATHSUTILS Tests for Palladium utilities functions - MathsUtils
+    % static class
 
-    methods (TestClassSetup)
-        % Shared setup for the entire test class
-    end
-
-    methods (TestMethodSetup)
-        % Setup for each test
-    end
-
+    %% Tests
     methods (Test)
-        % Test methods
 
-        function MathsUtilsCorrectOutputTest(testCase)
+        %% ConvertExponentToSIPrefix
+        function test_ConvertExponentToSIPrefix_CorrectOutputTest(testCase)
             testCase.verifyEqual(Palladium.Utilities.MathsUtils.ConvertExponentToSIPrefix(-30), 'q');
             testCase.verifyEqual(Palladium.Utilities.MathsUtils.ConvertExponentToSIPrefix(-27), 'r');
             testCase.verifyEqual(Palladium.Utilities.MathsUtils.ConvertExponentToSIPrefix(-24), 'y');
@@ -38,13 +30,12 @@ classdef testUtilities < matlab.unittest.TestCase
             testCase.verifyEqual(Palladium.Utilities.MathsUtils.ConvertExponentToSIPrefix(30), 'Q');
         end
 
-        function MathsUtilsInvalidPrefixTest(testCase)
+        function test_ConvertExponentToSIPrefix_InvalidPrefixTest(testCase)
             % Warning doesn't seem to generate identifier so can't test for
             % that
             testCase.verifyEqual(Palladium.Utilities.MathsUtils.ConvertExponentToSIPrefix(-10), '');
-        
         end
-            
+
     end
 
 end

@@ -19,12 +19,15 @@ classdef PluginLoading
                 className       {mustBeTextScalar};
             end
 
+            %First, check that this is actually a real namespace that
+            %exists on the path
+            assert(Palladium.Utilities.PluginLoading.CheckNamespaceExists(namespaceName), "CheckClassExistsInNameSpace:NoSuchNamespace", "Namespace " + string(namespaceName) + " not found. Is it added to the Path?");
+
             %Get the metadata of the given namespace from its name
             metaData = matlab.metadata.Namespace.fromName(namespaceName);
 
-            %Check for an empty namespace (probably mistyped, handle it
-            %nicely)
-            if isempty(metaData)
+            %Check for an empty namespace (valid, but containing no classes)
+            if isempty(metaData.ClassList)
                 error("CheckClassExistsInNameSpace:EmptyNamespace", "No classes found in Namespace " + string(namespaceName));
             end
 
@@ -60,6 +63,22 @@ classdef PluginLoading
 
             %Assign output - we got to the end without returning
             existsAlready = false;
+        end
+
+        function exists = CheckNamespaceExists(namespaceName)
+          % CHECKNAMESPACEEXISTS - Return true if a namespace with the name exists
+          %
+          % Input arguments:
+          % namespaceName - name of the namespace (string or char scalar)
+          %
+          % Output arguments:
+          % exists - logical true if namespaceName exists, false otherwise
+            arguments
+                namespaceName {mustBeTextScalar};
+            end
+
+            %Check if the namespace exists on the path https://uk.mathworks.com/matlabcentral/answers/1889757-is-there-exist-functionality-for-packages-namespaces
+            exists = ~isempty(meta.package.fromName(namespaceName));
         end
 
         function NewName = GetIncrementedInstrName(instr, itemsData)
@@ -109,7 +128,7 @@ classdef PluginLoading
         end
 
         function classInstance = InstantiateEnum(namespace, className, enumValueString)
-            %Instantiate an isntance of the named enum
+            %Instantiate an instance of the named enum
 
             if(isempty(namespace))
                 classPath = className;

@@ -785,28 +785,7 @@
                 <DIR_SIGNIFIER Location="1">
                     <Info/>
                 </DIR_SIGNIFIER>
-                <File Location="ADR.m">
-                    <Info>
-                        <Category UUID="FileClassCategory">
-                            <Label UUID="design"/>
-                        </Category>
-                    </Info>
-                </File>
                 <File Location="Example.m">
-                    <Info>
-                        <Category UUID="FileClassCategory">
-                            <Label UUID="design"/>
-                        </Category>
-                    </Info>
-                </File>
-                <File Location="PPMS.m">
-                    <Info>
-                        <Category UUID="FileClassCategory">
-                            <Label UUID="design"/>
-                        </Category>
-                    </Info>
-                </File>
-                <File Location="Testing.m">
                     <Info>
                         <Category UUID="FileClassCategory">
                             <Label UUID="design"/>
@@ -893,6 +872,51 @@
                         <File Location="DataReaderTest.dat">
                             <Info/>
                         </File>
+                        <File Location="PluginLoading Testing">
+                            <Info/>
+                            <DIR_SIGNIFIER Location="1">
+                                <Info/>
+                            </DIR_SIGNIFIER>
+                            <File Location="+TestNamespace">
+                                <Info/>
+                                <DIR_SIGNIFIER Location="1">
+                                    <Info/>
+                                </DIR_SIGNIFIER>
+                                <File Location="TestClass1.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                                <File Location="TestClass2.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                            </File>
+                            <File Location="+EmptyTestNamespace">
+                                <Info/>
+                                <DIR_SIGNIFIER Location="1">
+                                    <Info/>
+                                </DIR_SIGNIFIER>
+                            </File>
+                            <File Location="+TestPresets">
+                                <Info/>
+                                <DIR_SIGNIFIER Location="1">
+                                    <Info/>
+                                </DIR_SIGNIFIER>
+                                <File Location="Testing.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                            </File>
+                        </File>
                     </File>
                     <File Location="testDataReader.m">
                         <Info>
@@ -908,12 +932,39 @@
                             </Category>
                         </Info>
                     </File>
-                    <File Location="testUtilities.m">
-                        <Info>
-                            <Category UUID="FileClassCategory">
-                                <Label UUID="test"/>
-                            </Category>
-                        </Info>
+                    <File Location="Utilities">
+                        <Info/>
+                        <DIR_SIGNIFIER Location="1">
+                            <Info/>
+                        </DIR_SIGNIFIER>
+                        <File Location="test_MathsUtils.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_Verification.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_PythonUtils.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_PluginLoading.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
                     </File>
                 </File>
                 <File Location="UITests">
@@ -1003,11 +1054,11 @@
         <Reference Location="1e3ab4c6-54b9-4e91-a46b-30dbf138ce80">
             <Info Ref="Palladium DAQ/Tests/Systems Tests - Simulated Hardware" Type="Relative"/>
         </Reference>
-        <Reference Location="3fd8fc39-c047-4bb1-aba0-abca5f28a022">
-            <Info Ref="Palladium DAQ/Tests/Unit Tests/data" Type="Relative"/>
-        </Reference>
         <Reference Location="4feb6aeb-d05c-401d-9d2f-4ddb5e077133">
             <Info Ref="Palladium DAQ/Tests/UITests" Type="Relative"/>
+        </Reference>
+        <Reference Location="7609db55-4dde-4c5c-8f65-a31715338fee">
+            <Info Ref="Palladium DAQ/Tests/Unit Tests/Utilities" Type="Relative"/>
         </Reference>
         <Reference Location="8c702785-a0d0-4c75-ac4e-35ace840c4fb">
             <Info Ref="Palladium DAQ/Tests/Testing User Files/Palladium DAQ - User Files" Type="Relative"/>

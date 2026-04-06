@@ -5,7 +5,7 @@ classdef Verification
     methods (Static, Access = public)
 
         function [duplicates, combinedString] = CheckForDuplicatesInCellArrayOfStrings(cellArrayOfStrings)
-            duplicates = {};
+            duplicates = [];
             combinedString = "";
 
             %handle edge cases
@@ -115,7 +115,7 @@ classdef Verification
             v_= ver;
             [installedToolboxes{1:length(v_)}] = deal(v_.Name);
             result = all(ismember(toolboxName,installedToolboxes));
-            assert(result, "Error! " + string(toolboxName) + " is not installed");
+            assert(result, "VerifyToolboxError:ToolboxNotInstalled", "Error! " + string(toolboxName) + " is not installed");
         end       
         
     end
