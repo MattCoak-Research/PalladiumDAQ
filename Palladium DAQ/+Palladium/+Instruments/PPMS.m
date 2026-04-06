@@ -145,7 +145,7 @@ classdef PPMS < Palladium.Core.Instrument
             %Get full path to the folder - if it is on the MATLAB search
             %path, otherwise will return empty
             ppmsCommDir_Full = Palladium.Utilities.PathUtils.GetPathOfFolderOnSearchPath(ppmsCommDir);
-            fullDir = ppmsCommDir_Full + "\" + dllDir;
+            fullDir = fullfile(ppmsCommDir_Full, dllDir);
 
             %Check the driver folder is there
             assert(~isempty(fullDir), "Cannot find PPMS Communication driver directory - check installation and that folders are added to the search path (Instrument Drivers may be packaged separately)");
