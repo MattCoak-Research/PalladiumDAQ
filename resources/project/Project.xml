@@ -917,6 +917,40 @@
                                 </File>
                             </File>
                         </File>
+                        <File Location="PathUtils Testing">
+                            <Info/>
+                            <DIR_SIGNIFIER Location="1">
+                                <Info/>
+                            </DIR_SIGNIFIER>
+                            <File Location="Test Folder 1">
+                                <Info/>
+                                <DIR_SIGNIFIER Location="1">
+                                    <Info/>
+                                </DIR_SIGNIFIER>
+                                <File Location="CopyTestFile.dat">
+                                    <Info/>
+                                </File>
+                            </File>
+                            <File Location="Test Folder 2">
+                                <Info/>
+                                <DIR_SIGNIFIER Location="1">
+                                    <Info/>
+                                </DIR_SIGNIFIER>
+                            </File>
+                            <File Location="SearchPathFolder">
+                                <Info/>
+                                <DIR_SIGNIFIER Location="1">
+                                    <Info/>
+                                </DIR_SIGNIFIER>
+                                <File Location="TestClass1.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                            </File>
+                        </File>
                     </File>
                     <File Location="testDataReader.m">
                         <Info>
@@ -959,6 +993,13 @@
                             </Info>
                         </File>
                         <File Location="test_PluginLoading.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_PathUtils.m">
                             <Info>
                                 <Category UUID="FileClassCategory">
                                     <Label UUID="test"/>
