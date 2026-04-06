@@ -4,7 +4,7 @@ classdef ConfigIO < handle
 
     %% Properties (Public)
     properties(Access = public)
-        ConfigDirectory = filesep + "Palladium DAQ - Settings" + filesep;
+        ConfigDirectory = filesep + ".." + filesep + ".." + filesep + "Palladium DAQ - Settings" + filesep;
         PromptForGUIEntryOfSettings = true;
     end
 
