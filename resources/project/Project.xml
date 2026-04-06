@@ -867,10 +867,18 @@
                             <Info/>
                         </File>
                         <File Location="DataReaderNoMetaMarker.dat">
-                            <Info/>
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
                         </File>
                         <File Location="DataReaderTest.dat">
-                            <Info/>
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
                         </File>
                         <File Location="PluginLoading Testing">
                             <Info/>
@@ -951,6 +959,25 @@
                                 </File>
                             </File>
                         </File>
+                        <File Location="GUIUtils Testing">
+                            <Info/>
+                            <DIR_SIGNIFIER Location="1">
+                                <Info/>
+                            </DIR_SIGNIFIER>
+                            <File Location="+GUIUtilsTestingInstruments">
+                                <Info/>
+                                <DIR_SIGNIFIER Location="1">
+                                    <Info/>
+                                </DIR_SIGNIFIER>
+                                <File Location="TestInstrument.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                            </File>
+                        </File>
                     </File>
                     <File Location="testDataReader.m">
                         <Info>
@@ -1000,6 +1027,13 @@
                             </Info>
                         </File>
                         <File Location="test_PathUtils.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_GUIUtils.m">
                             <Info>
                                 <Category UUID="FileClassCategory">
                                     <Label UUID="test"/>

@@ -104,13 +104,13 @@ classdef GUIUtils
         function str = ToScalarString(value)
             % Returns a scalar string from something which might be a char array, or a
             % numeric multi-element vector.
-            str = string(value);
-
-            if ~ismatrix(value)
-                error("Value isn't a scalar or vector so it's a high-dimensional array," + ...
-                    " that's probably bad news.") ;
+           
+            if size(value, 2) ~= 1 && size(value, 1) ~= 1
+                error("ToScalarStringError:HighDimensionalArray",...
+                    "Value isn't a scalar or vector so it's a high-dimensional array, that's probably bad news.") ;
             end
 
+            str = string(value);
             if ~isscalar(str)
                 str = join(str, " ");
             end
