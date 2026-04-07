@@ -25,7 +25,7 @@ classdef ConfigIO < handle
         function con = LoadConfig(this, Settings)
             arguments
                 this;
-                Settings.ApplicationDir;
+                Settings.ApplicationDir = [];
                 Settings.ConfigFilePath = [];                  % Default is blank ([]) - enter a filepath instead to override default Config json file loading and pass in the path for another settings file to be loaded from
             end
 
@@ -101,7 +101,7 @@ classdef ConfigIO < handle
     end
 
     %% Methods (Private)
-    methods(Access = private)
+    methods(Access = {?Palladium.Utilities.ConfigIO, ?matlab.unittest.TestCase})    %Permission is Private, but also allow unit tests to see it
 
         function ConfigEntryComplete(this, ~, eventData)
             settingsStruct = eventData.Value;
@@ -142,7 +142,7 @@ classdef ConfigIO < handle
             s.PlotterSettings.LineStyles = ["None", "None", "None", "None"];
             s.PlotterSettings.LineWidth = 1;
             s.PlotterSettings.MarkerSize = 6;
-            s.PlotterSettings.Markers = ["o"; "o"; "+"; "*"];
+            s.PlotterSettings.Markers = ["o", "o", "+", "*"];
             s.PlotterSettings.ShowLegends = true;
             % ------------------------------------------------------------
         end
@@ -245,6 +245,16 @@ classdef ConfigIO < handle
                 cfName = conFlds{i};
 
                 %Clean up this sub-struct
+                % - set any empty values in the fields of this field (con is a struct of structs) to [] (instead of e.g. 1x0 empty
+                % double row vector)
+                subFields = fields(con.(cfName));
+                for j = 1 : length(subFields)
+                    subF = subFields{j};
+                    if isempty(con.(cfName).(subF))
+                        con.(cfName).(subF) = [];
+                    end
+                end
+                % - Check for obseleted or new fields
                 [changesDetected, newStrct] = Palladium.Utilities.ConfigIO.AdjustStructsToMatch(con.(cfName), df.(cfName), changesDetected);
                 con.(cfName) = newStrct;
             end
