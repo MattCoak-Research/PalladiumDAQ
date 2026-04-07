@@ -76,7 +76,8 @@ classdef ConfigIO < handle
         function SaveConfig(~, config, configPath)
             try
                 %Extract file parts
-                [confDir, ~, ~] = fileparts(configPath);
+                [confDir, ~, ext] = fileparts(configPath);
+                assert(length(char(ext))>1, "SaveConfigError:MissingExtension", "File Extension must be included when specifying file path in SaveConfig. filepath was: " + string(configPath));
 
                 %Make the config folder if it doesn't exist already
                 if ~exist(confDir, 'dir')
@@ -281,7 +282,7 @@ classdef ConfigIO < handle
 
                 for i = 1 : length(difference)
                     fieldToAdd = difference{i};
-                    warning("Adding missing config field " + fieldToAdd);
+                    warning("ConfigVerificationWarning:AddedMissingField", "Adding missing config field " + fieldToAdd);
                     configStruct.(fieldToAdd) = defaultStructToCompareTo.(fieldToAdd);
                 end
             end
@@ -296,7 +297,7 @@ classdef ConfigIO < handle
 
                 for i = 1 : length(difference)
                     fieldToRemove = difference{i};
-                    warning("Removing deprecated config field " + fieldToRemove);
+                    warning("ConfigVerificationWarning:RemovedDeprecatedField", "Removing deprecated config field " + fieldToRemove);
                     configStruct = rmfield(configStruct, fieldToRemove);
                 end
             end
