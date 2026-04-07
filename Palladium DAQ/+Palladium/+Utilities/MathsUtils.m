@@ -50,7 +50,7 @@ classdef MathsUtils
                     prefixStr = 'Q';
                 otherwise
                     prefixStr = '';
-                    warning("Cannot convert value to SI prefix, value not supported: 10^" + num2str(log103Max));
+                    warning("MathsUtilsWarning:InvalidExponent", "Cannot convert value to SI prefix, value not supported: 10^" + num2str(log103Max));
             end
         end
     end

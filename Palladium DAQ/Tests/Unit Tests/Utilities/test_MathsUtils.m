@@ -31,9 +31,10 @@ classdef test_MathsUtils < matlab.unittest.TestCase
         end
 
         function test_ConvertExponentToSIPrefix_InvalidPrefixTest(testCase)
-            % Warning doesn't seem to generate identifier so can't test for
-            % that
-            testCase.verifyEqual(Palladium.Utilities.MathsUtils.ConvertExponentToSIPrefix(-10), '');
+            expectedWarningID = "MathsUtilsWarning:InvalidExponent";
+            %Note this actually stops the warning being printed in the console, which
+            %is nice - it means when we see a warning while testing it is unexpected
+            testCase.verifyWarning(@() testCase.verifyEqual(Palladium.Utilities.MathsUtils.ConvertExponentToSIPrefix(-10), ''), expectedWarningID);
         end
 
     end
