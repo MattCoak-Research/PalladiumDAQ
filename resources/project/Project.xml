@@ -910,6 +910,9 @@
                                 <DIR_SIGNIFIER Location="1">
                                     <Info/>
                                 </DIR_SIGNIFIER>
+                                <File Location=".gitkeep">
+                                    <Info/>
+                                </File>
                             </File>
                             <File Location="+TestPresets">
                                 <Info/>
@@ -944,6 +947,9 @@
                                 <DIR_SIGNIFIER Location="1">
                                     <Info/>
                                 </DIR_SIGNIFIER>
+                                <File Location=".gitkeep">
+                                    <Info/>
+                                </File>
                             </File>
                             <File Location="SearchPathFolder">
                                 <Info/>
@@ -983,6 +989,9 @@
                             <DIR_SIGNIFIER Location="1">
                                 <Info/>
                             </DIR_SIGNIFIER>
+                            <File Location=".gitkeep">
+                                <Info/>
+                            </File>
                         </File>
                     </File>
                     <File Location="testDataReader.m">
