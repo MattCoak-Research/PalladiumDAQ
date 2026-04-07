@@ -1,12 +1,22 @@
 classdef Controller < handle
-    %CONTROLLER Logic and measurement loop for Palladium DAQ Programme. 
+    %CONTROLLER Logic and measurement loop for Palladium DAQ Programme.
 
-    properties       
-        %Paths and Directories
-        ApplicationPath;    %These will be set in StartUp Fcn of the UiFigure
-        ApplicationDir;     %These will be set in StartUp Fcn of the 
+    %% Properties (Constant, Private)
+    properties(Constant, Access = private)
+        UserFolderName = "Palladium DAQ - User Files";
+        UserInstrumentFolderName = "+PalladiumInstruments";
+        UserPresetFolderName = "+PalladiumPresets";
     end
 
+    %% Properties (Public)
+    properties (Access = public)
+        %Paths and Directories
+        ApplicationPath;    %These will be set in StartUp Fcn of the UiFigure
+        ApplicationDir;     %These will be set in StartUp Fcn of the
+        UserFilesDir;       %Parent directory that holds the Presets & User Instruments folders, editable by User
+    end
+
+    %% Properties (Public, Private Set)
     properties(GetAccess = public, SetAccess = private)
         %Settings structs
         WindowSettings;
@@ -22,12 +32,18 @@ classdef Controller < handle
         TimingLoopController;
         InstrumentController;
         DataWriter;
+
+        %File paths
+        UserInstrumentsDir;
+        UserPresetsDir;
     end
 
+    %% Properties (Private)
     properties(Access = private)
         PlottingController;
         SequenceEditorController;
 
+        DebugMode = false; %Set to true (in Palladium entry point as optional arg) to rethrow all handled errors and hence have a stack trace to follow in the command window - for debugging/testing purposes 
         DefaultDataDir;
 
         Closing = false;    %Will get set by an attached GUI if it is in the process of being closed, to tell us to stop sending events to a now-invalid GUI
@@ -36,10 +52,7 @@ classdef Controller < handle
         UIFigureHandle = []; %Needed for error handling - need to know if we are throwing a modal dialogue box in an attached UIFigure, or a free floating normal one if there is no listening View
     end
 
-    properties(Constant)
-        PresetsDirectory = filesep + "+PalladiumPresets";
-    end
-
+    %% Events
     events
         DataRowUpdated;
         FileWriteOptionsChanged;
@@ -54,12 +67,13 @@ classdef Controller < handle
         YellowStatus;
     end
 
+    %% Constructor
     methods
-        %% Constructor
         function this = Controller(Settings)
             arguments
                 Settings.ApplicationDir {mustBeTextScalar};
                 Settings.ApplicationPath {mustBeTextScalar};
+                Settings.DebugMode (1,1) logical = false;
             end
 
             this.ApplicationDir = Settings.ApplicationDir;
@@ -67,23 +81,25 @@ classdef Controller < handle
 
             %Create a helper class for managing Instruments
             this.InstrumentController = Palladium.Core.InstrumentController(this);
-           
+
             %Create a helper class for controlling the main
             %measurement/timing loop, Start/Pause/Resume etc
             this.TimingLoopController = Palladium.Core.TimingLoopController(this);
-           
+
             %And one for handling all things Plotting
             this.PlottingController = Palladium.Core.PlottingController();
         end
+    end
 
-        %% AttachView
+    %% Methods (Public)
+    methods (Access = public)
+
         function AttachView(this, view)
             %Assign controllers into the View and have it subscribe to
             %their events
             view.AssignControllersAndHookUpEvents(this, this.TimingLoopController, this.InstrumentController);
-        end            
-        
-        %% AddNewPlotter
+        end
+
         function pltr = AddNewPlotter(this, parent, Settings)
             %This is used by things like Instrument Control creating GUIs
             %and placing Plotters in existing Gridlayouts
@@ -105,7 +121,7 @@ classdef Controller < handle
                 %plotter, add it to whatever parent we sent in. All of this
                 %is View-agnostic, and doesn't need one at all.
                 pltr = this.PlottingController.CreateNewPlotter(parent, Settings.Size);
-           
+
                 %Subscribe to events
                 if Settings.RegisterPlotter
                     addlistener(pltr, 'AxesSelectionChange', @(src,evnt)this.PlotterAxesSelectionChange(src));
@@ -128,12 +144,11 @@ classdef Controller < handle
             end
         end
 
-        %% AddNewSimplePlotter
         function pltr = AddNewSimplePlotter(this, parent, size)
             %SimplePlotter is a barebones version of the Plotter class
-            %that doesn't have dropdowns and is not plugged into the 
+            %that doesn't have dropdowns and is not plugged into the
             %DataRow and update infrastructure. It can just take plot
-            %commands programmtically from whatever made it. 
+            %commands programmtically from whatever made it.
             %This is used by things like Instrument Control creating GUIs
             %and placing Plotters in exisiting Gridlayouts
             arguments
@@ -145,7 +160,7 @@ classdef Controller < handle
             try
                 %Pass through to View to handle GUI stuff
                 pltr = this.PlottingController.CreateNewSimplePlotter(parent, size);
-                
+
                 %Subscribe to events
                 addlistener(pltr, 'SavePlot', @(src,evnt)this.SavePlot(evnt));
 
@@ -155,8 +170,7 @@ classdef Controller < handle
                 this.HandleError("Error adding new simple plotter", err);
             end
         end
-        
-        %% CanStart
+
         function canStart = CanStart(this)
             canStart = false;
             try
@@ -173,19 +187,16 @@ classdef Controller < handle
             end
 
             canStart = true;
-        end      
+        end
 
-        %% CloseProgress
         function CloseProgress(this)
             notify(this, "StoppedShowingProgress");
         end
 
-        %% GetAllInstrumentClassNames
         function classNames = GetAllInstrumentClassNames(this)
             classNames = this.InstrumentController.ListOfAvailableInstrumentClassNameStrings;
         end
 
-        %% HaltMeasurementsOnInstrumentError
         function HaltMeasurementsOnInstrumentError(this, instr, e)
             %Show error message and ask if we want to stop measurements
             halt = this.HandleError("Error in main measurement loop - Collect Data from " + instr.FullName, e);
@@ -196,7 +207,6 @@ classdef Controller < handle
             end
         end
 
-        %% HandleError
         function Halt = HandleError(this, message, error)
             %Assemble a full message from the message sent into the logger,
             %and the actual error details
@@ -219,6 +229,9 @@ classdef Controller < handle
             catch e
                 warning("An error was thrown while.. trying to handle an error.. : " + string(e.message));
             end
+            
+            %TODO - use the DebugMode property to show simple stack trace
+            %in the error. Right now it does nothing but it USED to
 
             %Pass on the error to the Error Handler to show a dialogue box
             %- user can choose whether to stop the measurement loop, and
@@ -240,7 +253,6 @@ classdef Controller < handle
             end
         end
 
-        %% HandleWarning
         function HandleWarning(this, msg, title)
             try
                 uifg = this.UIFigureHandle;
@@ -258,7 +270,6 @@ classdef Controller < handle
             end
         end
 
-        %% Initialise
         function Initialise(this, versionString, Settings)
             arguments
                 this;
@@ -285,7 +296,7 @@ classdef Controller < handle
                 "CommandWindowMessageLevel", logSettings.CommandWindowMessageLevel,...
                 "GUIMessageLevel", logSettings.GUIMessageLevel,...
                 "LogFileMessageLevel", logSettings.LogFileMessageLevel,...
-                "PrintStackTraceInCommandWindow", logSettings.PrintStackTraceInCommandWindow);            
+                "PrintStackTraceInCommandWindow", logSettings.PrintStackTraceInCommandWindow);
 
             try
                 %Set logging/error setting parameters in Controller
@@ -308,17 +319,36 @@ classdef Controller < handle
                 %Set the default path for the DataViewer programme too
                 this.DefaultDataDir = Palladium.Utilities.PathUtils.CleanPath(this.PathSettings.DefaultDirectory);
 
+                %Set the User Files path, and create the directory if it
+                %doesn't exist
+                this.UserFilesDir = Palladium.Utilities.PathUtils.CleanPath(this.PathSettings.UserFilesDirectory);
+                this.EnsureUserFilesDirExists(this.UserFilesDir);
+
+                %Copy example/template Instrument class files into that
+                %folder if they don't yet exist
+                classesToCopy = "TemplateInstrumentClass.m";
+                Palladium.Utilities.PathUtils.CopyFiles(classesToCopy,...
+                    fullfile(this.ApplicationDir, "+Palladium", "+Instruments"), this.UserInstrumentsDir,...
+                    Overwrite=false);
+ 
+                %Copy example/template Preset class files into that
+                %folder if they don't yet exist
+                classesToCopy = "Example.m";
+                Palladium.Utilities.PathUtils.CopyFiles(classesToCopy,...
+                    fullfile(this.ApplicationDir, "+PalladiumPresets"), this.UserPresetsDir,...
+                    Overwrite=false);
+
                 %Retrieve iconPath to pass to a GUI
-                this.WindowSettings.PalladiumIconPath = this.ApplicationDir + "\+Palladium\+Components\Graphics\PalladiumDAQIcon.png";
+                this.WindowSettings.PalladiumIconPath = fullfile(this.ApplicationDir, "+Palladium", "+Components", "Graphics", "PalladiumDAQIcon.png");
 
                 %Send settings to the GUI
                 args = Palladium.Events.SettingsChangedEventData(this.PathSettings, this.WindowSettings);
                 notify(this, "SettingsApplied", args);
 
-                %Load plugins
-                this.Log("Debug", "Initialising plugins", "Yellow", "Initialising plugins...");
-                this.InstrumentController.LoadInstrumentClasses(this.ApplicationDir + "\+Palladium\+Instruments");
-                this.Log("Debug", "Plugins intialised", "Green", "Plugins intialised");
+                %Load Instrument Classes
+                this.Log("Debug", "Initialising Instrument Classes", "Yellow", "Initialising Instruments...");
+                this.InstrumentController.LoadInstrumentClasses(fullfile(this.ApplicationDir, "+Palladium", "+Instruments"), this.UserInstrumentsDir);
+                this.Log("Debug", "Instrument Classes initialised", "Green", "Instruments intialised");
 
                 %Initialise TimingLoopController
                 this.TimingLoopController.Initialise();
@@ -330,7 +360,6 @@ classdef Controller < handle
             end
         end
 
-        %% InitialiseDataWriting
         function InitialiseDataWriting(this)
             %Create a DataWriter object to log all data
             this.DataWriter = Palladium.DataWriting.DataWriter(this.FileWriteDetails);
@@ -344,7 +373,6 @@ classdef Controller < handle
             this.PlottingController.CleanUpPlotters();
         end
 
-        %% InitialiseMeasurements
         function [success, msg, title] = InitialiseMeasurements(this)
             %Reset and prepare all GUI and instruments ready to then run
             %the main update loop - note that Resume doesn't call this,
@@ -406,10 +434,9 @@ classdef Controller < handle
             %Write the headers to file
             this.DataWriter.WriteHeaders(headersString, "MetadataLines", metadataLines);
 
-            success = true;            
+            success = true;
         end
 
-        %% Log
         function Log(this, level, logText, colour, statusText)
             %Passes through to both the Logger and the GUI status panel
             arguments
@@ -424,8 +451,7 @@ classdef Controller < handle
             Palladium.Logging.Logger.Log(level, logText);
             this.ShowStatus(colour, statusText);
         end
-        
-        %% Measure
+
         function Measure(this)
             %This is the core function that gets called by
             %TimingLoopController's Update call every tick, to actually
@@ -463,7 +489,7 @@ classdef Controller < handle
                 notify(this, "DataRowUpdated", args);
             catch e
                 CatchMeasurementLoopError(this, e);
-            end           
+            end
 
             %Want to catch the error pretty locally, so the rest of the
             %stuff in the Update Loop still happens in the expected order
@@ -487,9 +513,8 @@ classdef Controller < handle
                     end
                 end
             end
-        end       
+        end
 
-        %% OnFigureClosed
         function OnFigureClosed(this)
             this.Log("Debug", "Palladium DAQ closed", "Yellow", "Closing");
             this.Closing = true;
@@ -497,7 +522,6 @@ classdef Controller < handle
             this.InstrumentController.CloseAll();
         end
 
-        %% OnLoaded
         function OnLoaded(this)
             %Display a status message in the logger
             this.Log("Info", "Palladium loaded", "Green", "Ready");
@@ -510,12 +534,10 @@ classdef Controller < handle
             end
         end
 
-        %% OnMeasurementsStopped
         function OnMeasurementsStopped(this)
             this.InstrumentController.CloseAll();
         end
 
-        %% OpenDataViewer
         function OpenDataViewer(this)
             try
                 defaultDataPath = this.DefaultDataDir;
@@ -526,7 +548,6 @@ classdef Controller < handle
             end
         end
 
-        %% OpenSequenceEditor
         function OpenSequenceEditor(this)
             try
                 %Create a SequenceViewerController
@@ -541,9 +562,8 @@ classdef Controller < handle
             catch err
                 this.HandleError("Error opening Sequence Viewer", err);
             end
-        end           
+        end
 
-        %% RegisterUIFigure
         function RegisterUIFigure(this, uiFigureHandle)
             arguments
                 this;
@@ -553,7 +573,6 @@ classdef Controller < handle
             this.UIFigureHandle = uiFigureHandle;
         end
 
-        %% RemoveInstrument
         function RemoveInstrument(this, instrRef)
             try
                 %Store this, as we won't be able to retrieve it after deleting
@@ -571,12 +590,11 @@ classdef Controller < handle
             end
         end
 
-        %% RemoveInstrumentControl
         function RemoveInstrumentControl(this, instrRef, controlDetailsStruct)
             try
                 %Pass on through to InstrumentController
                 this.InstrumentController.RemoveInstrumentControl(instrRef, controlDetailsStruct);
-              
+
                 %Verbose/debug message printing
                 this.Log("Info", "Removed Instrument Control: " + controlDetailsStruct.Name, "Green", "Removed Instrument Control");
             catch err
@@ -584,7 +602,6 @@ classdef Controller < handle
             end
         end
 
-        %% SetFilePathsDirectory
         function SetFilePathsDirectory(this, directory)
             try
                 this.FileWriteDetails.Directory = Palladium.Utilities.PathUtils.CleanPath(directory);
@@ -597,7 +614,6 @@ classdef Controller < handle
             end
         end
 
-        %% SetFilePathsFileExtension
         function SetFilePathsFileExtension(this, fileExtension)
             try
                 this.FileWriteDetails.FileExtension = fileExtension;
@@ -610,7 +626,6 @@ classdef Controller < handle
             end
         end
 
-        %% SetFilePathsDescription
         function SetFilePathsDescription(this, descriptionText)
             try
                 this.FileWriteDetails.DescriptionText = descriptionText;
@@ -623,7 +638,6 @@ classdef Controller < handle
             end
         end
 
-        %% SetFilePathsFileName
         function SetFilePathsFileName(this, fileName)
             try
                 %Make sure the filename doesn't have an extra file extension
@@ -644,7 +658,6 @@ classdef Controller < handle
             end
         end
 
-        %% SetFilePathsSaveFileBool
         function SetFilePathsSaveFileBool(this, saveFileBool)
             try
                 this.FileWriteDetails.SaveFile = saveFileBool;
@@ -657,7 +670,6 @@ classdef Controller < handle
             end
         end
 
-        %% SetFilePathsWriteMode
         function SetFilePathsWriteMode(this, writeMode)
             try
                 this.FileWriteDetails.WriteMode = writeMode;
@@ -670,7 +682,6 @@ classdef Controller < handle
             end
         end
 
-        %% ShowMessageInGUI
         function ShowMessageInGUI(this, colour, msg)
             %Note, this is for the moment deliberately seperate from the
             %ShowStatus call, even though it just calls that and nothing
@@ -679,13 +690,11 @@ classdef Controller < handle
             this.ShowStatus(colour, msg);
         end
 
-        %% ShowProgress
         function ShowProgress(this, msg, title)
-          args = Palladium.Events.MessageEventData(msg, title);
-          notify(this, "StartedShowingProgress", args);
+            args = Palladium.Events.MessageEventData(msg, title);
+            notify(this, "StartedShowingProgress", args);
         end
 
-        %% ShowStatus
         function ShowStatus(this, colour, msg)
             switch(colour)
                 case('Green')
@@ -699,7 +708,6 @@ classdef Controller < handle
             end
         end
 
-        %% UpdateProgress
         function UpdateProgress(this, progress, message)
             %Tell the Controller that a slow event has made progress. Will
             %trigger updates on GUI Progress Bars on an attached View
@@ -712,12 +720,12 @@ classdef Controller < handle
             args = Palladium.Events.ProgressUpdateEventData(progress, message);
             notify(this, "UpdatedProgress", args);
         end
-        
+
     end
 
-    methods(Access=private)   
+    %% Methods (Private)
+    methods(Access=private)
 
-        %% AppendToDataTable
         function AppendToDataTable(this, dataRow)
 
             if isempty(this.DataTable)
@@ -727,7 +735,42 @@ classdef Controller < handle
             end
         end
 
-        %% LoadSettings
+        function EnsureUserFilesDirExists(this, pathToDir)
+            % ENSUREUSERFILESDIREXISTS - Ensure a user files directory
+            % exists, along with its subfolders, and add to the path
+            %
+            % Input arguments:
+            % pathToDir  - full path of the directory to ensure exists
+
+            %Build the path to the 'Palladium DAQ - User Files' directory
+            userDirPath = fullfile(pathToDir, this.UserFolderName);
+
+            %Create the directory if it doesn't exist
+            newDirCreated = Palladium.Utilities.PathUtils.EnsureDirectoryExists(userDirPath);
+            if newDirCreated
+                this.Log("Info", "User directory at " + string(userDirPath) + " not found - creating new empty directory", "Green", "Creating User Directories");
+            end
+
+
+            %Set up the User Instrument Directory
+            this.UserInstrumentsDir = fullfile(pathToDir, this.UserFolderName, this.UserInstrumentFolderName);
+            newDirCreated = Palladium.Utilities.PathUtils.EnsureDirectoryExists(this.UserInstrumentsDir);
+            if newDirCreated
+                this.Log("Info", "User directory at " + string(this.UserInstrumentsDir) + " not found - creating new empty directory", "Green", "Creating User Directories");
+            end
+
+            %Set up the Presets Directory
+            this.UserPresetsDir = fullfile(pathToDir, this.UserFolderName, this.UserPresetFolderName);
+            newDirCreated = Palladium.Utilities.PathUtils.EnsureDirectoryExists(this.UserPresetsDir);
+            if newDirCreated
+                this.Log("Info", "User directory at " + string(this.UserPresetsDir) + " not found - creating new empty directory", "Green", "Creating User Directories");
+            end
+
+
+            %Add the User Dir to the MATLAB path
+            addpath(userDirPath);
+        end
+
         function [logSettings, pathSettings, windowSettings, plotterSettings] = LoadSettings(this, Settings)
             arguments
                 this;
@@ -736,7 +779,7 @@ classdef Controller < handle
 
             %Load the settings file into struct
             configIO = Palladium.Utilities.ConfigIO();
-            settingsStruct = configIO.LoadConfig(ConfigFilePath=Settings.ConfigFilePath);
+            settingsStruct = configIO.LoadConfig(ApplicationDir=this.ApplicationDir, ConfigFilePath=Settings.ConfigFilePath);
 
             %Parse the entries neatly into the PathSettings struct property
             logSettings = settingsStruct.LogSettings;
@@ -754,11 +797,15 @@ classdef Controller < handle
             if(pathSettings.SequenceDirectoryIsRelativePath)
                 pathSettings.DefaultSequenceDirectory = fullfile(this.ApplicationDir, pathSettings.DefaultSequenceDirectory);
             end
-   
+            if(pathSettings.UserFilesDirectoryIsRelativePath)
+                pathSettings.UserFilesDirectory = fullfile(this.ApplicationDir, pathSettings.UserFilesDirectory);
+            end
+
             %Clean the paths up, removing extra \\..\\.. loops etc
             pathSettings.DefaultDirectory = Palladium.Utilities.PathUtils.CleanPath(pathSettings.DefaultDirectory);
             logSettings.LogFileDirectory = Palladium.Utilities.PathUtils.CleanPath(logSettings.LogFileDirectory);
             pathSettings.DefaultSequenceDirectory = Palladium.Utilities.PathUtils.CleanPath(pathSettings.DefaultSequenceDirectory);
+            pathSettings.UserFilesDirectory = Palladium.Utilities.PathUtils.CleanPath(pathSettings.UserFilesDirectory);
 
             %Verify that the DefaultDirectory exists - if it doesn't, try to make that folder. If that fails, set to a fallback
             %and warn user.
@@ -775,18 +822,17 @@ classdef Controller < handle
                 catch exception
                     %Warn the user
                     warning("Could not find directory " + pathSettings.DefaultDirectory + " specified in the config file, and hit an error while trying to create it. Reverting to fallback for default directory. Error message: " + string(exception.message));
-                    
+
                     %User folder eg c:/Matt/
                     userDir = fullfile(getenv('USERPROFILE'));
 
                     %Set the Default Dir
                     pathSettings.DefaultDirectory = userDir;
-                    
+
                 end
             end
         end
 
-        %% PlotterAxesSelectionChange
         function PlotterAxesSelectionChange(this, pltr)
             %This is needed for the case where we want to change the
             %displayed data in a Plotter, but the loop is not running.
@@ -808,9 +854,8 @@ classdef Controller < handle
                     pltr.PlotData(this.DataTable);
                 end
             end
-        end 
+        end
 
-        %% SavePlot
         function SavePlot(this, eventData)
             try
                 %Save the figure and a png to file using the existing

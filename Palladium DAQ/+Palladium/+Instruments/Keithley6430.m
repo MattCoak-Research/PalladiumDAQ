@@ -1,10 +1,13 @@
 classdef Keithley6430 < Palladium.Core.Instrument
     %Instrument implementation for Keithley 6430 source meters.
 
+    %% Properties (Constant, Public)
     properties(Constant, Access = public)
         FullName = 'Keithley 6430 Src Meter';       %Full name, just for displaying on GUI
     end
 
+    %% Properties (Public, Set Observable)
+    % These properties will appear in the Instrument Settings GUI and are editable there
     properties(Access = public, SetObservable)
         Name = 'SrcMtr';                            %Instrument name
         Connection_Type = Palladium.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
@@ -12,14 +15,14 @@ classdef Keithley6430 < Palladium.Core.Instrument
         SourceMode;                                 %Current, Voltage
     end
 
-    
+    %% Categoricals
     methods
-
-        %% Categoricals
         function catOut = MeasType(this, inputStr); catOut = this.ConvertToCategorical(inputStr, ["Resistance", "Voltage", "Current"]); end
         function catOut = SourceType(this, inputStr); catOut = this.ConvertToCategorical(inputStr, ["Voltage", "Current"]); end
+    end
 
-        %% Constructor
+    %% Constructor
+    methods
         function this = Keithley6430()
             %Specify communication options and settings
             this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "Serial", "USB", "VISA"]);
@@ -30,8 +33,11 @@ classdef Keithley6430 < Palladium.Core.Instrument
             this.MeasMode = this.MeasType("Resistance");
             this.SourceMode = this.SourceType("Current");
         end
+    end
 
-        %% GetHeaders
+    %% Methods (Public)
+    methods (Access = public)
+
         function [Headers, Units] = GetHeaders(this)
             switch(this.MeasMode)
                 case(this.MeasType("Resistance"))
@@ -48,7 +54,24 @@ classdef Keithley6430 < Palladium.Core.Instrument
             end
         end
 
-        %% Measure
+        function srcLevel = GetSourceLevel(this)
+            %Returns in amps or volts.
+            if (this.SimulationMode)
+                %Just return dummy value
+                srcLevel = 2;
+                return;
+            end
+
+            switch(this.SourceMode)
+                case(this.SourceType("Voltage"))
+                    srcLevel = this.QueryDouble("SOUR:VOLT:LEV:AMPL?");
+                case(this.SourceType("Current"))
+                    srcLevel = this.QueryDouble("SOUR:CURR:LEV:AMPL?");
+                otherwise
+                    error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+            end
+        end
+        
         function [dataRow] = Measure(this)
             if(this.SimulationMode)
                 %Dummy values
@@ -81,14 +104,14 @@ classdef Keithley6430 < Palladium.Core.Instrument
                     %Assign data to output data row
                     dataRow = [resistance, current, voltage];
                 case(this.MeasType("Voltage"))
-                    %Get measurement values 
+                    %Get measurement values
                     voltage = str2double(data);
                     current = this.GetSourceLevel();
 
                     %Assign data to output data row
                     dataRow = [voltage, current];
                 case(this.MeasType("Current"))
-                    %Get measurement values 
+                    %Get measurement values
                     voltage = this.GetSourceLevel();
                     current = str2double(data);
 
@@ -100,26 +123,6 @@ classdef Keithley6430 < Palladium.Core.Instrument
 
         end
 
-        %% GetSourceLevel
-        function srcLevel = GetSourceLevel(this)
-            %Returns in amps or volts.
-            if (this.SimulationMode)
-                %Just return dummy value
-                srcLevel = 2;
-                return;
-            end
-
-            switch(this.SourceMode)
-                case(this.SourceType("Voltage"))
-                    srcLevel = this.QueryDouble("SOUR:VOLT:LEV:AMPL?");
-                case(this.SourceType("Current"))
-                    srcLevel = this.QueryDouble("SOUR:CURR:LEV:AMPL?");
-                otherwise
-                    error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
-            end
-        end
-
-        %% SetSourceLevel
         function SetSourceLevel(this, level, enableOutput)
             if(this.SimulationMode)
                 %Do nothing

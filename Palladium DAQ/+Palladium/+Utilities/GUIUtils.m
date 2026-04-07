@@ -2,9 +2,9 @@ classdef GUIUtils
     %GUIUTILS Static methods for helping with GUI creation and functions,
     %mainly the automatic GUI for adjusting object properties
 
-    methods (Static)
+    %% Methods (Static, Public)
+    methods (Static, Access = public)
 
-        %% ComputePropertyList
         function propertyList = ComputePropertyList(instrument, exposeSubClassProperties)
             %Handle case of empty reference
             if(isempty(instrument))
@@ -29,7 +29,7 @@ classdef GUIUtils
                     % appear in the GUI too.
                     if( prop.SetAccess == "public" && ~prop.Hidden && prop.SetObservable)
                         if Palladium.Utilities.GUIUtils.IsPropertyValidToUse(prop.Name)
-                            propertyList(end+1, 1) = prop.Name;
+                            propertyList(end+1, 1) = prop.Name; %#ok<AGROW>
                         end
                     end
                 end
@@ -50,7 +50,7 @@ classdef GUIUtils
                     % appear in the GUI too.
                     if( prop.SetAccess == "public" && prop.DefiningClass.Name == objectClass && ~prop.Hidden && prop.SetObservable)
                         if Palladium.Utilities.GUIUtils.IsPropertyValidToUse(prop.Name)
-                            propertyList(end+1, 1) = prop.Name;
+                            propertyList(end+1, 1) = prop.Name; %#ok<AGROW>
                         end
                     end
                 end
@@ -67,12 +67,10 @@ classdef GUIUtils
 
         end
 
-        %% IsPropertyControlSignifier
         function tf = IsPropertyValidToUse(propName)
-            tf = true;
+            tf = isvarname(propName);
         end
 
-        %% ToDoubleArrayFromScalarString
         function [da, conversionSuccessful] = ToDoubleArrayFromScalarString(str, delimiter)
             arguments
                 str {mustBeTextScalar}
@@ -103,74 +101,18 @@ classdef GUIUtils
             end
         end
 
-        %% ToScalarString
         function str = ToScalarString(value)
             % Returns a scalar string from something which might be a char array, or a
             % numeric multi-element vector.
-            str = string(value);
-
-            if ~ismatrix(value)
-                error("Value isn't a scalar or vector so it's a high-dimensional array," + ...
-                    " that's probably bad news.") ;
+           
+            if size(value, 2) ~= 1 && size(value, 1) ~= 1
+                error("ToScalarStringError:HighDimensionalArray",...
+                    "Value isn't a scalar or vector so it's a high-dimensional array, that's probably bad news.") ;
             end
 
+            str = string(value);
             if ~isscalar(str)
                 str = join(str, " ");
-            end
-
-
-        end
-
-        %% RunFunctionWithTimeOut
-        function varargout = RunFunctionWithTimeOut(f, t, varargin)
-            %
-            % [out1, out2, ...] = timeout(f, t, arg1, arg2, ...)
-            %
-            % INPUTS:
-            %    f    : function or function handle.
-            %    t    : length of time before timeout
-            %    arg1 : first input to f
-            %    ...
-            %    argN : Nth input to f
-            %
-            % OUTPUTS:
-            %    out1 : first output from f
-            %    ...
-            %    outM : Mth output from f
-            %
-            % This function is used to evaluate a function but with a given time
-            % constraint - will terminate and error after the given timeout to prevent the code hanging. Uses the parallel computing toolbox and is very slow, so only
-            % use for things that will take a few seconds to execute
-
-
-            % Check the local cluster.
-            c = parcluster();
-            % Create a job.
-            j = batch(c, f, nargout, varargin);
-
-            % Call the job and block input for a period.
-            wait(j, 'finished', t)
-
-            % Check for completion.
-            if isempty(j.FinishTime)
-                % Delete the job.
-                delete(j);
-
-                % Throw a timeout error.
-                error('MATLAB:timeout', 'Evaluation timed out.');
-            else
-                % Get the outputs from the batch.
-                r = fetchOutputs(j);
-                % Delete the job now that outputs have been collected.
-                delete(j);
-                % Extract the outputs.
-                if numel(r) < nargout
-                    % Too many outputs.
-                    error('MATLAB:maxlhs', 'Too many outputs.')
-                else
-                    % Assign first outputs.
-                    varargout = r(1:nargout);
-                end
             end
         end
     end

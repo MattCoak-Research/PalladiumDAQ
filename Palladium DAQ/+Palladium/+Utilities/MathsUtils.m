@@ -1,9 +1,9 @@
 classdef MathsUtils
     %MATHSUTILS Static methods for helping with maths or science things
         
-    methods(Static)
+    %% Methods (Static, Public)
+    methods(Static, Access = public)
 
-        %% ConvertExponentToSIPrefix
         function prefixStr = ConvertExponentToSIPrefix(log103Max)
             switch (log103Max)
                 case(-30)
@@ -50,7 +50,7 @@ classdef MathsUtils
                     prefixStr = 'Q';
                 otherwise
                     prefixStr = '';
-                    warning("Cannot convert value to SI prefix, value not supported: 10^" + num2str(log103Max));
+                    warning("MathsUtilsWarning:InvalidExponent", "Cannot convert value to SI prefix, value not supported: 10^" + num2str(log103Max));
             end
         end
     end

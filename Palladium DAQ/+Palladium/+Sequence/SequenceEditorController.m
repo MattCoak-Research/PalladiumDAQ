@@ -1,10 +1,8 @@
 classdef SequenceEditorController < handle
     %SEQUENCEEDITORCONTROLLER - logic class that acts as the Model for the
     %Sequence Editor application
-    
-    properties
-    end
 
+    %% Properties (Private)
     properties (Access = private)
         SelectedDir;
         View;
@@ -12,7 +10,8 @@ classdef SequenceEditorController < handle
         DataReader;
         DataWriter;
     end
-    
+
+    %% Constructor
     methods
         function this = SequenceEditorController(controller, Settings)
             arguments
@@ -30,7 +29,7 @@ classdef SequenceEditorController < handle
             this.DataReader = Palladium.DataWriting.DataReader();
 
             %Construct a DataWriter object - for saving figures
-             %Assign into private property struct FileWriteDetails
+            %Assign into private property struct FileWriteDetails
             fileWriteDetails.Directory = Settings.DefaultSequenceDirectory;
             fileWriteDetails.FileName = "File Name";
             fileWriteDetails.DescriptionText = "Sequence Description";
@@ -39,8 +38,11 @@ classdef SequenceEditorController < handle
             fileWriteDetails.WriteMode = "Overwrite File";
             this.DataWriter = Palladium.DataWriting.DataWriter(fileWriteDetails);
         end
+    end
 
-        %% CreateView
+    %% Methods (Public)
+    methods (Access = public)
+
         function CreateView(this, viewFileName, applicationDir)
             arguments
                 this;
@@ -73,14 +75,12 @@ classdef SequenceEditorController < handle
             this.View.DirectorySelected(this.SelectedDir);
         end
 
-        %% DirectorySelected
-        function DirectorySelected(this, sender, eventArgs)
+        function DirectorySelected(this, ~, eventArgs)
             eventArgs
             disp('dir select');
             this.View.OnDirectorySelected();
         end
 
-        %% FileSelected
         function FileSelected(this, ~, eventArgs)
             eventArgs
             disp('file select');

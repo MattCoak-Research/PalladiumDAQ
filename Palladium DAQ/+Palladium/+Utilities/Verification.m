@@ -1,13 +1,44 @@
 classdef Verification
     %Static class to expose methods for verification/checking of various things
     
-    properties (Constant)       
-       DebugMode = false;   %Set to true to rethrow all handled errors and hence have a stack trace to follow in the command window - for debugging/testing purposes 
-    end
-    
-    methods (Static)
+    %% Methods (Static, Public)
+    methods (Static, Access = public)
 
-        %% CheckForDuplicatesInHeadersArray
+        function [duplicates, combinedString] = CheckForDuplicatesInCellArrayOfStrings(cellArrayOfStrings)
+            duplicates = [];
+            combinedString = "";
+
+            %handle edge cases
+            if isempty(cellArrayOfStrings)
+                return;
+            end
+            if length(cellArrayOfStrings) < 2
+                return;
+            end
+
+            %Convert
+            strArray = string(cellArrayOfStrings);
+
+            % Find the indices of the unique strings
+            [~, uniqueIdx] = unique(strArray);
+
+            % remove the unique strings, anything left is a duplicate
+            strArray(uniqueIdx) = [];
+
+            % find the unique duplicates
+            duplicates = unique(strArray);
+
+            %Write the duplicates out in a nice string, to print in error
+            %messages: one, two, three
+            for i = 1 : length(duplicates)
+                if i == 1
+                    combinedString = combinedString + string(duplicates(i));
+                else
+                    combinedString = combinedString + ", " + string(duplicates(i));
+                end
+            end
+        end
+
         function [duplicates, combinedString] = CheckForDuplicatesInHeadersArray(headers)
             combinedString = "";
             duplicates = [];
@@ -21,7 +52,7 @@ classdef Verification
             end
 
             % Find the indices of the unique strings
-            [~, uniqueIdx] =unique(headers);
+            [~, uniqueIdx] = unique(headers);
 
             % Copy the original into a duplicate array
             duplicates = headers;
@@ -41,7 +72,6 @@ classdef Verification
             end
         end
 
-        %% ValidateInstall
         function ValidateInstall(Settings)
             arguments
                 Settings.MatlabVersion = "R2025b";
@@ -72,7 +102,6 @@ classdef Verification
             end
         end
 
-        %% VerifyMatlabVersion
         function VerifyMatlabVersion(releaseStr)
             %Throw an error if the installed Matlab version is lower than the
             %specified release, eg "R2023b"
@@ -81,15 +110,13 @@ classdef Verification
             end
         end
         
-        %% VerifyToolboxInstalled
         function VerifyToolboxInstalled(toolboxName)
-            %% Find the toolbox and give proper output
+            % Find the toolbox and give proper output
             v_= ver;
             [installedToolboxes{1:length(v_)}] = deal(v_.Name);
             result = all(ismember(toolboxName,installedToolboxes));
-            assert(result, "Error! " + string(toolboxName) + " is not installed");
-        end
-        
+            assert(result, "VerifyToolboxError:ToolboxNotInstalled", "Error! " + string(toolboxName) + " is not installed");
+        end       
         
     end
 end

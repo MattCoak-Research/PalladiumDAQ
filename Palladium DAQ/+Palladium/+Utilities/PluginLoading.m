@@ -1,9 +1,45 @@
 classdef PluginLoading
     %PluginLoading - Static class to expose helper methods for
 
-    methods (Static)
+    %% Methods (Static, Public)
+    methods (Static, Access = public)
 
-        %% CheckForExistingInstrName
+        function exists = CheckClassExistsInNamespace(namespaceName, className)
+            % CHECKCLASSEXISTSINNAMESPACE - Check if a class exists in a namespace
+            %
+            % Input arguments:
+            % namespaceName - namespace/package name (string or char scalar)
+            % className     - class name to check (string or char scalar)
+            %
+            % Output arguments:
+            % exists        - logical true if class exists in the given
+            % namespace
+            arguments
+                namespaceName   {mustBeTextScalar};
+                className       {mustBeTextScalar};
+            end
+
+            %First, check that this is actually a real namespace that
+            %exists on the path
+            assert(Palladium.Utilities.PluginLoading.CheckNamespaceExists(namespaceName), "CheckClassExistsInNameSpace:NoSuchNamespace", "Namespace " + string(namespaceName) + " not found. Is it added to the Path?");
+
+            %Get the metadata of the given namespace from its name
+            metaData = matlab.metadata.Namespace.fromName(namespaceName);
+
+            %Check for an empty namespace (valid, but containing no classes)
+            if isempty(metaData.ClassList)
+                error("CheckClassExistsInNameSpace:EmptyNamespace", "No classes found in Namespace " + string(namespaceName));
+            end
+
+            %Pull out the class names, will be e.g.
+            %"Palladium.Instruments.TestInstrument", as an array
+            classesInNamespace = string({metaData.ClassList.Name});
+
+            %Check if the className is found anywhere in that list, return
+            %result
+            exists = any(strcmp(classesInNamespace, namespaceName + "." + className));
+        end
+
         function existsAlready = CheckForExistingInstrName(newName, itemsData)
             %Check the list itemsData - presumed to be a list of
             %Instruments - and see if any have the Name newName
@@ -16,7 +52,7 @@ classdef PluginLoading
 
             %Get names of existing instruments
             for n = 1 : length(itemsData)
-                existingNames(n) = string(itemsData{n}.Name);
+                existingNames(n) = string(itemsData{n}.Name); %#ok<AGROW>
             end
 
             %Check for duplicate
@@ -29,7 +65,22 @@ classdef PluginLoading
             existsAlready = false;
         end
 
-        %% GetIncrementedInstrName
+        function exists = CheckNamespaceExists(namespaceName)
+          % CHECKNAMESPACEEXISTS - Return true if a namespace with the name exists
+          %
+          % Input arguments:
+          % namespaceName - name of the namespace (string or char scalar)
+          %
+          % Output arguments:
+          % exists - logical true if namespaceName exists, false otherwise
+            arguments
+                namespaceName {mustBeTextScalar};
+            end
+
+            %Check if the namespace exists on the path https://uk.mathworks.com/matlabcentral/answers/1889757-is-there-exist-functionality-for-packages-namespaces
+            exists = ~isempty(meta.package.fromName(namespaceName));
+        end
+
         function NewName = GetIncrementedInstrName(instr, itemsData)
             %Prevent duplicate instrument names by appending 1,2,3 to the end
             %of them (can always be edited by user later) on instrument
@@ -45,7 +96,7 @@ classdef PluginLoading
 
             %Get names of existing instruments
             for n = 1 : length(itemsData)
-                existingNames(n) = string(itemsData{n}.Name);
+                existingNames(n) = string(itemsData{n}.Name); %#ok<AGROW>
             end
 
             %Initialise some variables
@@ -63,7 +114,6 @@ classdef PluginLoading
             NewName = tmpName;
         end
 
-        %% InstantiateClass
         function classInstance = InstantiateClass(namespace, className)
             %Instantiate an isntance of the named class (empty constructor)
 
@@ -77,9 +127,8 @@ classdef PluginLoading
             classInstance = fnHandle();
         end
 
-        %% InstantiateEnum
         function classInstance = InstantiateEnum(namespace, className, enumValueString)
-            %Instantiate an isntance of the named enum
+            %Instantiate an instance of the named enum
 
             if(isempty(namespace))
                 classPath = className;
@@ -91,9 +140,8 @@ classdef PluginLoading
             classInstance = fnHandle(enumValueString);
         end
 
-        %% InstantiatePreset
         function presetFn = InstantiatePreset(namespace, presetName)
-            %Instantiate an isntance of the named Preset (matlab function file, not a class)
+            %Instantiate an instance of the named Preset (matlab function file, not a class)
 
             if(isempty(namespace))
                 presetPath = presetName;
@@ -104,7 +152,6 @@ classdef PluginLoading
             presetFn = str2func(presetPath);
         end
 
-        %% LoadPluginNames
         function classNames = LoadPluginNames(directory)
             %Get the names of all the classes in a plugin directory
             classNames = dir(fullfile(directory, '*.m'));

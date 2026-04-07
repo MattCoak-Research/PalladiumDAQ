@@ -10,25 +10,28 @@ classdef Keithley6220 < Palladium.Core.Instrument
     %be with this instrument, the 6220, in this setup. This is why we are
     %querying a current source for voltage measurement data - it is
     %speaking for a pair of instruments.
-    
+
+    %% Properties (Constant, Public)
     properties(Constant, Access = public)
         FullName = "Keithley 6220 Current Source";     %Full name, just for displaying on GUI
     end
 
+    %% Properties (Public, Set Observable)
+    % These properties will appear in the Instrument Settings GUI and are editable there
     properties(Access = public, SetObservable)
         Name = "K6220";             %Instrument name
         Connection_Type = Palladium.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         DeltaMode = true; %If true, measurements are being carried out with a parried nanovoltmeter in Delta Mode (this is the intended usage)
-        Units;                                 %Volts, Ohms, Watts, Seimens  
+        Units;                                 %Volts, Ohms, Watts, Seimens
     end
-        
-    
+
+    %% Categoricals
     methods
-
-        %% Categoricals
         function catOut = UnitsType(this, inputStr); catOut = this.ConvertToCategorical(inputStr, ["Volts", "Ohms", "Watts", "Seimens"]); end
+    end
 
-        %% Constructor
+    %% Constructor
+    methods
         function this = Keithley6220()
             %Specify communication options and settings
             this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Serial", "VISA"]);
@@ -38,50 +41,51 @@ classdef Keithley6220 < Palladium.Core.Instrument
             %Make sure to set values for Properties of Categorical type
             %like these
             this.Units = this.UnitsType("Ohms");
-        end   
+        end
+    end
 
-        %% GetHeaders
+    %% Methods (Public)
+    methods (Access = public)
+
         function [Headers, Units] = GetHeaders(this)
             %Select headers and units based on the selected measurement
             %units
             switch(this.Units)
                 case(this.UnitsType("Volts"))
-                    Headers = [this.Name + " - Volts (V)"];
-                    Units = ["V",];
+                    Headers = this.Name + " - Volts (V)";
+                    Units = "V";
                 case(this.UnitsType("Ohms"))
-                    Headers = [this.Name + " - Resistance (Ohms)"];
-                    Units = ["Ohms"];
+                    Headers = this.Name + " - Resistance (Ohms)";
+                    Units = "Ohms";
                 case(this.UnitsType("Watts"))
-                    Headers = [this.Name + " - Watts (W)"];
-                    Units = ["W"];
+                    Headers = this.Name + " - Watts (W)";
+                    Units = "W";
                 case(this.UnitsType("Seimens"))
-                    Headers = [this.Name + " - Seimens (S)"];
-                    Units = ["S"];
+                    Headers = this.Name + " - Seimens (S)";
+                    Units = "S";
                 otherwise
                     error("Invalid type");
             end
-               
+
         end
 
-        %% Measure
         function [dataRow] = Measure(this)
-           
             %Get measurement values
             if(this.SimulationMode)
                 %Dummy values if simulating instrument
                 data = 17 + rand()*0.1;
             else
-                %Query for latest measurement 
+                %Query for latest measurement
                 if this.DeltaMode
                     data = this.QueryDeltaModeMeasurementValue();
                 else
                     data = this.QueryMeasurementValue();
                 end
             end
-            
-            %Assign data to output data row 
-            dataRow = [data];
-        end        
+
+            %Assign data to output data row
+            dataRow = data;
+        end
 
         function SendCommand(this, comd)
             this.QueryString(comd)
@@ -89,17 +93,17 @@ classdef Keithley6220 < Palladium.Core.Instrument
 
     end
 
+    %% Methods (Private)
     methods (Access = private)
 
-        %% QueryDeltaModeMeasurementValue
         function value = QueryDeltaModeMeasurementValue(this)
             result = this.QueryString("SENS:DATA?");
             ss = strsplit(result, ',');
             value = str2double(ss{1});
         end
 
-        %% QueryMeasurementValue
-        function value = QueryMeasurementValue(this)
+        function value = QueryMeasurementValue(this) %#ok<MANU>
+            value = 43; %#ok<NASGU>
             error("Not implemented");
         end
     end

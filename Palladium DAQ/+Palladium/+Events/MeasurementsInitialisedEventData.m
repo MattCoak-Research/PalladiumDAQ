@@ -1,11 +1,14 @@
 classdef (ConstructOnLoad) MeasurementsInitialisedEventData < event.EventData
-   properties
-      Headers; %As string array
-   end
-   
-   methods
-       function data = MeasurementsInitialisedEventData(headers)
-         data.Headers = headers;
-      end
-   end
+
+    %% Properties (Public)
+    properties
+        Headers; %As string array
+    end
+
+    %% Constructor
+    methods
+        function data = MeasurementsInitialisedEventData(headers)
+            data.Headers = headers;
+        end
+    end
 end

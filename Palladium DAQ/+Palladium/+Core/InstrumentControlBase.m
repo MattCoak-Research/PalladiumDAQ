@@ -2,72 +2,72 @@ classdef InstrumentControlBase < handle
     %InstrumentControlBase - Base class for a Logic controller add-on object to be added on to an
     %Instrument object, eg LakeshoreHeaterControl.m
 
-    properties
+    %% Properties (Public)
+    properties (Access = public)
         ControlDetailsStruct;
         FileNamePropertyDelimiters = "[]";
         DecimalPointReplacementCharacter = "p";
         ProgrammeTargetUpdateTime;
     end
 
+    %% Properties (Protected)
     properties (Access = protected)
         Instrument;
         AvailableHeaders = [];
     end
 
+    %% Properties (Private)
     properties (Access = private)
         EventListeners;
     end
 
+    %% Methods (Abstract)
     methods (Abstract)
         CreateInstrumentControlGUI(this, controller, tab, instrRef);
         RemoveControl(this, instrRef);
     end
 
+        %% Constructor
     methods
 
-        %% Constructor
         function this = InstrumentControlBase()
         end
+    end
 
-        %% DataRowCollected
-        function DataRowCollected(this, dataRow, headers)
+    %% Methods (Public)
+    methods (Access = public)
+
+        function DataRowCollected(this, dataRow, headers) %#ok<INUSD>
             %Gets triggered every tick once the loop has collected the
             %entire dataRow from all instruments. Use to e.g. write sweep
             %data that includes columns from other instruments
         end
 
-        %% GetName
         function name = GetName(this)
             name = this.ControlDetailsStruct.Name;
         end
 
-        %% MeasurementsInitialised
-        function MeasurementsInitialised(this, src, eventArgs)  
+        function MeasurementsInitialised(this, src, eventArgs)  %#ok<INUSD>
             headers = eventArgs.Headers;
             this.AvailableHeaders = headers;
         end
 
-        %% MeasurementsStarted
-        function MeasurementsStarted(this, src, eventArgs)
+        function MeasurementsStarted(this, src, eventArgs) %#ok<INUSD>
 
         end
 
-        %% MeasurementsPaused
-        function MeasurementsPaused(this, src, eventArgs)
+        function MeasurementsPaused(this, src, eventArgs) %#ok<INUSD>
 
         end
 
-        %% MeasurementsResumed
-        function MeasurementsResumed(this, src, eventArgs)
+        function MeasurementsResumed(this, src, eventArgs) %#ok<INUSD>
 
         end
 
-        %% MeasurementsStopped
-        function MeasurementsStopped(this, src, eventArgs)
+        function MeasurementsStopped(this, src, eventArgs) %#ok<INUSD>
 
         end
 
-        %% RegisterEventListener
         function RegisterEventListener(this, listnr)
             if isempty(this.EventListeners)
                 this.EventListeners = listnr;
@@ -76,12 +76,10 @@ classdef InstrumentControlBase < handle
             end
         end
 
-        %% TargetUpdateTimeChanged
         function TargetUpdateTimeChanged(this, ~, evnt)            
             this.ProgrammeTargetUpdateTime = evnt.Value;%In seconds
         end
 
-        %% UnsubscribeFromEvents
         function UnsubscribeFromEvents(this)
             if isempty(this.EventListeners)
                 return;
@@ -96,12 +94,10 @@ classdef InstrumentControlBase < handle
             end
         end
 
-        %% Update
         function Update(this) %#ok<MANU>
             %Does nothing by default - override in base classes
         end
 
-        %% UpdateData
         function UpdateData(this, dataRow, headers) %#ok<INUSD>
             %Does nothing by default - override in base classes. Will get
             %called right after Measure is complete on parent Instrument,
@@ -109,9 +105,9 @@ classdef InstrumentControlBase < handle
         end
     end
 
+    %% Methods (Protected)
     methods (Access = protected)
 
-        %% CreateDataRowHeaderString
         function stringLine = CreateDataRowHeaderString(this)
             %Create a line of metadata to log to a datafile that has
             %header-value pairs for each column in the overall programme
@@ -135,7 +131,6 @@ classdef InstrumentControlBase < handle
             stringLine = Palladium.DataWriting.DataWriter.BuildMetadataLineStringFromHeaderValuePair("", hdrsRow, dataRow);
         end
 
-        %% GetParameterValueFromLastMeasurementRow
         function stringVal = GetParameterValueFromLastMeasurementRow(this, parameterName, Settings)
             %Grab a parameter - ie Temperature, Magnetic Field, to use to
             %e.g. automatically name a Sweep File when [Temperature (K)] is
@@ -176,7 +171,6 @@ classdef InstrumentControlBase < handle
             stringVal = num2str(dat, Settings.Format);
         end
 
-        %% InitialiseDataWriter
         function dataWriter = InitialiseDataWriter(this, fileNameSuffix)
             fileWriteDetails = this.Instrument.FileWriteDetails;
             fileWriteDetails.FileName = string(fileWriteDetails.FileName) + fileNameSuffix;
@@ -200,7 +194,6 @@ classdef InstrumentControlBase < handle
             dataWriter = Palladium.DataWriting.DataWriter(fileWriteDetails);
         end
 
-        %% InsertEndMetadataIntoFile
         function InsertEndMetadataIntoFile(this, dataWriter)
             metadataDescLine = this.Instrument.FullName + " Scan - Measurement data at Scan End:";
 
@@ -211,8 +204,7 @@ classdef InstrumentControlBase < handle
             dataWriter.InsertMetadataLines([metadataDescLine, dataRowMetadataLine]);
         end
 
-        %% InsertSmartTagRequest
-        function InsertSmartTagRequest(this, src, evt, controller)
+        function InsertSmartTagRequest(~, src, evt, controller)
             % Add smart text like [Sample Temperature(K),%6.2f] to eg a Sweep File name, triggered by a button press in a GUI. 
             % This text will auto-update and be repalced with the values corresponding to that data column.
             %This function shows a GUI with dropdown to select the value
@@ -276,7 +268,6 @@ classdef InstrumentControlBase < handle
             end
         end
 
-        %% ProcessFileName
         function fileNameOut = ProcessFileName(this, fileName, Settings)
             %Process the file name of e.g. a sweep. Make it a valid filename and do operations like: Grab a parameter - ie Temperature, Magnetic Field, to use to
             %e.g. automatically name a Sweep File when [Temperature (K)] is
@@ -335,7 +326,6 @@ classdef InstrumentControlBase < handle
             fileNameOut = replace(fileNameOut, ".", this.DecimalPointReplacementCharacter);
         end
 
-        %% StartNewDataFile
         function StartNewDataFile(this, dataWriter, headers, extraMetadataLines, writeToFile)
 
             %This will increment the number of the filename etc

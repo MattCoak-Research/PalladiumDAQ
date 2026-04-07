@@ -10,13 +10,13 @@ classdef testProgramLaunch < matlab.uitest.TestCase
         % Shared setup for the entire test class
         function configPathSetup(testCase)
             % Set up shared state for all tests.
-            testCase.ConfigPath = fullfile('..','Palladium DAQ - Testing');
-        end
+            testCase.ConfigPath = fullfile("..","Palladium DAQ", "Tests", "TestingConfig.json");
+            end
     end
 
     methods (TestClassTeardown)
         % Remove folder created during test
-        function TeardownFiles(testCase)
+        function TeardownFiles(~)
             path = fullfile( '..','Palladium DAQ - Testing');
             rmdir(path, 's');
         end
@@ -32,15 +32,16 @@ classdef testProgramLaunch < matlab.uitest.TestCase
         function LaunchEmpty(testCase)
             % Test that view and controller have been created
             % Creates default view
-            pd = Palladium();
+            pd = Palladium(ConfigFilePath=testCase.ConfigPath);
             verifyNotEmpty(testCase, pd.View);
             verifyNotEmpty(testCase, pd.Controller);
+            drawnow();
             pd.Close();
         end
         
         function LaunchEmptyNoView(testCase)
             % Check that no view has been created
-            pd = Palladium(View=[]);
+            pd = Palladium(ConfigFilePath=testCase.ConfigPath, View=[]);
             verifyEmpty(testCase, pd.View);
             verifyNotEmpty(testCase, pd.Controller);
             pd.Close();      
@@ -48,9 +49,10 @@ classdef testProgramLaunch < matlab.uitest.TestCase
 
         function TestMeasurementLoop(testCase)
             % Test that view and controller have been created
-            pd = Palladium();
+            pd = Palladium(ConfigFilePath=testCase.ConfigPath);
             verifyNotEmpty(testCase, pd.View);
             verifyNotEmpty(testCase, pd.Controller);
+            drawnow();
 
             %pd.Start();
             % The following 2 lines are commented until find solution to UI

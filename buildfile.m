@@ -6,18 +6,25 @@ end
 
 function checkTask(~)
     issues = codeIssues(["Palladium DAQ/+Palladium/", "Palladium DAQ/Tests/"], IncludeSubfolders=true);
- %   assert(isempty(issues.Issues), "Code issues found.");
+    if ~isempty(issues.Issues)
+        disp(" ");
+        disp("Code Issues Found:");
+        disp(" ");
+        disp(issues.Issues);
+        disp(" ");
+        disp(" ");
+       % error("BuildFile:IssuesFound", "Code issues found.");
+    end
 end
 
 function testTask(~)
-    results = runtests("Palladium DAQ/Tests/Unit Tests/", "IncludeSubfolders", true);
+    results = runtests("Palladium DAQ/Tests/Unit Tests/", IncludeSubfolders=true);
     assertSuccess(results);
 end
 
 function packageTask(~)
     opts = matlab.addons.toolbox.ToolboxOptions("PalladiumDAQ.prj"); 
-    verStr = Palladium.ver();
-    opts.ToolboxVersion = string(verStr);
-    opts
+    verStruct = Palladium.ver();    
+    opts.ToolboxVersion = string(verStruct.VersionString);
     matlab.addons.toolbox.packageToolbox(opts);
 end

@@ -2,28 +2,35 @@ classdef InstrumentController < handle
     %INSTRUMENTCONTROLLER - logic/container/manager class for handling
     %instrument creation and management in Palladium, and liaising with
     %Instrument selection GUIs in the View
-    
-    properties
+
+    %% Properties (Constant, Private)
+    properties (Access = private, Constant)
+        Namespace string = "Palladium.Instruments";
+        UserNamespace string = "PalladiumInstruments";
+        ControlsNamespace string = "Palladium.Instruments.Controls";
+        InstrumentClassesToIgnore = {"TemplateInstrumentClass"};   %Instrument class names to NOT load into the Browser panel, even if they are in either built in or User instruments directories. Template Instrument is a good example - you don't actually want to ever create one
+    end
+
+    %% Properties (Public)
+    properties (Access = public)
         ErrorOnAllInstrumentErrors = false; %Note - gets set in LoadSettings from the Config.json file's value, overriding a value here. If this is set to true, a full error will be thrown every time an instruments fails to return data. Default (false) is to throw warnings and pad datafile with NaNs instead. Testing has shown that very rare communication errors do happen, and it's a shame to lose the whole experiment because a magnet not being used didn't return 0 properly..
     end
 
+    %% Properties (Public, Private Set)
     properties (GetAccess = public, SetAccess = private)
         ListOfAvailableInstrumentClassNameStrings;
         SelectedInstrumentNames;
         SelectedInstruments;
         Instruments;
     end
-    
+
+    %% Properties (Private)
     properties (Access = private)
         Controller; %Reference back to the overall Palladium Controller that handles all the main logic - feed things back to there
         AssignInstrumentRefsIntoWorkspace = true;
     end
 
-    properties (Access = private, Constant)
-        Namespace string = "Palladium.Instruments";
-        ControlsNamespace string = "Palladium.Instruments.Controls";
-    end
-
+    %% Events
     events
         DataRowCollected;
         DefaultEnabledInstrumentControlAdd;
@@ -31,15 +38,17 @@ classdef InstrumentController < handle
         InstrumentListPopulated;
         InstrumentRemoved;
     end
-    
-    methods
 
-        %% Constructor
+    %% Constructor
+    methods
         function this = InstrumentController(controller)
             this.Controller = controller;
         end
+    end
 
-        %% AddEnabledByDefaultInstrumentControls
+    %% Methods (Public)
+    methods (Access = public)
+
         function AddEnabledByDefaultInstrumentControls(this, instr)
             cdsList = instr.GetAvailableControlOptions();
 
@@ -57,9 +66,8 @@ classdef InstrumentController < handle
                     notify(this, "DefaultEnabledInstrumentControlAdd", args);
                 end
             end
-        end     
-        
-        %% AddInstrument
+        end
+
         function instRef = AddInstrument(this, instrStringToAdd, settings)
             %Add an instrument just from a string of the name of its class
             arguments
@@ -81,7 +89,13 @@ classdef InstrumentController < handle
                 assert(any(contains(this.ListOfAvailableInstrumentClassNameStrings, instrStringToAdd, "IgnoreCase", false)), string(instrStringToAdd) + " not found in list of avaliable Instruments");
 
                 %Make an instance of the selected datasource class
-                instRef = Palladium.Utilities.PluginLoading.InstantiateClass(this.Namespace, instrStringToAdd);
+                if Palladium.Utilities.PluginLoading.CheckClassExistsInNamespace(this.Namespace, instrStringToAdd)  %We aren't sure if this Instrument is in the User or Built in Namespace, so check them in turn
+                    instRef = Palladium.Utilities.PluginLoading.InstantiateClass(this.Namespace, instrStringToAdd);
+                elseif Palladium.Utilities.PluginLoading.CheckClassExistsInNamespace(this.UserNamespace, instrStringToAdd)
+                    instRef = Palladium.Utilities.PluginLoading.InstantiateClass(this.UserNamespace, instrStringToAdd);
+                else
+                    error("InstrumentCreation:NotFoundInNamespace", "Could not find Instrument " + string(instrStringToAdd) + " in built in or user namespace. This should not be able to happen.");
+                end
 
                 %Set the instrument name if that optional parameter was
                 %passed in. This is useful when setting up Instruments and
@@ -140,9 +154,8 @@ classdef InstrumentController < handle
             catch err
                 this.Controller.HandleError("Error adding instrument " + instrStringToAdd, err);
             end
-        end    
+        end
 
-        %% AddInstrumentControl
         function controlClassRef = AddInstrumentControl(this, tab, instrRef, controlDetailsStruct)
             try
                 %Make an instance of the selected datasource class
@@ -168,9 +181,9 @@ classdef InstrumentController < handle
                 ltr = addlistener(this.Controller.TimingLoopController, 'Stopped', @(src,evnt)controlClassRef.MeasurementsStopped(src, evnt));
                 controlClassRef.RegisterEventListener(ltr);
                 ltr = addlistener(this.Controller.TimingLoopController, 'MeasurementsInitialised', @(src,evnt)controlClassRef.MeasurementsInitialised(src, evnt));
-                controlClassRef.RegisterEventListener(ltr);              
+                controlClassRef.RegisterEventListener(ltr);
                 ltr = addlistener(this.Controller.TimingLoopController, 'TargetUpdateTimeChanged', @(src,evnt)controlClassRef.TargetUpdateTimeChanged(src, evnt));
-                controlClassRef.RegisterEventListener(ltr);  
+                controlClassRef.RegisterEventListener(ltr);
                 ltr = addlistener(this, 'DataRowCollected', @(src,evnt)controlClassRef.DataRowCollected(evnt.DataRow, evnt.Headers));
                 controlClassRef.RegisterEventListener(ltr);
 
@@ -182,7 +195,6 @@ classdef InstrumentController < handle
             end
         end
 
-        %% CloseAll
         function CloseAll(this)
 
             %Display a status message in the logger
@@ -197,7 +209,6 @@ classdef InstrumentController < handle
             this.Controller.Log("Info", "Instruments closed", "Green", "Instruments closed");
         end
 
-        %% CollectMeasurement
         function DataRow = CollectMeasurement(this, headers)
             %Get current time in universal coordinated time (seconds since 1970) then divide by 60 to get minutes
             Time = posixtime(datetime('now')) /60;
@@ -213,7 +224,7 @@ classdef InstrumentController < handle
                     this.Instruments{i}.CheckForSettingsToApply();
 
                     %Measure
-                    DataRow = [DataRow this.Instruments{i}.UpdateAndMeasure(headers)];
+                    DataRow = [DataRow this.Instruments{i}.UpdateAndMeasure(headers)]; %#ok<AGROW>
                 catch e
                     %Pop in a nan value, as we failed to grab the data from
                     %this instrument
@@ -221,7 +232,7 @@ classdef InstrumentController < handle
                     %Headers
                     hdrs = this.Instruments{i}.GetHeaders();
                     n = length(hdrs);
-                    DataRow = [DataRow, nan(1, n)];
+                    DataRow = [DataRow, nan(1, n)]; %#ok<AGROW>
 
                     if this.ErrorOnAllInstrumentErrors
                         this.Controller.HaltMeasurementsOnInstrumentError(this.Instruments{i}, e);
@@ -251,7 +262,6 @@ classdef InstrumentController < handle
             notify(this, "DataRowCollected", Palladium.Events.DataRowAddedEventData(DataRow, this.Controller.Headers));
         end
 
-        %% GetHeaders
         function [Headers, HeadersString, Units] = GetHeaders(this)
             %Put time in as first header
             Headers = {"Time (mins)"};
@@ -262,8 +272,8 @@ classdef InstrumentController < handle
             for i = 1 : length(this.Instruments)
                 [instrHeaders, instrUnits] = this.Instruments{i}.GetHeaders();
                 for j = 1 : length(instrHeaders)
-                    Headers = [Headers, string(instrHeaders{j})];
-                    Units = [Units, string(instrUnits{j})];
+                    Headers = [Headers, string(instrHeaders{j})]; %#ok<AGROW>
+                    Units = [Units, string(instrUnits{j})]; %#ok<AGROW>
                 end
             end
 
@@ -289,23 +299,20 @@ classdef InstrumentController < handle
             end
         end
 
-        %% GetInstruments
-        function instRefs = GetInstruments(this)            
+        function instRefs = GetInstruments(this)
             instRefs = this.SelectedInstruments;
         end
 
-        %% GetMetadataLines
         function metadataLines = GetMetadataLines(this)
             metadataLines = [];
             for i = 1 : length(this.Instruments)
                 metadataNullableString = this.Instruments{i}.GrabMetadataString();
                 if ~isempty(metadataNullableString)
-                    metadataLines = [metadataLines metadataNullableString];
+                    metadataLines = [metadataLines metadataNullableString]; %#ok<AGROW>
                 end
             end
         end
 
-        %% InitialiseHeaders
         function [headers, headersString, units] = InitialiseHeaders(this)
 
             %Set the list of instruments from the selection panel's ItemData
@@ -320,7 +327,6 @@ classdef InstrumentController < handle
 
         end
 
-        %% InitialiseInstruments
         function [success, msg, title] = InitialiseInstruments(this)
             %Set starting values. Note, function will immediately return if
             %there are no Instruments, returning these
@@ -360,13 +366,36 @@ classdef InstrumentController < handle
             end
         end
 
-        %% LoadInstrumentClasses
-        function LoadInstrumentClasses(this, folderPath)
-            classNames = Palladium.Utilities.PluginLoading.LoadPluginNames(folderPath);
+        function LoadInstrumentClasses(this, builtInInstrsFolderPath, userInstrsFolderPath)
+            %Load the names of the classes from the built-in and User Files
+            %Instruments directories
+            builtInClassNames = Palladium.Utilities.PluginLoading.LoadPluginNames(builtInInstrsFolderPath);
+            userClassNames = Palladium.Utilities.PluginLoading.LoadPluginNames(userInstrsFolderPath);
+
+            %Combine the two lists
+            classNames = [builtInClassNames; userClassNames];
+
+            %Remove any entries that are specified to be exluded - like
+            %TemplateInstrumentClass
+            for i = 1 : length(this.InstrumentClassesToIgnore)
+                classNames(strcmp(classNames, this.InstrumentClassesToIgnore{i})) = [];
+            end
+
+            %Error on any duplicates
+            [duplicates, combinedString] = Palladium.Utilities.Verification.CheckForDuplicatesInCellArrayOfStrings(classNames);
+            if ~isempty(duplicates)
+                error("LoadInstrumentClass:DuplicatesError", "Error loading Instrument Classes - found duplicate names. Is an Instrument in the User Files Instrument folder named the same as one of the built in classes? \n\n Duplicates found: " + string(combinedString));
+            end
+
+            %Sort alphabetically - right now it is a design choice to have
+            %one combined list, rather than a separation into User and
+            %Built-In
+            classNames = sort(classNames);
+
+            %Set the list of instruments from these
             this.PopulateInstrumentList(classNames);
         end
 
-        %% PopulateInstrumentList
         function PopulateInstrumentList(this, cellArrayOfInstrumentNameStrings)
             %Update the stored list of instrument classes that can be
             %loaded, so we can check against it later for e.g. verification
@@ -376,9 +405,8 @@ classdef InstrumentController < handle
             %Pass through to the View
             args = Palladium.Events.ValueChangedEventData(cellArrayOfInstrumentNameStrings);
             notify(this, "InstrumentListPopulated", args);
-        end     
-              
-        %% RemoveInstrument
+        end
+
         function RemoveInstrument(this, instrumentRef)
             if isempty(instrumentRef)
                 return;
@@ -402,14 +430,13 @@ classdef InstrumentController < handle
             delete(instrumentRef);
         end
 
-        %% RemoveInstrumentControl
         function RemoveInstrumentControl(~, instrRef, controlDetailsStruct)
-       
+
             %Get a reference to the InstrumentControlBase object assigned
             %to this Instrument, of this name
             controlClassName = controlDetailsStruct.Name;
             objsList = instrRef.GetRegisteredControlObjectsFromName(controlClassName);
-          
+
             %Error checking
             assert(~isempty(objsList), "Could not find control to remove on Instrument " + instrRef.Name);
             assert(isscalar(objsList), "Expected to find exactly 1 InstrumentControl..");
@@ -420,15 +447,15 @@ classdef InstrumentController < handle
 
             %Un-subscribe from events
             controlClass.UnsubscribeFromEvents();
-            
+
             %Send the remove command
             controlClass.RemoveControl(instrRef);
 
-            %Delete the reference 
+            %Delete the reference
             delete(controlClass);
         end
     end
-    
-    
+
+
 end
 

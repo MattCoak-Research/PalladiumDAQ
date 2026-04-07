@@ -1,48 +1,42 @@
 classdef PlottingController < handle
     %PlottingController
 
+    %% Properties (Public)
     properties
         PlotterSettings;
     end
 
-    properties(GetAccess = public, SetAccess = private)    
-        
-    end
-
+    %% Properties (Private)
     properties(Access = private)
         Plotters = {};
     end
 
-    events
-       
-    end
-
+    %% Constructor
     methods
-
-        %% Constructor
         function this = PlottingController()
         end
+    end
 
-        %% CleanUpPlotters
+    %% Methods (Public)
+    methods(Access = public)
+
         function CleanUpPlotters(this)
             %Remove any plotters that may have been deleted (as part of
             %e.g. an InstrumentControl tab that has been deleted from the
             %GUI), from the list to update
-             for i = length(this.Plotters) : -1 : 1
-                 if ~isvalid(this.Plotters{i})
-                     this.Plotters(i) = [];
-                 end
-             end
+            for i = length(this.Plotters) : -1 : 1
+                if ~isvalid(this.Plotters{i})
+                    this.Plotters(i) = [];
+                end
+            end
         end
 
-        %% ClearPlots
         function ClearPlots(this)
             for i = 1 : length(this.Plotters)
                 this.Plotters{i}.ClearData();
             end
-        end  
+        end
 
-        %% CreateNewPlotter
         function pltr = CreateNewPlotter(this, parent, size)
             %Create plotter component
             pltr = Palladium.Components.PlotterPanel(parent);
@@ -53,7 +47,6 @@ classdef PlottingController < handle
             pltr.ApplySettings(plotterSettings);
         end
 
-        %% CreateNewSimplePlotter
         function pltr = CreateNewSimplePlotter(this, parent, size)
             %Create plotter component
             pltr = Palladium.Components.SimplePlotterPanel(parent);
@@ -64,7 +57,6 @@ classdef PlottingController < handle
             pltr.ApplySettings(plotterSettings);
         end
 
-        %% RegisterPlotterObject
         function RegisterPlotterObject(this, pltr, headers)
             %Add to the list of plotters
             if(isempty(this.Plotters))
@@ -77,7 +69,6 @@ classdef PlottingController < handle
             pltr.UpdateVariables(headers);
         end
 
-        %% PlotData
         function PlotData(this, newDataRow, fullDataTable)
             %Note - was worried passing in fullDataTable every tick would
             %be very bad for performance, but apparantly MATLAB basically
@@ -105,9 +96,8 @@ classdef PlottingController < handle
                     pltr.PlotData(fullDataTable);
                 end
             end
-        end         
+        end
 
-        %% UpdatePlotVariableNames
         function UpdatePlotVariableNames(this, varNames)
             for i = 1 : length(this.Plotters)
                 this.Plotters{i}.UpdateVariables(varNames);

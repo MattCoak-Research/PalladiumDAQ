@@ -3,21 +3,20 @@ classdef MagnetController < Palladium.Core.InstrumentControlBase
     %Instrument object, where it will handle the logic of controlling a
     %superconducting magnet - for now an Oxford Mercury IPS120
     
-    properties
-
-    end
-
+    %% Properties (Private)
     properties (Access = private)
         GUIView;
     end
     
-    methods
-
         %% Constructor
+    methods
         function this = MagnetController()
         end
+    end
 
-        %% CreateInstrumentControlGUI
+    %% Methods (Public)
+    methods (Access = public)
+
         function CreateInstrumentControlGUI(this, controller, tab, instrRef)
             %Create grid and TempControl component and position them in the
             %tab. 
@@ -49,67 +48,54 @@ classdef MagnetController < Palladium.Core.InstrumentControlBase
             addlistener(comp, 'SetPointChanged', @(src,evnt)this.SetPointChanged(src,evnt));                 
         end
 
-        %% HoldCommandGiven
         function HoldCommandGiven(this, ~, ~)
             %Pass event-triggered function call through to the Instrument
             this.Instrument.SetState_Hold();
         end
  
-        %% RampToZeroCommandGiven
         function RampToZeroCommandGiven(this, ~, ~)
             %Pass event-triggered function call through to the Instrument
             this.Instrument.SetState_RampToZero();
-        end 
-        
-        %% ToSetPointCommandGiven
-        function ToSetPointCommandGiven(this, ~, ~)
-            %Pass event-triggered function call through to the Instrument
-            this.Instrument.SetState_RampToSetPoint();
-        end
+        end         
   
-        %% RampRateChanged
         function RampRateChanged(this, ~, eventData)
             %Pass event-triggered function call through to the Instrument
             rampRate_Tmin = eventData.Value;
             this.Instrument.SetRampRate_TeslaMin(rampRate_Tmin);
         end  
 
-         %% RemoveControl
-        function RemoveControl(this, instrRef)
+        function RemoveControl(this, ~)
             %Delete GUI objects
             delete(this.GUIView);
             this.GUIView = [];
         end
 
-        %% SetPointChanged
         function SetPointChanged(this, ~, eventData)
             %Pass event-triggered function call through to the Instrument
             setPoint_T = eventData.Value;            
             this.Instrument.SetTargetField(setPoint_T);
         end
 
-        %% Update
-        function Update(this)
+        function ToSetPointCommandGiven(this, ~, ~)
+            %Pass event-triggered function call through to the Instrument
+            this.Instrument.SetState_RampToSetPoint();
+        end
+
+        function Update(~)
             %Do nothing - wait for UpdateData which happens after the
             %Measure command
         end
 
-        %% UpdateData
-        function UpdateData(this, dataRow, headers)
+        function UpdateData(this, ~, ~)
             statusStruct = this.Instrument.GatherStatusStructForControlPanel();
             this.UpdateDisplayedStatus(statusStruct);
         end
 
-        %% UpdateDisplayedStatus
         function UpdateDisplayedStatus(this, statusStruct)
             this.GUIView.UpdateDisplayedStatus(statusStruct);
         end
 
     end
 
-    methods (Access = private)
-
-      
-    end
 end
 

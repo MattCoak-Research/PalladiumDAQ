@@ -2,9 +2,9 @@ classdef PathUtils
     %PATHUTILS static functions to help with verify and handling paths to
     %files and folders
 
-    methods (Static)
+    %% Methods (Static, Public)
+    methods (Static, Access = public)
 
-        %% CleanPath
         function cleanPath = CleanPath(pathStr)
             %CLEANPATH Clean a file path name. Removes redundant characters from
             %   the path name, e.g. '//', '/./' as well as initial './' and circular
@@ -48,17 +48,15 @@ classdef PathUtils
             %Return a proper string
             cleanPath = string(pathStr);
 
-            %% reduce_updir
             function new_path_name = reduce_updir(path_name)
                 pre_updir ='';
                 [pre_updir, path_name] = r_reduce_updir(pre_updir, path_name);
                 new_path_name = [pre_updir path_name];
             end
 
-            %% r_reduce_updir
             function [new_pre_updir, new_path_name] = r_reduce_updir(pre_updir, path_name)
                 while (length(path_name) > 3) && strcmp(path_name(1:3), ['..' filesep])
-                    pre_updir = [pre_updir '..' filesep];
+                    pre_updir = [pre_updir '..' filesep]; %#ok<AGROW>
                     path_name = path_name(4:end);
                 end
                 % search for the first occurrence of '/../'
@@ -76,7 +74,59 @@ classdef PathUtils
 
         end
 
-        %% EnsureExtension
+        function CopyFiles(filesToCopy, sourceInstrumentDir, destInstrumentDir, Settings)
+          % COPYFILES - Copy listed files if missing in the dest directory
+          %
+          % Input arguments:
+          % filesToCopy           - string array of filenames to copy
+          % sourceInstrumentDir   - source directory path (text scalar)
+          % destInstrumentDir     - destination directory path (text scalar)
+          %
+          % Name-Value Pairs (Optional)
+          % Overwrite - default false. Set to true to have file copy and
+          % overwrite if a file of the same name already exists in
+          % destination
+            
+            arguments
+                filesToCopy             string;
+                sourceInstrumentDir     {mustBeTextScalar};
+                destInstrumentDir       {mustBeTextScalar};
+                Settings.Overwrite      (1,1) logical = false;
+            end
+
+            % Iterate over each filename and copy when not already present
+            for i = 1 : length(filesToCopy)
+                cls = filesToCopy(i);
+                if ~exist(fullfile(destInstrumentDir, cls), "file") || Settings.Overwrite
+                    copyfile(fullfile(sourceInstrumentDir, cls), fullfile(destInstrumentDir, cls));
+                end
+            end
+        end
+
+        function newDirCreated = EnsureDirectoryExists(dirPath)
+            % ENSUREDIRECTORYEXISTS - Ensure a directory exists, create if needed
+            %
+            % Input arguments:
+            % dirPath - path to directory (string or char scalar)
+            %
+            % Output arguments:
+            % newDirCreated - true if directory was created, false if already existed
+            arguments
+                dirPath {mustBeTextScalar};
+            end
+
+            if Palladium.Utilities.PathUtils.IsDirectoryValid(dirPath)
+                %Directory exists, no need to do anything
+                newDirCreated = false;
+                return;
+            else
+                %Make the directory
+                mkdir(dirPath);
+                newDirCreated = true;
+            end
+        end
+
+
         function newPath = EnsureExtension(filepath, extension)
             % Send in a string filepath and string extension, and ensure
             % that the ouput contains that extension. Throw warnings if
@@ -88,7 +138,7 @@ classdef PathUtils
 
             %Make sure the extension starts with a '.'
             chars = char(extension);
-            assert(chars(1)=='.', "Extension must start with a . character");
+            assert(chars(1)=='.', "EnsureExtensionError:ExtensionInvalid", "Extension must start with a . character");
 
             %Extract the exisiting extension (returns "" if not found)
             [~, ~, ext] = fileparts(filepath);
@@ -96,7 +146,7 @@ classdef PathUtils
             %If there is an extension there already, assert it's the same
             %as the requested one, then just return
             if ext~=""      %Fileparts returns "" not [] if no extension found - this is empty string test
-                assert(strcmp(string(ext), string(extension)), "Extension of file path " + string(filepath) + " contained an extension different to the expected " + string(extension));
+                assert(strcmp(string(ext), string(extension)), "EnsureExtensionError:WrongExtension", "Extension of file path " + string(filepath) + " contained an extension different to the expected " + string(extension));
                 newPath = filepath;
                 return;
             end
@@ -105,9 +155,22 @@ classdef PathUtils
             newPath = strcat(filepath, extension);
         end
 
-        %% GetIncrementedFileName
-        function newPath = GetIncrementedFileName(filepath)
+        function newFileName = GetIncrementedFileName(filepath)
+            % GETINCREMENTEDFILENAME - Return filepath with an incremented numeric suffix
+            %
+            % Input arguments:
+            % filepath - text scalar path or filename
+            %
+            % Output arguments:
+            % newFileName  - filename with incremented numeric suffix if needed
+            arguments
+                filepath {mustBeTextScalar};
+            end
+
             [directory, fileNameWithoutExt, Ext] = fileparts(filepath);
+            directory = Palladium.Utilities.PathUtils.CleanPath(directory);
+
+            assert(Ext~="", "GetIncrementFileNameError:MissingExtension", "Extension must be given when passing file path into GetIncrementedFileName");
 
             %Check last 3 characters to see if they are already a number.
             %If not add em. We will then need to check if that filename
@@ -119,7 +182,7 @@ classdef PathUtils
 
             %Rebuild filepath to check if it exists
             filepath = string(fullfile(directory, fileNameWithoutExt)) + string(Ext);
-
+            
             while(exist(filepath, 'file') == 2)  %If file exists already
                 lastThree = extractBetween(fileNameWithoutExt, strlength(fileNameWithoutExt) - 2, strlength(fileNameWithoutExt));
                 n = str2double(lastThree);
@@ -131,10 +194,9 @@ classdef PathUtils
                 filepath = string(fullfile(directory, fileNameWithoutExt)) + Ext;
             end
 
-            newPath = fileNameWithoutExt;
+            newFileName = string(fileNameWithoutExt);
         end
 
-        %% GetPathOfFolderOnSearchPath
         function dirPath = GetPathOfFolderOnSearchPath(dirName)
             %See https://uk.mathworks.com/matlabcentral/answers/347892-get-full-path-of-directory-that-is-on-matlab-search-path
             %Get the actual directory file path to a folder that is on the
@@ -144,11 +206,37 @@ classdef PathUtils
 
             dirs = regexp(path, pathsep,'split');          %cell of all individual paths
             temp = unique(cellfun(@(P) strjoin(P(1:find(strcmp(esctofind, P),1,'last')),filesep), regexp(dirs,filesep,'split'), 'uniform', 0));    %don't let the blue smoke escape
-            dirPath = temp(~cellfun(@isempty,temp));     %non-empty results only
+            dirPathCell = temp(~cellfun(@isempty,temp));     %non-empty results only
+            dirPath = string(dirPathCell{1});
         end
 
-        %% IsDirectoryValid
+        function userDirectoryPath = GetUserDirectory()
+          % GETUSERDIRECTORY - Return current user's home directory as
+          % string, on all platforms
+          %
+          % Output arguments:
+          % userDirectoryPath - user's home directory path (string)
+          if ispc
+              % Use Windows registry to get the "Personal" folder path
+              userDirectoryPath = string(winqueryreg('HKEY_CURRENT_USER',...
+                  ['Software\Microsoft\Windows\CurrentVersion\' ...
+                  'Explorer\Shell Folders'],'Personal'));
+          else
+              % Fallback: use Java system property for non-Windows platforms
+              userDirectoryPath = string(java.lang.System.getProperty('user.home'));
+          end
+        end
+
         function valid = IsDirectoryValid(directory)
+            % ISDIRECTORYVALID - Check whether a directory path is valid
+            % syntactically and exists
+            %
+            % Input arguments:
+            % directory - text scalar containing a directory path
+            arguments
+                directory {mustBeTextScalar}
+            end
+
             valid = false;
 
             if isempty(directory)
@@ -163,11 +251,21 @@ classdef PathUtils
             valid = true;
         end
 
-        %% IsFileNameValid
         function valid = IsFileNameValid(filename)
+            % ISFILENAMEVALID - Check a filename string is valid, allowed format
+            %
+            % Input arguments:
+            % filename - text scalar representing a file name to validate
+            %
+            % Output arguments:
+            % valid    - logical indicating whether filename is valid
+            arguments
+                filename {mustBeTextScalar}
+            end
+
             valid = false;
 
-            if isempty(filename)
+            if isempty(filename) || filename == ""
                 return;
             end
 
@@ -179,7 +277,6 @@ classdef PathUtils
             valid = true;
         end
 
-        %% MakeFilePathRelative
         function [newPath, successfullyMadeRelative] = MakeFilePathRelative(path, Settings)
             %Make an absolute path into a relative one, relative to the
             %Palladium folder by default, or to that given as optional
@@ -194,10 +291,14 @@ classdef PathUtils
             if isempty(Settings.RefDir)
                 %Get path of this file
                 m = mfilename("fullpath");
-                refPath = Palladium.Utilities.PathUtils.CleanPath(string(m) + filesep + ".." + filesep + ".." + filesep + ".." + filesep + ".." + filesep);%This sets refPath to be the absolute path to the "Palladium\Palladium\Palladium" inner folder - ApplicationDir of Controller
+                refPath = Palladium.Utilities.PathUtils.CleanPath(string(m) + filesep + ".." + filesep + ".." + filesep + ".." + filesep);%This sets refPath to be the absolute path to the "Palladium DAQ\Palladium DAQ\"  folder where Palladium.m sits - ApplicationDir of Controller
             else
                 refPath = string(Settings.RefDir);
             end            
+
+            %Sanitise paths, remove any .. loops etc
+            refPath = Palladium.Utilities.PathUtils.CleanPath(refPath);
+            path = Palladium.Utilities.PathUtils.CleanPath(path);
 
             %Clean trailing \ if present
             refPath = strip(refPath, filesep);
@@ -260,7 +361,6 @@ classdef PathUtils
 
         end
 
-        %% ReplaceDateTag
         function outstr = ReplaceDateTag(str)
             %If a string has '<DATE>' in it, let's replace that with today's
             %date for convenience
@@ -271,9 +371,7 @@ classdef PathUtils
             outstr = strrep(str, '<DATE>', dateStr);
         end
 
-        %% StripExtension
         function newFileName = StripExtension(fileName)
-
             [~, newFileName, ~] = fileparts(fileName);
         end
 

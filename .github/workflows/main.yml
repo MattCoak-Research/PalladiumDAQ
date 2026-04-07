@@ -15,6 +15,9 @@ jobs:
         with:
           products: >
             Instrument_Control_Toolbox
+      - uses: actions/setup-python@v6
+        with:
+            python-version: '3.13' 
       - uses: matlab-actions/run-build@v2
         with:
           tasks: package

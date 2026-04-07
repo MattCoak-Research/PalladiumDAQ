@@ -2,19 +2,20 @@ classdef Keysight4248A_LCR_Meter < Palladium.Core.Instrument
     %Instrument implementation for Keysight 4248A LCR Meter. Assumes instrument has already been set measuring,
     %and grabs latest values only.
 
+    %% Properties (Constant, Public)
     properties(Constant, Access = public)
         FullName = "4248A LCR Meter";     %Full name, just for displaying on GUI
     end
 
+    %% Properties (Public, Set Observable)
+    % These properties will appear in the Instrument Settings GUI and are editable there
     properties(Access = public, SetObservable)
         Name = "LCR_Mtr";             %Instrument name
         Connection_Type = Palladium.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
     end
 
-
+    %% Constructor
     methods
-
-        %% Constructor
         function this = Keysight4248A_LCR_Meter()
             %Specify communication options and settings
             this.DefineSupportedConnectionTypes(["Debug", "GPIB", "VISA"]);
@@ -24,45 +25,12 @@ classdef Keysight4248A_LCR_Meter < Palladium.Core.Instrument
             %Instrument
             this.DefineInstrumentControl(Name = "Sweep Control", ClassName = "SweepController_Stepped", TabName = "Sweep Control", EnabledByDefault = false);
         end
+    end
 
-        %% GetSweepUnitsString
-        function [str, limits] = GetSweepUnitsString(this)
-            %Tells the Sweep controller what the units and limits are of
-            %the parameter it is sweeping
-            str = "Hz";
-            limits = [20, 1e6];    %max and min Frequency, in Hz
-        end
+    %% Methods (Public)
+    methods (Access = public)
 
-        %% GetHeaders
-        function [Headers, Units] = GetHeaders(this)
-            Headers = [this.Name + " - Cap (pF)", this.Name + "Loss ()", this.Name + " - Frequency (Hz)", this.Name + " - Voltage (V)", this.Name + " - Bias Voltage (V)"];
-            Units = ["pF", " ", "Hz", "V", "V"];
-        end
-
-        %% Measure
-        function [dataRow] = Measure(this)
-            %Update the sweep controller, if one is added and a sweep is currently running, and apply its
-            %latest target source level
-            if ~isempty(this.SweepController)
-                if this.SweepController.Running
-                    valueToSet = this.SweepController.Update();
-                    this.SetFrequency(valueToSet);
-                end
-            end
-
-          %Query instrument for latest data with a Fetch command
-          [cap_pF, loss, bias] = this.FetchMeasurement();
-
-          %Query measurement paramters - frequency and voltage
-          freq_Hz = this.GetFrequency();
-          voltage_V = this.GetVoltage();
-
-          %Assemble values into a table row to return
-          dataRow = [cap_pF, loss, freq_Hz, voltage_V, bias];
-        end
-
-        %% FetchMeasurement
-        function [param1, param2, bias] = FetchMeasurement(this) 
+        function [param1, param2, bias] = FetchMeasurement(this)
             if (this.SimulationMode)
                 %Dummy values if simulating instrument
                 param1 = 17 + rand()*0.1;
@@ -71,22 +39,21 @@ classdef Keysight4248A_LCR_Meter < Palladium.Core.Instrument
                 return;
             end
 
-          %resultStr = this.QueryString("FETC[:IMP]?");
-          resultStr = this.QueryString("FETC?");
+            %resultStr = this.QueryString("FETC[:IMP]?");
+            resultStr = this.QueryString("FETC?");
 
-          %We expect resultStr to be in the format e.g.
-          %"-3.32504E-14,+8.03461E-01,+0"
-          s = strsplit(resultStr, ",");
+            %We expect resultStr to be in the format e.g.
+            %"-3.32504E-14,+8.03461E-01,+0"
+            s = strsplit(resultStr, ",");
 
-          %Extract values and parse into numbers - could add error handling
-          %here and return NaNs if so
-          param1 = str2double(s{1});
-          param2 = str2double(s{2});
-          bias = str2double(s{3});
+            %Extract values and parse into numbers - could add error handling
+            %here and return NaNs if so
+            param1 = str2double(s{1});
+            param2 = str2double(s{2});
+            bias = str2double(s{3});
         end
 
-        %% GetFrequency
-        function freqHz = GetFrequency(this) 
+        function freqHz = GetFrequency(this)
             if (this.SimulationMode)
                 %Dummy values if simulating instrument
                 freqHz = 10000;
@@ -96,19 +63,18 @@ classdef Keysight4248A_LCR_Meter < Palladium.Core.Instrument
             freqHz = this.QueryDouble("FREQ?");
         end
 
-        %% SetFrequency
-        function SetFrequency(this, freqHz)
-             if(this.SimulationMode)
-                %Do nothing, just print
-                disp("Setting LCR Meter frequency to " + num2str(freqHz) + " Hz");
-                return;
-             end
-
-            freqStr = numstr(freqHz);
-            this.WriteCommand("FREQ " + freqStr + "HZ");
+        function [Headers, Units] = GetHeaders(this)
+            Headers = [this.Name + " - Cap (pF)", this.Name + "Loss ()", this.Name + " - Frequency (Hz)", this.Name + " - Voltage (V)", this.Name + " - Bias Voltage (V)"];
+            Units = ["pF", " ", "Hz", "V", "V"];
         end
 
-        %% GetVoltage
+        function [str, limits] = GetSweepUnitsString(~)
+            %Tells the Sweep controller what the units and limits are of
+            %the parameter it is sweeping
+            str = "Hz";
+            limits = [20, 1e6];    %max and min Frequency, in Hz
+        end
+
         function voltage_V = GetVoltage(this)
             if (this.SimulationMode)
                 %Dummy values if simulating instrument
@@ -119,17 +85,49 @@ classdef Keysight4248A_LCR_Meter < Palladium.Core.Instrument
             voltage_V = this.QueryDouble("VOLT?");
         end
 
-        %% SetVoltage
+        function [dataRow] = Measure(this)
+            %Update the sweep controller, if one is added and a sweep is currently running, and apply its
+            %latest target source level
+            if ~isempty(this.SweepController)
+                if this.SweepController.Running
+                    valueToSet = this.SweepController.Update();
+                    this.SetFrequency(valueToSet);
+                end
+            end
+
+            %Query instrument for latest data with a Fetch command
+            [cap_pF, loss, bias] = this.FetchMeasurement();
+
+            %Query measurement paramters - frequency and voltage
+            freq_Hz = this.GetFrequency();
+            voltage_V = this.GetVoltage();
+
+            %Assemble values into a table row to return
+            dataRow = [cap_pF, loss, freq_Hz, voltage_V, bias];
+        end
+
+        function SetFrequency(this, freqHz)
+            if(this.SimulationMode)
+                %Do nothing, just print
+                disp("Setting LCR Meter frequency to " + num2str(freqHz) + " Hz");
+                return;
+            end
+
+            freqStr = numstr(freqHz);
+            this.WriteCommand("FREQ " + freqStr + "HZ");
+        end
+
         function SetVoltage(this, voltage_V)
-              if(this.SimulationMode)
+            if(this.SimulationMode)
                 %Do nothing, just print
                 disp("Setting LCR Meter voltage to " + num2str(voltage_V) + " V");
                 return;
-              end
+            end
 
             vStr = numstr(voltage_V);
             this.WriteCommand("VOLT " + vStr + "V");
         end
+
     end
 end
 

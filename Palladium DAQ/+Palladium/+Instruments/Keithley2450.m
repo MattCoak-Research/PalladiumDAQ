@@ -1,43 +1,49 @@
 classdef Keithley2450 < Palladium.Core.Instrument
     %Instrument implementation for Keithley 2450 source meter - use this rather than the 24X0 more general (and deprecated) option.
 
+    %% Properties (Constant, Public)
     properties(Constant, Access = public)
         FullName = "Keithley 2450 Src Meter";       %Full name, just for displaying on GUI
     end
 
+    %% Properties (Public, Set Observable)
+    % These properties will appear in the Instrument Settings GUI and are editable there
     properties(Access = public, SetObservable)
         Name = "K2450_SrcMtr";                            %Instrument name
         Connection_Type = Palladium.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         MeasMode;                                   %Resistance, Voltage, Current
-        SourceMode;                                 %Current, Voltage       
+        SourceMode;                                 %Current, Voltage
     end
 
-    
+    %% Categoricals
     methods
-
-        %% Categoricals
         function catOut = MeasType(this, inputStr); catOut = this.ConvertToCategorical(inputStr, ["Resistance", "Voltage", "Current"]); end
         function catOut = SourceType(this, inputStr); catOut = this.ConvertToCategorical(inputStr, ["Voltage", "Current"]); end
+    end
 
-        %% Constructor
+    %% Constructor
+    methods
         function this = Keithley2450()
             %Specify communication options and settings
             this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "USB", "VISA"]);
             this.GPIB_Address = 18;      %Default Address
             this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];
             this.VISA_Address = 'USB0::0x05E6::0x2450::04602266::0::INSTR';
- 
+
             %Define the Instrument Controls that can be added to the
             %Instrument
             this.DefineInstrumentControl(Name = "Sweep Control", ClassName = "SweepController_Stepped", TabName = "Sweep Control", EnabledByDefault = false);
-     
+
             %Make sure to set values for Properties of Categorical type
             %like these
             this.MeasMode = this.MeasType("Resistance");
             this.SourceMode = this.SourceType("Current");
         end
+    end
 
-        %% GetHeaders
+    %% Methods (Public)
+    methods (Access = public)
+
         function [Headers, Units] = GetHeaders(this)
             switch(this.MeasMode)
                 case(this.MeasType("Resistance"))
@@ -62,7 +68,6 @@ classdef Keithley2450 < Palladium.Core.Instrument
             end
         end
 
-       %% GetSweepUnitsString
         function [str, limits, xlabelStr, ylabelStr] = GetSweepUnitsString(this)
             switch(this.SourceMode)
                 case(this.MeasType("Voltage"))
@@ -81,7 +86,22 @@ classdef Keithley2450 < Palladium.Core.Instrument
             ylabelStr = hdrs(1);
         end
 
-        %% Measure
+        function srcLevel = GetSourceLevel(this)
+            if (this.SimulationMode)
+                srcLevel = this.RetrieveSimulatedDataValue("SourceLevel");
+                return;
+            end
+
+            switch(this.SourceMode)
+                case(this.SourceType("Voltage"))
+                    srcLevel = this.QueryDouble("SOUR:VOLT:LEV:AMPL?");
+                case(this.SourceType("Current"))
+                    srcLevel = this.QueryDouble("SOUR:CURR:LEV:AMPL?");
+                otherwise
+                    error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+            end
+        end
+        
         function [dataRow] = Measure(this)
             %Retrieve source level (will work for simulated and real data
             %both)
@@ -90,7 +110,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
             if(this.SimulationMode)
                 %Return dummy values if in simulation mode
                 value = rand(1)*1e-7 + 2e-6;
-                dataRow = [value sourceLevel];                
+                dataRow = [value sourceLevel];
                 return;
             end
 
@@ -110,14 +130,14 @@ classdef Keithley2450 < Palladium.Core.Instrument
                     dataRow = [resistance, sourceLevel];
 
                 case(this.MeasType("Voltage"))
-                    %Get measurement values 
+                    %Get measurement values
                     voltage = str2double(data);
 
                     %Assign data to output data row
                     dataRow = [voltage, sourceLevel];
-                    
+
                 case(this.MeasType("Current"))
-                    %Get measurement values 
+                    %Get measurement values
                     current = str2double(data);
 
                     %Assign data to output data row
@@ -127,24 +147,6 @@ classdef Keithley2450 < Palladium.Core.Instrument
             end
         end
 
-        %% GetSourceLevel
-        function srcLevel = GetSourceLevel(this)
-            if (this.SimulationMode)
-                srcLevel = this.RetrieveSimulatedDataValue("SourceLevel");
-                return;
-            end
-
-            switch(this.SourceMode)
-                case(this.SourceType("Voltage"))
-                    srcLevel = this.QueryDouble("SOUR:VOLT:LEV:AMPL?");
-                case(this.SourceType("Current"))
-                    srcLevel = this.QueryDouble("SOUR:CURR:LEV:AMPL?");
-                otherwise
-                    error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
-            end
-        end
-
-        %% SetNewSweepStepValue
         function SetNewSweepStepValue(this, value)
             %This built-in function is defined in the Instrument base class
             %(does nothing) and called by any added
@@ -153,9 +155,8 @@ classdef Keithley2450 < Palladium.Core.Instrument
             this.SetSourceLevel(value, true);
         end
 
-        %% SetSourceLevel
         function SetSourceLevel(this, level, enableOutput)
-             if(this.SimulationMode)
+            if(this.SimulationMode)
                 %Store in SimulatedData struct, otherwise do nothing, just print
                 disp("Setting source to " + num2str(level) + ", output enabled: " + num2str(enableOutput));
                 this.SimulatedData.SourceLevel = level;

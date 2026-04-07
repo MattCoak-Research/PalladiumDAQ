@@ -4,9 +4,7 @@ classdef SweepController_Ramp < Palladium.Instruments.Controls.SweepController
     %Instrument object, where it will handle the logic of stepping through
     %a Sweep, programmed by a SweepSetupPanel in the GUI
 
-    properties
-    end
-
+    %% Properties (Private)
     properties (Access = private)
         StepNo = 0;
         TotalPoints;
@@ -14,20 +12,23 @@ classdef SweepController_Ramp < Palladium.Instruments.Controls.SweepController
         LastSimulatedValue = 0;
     end
 
+    %% Constructor
     methods
-        %% Constructor
         function this = SweepController_Ramp()
 
         end
+    end
 
-        %% Calculate
-        function sweepDetails = Calculate(this, sweepDetailsIn)
+    %% Methods (Public)
+    methods (Access = public)
+
+        function sweepDetails = Calculate(~, sweepDetailsIn)
             %Copy current SweepDetails
             sweepDetails = sweepDetailsIn;
 
             %Calculate extremal points based on what sectors are selected
             targetPts = Palladium.Instruments.Controls.SweepController.CalculateExtremalPoints(sweepDetails.StartSectionNo, sweepDetails.EndSectionNo, sweepDetails.MinVal, sweepDetails.MidVal, sweepDetails.MaxVal);
-            
+
             %Calculate the total amount the value must change over during
             %this sweep
             totalMag = Palladium.Instruments.Controls.SweepController.CalculateTotalMagnitude(targetPts);
@@ -55,17 +56,14 @@ classdef SweepController_Ramp < Palladium.Instruments.Controls.SweepController
             sweepDetails.Points = points;
             sweepDetails.TotalTimeMin = timeMin;
             sweepDetails.RemainingTimeMin = sweepDetails.TotalTimeMin;
-        end 
+        end
 
-        
-
-        %% CreateInstrumentControlGUI
         function CreateInstrumentControlGUI(this, controller, tab, instrRef)
             %Make a specific reference to and from the Instrument Class
             this.Instrument = instrRef;
             this.Instrument.SweepController = this;
             this.Controller = controller;
-            
+
             %Create grid and Sweepcontrol component and position them in the
             %tab.
             grid = uigridlayout(tab, "ColumnWidth", {10, 'fit', '1x'}, "RowHeight", {10, 'fit', 10, '1x'}, 'RowSpacing', 2);
@@ -77,7 +75,7 @@ classdef SweepController_Ramp < Palladium.Instruments.Controls.SweepController
             this.GUIView = comp;
 
             %Set title and metadata
-            comp.SetTitle(instrRef.Name + " Sweep Control");           
+            comp.SetTitle(instrRef.Name + " Sweep Control");
 
             %Subscribe to events
             addlistener(comp, 'Run', @(src,evnt)this.SweepRun(src, evnt));
@@ -89,7 +87,7 @@ classdef SweepController_Ramp < Palladium.Instruments.Controls.SweepController
             ltr = addlistener(instrRef, 'PropertyChanged', @(src,evnt)this.RefreshUnitsAndLimits());
             this.RegisterEventListener(ltr);
 
-            %Set up the defaults and populate parameters 
+            %Set up the defaults and populate parameters
             this.RefreshUnitsAndLimits();
 
             %Add a plotter as well underneath
@@ -99,38 +97,46 @@ classdef SweepController_Ramp < Palladium.Instruments.Controls.SweepController
 
             %Set default displayed axes for the plotter
             pltr.SetDefaultXAxis("Time (mins)");
-        end 
+        end
 
-        %% OrderInstrumentAbort
+        function [reached, rampStatus] = IsTargetPointReached(this, timeElapsed_s, tDiff, currentTarget, rampRate_min)
+            %Query whether we have reached the current target point or are
+            %still ramping towards it
+            reached = false;
+
+            rampStatus = this.Instrument.CheckRampStatus(timeElapsed_s, tDiff, currentTarget, rampRate_min);
+
+            if rampStatus.TargetReached
+                reached = true;
+            end
+        end
+
         function OrderInstrumentAbort(this)
             this.Instrument.AbortRamp();
         end
 
-        %% OrderInstrumentRamp
         function OrderInstrumentRamp(this, target, rate)
             settings.Placeholder = "";
             this.Instrument.SetRampingToTarget(target, rate, settings);
         end
 
-        %% OnRampToZero
         function OnRampToZero(this)
-           %hard coded ramp straight to zero
-           this.TargetValue = 0;
-           this.ControlDetailsStruct.SweepDetails.Points = [0 0];
-           this.Running = true;
-           this.TimeElapsed_s = 0;
-           this.timerVal = tic();
-           rate_perMin = this.ControlDetailsStruct.SweepDetails.RampRate_min;
-           this.OrderInstrumentRamp(0, rate_perMin);
-        end
-         %% OnSweepAbort
-        function OnSweepAbort(this)
-          %Order Instrument to start the sweep - Stepped sweep controls do
-          %not need to do this.
-          this.OrderInstrumentAbort();
+            %hard coded ramp straight to zero
+            this.TargetValue = 0;
+            this.ControlDetailsStruct.SweepDetails.Points = [0 0];
+            this.Running = true;
+            this.TimeElapsed_s = 0;
+            this.timerVal = tic();
+            rate_perMin = this.ControlDetailsStruct.SweepDetails.RampRate_min;
+            this.OrderInstrumentRamp(0, rate_perMin);
         end
 
-        %% OnSweepRun
+        function OnSweepAbort(this)
+            %Order Instrument to start the sweep - Stepped sweep controls do
+            %not need to do this.
+            this.OrderInstrumentAbort();
+        end
+
         function OnSweepRun(this)
             %Order Instrument to start the sweep - it is all programmed in and
             %we are good to go.
@@ -143,64 +149,9 @@ classdef SweepController_Ramp < Palladium.Instruments.Controls.SweepController
             rate_perMin = this.ControlDetailsStruct.SweepDetails.RampRate_min;
             this.OrderInstrumentRamp(this.TargetValue, rate_perMin);
         end
-    
-        %% RampToZero
-        function RampToZero(this, ~, eventData)
-           this.OnRampToZero();
-        end
 
-        %% RefreshUnitsAndLimits
-        function RefreshUnitsAndLimits(this)
-            [unitsStr, limits, xlabelStr, ylabelStr] = this.Instrument.GetSweepUnitsString();
-            this.GUIView.SetUnitsString(unitsStr);
-            this.GUIView.SetLimits(limits(1), limits(2));
-            this.GUIView.SetStartingValues(limits(1), (limits(1)+limits(2))/2, limits(2));
-        end
-
-        %% RemoveControl
-        function RemoveControl(this, instrRef)
-            %Clean up references to this in the Lakeshore Instrument Class
-            %so it doesn't think we have a heater control
-            instrRef.SweepController = [];
-
-            %Delete GUI objects
-            delete(this.GUIView);
-            this.GUIView = [];
-        end
-
-        %% SimulateRamping
-        function rampStatus = SimulateRamping(this, tDiff, currentTarget, rampRate_min)
-            %Helper function for calculating expected values for
-            %instruments in simulation mode
-            
-                rampStatus.TargetReached = false;
-                newSimValue = this.LastSimulatedValue + tDiff * sign(currentTarget-this.LastSimulatedValue) * rampRate_min / 60;
-
-                if newSimValue * sign(currentTarget-this.LastSimulatedValue) >= abs(currentTarget)
-                    newSimValue = currentTarget;
-                    rampStatus.TargetReached = true;
-                end
-
-                this.LastSimulatedValue = newSimValue;
-                rampStatus.CurrentField = newSimValue;
-            end
-
-        %% IsTargetPointReached
-        function [reached, rampStatus] = IsTargetPointReached(this, timeElapsed_s, tDiff, currentTarget, rampRate_min)
-            %Query whether we have reached the current target point or are
-            %still ramping towards it
-            reached = false;
-
-            rampStatus = this.Instrument.CheckRampStatus(timeElapsed_s, tDiff, currentTarget, rampRate_min);            
-
-            if rampStatus.TargetReached
-                reached = true;
-            end
-        end
-
-        %% OnTargetPointReached
         function [sweepCompleted] = OnTargetPointReached(this)
-            this.StepNo = this.StepNo + 1;    
+            this.StepNo = this.StepNo + 1;
 
             if this.StepNo > length(this.ControlDetailsStruct.SweepDetails.Points)
                 sweepCompleted = true;
@@ -211,7 +162,27 @@ classdef SweepController_Ramp < Palladium.Instruments.Controls.SweepController
             end
         end
 
-        %% SetNextTargetPoint
+        function RampToZero(this, ~, ~)
+            this.OnRampToZero();
+        end
+
+        function RefreshUnitsAndLimits(this)
+            [unitsStr, limits, ~, ~] = this.Instrument.GetSweepUnitsString();
+            this.GUIView.SetUnitsString(unitsStr);
+            this.GUIView.SetLimits(limits(1), limits(2));
+            this.GUIView.SetStartingValues(limits(1), (limits(1)+limits(2))/2, limits(2));
+        end
+
+        function RemoveControl(this, instrRef)
+            %Clean up references to this in the Lakeshore Instrument Class
+            %so it doesn't think we have a heater control
+            instrRef.SweepController = [];
+
+            %Delete GUI objects
+            delete(this.GUIView);
+            this.GUIView = [];
+        end
+
         function SetNextTargetPoint(this, targetPt)
             this.TargetValue = targetPt;
 
@@ -220,7 +191,22 @@ classdef SweepController_Ramp < Palladium.Instruments.Controls.SweepController
             this.OrderInstrumentRamp(this.TargetValue, rate_perMin);
         end
 
-        %% Update
+        function rampStatus = SimulateRamping(this, tDiff, currentTarget, rampRate_min)
+            %Helper function for calculating expected values for
+            %instruments in simulation mode
+
+            rampStatus.TargetReached = false;
+            newSimValue = this.LastSimulatedValue + tDiff * sign(currentTarget-this.LastSimulatedValue) * rampRate_min / 60;
+
+            if newSimValue * sign(currentTarget-this.LastSimulatedValue) >= abs(currentTarget)
+                newSimValue = currentTarget;
+                rampStatus.TargetReached = true;
+            end
+
+            this.LastSimulatedValue = newSimValue;
+            rampStatus.CurrentField = newSimValue;
+        end
+
         function [valueToSet, complete] = Update(this)
             valueToSet = []; %Not currently used - OrderInstrumentRamp will handle it..
             oldTimeElapsed = this.TimeElapsed_s;
@@ -230,7 +216,7 @@ classdef SweepController_Ramp < Palladium.Instruments.Controls.SweepController
             currentTarget = this.TargetValue;
             rampRate = this.ControlDetailsStruct.SweepDetails.RampRate_min;
 
-            %Check if we reached the current target 
+            %Check if we reached the current target
             if(this.IsTargetPointReached(this.TimeElapsed_s, tDiff, currentTarget, rampRate))
                 disp("Target reached")
                 complete = this.OnTargetPointReached();
@@ -252,9 +238,9 @@ classdef SweepController_Ramp < Palladium.Instruments.Controls.SweepController
         end
     end
 
-    methods (Static)
+    %% Methods (Static, Public)
+    methods (Static, Access = public)
 
-        %% CalculateTimeRemaining
         function remainingTimeMin = CalculateTimeRemaining(totalTimeMin, timeElapsedMin)
             arguments
                 totalTimeMin (1,1) double;
@@ -265,7 +251,6 @@ classdef SweepController_Ramp < Palladium.Instruments.Controls.SweepController
             remainingTimeMin = max(0, totalTimeMin - timeElapsedMin);
         end
 
-        %% CalculateTotalTime
         function timeMin = CalculateTotalTime(totalMagnitude, rampRate_min)
             timeMin = totalMagnitude / rampRate_min;
         end

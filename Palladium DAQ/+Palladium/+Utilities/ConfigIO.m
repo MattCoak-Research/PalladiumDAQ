@@ -1,27 +1,31 @@
 classdef ConfigIO < handle
     %ConfigIO - Class to handling reading and writing of local Config
     %settings to and from (XML) files.
-    
+
+    %% Properties (Public)
     properties(Access = public)
-        ConfigDirectory = filesep + ".." + filesep + ".." + filesep + ".." + filesep + "Palladium DAQ - Settings" + filesep;
+        ConfigDirectory = filesep + ".." + filesep + ".." + filesep + "Palladium DAQ - Settings" + filesep;
         PromptForGUIEntryOfSettings = true;
     end
 
+    %% Properties (Private)
     properties (Access = private)
         EnteredSettingsStruct = []; %Hold enetered details (fired from event) in temp property that code can then access when execution resumes
     end
-        
-    %% Methods
+
+    %% Constructor
+    methods
+        function this = ConfigIO()
+        end
+    end
+
+    %% Methods (Public)
     methods(Access = public)
 
-        %% Constructor
-        function this = ConfigIO()
-        end        
-        
-        %% LoadConfig
         function con = LoadConfig(this, Settings)
             arguments
                 this;
+                Settings.ApplicationDir = [];
                 Settings.ConfigFilePath = [];                  % Default is blank ([]) - enter a filepath instead to override default Config json file loading and pass in the path for another settings file to be loaded from
             end
 
@@ -39,16 +43,16 @@ classdef ConfigIO < handle
                     %not have a Logger yet and so cannot use that
                     fprintf("\n");
                     disp("[INFO] - Config file not found at " + Palladium.Utilities.PathUtils.CleanPath(configPath));
-                    
+
                     if this.PromptForGUIEntryOfSettings
                         disp("Opening GUI window for config settings entry.");
-                        defaultConfig = this.GenerateDefaultConfigStruct();                        
-                        enteredConfig = this.ShowConfigEntryGUI(defaultConfig);
-                        this.SaveConfig(enteredConfig);
+                        defaultConfig = this.GenerateDefaultConfigStruct();
+                        enteredConfig = this.ShowConfigEntryGUI(defaultConfig, Settings.ApplicationDir);
+                        this.SaveConfig(enteredConfig, configPath);
                     else
                         disp("Creating default, saving to file.");
                         fprintf("\n");
-                        this.SaveDefaultConfig();
+                        this.SaveDefaultConfig(configPath);
                     end
                 end
 
@@ -62,99 +66,95 @@ classdef ConfigIO < handle
                 [con, changesDetected] = this.VerifyConfigStruct(con);
                 if changesDetected
                     warndlg("Missing lines or obseleted properties found in Config file. Corrupted file or config version needs updating. Adding default values and saving new version of file.", "Config file verification");
-                    this.SaveConfig(con);
+                    this.SaveConfig(con, configPath);
                 end
             catch e
                 error("Error loading Config file in ConfigIO: " + e.message);
             end
         end
-        
-        %% SaveConfig
-        function SaveConfig(this, config)
+
+        function SaveConfig(~, config, configPath)
             try
-                confDir = this.GetConfigDirPath();
-                
+                %Extract file parts
+                [confDir, ~, ext] = fileparts(configPath);
+                assert(length(char(ext))>1, "SaveConfigError:MissingExtension", "File Extension must be included when specifying file path in SaveConfig. filepath was: " + string(configPath));
+
                 %Make the config folder if it doesn't exist already
                 if ~exist(confDir, 'dir')
                     mkdir(confDir);
                 end
-                
-                configPath = [confDir 'Config.json'];
+
                 writestruct(config, configPath, "FileType", "json");
             catch e
                 error("Error saving Config file in ConfigIO: " + e.message);
             end
         end
-        
-        %% SaveDefaultConfig
-        function SaveDefaultConfig(this)
-            try                
-                s = this.GenerateDefaultConfigStruct();                
-                this.SaveConfig(s);
+
+        function SaveDefaultConfig(this, configPath)
+            try
+                s = this.GenerateDefaultConfigStruct();
+                this.SaveConfig(s, configPath);
             catch e
                 error("Error saving new default Config file in ConfigIO: " + e.message);
             end
-        end     
-
+        end
         
-                
     end
-    
-    methods(Access = private)
-        
-        %% ConfigEntryComplete
+
+    %% Methods (Private)
+    methods(Access = {?Palladium.Utilities.ConfigIO, ?matlab.unittest.TestCase})    %Permission is Private, but also allow unit tests to see it
+
         function ConfigEntryComplete(this, ~, eventData)
             settingsStruct = eventData.Value;
             this.EnteredSettingsStruct = settingsStruct;
         end
 
-        %% GenerateDefaultConfigStruct
-        function s = GenerateDefaultConfigStruct(this)
+        function s = GenerateDefaultConfigStruct(~)
 
-             %% ------- Edit default config values / add new ones here ----
-                s.LogSettings.LogFileDirectory = ".." + filesep + "Palladium DAQ - Testing" + filesep + "Logs";
-                s.LogSettings.LogFileFileName = "<DATE>_Log.txt";
-                s.LogSettings.LogFileDirectoryIsRelativePath = true;
-                s.LogSettings.CommandWindowMessageLevel = "Debug";
-                s.LogSettings.PrintStackTraceInCommandWindow = false;
-                s.LogSettings.GUIMessageLevel = "Warning";
-                s.LogSettings.LogFileMessageLevel = "Debug";
-                s.LogSettings.ErrorOnAllInstrumentErrors = false;
-               
-                s.PathSettings.DefaultFileName = "<DATE>_Filename";
-                s.PathSettings.DefaultDirectory = ".." + filesep + "Palladium DAQ - Testing";
-                s.PathSettings.DefaultSequenceDirectory = ".." + filesep + "Palladium DAQ - Testing";
-                s.PathSettings.DataDirectoryIsRelativePath = true;
-                s.PathSettings.SequenceDirectoryIsRelativePath = true;
-                s.PathSettings.DataFileExtension = ".dat";
-                s.PathSettings.SequenceFileExtension = ".seq";
-                s.PathSettings.SaveFile = true;
-                s.PathSettings.FileWriteMode = "Increment File No.";
-                s.PathSettings.DefaultDescription = "";
+            %% ------- Edit default config values / add new ones here ----
+            s.LogSettings.LogFileDirectory = ".." + filesep + "Palladium DAQ - Testing" + filesep + "Logs";
+            s.LogSettings.LogFileFileName = "<DATE>_Log.txt";
+            s.LogSettings.LogFileDirectoryIsRelativePath = true;
+            s.LogSettings.CommandWindowMessageLevel = "Debug";
+            s.LogSettings.PrintStackTraceInCommandWindow = false;
+            s.LogSettings.GUIMessageLevel = "Warning";
+            s.LogSettings.LogFileMessageLevel = "Debug";
+            s.LogSettings.ErrorOnAllInstrumentErrors = false;
+ 
+            s.PathSettings.UserFilesDirectory = Palladium.Utilities.PathUtils.GetUserDirectory();
+            s.PathSettings.UserFilesDirectoryIsRelativePath = false;
+            s.PathSettings.DefaultFileName = "<DATE>_Filename";
+            s.PathSettings.DefaultDirectory = ".." + filesep + "Palladium DAQ - Testing";
+            s.PathSettings.DefaultSequenceDirectory = ".." + filesep + "Palladium DAQ - Testing";
+            s.PathSettings.DataDirectoryIsRelativePath = true;
+            s.PathSettings.SequenceDirectoryIsRelativePath = true;
+            s.PathSettings.DataFileExtension = ".dat";
+            s.PathSettings.SequenceFileExtension = ".seq";
+            s.PathSettings.SaveFile = true;
+            s.PathSettings.FileWriteMode = "Increment File No.";
+            s.PathSettings.DefaultDescription = "";
 
-                s.WindowSettings.DefaultSize = [1000, 700];
-                s.WindowSettings.DefaultPosition = [];  %If empty, window will be centred
-                s.WindowSettings.Maximised = true;
+            s.WindowSettings.DefaultSize = [1200, 900];
+            s.WindowSettings.DefaultPosition = [];  %If empty, window will be centred
+            s.WindowSettings.Maximised = true;
 
-                s.PlotterSettings.Colours = [1 0 0, 0 0 1, 0 0.6 0, 1 0 1];
-                s.PlotterSettings.FontSize = 20;
-                s.PlotterSettings.LineStyles = ["None", "None", "None", "None"];
-                s.PlotterSettings.LineWidth = 1;
-                s.PlotterSettings.MarkerSize = 6;
-                s.PlotterSettings.Markers = ["o"; "o"; "+"; "*"];
-                s.PlotterSettings.ShowLegends = true;
-                % ------------------------------------------------------------
+            s.PlotterSettings.Colours = [1 0 0, 0 0 1, 0 0.6 0, 1 0 1];
+            s.PlotterSettings.FontSize = 20;
+            s.PlotterSettings.LineStyles = ["None", "None", "None", "None"];
+            s.PlotterSettings.LineWidth = 1;
+            s.PlotterSettings.MarkerSize = 6;
+            s.PlotterSettings.Markers = ["o", "o", "+", "*"];
+            s.PlotterSettings.ShowLegends = true;
+            % ------------------------------------------------------------
         end
 
-        %% GetConfigDirPath
-        function dirPath = GetConfigDirPath(this)            
+        function dirPath = GetConfigDirPath(this)
             functionPath = mfilename('fullpath');
             [directoryOfThisFunction, ~, ~] = fileparts(functionPath);
             dirPath = fullfile(directoryOfThisFunction, char(this.ConfigDirectory));
-        end  
+        end
 
-        %% ShowConfigEntryGUI
-        function con = ShowConfigEntryGUI(this, initialConfig)  
+        function con = ShowConfigEntryGUI(this, initialConfig, applicationDir)
             con = initialConfig;
             c = Palladium.Components.ConfigInputWindow();
 
@@ -164,6 +164,8 @@ classdef ConfigIO < handle
                 "DefaultLogFileDirectory", initialConfig.LogSettings.LogFileDirectory,...
                 "DefaultLogFileDirectoryIsRelativePath", initialConfig.LogSettings.LogFileDirectoryIsRelativePath,...
                 "DefaultFileName", initialConfig.PathSettings.DefaultFileName,...
+                "UserFilesDirectory", initialConfig.PathSettings.UserFilesDirectory,...
+                "UserFilesDirectoryIsRelativePath", initialConfig.PathSettings.UserFilesDirectoryIsRelativePath,...
                 "WindowWidth", initialConfig.WindowSettings.DefaultSize(1),...
                 "WindowHeight", initialConfig.WindowSettings.DefaultSize(2),...
                 "WindowStartsMaximised", initialConfig.WindowSettings.Maximised);
@@ -180,6 +182,8 @@ classdef ConfigIO < handle
                 con.PathSettings.DataDirectoryIsRelativePath = s.DataDirectoryIsRelativePath;
                 con.LogSettings.LogFileDirectoryIsRelativePath = s.LogFileDirectoryIsRelativePath;
                 con.PathSettings.DefaultFileName = s.DefaultFileName;
+                con.PathSettings.UserFilesDirectory = s.UserFilesDirectory;
+                con.PathSettings.UserFilesDirectoryIsRelativePath = s.UserFilesDirectoryIsRelativePath;
                 con.WindowSettings.DefaultSize = s.DefaultSize;
                 con.WindowSettings.Maximised = s.WindowStartsMaximised;
 
@@ -187,9 +191,10 @@ classdef ConfigIO < handle
                 %of absolute
                 con.PathSettings.DefaultDirectory = Palladium.Utilities.PathUtils.CleanPath(con.PathSettings.DefaultDirectory);
                 con.LogSettings.LogFileDirectory = Palladium.Utilities.PathUtils.CleanPath(con.LogSettings.LogFileDirectory);
+                con.PathSettings.UserFilesDirectory = Palladium.Utilities.PathUtils.CleanPath(con.PathSettings.UserFilesDirectory);
 
                 if con.PathSettings.DataDirectoryIsRelativePath
-                    [p, success] = Palladium.Utilities.PathUtils.MakeFilePathRelative(con.PathSettings.DefaultDirectory);
+                    [p, success] = Palladium.Utilities.PathUtils.MakeFilePathRelative(con.PathSettings.DefaultDirectory, RefDir=applicationDir);
                     if success
                         con.PathSettings.DefaultDirectory = p;
                     else %Handle case of failing to find a relative path to extract - if the folder given was on a different drive for instance. Path remains absolute, and disable the relative toggle
@@ -198,17 +203,25 @@ classdef ConfigIO < handle
                 end
 
                 if con.LogSettings.LogFileDirectoryIsRelativePath
-                    [p, success] = Palladium.Utilities.PathUtils.MakeFilePathRelative(con.LogSettings.LogFileDirectory);
+                    [p, success] = Palladium.Utilities.PathUtils.MakeFilePathRelative(con.LogSettings.LogFileDirectory, RefDir=applicationDir);
                     if success
                         con.LogSettings.LogFileDirectory = p;
                     else
                         con.LogSettings.LogFileDirectoryIsRelativePath = false;
                     end
                 end
+
+                if con.PathSettings.UserFilesDirectoryIsRelativePath
+                    [p, success] = Palladium.Utilities.PathUtils.MakeFilePathRelative(con.PathSettings.UserFilesDirectory, RefDir=applicationDir);
+                    if success
+                        con.PathSettings.UserFilesDirectory = p;
+                    else %Handle case of failing to find a relative path to extract - if the folder given was on a different drive for instance. Path remains absolute, and disable the relative toggle
+                        con.PathSettings.UserFilesDirectoryIsRelativePath = false;
+                    end
+                end
             end
         end
 
-        %% VerifyConfigStruct
         function [con, changesDetected] = VerifyConfigStruct(this, con)
             changesDetected = false;
 
@@ -233,17 +246,27 @@ classdef ConfigIO < handle
                 cfName = conFlds{i};
 
                 %Clean up this sub-struct
+                % - set any empty values in the fields of this field (con is a struct of structs) to [] (instead of e.g. 1x0 empty
+                % double row vector)
+                subFields = fields(con.(cfName));
+                for j = 1 : length(subFields)
+                    subF = subFields{j};
+                    if isempty(con.(cfName).(subF))
+                        con.(cfName).(subF) = [];
+                    end
+                end
+                % - Check for obseleted or new fields
                 [changesDetected, newStrct] = Palladium.Utilities.ConfigIO.AdjustStructsToMatch(con.(cfName), df.(cfName), changesDetected);
                 con.(cfName) = newStrct;
             end
-            
+
         end
 
     end
 
+    %% Methods (Static, Private)
     methods (Static, Access = private)
 
-        %% AdjustStructsToMatch
         function [changesDetected, configStruct] = AdjustStructsToMatch(configStruct, defaultStructToCompareTo, changesDetectedAlready)
             changesDetected = changesDetectedAlready;
 
@@ -259,7 +282,7 @@ classdef ConfigIO < handle
 
                 for i = 1 : length(difference)
                     fieldToAdd = difference{i};
-                    warning("Adding missing config field " + fieldToAdd);
+                    warning("ConfigVerificationWarning:AddedMissingField", "Adding missing config field " + fieldToAdd);
                     configStruct.(fieldToAdd) = defaultStructToCompareTo.(fieldToAdd);
                 end
             end
@@ -274,7 +297,7 @@ classdef ConfigIO < handle
 
                 for i = 1 : length(difference)
                     fieldToRemove = difference{i};
-                    warning("Removing deprecated config field " + fieldToRemove);
+                    warning("ConfigVerificationWarning:RemovedDeprecatedField", "Removing deprecated config field " + fieldToRemove);
                     configStruct = rmfield(configStruct, fieldToRemove);
                 end
             end
