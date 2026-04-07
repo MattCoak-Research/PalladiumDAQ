@@ -34,6 +34,8 @@ classdef LakeshoreHeaterControl < Palladium.Core.InstrumentControlBase
 
             %Set instrument-model-specific options
             switch(this.Instrument.FullName)
+                case("Lakeshore 331")
+                    comp.SetTempControllerModel("331");
                 case("Lakeshore 340")
                     comp.SetTempControllerModel("340");
                 case("Lakeshore 350")
@@ -85,6 +87,8 @@ classdef LakeshoreHeaterControl < Palladium.Core.InstrumentControlBase
         function UpdateVarNames(this)
             %Set instrument-model-specific options
             switch(this.Instrument.FullName)
+                case("Lakeshore 331")
+                    this.ConfigureForLS331(this.Instrument, this.Plotter);
                 case("Lakeshore 340")
                     this.ConfigureForLS340(this.Instrument, this.Plotter);
                 case("Lakeshore 350")
@@ -103,7 +107,7 @@ classdef LakeshoreHeaterControl < Palladium.Core.InstrumentControlBase
     %% Methods (Private)
     methods (Access = private)
 
-        function ConfigureForLS340(this, instrRef, pltr)
+        function ConfigureForLS331(this, instrRef, pltr) %#ok<INUSD>
             %Set default displayed axes for the plotter
             controlChnl = string(instrRef.ControlChannel);
             switch(controlChnl)
@@ -124,7 +128,28 @@ classdef LakeshoreHeaterControl < Palladium.Core.InstrumentControlBase
             % pltr.SetAxisSide(2, "Right");
         end
 
-        function ConfigureForLS350(this, instrRef, pltr)
+        function ConfigureForLS340(this, instrRef, pltr) %#ok<INUSD>
+            %Set default displayed axes for the plotter
+            controlChnl = string(instrRef.ControlChannel);
+            switch(controlChnl)
+                case("A")
+                    %Commenting for now - these evaluate too early, and
+                    %then the channel name has been changed by the time it
+                    %is time to select the axis on the plotter. Need to
+                    %trigger updates from an event on Name, ChannelName
+                    %change etc...
+                    %pltr.SetDefaultYAxis(1, string(instrRef.Ch_A_Name));
+                case("B")
+                    %pltr.SetDefaultYAxis(1, string(instrRef.Ch_B_Name));
+            end
+
+            %Set 2nd y axis to be the heater power, and set that to the RHS
+            %axis
+            %  pltr.SetDefaultYAxis(2, instrRef.Name + " Heater Power (W)");
+            % pltr.SetAxisSide(2, "Right");
+        end
+
+        function ConfigureForLS350(this, instrRef, pltr) %#ok<INUSD>
             controlChnl = string(instrRef.ControlChannel);
             switch(controlChnl)
                 case("A")
@@ -142,7 +167,7 @@ classdef LakeshoreHeaterControl < Palladium.Core.InstrumentControlBase
             % pltr.SetAxisSide(2, "Right");   %Set 2nd y axis to be the heater power, and set that to the RHS axis
         end
 
-        function ConfigureForLS370(this, instrRef, pltr)   %LS372 treated as the same as 370
+        function ConfigureForLS370(this, instrRef, pltr)   %#ok<INUSD> %LS372 treated as the same as 370
             %Set default displayed axes for the plotter
             %  pltr.SetDefaultYAxis(1, instrRef.Ch_Name);
 
