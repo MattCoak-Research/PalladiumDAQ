@@ -2,9 +2,14 @@ classdef ConfigIO < handle
     %ConfigIO - Class to handling reading and writing of local Config
     %settings to and from (XML) files.
 
+    %% Properties (Constant, Public)
+    properties(Constant, Access = public)
+        ConfigDirectoryName = "Palladium DAQ - Settings";
+    end
+
     %% Properties (Public)
     properties(Access = public)
-        ConfigDirectory = filesep + ".." + filesep + ".." + filesep + "Palladium DAQ - Settings" + filesep;
+        ConfigDirectory = fullfile("..", "..", Palladium.Utilities.ConfigIO.ConfigDirectoryName);
         PromptForGUIEntryOfSettings = true;
     end
 
@@ -152,6 +157,7 @@ classdef ConfigIO < handle
             functionPath = mfilename('fullpath');
             [directoryOfThisFunction, ~, ~] = fileparts(functionPath);
             dirPath = fullfile(directoryOfThisFunction, char(this.ConfigDirectory));
+            dirPath = Palladium.Utilities.PathUtils.CleanPath(dirPath);
         end
 
         function con = ShowConfigEntryGUI(this, initialConfig, applicationDir)
