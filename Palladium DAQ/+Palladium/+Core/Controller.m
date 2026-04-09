@@ -6,6 +6,7 @@ classdef Controller < handle
         UserFolderName = "Palladium DAQ - User Files";
         UserInstrumentFolderName = "+PalladiumInstruments";
         UserPresetFolderName = "+PalladiumPresets";
+        UserInstrumentDriversFolderName = "Instrument Drivers"; %Instrument drivers could actually be anywhere, as long as they are on the path. This folder will get temporarily added to the path on programme start though, so saving the user that headache if they put them in here
     end
 
     %% Properties (Public)
@@ -36,6 +37,7 @@ classdef Controller < handle
         %File paths
         UserInstrumentsDir;
         UserPresetsDir;
+        UserInstrumentDriversDir;
     end
 
     %% Properties (Private)
@@ -766,9 +768,17 @@ classdef Controller < handle
                 this.Log("Info", "User directory at " + string(this.UserPresetsDir) + " not found - creating new empty directory", "Green", "Creating User Directories");
             end
 
+            %Set up the Instrument Drivers directory
+            this.UserInstrumentDriversDir = fullfile(pathToDir, this.UserFolderName, this.UserInstrumentDriversFolderName);
+            newDirCreated = Palladium.Utilities.PathUtils.EnsureDirectoryExists(this.UserInstrumentDriversDir);
+            if newDirCreated
+                this.Log("Info", "User directory at " + string(this.UserInstrumentDriversDir) + " not found - creating new empty directory", "Green", "Creating User Directories");
+            end
+
 
             %Add the User Dir to the MATLAB path
             addpath(userDirPath);
+            addpath(genpath(this.UserInstrumentDriversDir));    %Includes subfolders
         end
 
         function [logSettings, pathSettings, windowSettings, plotterSettings] = LoadSettings(this, Settings)
