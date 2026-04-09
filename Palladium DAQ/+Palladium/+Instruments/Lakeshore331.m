@@ -301,8 +301,9 @@ classdef Lakeshore331 < Palladium.Core.Instrument
             %Set a heater setpoint on specified channel
             %Get the selected channel, as a string '0' to '4', from the
             %enum value
+            loop = this.GetChannelIndexString(this.ControlChannel); %Specifies which loop to query: 1 or 2.
 
-            this.WriteCommand("SETP " + num2str(setPt));
+            this.WriteCommand("SETP " + loop + ", " + num2str(setPt));
         end
 
         function SetManualOutputPercent(this, percentage)
