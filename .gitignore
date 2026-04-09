@@ -36,3 +36,6 @@ palladium_push.bat
 deploymentLog.html
 derived/*
 resources/*
+
+#Python cache files
+*.pyc
