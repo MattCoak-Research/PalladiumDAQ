@@ -31,3 +31,8 @@ Palladium DAQ/Instrument Drivers/Quantum Design/
 
 # Batch script
 palladium_push.bat
+
+#Project and toolbox automatic files
+deploymentLog.html
+derived/*
+resources/*

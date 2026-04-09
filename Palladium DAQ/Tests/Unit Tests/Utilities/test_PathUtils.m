@@ -239,6 +239,32 @@ classdef test_PathUtils < matlab.unittest.TestCase
             testCase.verifyEqual(actualSuccessfullyMadeRelative, expectedSuccessfullyMadeRelative);
         end
 
+        function test_MakeFilePathRelative_CheckFolderHeirachy(testCase)
+            %This test added because the Utilities folder heirachy being
+            %changed did lead to a bug - the default setting for
+            %MakePathRelative uses the Palladium root dir as the reference,
+            %and the path to that is hardcoded into the function. If the
+            %folder structure is changed but this function not updated, it
+            %breaks things.
+            path = fullfile(testCase.ApplicationDir, testCase.TestDir2);
+            palladiumRootFileLoc = Palladium.Utilities.PathUtils.CleanPath(fullfile(testCase.ApplicationDir, "..", "..", "..", "Palladium.m"));
+            palladiumRootDir = fileparts(palladiumRootFileLoc);
+            refDir = palladiumRootDir;
+
+            %Check we have that directory right - the Palladium.m file
+            %should be in there
+            testCase.verifyEqual(exist(palladiumRootFileLoc, "File"), 2);
+
+            %These should be the same - refDir should match the built-in
+            %default
+            [actualNewPathWithRefDir, actualSuccessfullyMadeRelativeWithRefDir] = Palladium.Utilities.PathUtils.MakeFilePathRelative(path, RefDir=refDir);
+            [actualNewPathWithNoRefDir, actualSuccessfullyMadeRelativeWithNoRefDir] = Palladium.Utilities.PathUtils.MakeFilePathRelative(path);
+
+            testCase.verifyTrue(actualSuccessfullyMadeRelativeWithRefDir);
+            testCase.verifyTrue(actualSuccessfullyMadeRelativeWithNoRefDir);
+            testCase.verifyEqual(actualNewPathWithRefDir, actualNewPathWithNoRefDir);
+        end
+
         %% ReplaceDateTag
         function test_ReplaceDateTag(testCase)
             %Can't really write any exact test here that isn't just.. the

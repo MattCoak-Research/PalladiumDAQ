@@ -43,6 +43,10 @@ classdef TimingLoopController < handle
             %Create a Timer object that will schedule all the
             %measurement loop calls
             this.Timer = timer('TimerFcn', @this.Update, 'ExecutionMode', 'fixedRate', 'Period', 0.1, 'ObjectVisibility','off');
+           
+            %Cause an update/refresh of the GUI so it matches the
+            %TargetUpdateTime property
+            this.SetUpdateTime(this.TargetUpdateTime);
         end
 
         function OnPaused(this)

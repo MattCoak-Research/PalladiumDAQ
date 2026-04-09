@@ -50,6 +50,30 @@ classdef test_ConfigIO < matlab.unittest.TestCase
     %% Tests
     methods (Test)
 
+        %% General Tests
+        function test_RelativePath(testCase)
+            configPath = testCase.ConfigIOInstance.GetConfigDirPath();
+            configRelPath = testCase.ConfigIOInstance.ConfigDirectory;  %The path from the ConfigIO class file to the main Palladium directory, where Palladium.m sits
+            palladiumRootDir = Palladium.Utilities.PathUtils.CleanPath(fullfile(testCase.ApplicationDir, "..", "..", ".."));
+            
+            %Check that we are indeed in the right directory, that
+            %Palladium.m is there, and we haven't moved a load of files
+            %around or changed the folder heirachy
+            testCase.verifyEqual(exist(fullfile(palladiumRootDir, "Palladium.m"), "File"), 2);
+
+            %And check that ConfigIO.m is where we expect it (it has hard
+            %coded relative paths in it so it had better be)
+            configIOFileLocation = fullfile(palladiumRootDir, "+Palladium", "+Utilities");
+            testCase.verifyEqual(exist(fullfile(configIOFileLocation, "ConfigIO.m"), "File"), 2);
+
+            %And check the config path matches when grabbed in various ways
+            otherConfigPath = fullfile(configIOFileLocation, configRelPath);
+            otherConfigPath = Palladium.Utilities.PathUtils.CleanPath(otherConfigPath);
+            configPathFromRoot = Palladium.Utilities.PathUtils.CleanPath(fullfile(palladiumRootDir, Palladium.Utilities.ConfigIO.ConfigDirectoryName));
+            testCase.verifyEqual(configPath, otherConfigPath);
+            testCase.verifyEqual(configPath, configPathFromRoot);
+        end
+
         %% LoadConfig
         function test_LoadConfig_WithDefaultPath(testCase)
             % Test loading config with default path
