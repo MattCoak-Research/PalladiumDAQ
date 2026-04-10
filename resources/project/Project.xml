@@ -209,6 +209,9 @@
                             </Category>
                         </Info>
                     </File>
+                    <File Location="InstrumentController.asv">
+                        <Info/>
+                    </File>
                 </File>
                 <File Location="+DataWriting">
                     <Info/>
@@ -765,6 +768,9 @@
                             </Category>
                         </Info>
                     </File>
+                    <File Location="PluginLoading.asv">
+                        <Info/>
+                    </File>
                 </File>
                 <File Location="+Views">
                     <Info/>
@@ -895,6 +901,9 @@
                                         </Category>
                                     </Info>
                                 </File>
+                                <File Location="SomeDataFileInTheWrongPlace.dat">
+                                    <Info/>
+                                </File>
                             </File>
                             <File Location="+EmptyTestNamespace">
                                 <Info/>
@@ -981,6 +990,27 @@
                                 <Info/>
                             </DIR_SIGNIFIER>
                             <File Location=".gitkeep">
+                                <Info/>
+                            </File>
+                        </File>
+                        <File Location="Python Testing">
+                            <Info/>
+                            <DIR_SIGNIFIER Location="1">
+                                <Info/>
+                            </DIR_SIGNIFIER>
+                            <File Location="__pycache__">
+                                <Info/>
+                                <DIR_SIGNIFIER Location="1">
+                                    <Info/>
+                                </DIR_SIGNIFIER>
+                                <File Location="pythontest.cpython-311.pyc">
+                                    <Info/>
+                                </File>
+                                <File Location="pythontest.cpython-314.pyc">
+                                    <Info/>
+                                </File>
+                            </File>
+                            <File Location="pythontest.py">
                                 <Info/>
                             </File>
                         </File>
@@ -1111,11 +1141,77 @@
                                 </Info>
                             </File>
                         </File>
+                        <File Location="Instrument Drivers">
+                            <Info/>
+                            <DIR_SIGNIFIER Location="1">
+                                <Info/>
+                            </DIR_SIGNIFIER>
+                        </File>
                     </File>
+                </File>
+                <File Location="TestingConfig.json">
+                    <Info/>
                 </File>
             </File>
             <File Location="toolbox.ignore">
                 <Info/>
+            </File>
+            <File Location="Palladium DAQ - Settings">
+                <Info/>
+                <DIR_SIGNIFIER Location="1">
+                    <Info/>
+                </DIR_SIGNIFIER>
+                <File Location="Config.json">
+                    <Info/>
+                </File>
+            </File>
+            <File Location="Release">
+                <Info/>
+                <DIR_SIGNIFIER Location="1">
+                    <Info/>
+                </DIR_SIGNIFIER>
+                <File Location="PalladiumDAQ.mltbx">
+                    <Info/>
+                </File>
+                <File Location="deploymentLog.html">
+                    <Info>
+                        <Category UUID="FileClassCategory">
+                            <Label UUID="artifact"/>
+                        </Category>
+                    </Info>
+                </File>
+            </File>
+            <File Location="Instrument Drivers">
+                <Info/>
+                <DIR_SIGNIFIER Location="1">
+                    <Info/>
+                </DIR_SIGNIFIER>
+                <File Location="Quantum Design">
+                    <Info/>
+                    <DIR_SIGNIFIER Location="1">
+                        <Info/>
+                    </DIR_SIGNIFIER>
+                    <File Location="PPMS Communication">
+                        <Info/>
+                        <DIR_SIGNIFIER Location="1">
+                            <Info/>
+                        </DIR_SIGNIFIER>
+                        <File Location="QDInstrument.dll">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="derived"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="QDInterface.dll">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="derived"/>
+                                </Category>
+                            </Info>
+                        </File>
+                    </File>
+                </File>
             </File>
         </File>
         <File Location="README.md">
