@@ -35,6 +35,7 @@ classdef InstrumentController < handle
         DataRowCollected;
         DefaultEnabledInstrumentControlAdd;
         InstrumentAdded;
+        InstrumentsChanged;
         InstrumentListPopulated;
         InstrumentRemoved;
     end
@@ -148,6 +149,8 @@ classdef InstrumentController < handle
                 args = Palladium.Events.InstrumentAddedEventData(instrStringToAdd, instRef);
                 notify(this, "InstrumentAdded", args);
 
+                args = Palladium.Events.InstrumentsChangedEventData(this.SelectedInstruments);
+                notify(this, "InstrumentsChanged", args);
 
                 %Verbose/debug message printing
                 this.Controller.Log("Info", "Added Instrument: " + instrStringToAdd, "Green", "Added Instrument");
@@ -299,6 +302,36 @@ classdef InstrumentController < handle
             end
         end
 
+        function instRef = GetInstrumentFromName(this, instName)
+            arguments
+                this;
+                instName {mustBeTextScalar};
+            end
+
+            instRef = []; %#ok<NASGU>
+
+            for i = 1 : length(this.SelectedInstruments)
+                if this.SelectedInstruments{i}.Name == instName
+                    instRef = this.SelectedInstruments{i};                    
+                    return;
+                end
+            end
+
+            %If we got here, none of the instruments matched
+            instStringNameList = "";
+            for i = 1 : length(this.SelectedInstruments)
+                instStringNameList = instStringNameList + this.SelectedInstruments{i}.Name;
+                if i ~= length(this.SelectedInstruments)
+                    instStringNameList = instStringNameList + ", ";
+                end
+            end
+            if instStringNameList == ""
+                instStringNameList = "-NONE-";
+            end
+
+            error("GetInstrumentFromNameError:NotFound", "Could not find instrument of Name " + instName + ". Added Instruments: " + instStringNameList);
+        end
+
         function instRefs = GetInstruments(this)
             instRefs = this.SelectedInstruments;
         end
@@ -416,6 +449,7 @@ classdef InstrumentController < handle
             args = Palladium.Events.ValueChangedEventData(instrumentRef);
             notify(this, "InstrumentRemoved", args);
 
+
             %Remove it from the list held here
             for i = 1 : length(this.SelectedInstruments)
                 if strcmp(this.SelectedInstruments{i}.Name, instrumentRef.Name)
@@ -425,6 +459,10 @@ classdef InstrumentController < handle
                 end
             end
 
+            %Throw an InstrumentsChanged event, to update other things that
+            %rely on this list
+            args = Palladium.Events.InstrumentsChangedEventData(this.SelectedInstruments);
+            notify(this, "InstrumentsChanged", args);
 
             %Remove the instrument class reference from memory
             delete(instrumentRef);

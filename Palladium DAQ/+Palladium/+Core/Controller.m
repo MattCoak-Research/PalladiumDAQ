@@ -6,6 +6,7 @@ classdef Controller < handle
         UserFolderName = "Palladium DAQ - User Files";
         UserInstrumentFolderName = "+PalladiumInstruments";
         UserPresetFolderName = "+PalladiumPresets";
+        UserInstrumentDriversFolderName = "Instrument Drivers"; %Instrument drivers could actually be anywhere, as long as they are on the path. This folder will get temporarily added to the path on programme start though, so saving the user that headache if they put them in here
     end
 
     %% Properties (Public)
@@ -31,11 +32,13 @@ classdef Controller < handle
         %Sub-controllers
         TimingLoopController;
         InstrumentController;
+        CommandController;
         DataWriter;
 
         %File paths
         UserInstrumentsDir;
         UserPresetsDir;
+        UserInstrumentDriversDir;
     end
 
     %% Properties (Private)
@@ -76,6 +79,8 @@ classdef Controller < handle
                 Settings.DebugMode (1,1) logical = false;
             end
 
+            this.DebugMode = Settings.DebugMode;
+
             this.ApplicationDir = Settings.ApplicationDir;
             this.ApplicationPath = Settings.ApplicationPath;
 
@@ -88,6 +93,16 @@ classdef Controller < handle
 
             %And one for handling all things Plotting
             this.PlottingController = Palladium.Core.PlottingController();
+
+            %And a controller for handling sending arbitray instrument
+            %commands and sequences
+            this.CommandController = Palladium.Core.CommandController(DebugMode = this.DebugMode);
+
+            %Create a SequenceViewerController
+            this.SequenceEditorController = Palladium.Sequence.SequenceEditorController(this);
+
+            %Hook up events
+            addlistener(this.InstrumentController, "InstrumentsChanged", @(s,e)this.SequenceEditorController.InstrumentsChanged(e));      
         end
     end
 
@@ -171,6 +186,10 @@ classdef Controller < handle
             end
         end
 
+        function CacheCommand(this, instrument, command)
+            this.CommandController.CacheCommand(instrument, command);
+        end
+
         function canStart = CanStart(this)
             canStart = false;
             try
@@ -195,6 +214,16 @@ classdef Controller < handle
 
         function classNames = GetAllInstrumentClassNames(this)
             classNames = this.InstrumentController.ListOfAvailableInstrumentClassNameStrings;
+        end
+
+        function instRef = GetInstrumentFromName(this, instName)
+            arguments
+                this;
+                instName {mustBeTextScalar};
+            end
+
+            %Pass through to InstrumentController
+            instRef = this.InstrumentController.GetInstrumentFromName(instName);
         end
 
         function HaltMeasurementsOnInstrumentError(this, instr, e)
@@ -338,6 +367,17 @@ classdef Controller < handle
                     fullfile(this.ApplicationDir, "+PalladiumPresets"), this.UserPresetsDir,...
                     Overwrite=false);
 
+                %Copy Instrument Drivers class files into User Instrument
+                %Drivers folder if they don't yet exist. At the moment this
+                %is just the QDInterface dll which almost certainly needs
+                %to sit in a folder alongside the QDInstrument dll file
+                %that the user will have to install themselves.
+                classesToCopy = "QDInterface.dll";
+                Palladium.Utilities.PathUtils.CopyFiles(classesToCopy,...
+                    fullfile(this.ApplicationDir, "Instrument Drivers", "Quantum Design", "PPMS Communication"),...
+                    fullfile(this.UserInstrumentDriversDir, "Quantum Design", "PPMS Communication"),...
+                    Overwrite=false);
+
                 %Retrieve iconPath to pass to a GUI
                 this.WindowSettings.PalladiumIconPath = fullfile(this.ApplicationDir, "+Palladium", "+Components", "Graphics", "PalladiumDAQIcon.png");
 
@@ -352,6 +392,11 @@ classdef Controller < handle
 
                 %Initialise TimingLoopController
                 this.TimingLoopController.Initialise();
+
+                %Send paths and settings to the Sequence Controller
+                this.SequenceEditorController.Initialise(...
+                    "DefaultSequenceDirectory", this.PathSettings.DefaultSequenceDirectory,...
+                    "SequenceFileExtension", this.PathSettings.SequenceFileExtension);
 
                 %Display a status message in the logger
                 this.Log("Info", "Ready", "Green", "Ready");
@@ -407,6 +452,10 @@ classdef Controller < handle
                 this.PlottingController.UpdatePlotVariableNames(this.Headers);
                 this.PlottingController.ClearPlots();
 
+                %Refresh the Sequence Controller, as instrument names etc
+                %may have changed
+                this.SequenceEditorController.RefreshInstrumentNames();
+
                 %Display a status message in the logger
                 this.Log("Info", "Measurements initialised", "Green", "Measurements initialised");
             catch e
@@ -456,6 +505,17 @@ classdef Controller < handle
             %This is the core function that gets called by
             %TimingLoopController's Update call every tick, to actually
             %grab data from Instruments and do things with it.
+
+            try
+                %Execute any sequence/instrument commands
+                commandsToExecute = this.CommandController.PullCachedCommand();
+                for i = 1 :length(commandsToExecute)
+                    this.CommandController.ExecuteCommand(commandsToExecute(i));
+                end
+            catch e
+                CatchMeasurementLoopError(this, e);
+            end
+
             try
                 %Collect Data
                 this.ShowStatus("Green", "Running");
@@ -550,14 +610,10 @@ classdef Controller < handle
 
         function OpenSequenceEditor(this)
             try
-                %Create a SequenceViewerController
-                this.SequenceEditorController = Palladium.Sequence.SequenceEditorController(...
-                    this,...
-                    "DefaultSequenceDirectory", this.PathSettings.DefaultSequenceDirectory,...
-                    "SequenceFileExtension", this.PathSettings.SequenceFileExtension);
-
-                %Add a View/GUI to that
-                this.SequenceEditorController.CreateView("SequenceEditor_DefaultGUI", this.ApplicationDir);
+                %Add a View/GUI to the sequence editor (which is secretly
+                %already there)
+                this.SequenceEditorController.CreateView("SequenceEditor_DefaultGUI", this.ApplicationDir,...
+                    "IconPath", this.WindowSettings.PalladiumIconPath);
 
             catch err
                 this.HandleError("Error opening Sequence Viewer", err);
@@ -766,9 +822,21 @@ classdef Controller < handle
                 this.Log("Info", "User directory at " + string(this.UserPresetsDir) + " not found - creating new empty directory", "Green", "Creating User Directories");
             end
 
+            %Set up the Instrument Drivers directory
+            this.UserInstrumentDriversDir = fullfile(pathToDir, this.UserFolderName, this.UserInstrumentDriversFolderName);
+            newDirCreated = Palladium.Utilities.PathUtils.EnsureDirectoryExists(this.UserInstrumentDriversDir);
+            if newDirCreated
+                this.Log("Info", "User directory at " + string(this.UserInstrumentDriversDir) + " not found - creating new empty directory", "Green", "Creating User Directories");
+            end
+            %And set up a Quantum Design/PPMS Communication folder inside
+            %there, which will get the provided QDInterface.dll copied into
+            %it
+            Palladium.Utilities.PathUtils.EnsureDirectoryExists(fullfile(this.UserInstrumentDriversDir, "Quantum Design", "PPMS Communication"));
+
 
             %Add the User Dir to the MATLAB path
             addpath(userDirPath);
+            addpath(genpath(this.UserInstrumentDriversDir));    %Includes subfolders
         end
 
         function [logSettings, pathSettings, windowSettings, plotterSettings] = LoadSettings(this, Settings)

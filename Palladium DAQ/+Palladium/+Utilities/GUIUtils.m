@@ -17,7 +17,7 @@ classdef GUIUtils
 
             % If we're exposing subclass properties this is trivial.
             if exposeSubClassProperties
-                propertyList = string.empty(0);
+                propertyList = strings(0);
                 metaClass = metaclass(instrument);
 
                 for i=1:length(metaClass.PropertyList)
@@ -38,7 +38,7 @@ classdef GUIUtils
                 % class, and not its subclasses, it's more complicated. We
                 % can use the metaclass, but be wary of exposing private or
                 % hidden properties.
-                propertyList = string.empty(0);
+                propertyList = strings(0);
                 metaClass = metaclass(instrument);
 
                 for i=1:length(metaClass.PropertyList)

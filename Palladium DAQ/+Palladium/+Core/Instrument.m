@@ -229,6 +229,14 @@ classdef(Abstract) Instrument < handle
             this.OnInitialised();
         end      
 
+        function PrintIdentifier(this)
+            %PRINTIDENTIFIER - just prints some information about this
+            %instrument to the command window. Basically for
+            %debugging/verification purposes
+            str = "Palladium Instrument " + this.FullName;
+            disp(str);
+        end
+
         function SetNewSweepStepValue(this, value) %#ok<INUSD>
             warning("An override method for SetNewSweepStepValue has not been defined for this Instrument. A SweepController_Stepped is probably trying to tell this Instrument to go to the next step in its sweep but the Instrument doesn't have a function written to tell it how. Look at the Keithley2000 class for an example");
         end
