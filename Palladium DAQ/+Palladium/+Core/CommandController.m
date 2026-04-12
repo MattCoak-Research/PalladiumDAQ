@@ -121,12 +121,15 @@ classdef CommandController < handle
             str = "@" + "(" + inputValuesStr + ")" + cmd;
 
             if this.DebugMode
+                disp(" ");
                 disp("Function to Execute:");
                 disp(str);
                 disp(" ");
-                disp("With arguments:");
-                disp(args);
-                disp(" ");
+                if ~isempty(args)
+                    disp("With arguments:");
+                    disp(args);
+                    disp(" ");
+                end
             end
             fnHandle = str2func(str);
         end

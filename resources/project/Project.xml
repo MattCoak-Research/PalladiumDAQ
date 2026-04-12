@@ -342,6 +342,13 @@
                             </Category>
                         </Info>
                     </File>
+                    <File Location="CommandEventData.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
                 </File>
                 <File Location="+Instruments">
                     <Info/>
