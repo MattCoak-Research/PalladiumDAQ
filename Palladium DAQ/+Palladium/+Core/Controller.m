@@ -32,6 +32,7 @@ classdef Controller < handle
         %Sub-controllers
         TimingLoopController;
         InstrumentController;
+        CommandController;
         DataWriter;
 
         %File paths
@@ -77,6 +78,8 @@ classdef Controller < handle
                 Settings.ApplicationPath {mustBeTextScalar};
                 Settings.DebugMode (1,1) logical = false;
             end
+            
+            this.DebugMode = Settings.DebugMode;
 
             this.ApplicationDir = Settings.ApplicationDir;
             this.ApplicationPath = Settings.ApplicationPath;
@@ -90,6 +93,10 @@ classdef Controller < handle
 
             %And one for handling all things Plotting
             this.PlottingController = Palladium.Core.PlottingController();
+
+            %And a controller for handling sending arbitray instrument
+            %commands and sequences
+            this.CommandController = Palladium.Core.CommandController(DebugMode = this.DebugMode);
         end
     end
 
@@ -173,6 +180,10 @@ classdef Controller < handle
             end
         end
 
+        function CacheCommand(this, instrument, command)
+            this.CommandController.CacheCommand(instrument, command);
+        end
+
         function canStart = CanStart(this)
             canStart = false;
             try
@@ -197,6 +208,16 @@ classdef Controller < handle
 
         function classNames = GetAllInstrumentClassNames(this)
             classNames = this.InstrumentController.ListOfAvailableInstrumentClassNameStrings;
+        end
+
+        function instRef = GetInstrumentFromName(this, instName)
+            arguments
+                this;
+                instName {mustBeTextScalar};
+            end
+
+            %Pass through to InstrumentController
+            instRef = this.InstrumentController.GetInstrumentFromName(instName);
         end
 
         function HaltMeasurementsOnInstrumentError(this, instr, e)
@@ -469,6 +490,17 @@ classdef Controller < handle
             %This is the core function that gets called by
             %TimingLoopController's Update call every tick, to actually
             %grab data from Instruments and do things with it.
+
+            try
+                %Execute any sequence/instrument commands
+                commandsToExecute = this.CommandController.PullCachedCommand();
+                for i = 1 :length(commandsToExecute)
+                    this.CommandController.ExecuteCommand(commandsToExecute(i));
+                end
+            catch e
+                CatchMeasurementLoopError(this, e);
+            end
+
             try
                 %Collect Data
                 this.ShowStatus("Green", "Running");

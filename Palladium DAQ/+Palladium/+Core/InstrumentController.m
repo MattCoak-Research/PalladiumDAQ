@@ -299,6 +299,36 @@ classdef InstrumentController < handle
             end
         end
 
+        function instRef = GetInstrumentFromName(this, instName)
+            arguments
+                this;
+                instName {mustBeTextScalar};
+            end
+
+            instRef = []; %#ok<NASGU>
+
+            for i = 1 : length(this.SelectedInstruments)
+                if this.SelectedInstruments{i}.Name == instName
+                    instRef = this.SelectedInstruments{i};                    
+                    return;
+                end
+            end
+
+            %If we got here, none of the instruments matched
+            instStringNameList = "";
+            for i = 1 : length(this.SelectedInstruments)
+                instStringNameList = instStringNameList + this.SelectedInstruments{i}.Name;
+                if i ~= length(this.SelectedInstruments)
+                    instStringNameList = instStringNameList + ", ";
+                end
+            end
+            if instStringNameList == ""
+                instStringNameList = "-NONE-";
+            end
+
+            error("GetInstrumentFromNameError:NotFound", "Could not find instrument of Name " + instName + ". Added Instruments: " + instStringNameList);
+        end
+
         function instRefs = GetInstruments(this)
             instRefs = this.SelectedInstruments;
         end
