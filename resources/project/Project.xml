@@ -335,6 +335,13 @@
                             </Category>
                         </Info>
                     </File>
+                    <File Location="InstrumentsChangedEventData.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
                 </File>
                 <File Location="+Instruments">
                     <Info/>
