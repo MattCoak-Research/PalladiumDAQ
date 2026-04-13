@@ -37,3 +37,9 @@
 % Local MATLAB/Simulink tool caches
 **/slprj
 **/.buildtool/
+
+% Config file
+**/Config.json
+
+%Tests folder
+Tests/**
