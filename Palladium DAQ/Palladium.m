@@ -27,7 +27,7 @@ classdef Palladium < handle
 
         %Minor version number - semantic versioning used of form
         %major.minor.build, each of these are integers.
-        MinorVersionNo = 2;
+        MinorVersionNo = 4;
 
         %Build version number - semantic versioning used of form
         %major.minor.build, each of these are integers.
@@ -266,6 +266,28 @@ classdef Palladium < handle
             cont = this.View.AddInstrumentControl(instrRef, controlDetailsStruct);
         end
 
+        function CacheCommand(this, instrument, command)
+          % CACHECOMMAND - Store a command for later execution (on the next
+          % measurement tick) on an instrument. We can't just execute a
+          % command immediatedly because there might be calls to hardware
+          % already running right now, and we can't interrupt them.
+          %
+          % Input arguments:
+          % instrument - Palladium.Core.Instrument instance to target
+          % command    - text scalar command to cache
+          %
+          %Call like: pd.CacheCommand(k, "SetSourceLevel(2,false)");
+          %where k is a reference to a Keithley2000 Instrument
+            
+            arguments
+                this;
+                instrument (1,1) Palladium.Core.Instrument;
+                command {mustBeTextScalar};
+            end
+
+            this.Controller.CacheCommand(instrument, command);
+        end
+
         function Close(this)
             % CLOSE - Close the programme. Deletes View and Controller.
 
@@ -286,6 +308,16 @@ classdef Palladium < handle
             %of all available Instrument class names - all the files in the
             %built-in and user Instrument folders.
             classNames = this.Controller.GetAllInstrumentClassNames();
+        end
+
+        function instRef = GetInstrumentFromName(this, instName)
+            arguments
+                this;
+                instName {mustBeTextScalar};
+            end
+
+            %Pass through to InstrumentController
+            instRef = this.Controller.GetInstrumentFromName(instName);
         end
 
         function Pause(this)

@@ -38,7 +38,7 @@ classdef ConfigIO < handle
                 %Load the default path if no override given
                 if isempty(Settings.ConfigFilePath)
                     confDir = this.GetConfigDirPath();
-                    configPath = confDir + "Config.json";
+                    configPath = fullfile(confDir,"Config.json");
                 else
                     configPath = Settings.ConfigFilePath;
                 end

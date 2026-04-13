@@ -9,7 +9,8 @@ classdef DataReader < handle
 
     %% Methods (Public)
     methods (Access = public)
-        function [headerMetadataLines, dataColNames, dataArray] = ReadFile(~, filePath)
+
+        function [headerMetadataLines, headers, dataArray] = ReadFile(this, filePath)
             % READFILE - Read and parse a delimited data file into components
             %
             % Input arguments:
@@ -24,6 +25,30 @@ classdef DataReader < handle
             % dataColNames        - cell array of column names from header
             % dataArray           - numeric or cell array of parsed data
 
+            % Open the text file and read the headers
+            [headers, headerMetadataLines, numTotalHeaderLines] = this.ReadHeadersFromFile(filePath);
+
+            %Now read the data, which should be the rest of the file
+            dataArray = Palladium.DataWriting.DataReader.ReadDataArray(filePath, numTotalHeaderLines);
+        end
+
+        function [headers, headerMetadataLines, numTotalHeaderLines] = ReadHeadersFromFile(~, filePath)
+            % READHEADERSFROMFILE - Read just the headers line from a file,
+            % not the data (for speed). Scans down a standard Palladium
+            % file until it finds the end of the initial metadata and the
+            % start of the headers. Splits and returns that line
+            %
+            % Input arguments:
+            % ~        - unused object handle (method of a class) - this
+            % whole class could right now be made static, but leaving it as a
+            % shell with no actual properties for now, as data loading might
+            % require more functionality in the future.
+            % filePath - path to the input data file (string)
+            %
+            % Output arguments:
+            % headerMetadataLines - cell array of header/metadata lines
+            % dataColNames        - cell array of column names from header
+           
             % Open the text file.
             fileID = fopen(filePath, 'r');
             if fileID == -1
@@ -34,22 +59,19 @@ classdef DataReader < handle
             %where to read the Headers Row)
             endOfMetadataTextLine = "<<< END METADATA LINES >>>";
             [numMetadataLines, headerMetadataLines] = Palladium.DataWriting.DataReader.ScanFileForMetadataRows(fileID, endOfMetadataTextLine);
+            numTotalHeaderLines = numMetadataLines + 2;
 
             %Read one line - there is a space between metadata and
             %headers
             fgetl(fileID);
 
             %Read the Headers
-            [dataColNames] = Palladium.DataWriting.DataReader.ReadHeadersLine(fileID);
+            [headers] = Palladium.DataWriting.DataReader.ReadHeadersLine(fileID);
 
             % Close the text file.
             fclose(fileID);
-
-            %Now read the data, which should be the rest of the file
-            numTotalHeaderLines = numMetadataLines + 2;
-            dataArray = Palladium.DataWriting.DataReader.ReadDataArray(filePath, numTotalHeaderLines);
-
         end
+
     end
 
     %% Methods (Static)

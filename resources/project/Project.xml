@@ -209,6 +209,16 @@
                             </Category>
                         </Info>
                     </File>
+                    <File Location="InstrumentController.asv">
+                        <Info/>
+                    </File>
+                    <File Location="CommandController.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
                 </File>
                 <File Location="+DataWriting">
                     <Info/>
@@ -319,6 +329,20 @@
                         </Info>
                     </File>
                     <File Location="ValueChangedEventData.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
+                    <File Location="InstrumentsChangedEventData.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
+                    <File Location="CommandEventData.m">
                         <Info>
                             <Category UUID="FileClassCategory">
                                 <Label UUID="design"/>
@@ -765,6 +789,9 @@
                             </Category>
                         </Info>
                     </File>
+                    <File Location="PluginLoading.asv">
+                        <Info/>
+                    </File>
                 </File>
                 <File Location="+Views">
                     <Info/>
@@ -799,15 +826,6 @@
                         <Label UUID="design"/>
                     </Category>
                 </Info>
-            </File>
-            <File Location="Instrument Drivers">
-                <Info/>
-                <DIR_SIGNIFIER Location="1">
-                    <Info/>
-                </DIR_SIGNIFIER>
-                <File Location=".gitkeep">
-                    <Info/>
-                </File>
             </File>
             <File Location="Palladium.m">
                 <Info>
@@ -904,6 +922,9 @@
                                         </Category>
                                     </Info>
                                 </File>
+                                <File Location="SomeDataFileInTheWrongPlace.dat">
+                                    <Info/>
+                                </File>
                             </File>
                             <File Location="+EmptyTestNamespace">
                                 <Info/>
@@ -990,6 +1011,27 @@
                                 <Info/>
                             </DIR_SIGNIFIER>
                             <File Location=".gitkeep">
+                                <Info/>
+                            </File>
+                        </File>
+                        <File Location="Python Testing">
+                            <Info/>
+                            <DIR_SIGNIFIER Location="1">
+                                <Info/>
+                            </DIR_SIGNIFIER>
+                            <File Location="__pycache__">
+                                <Info/>
+                                <DIR_SIGNIFIER Location="1">
+                                    <Info/>
+                                </DIR_SIGNIFIER>
+                                <File Location="pythontest.cpython-311.pyc">
+                                    <Info/>
+                                </File>
+                                <File Location="pythontest.cpython-314.pyc">
+                                    <Info/>
+                                </File>
+                            </File>
+                            <File Location="pythontest.py">
                                 <Info/>
                             </File>
                         </File>
@@ -1120,11 +1162,77 @@
                                 </Info>
                             </File>
                         </File>
+                        <File Location="Instrument Drivers">
+                            <Info/>
+                            <DIR_SIGNIFIER Location="1">
+                                <Info/>
+                            </DIR_SIGNIFIER>
+                        </File>
                     </File>
+                </File>
+                <File Location="TestingConfig.json">
+                    <Info/>
                 </File>
             </File>
             <File Location="toolbox.ignore">
                 <Info/>
+            </File>
+            <File Location="Palladium DAQ - Settings">
+                <Info/>
+                <DIR_SIGNIFIER Location="1">
+                    <Info/>
+                </DIR_SIGNIFIER>
+                <File Location="Config.json">
+                    <Info/>
+                </File>
+            </File>
+            <File Location="Release">
+                <Info/>
+                <DIR_SIGNIFIER Location="1">
+                    <Info/>
+                </DIR_SIGNIFIER>
+                <File Location="PalladiumDAQ.mltbx">
+                    <Info/>
+                </File>
+                <File Location="deploymentLog.html">
+                    <Info>
+                        <Category UUID="FileClassCategory">
+                            <Label UUID="artifact"/>
+                        </Category>
+                    </Info>
+                </File>
+            </File>
+            <File Location="Instrument Drivers">
+                <Info/>
+                <DIR_SIGNIFIER Location="1">
+                    <Info/>
+                </DIR_SIGNIFIER>
+                <File Location="Quantum Design">
+                    <Info/>
+                    <DIR_SIGNIFIER Location="1">
+                        <Info/>
+                    </DIR_SIGNIFIER>
+                    <File Location="PPMS Communication">
+                        <Info/>
+                        <DIR_SIGNIFIER Location="1">
+                            <Info/>
+                        </DIR_SIGNIFIER>
+                        <File Location="QDInstrument.dll">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="derived"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="QDInterface.dll">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="derived"/>
+                                </Category>
+                            </Info>
+                        </File>
+                    </File>
+                </File>
             </File>
         </File>
         <File Location="README.md">
@@ -1184,7 +1292,7 @@
         <DIR_SIGNIFIER Location="1">
             <Info/>
         </DIR_SIGNIFIER>
-        <Info ToolboxConfigModel="{&quot;entries&quot;:[{&quot;content&quot;:{&quot;appGalleryLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_72c058ae-ae84-4883-a5e8-0f917282d6b6&quot;,&quot;labelID&quot;:&quot;Deployment_ToolboxAppGalleryFiles_72c058ae-ae84-4883-a5e8-0f917282d6b6&quot;},&quot;type&quot;:&quot;deployment.toolbox.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;d63d460d-365a-4065-85e8-4ec6b6c39376&quot;},&quot;authorEmail&quot;:&quot;m.j.coak@bham.ac.uk&quot;,&quot;authorName&quot;:&quot;Matthew Coak&quot;,&quot;authorOrganization&quot;:&quot;University of Birmingham&quot;,&quot;description&quot;:&quot;Description&quot;,&quot;gettingStartedGuideLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_72c058ae-ae84-4883-a5e8-0f917282d6b6&quot;,&quot;labelID&quot;:&quot;Deployment_GettingStartedGuideFile_72c058ae-ae84-4883-a5e8-0f917282d6b6&quot;},&quot;type&quot;:&quot;deployment.toolbox.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;abac9ee6-9bfd-4cc9-b137-f66c2e2b2671&quot;},&quot;maxRelease&quot;:&quot;R2025b&quot;,&quot;minRelease&quot;:&quot;R2025a&quot;,&quot;outputFileName&quot;:&quot;PalladiumDAQ.mltbx&quot;,&quot;outputFolder&quot;:&quot;Palladium DAQ/Release&quot;,&quot;summary&quot;:&quot;Summary&quot;,&quot;supportedPlatforms&quot;:[&quot;Windows&quot;,&quot;Linux&quot;,&quot;Mac&quot;],&quot;toolboxFolder&quot;:&quot;Palladium DAQ&quot;,&quot;toolboxImgLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_72c058ae-ae84-4883-a5e8-0f917282d6b6&quot;,&quot;labelID&quot;:&quot;Deployment_ToolboxImageFile_72c058ae-ae84-4883-a5e8-0f917282d6b6&quot;},&quot;type&quot;:&quot;deployment.toolbox.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;605981e5-9b9b-4a35-9bdb-92db84cf8b85&quot;},&quot;toolboxName&quot;:&quot;Palladium DAQ&quot;,&quot;toolboxVersion&quot;:&quot;3.1.1&quot;,&quot;uniqueId&quot;:&quot;a519aa5c-b089-43be-b733-6bb3f9c08cf9&quot;},&quot;type&quot;:&quot;deployment.toolbox.model.ToolboxConfiguration&quot;,&quot;uuid&quot;:&quot;82c30c32-fb88-41d7-8718-87508db54d15&quot;},{&quot;content&quot;:{},&quot;type&quot;:&quot;deployment.toolbox.model.ProjectStateValidationIssueList&quot;,&quot;uuid&quot;:&quot;bb37ee89-f5c7-41d6-b5a4-1ce5d1cbbd05&quot;}],&quot;packageUris&quot;:[&quot;http://schema.mathworks.com/mf0/deployment_toolbox_model/1.0.0&quot;],&quot;version&quot;:&quot;1.0&quot;}" displayName="PalladiumDAQ" lastAccessed="1775055892794" taskID="10f38d42-fd9f-42cb-b54a-7c18d26a1d44" type="Toolbox" uniqueId="72c058ae-ae84-4883-a5e8-0f917282d6b6"/>
+        <Info ToolboxConfigModel="{&quot;entries&quot;:[{&quot;content&quot;:{&quot;appGalleryLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_72c058ae-ae84-4883-a5e8-0f917282d6b6&quot;,&quot;labelID&quot;:&quot;Deployment_ToolboxAppGalleryFiles_72c058ae-ae84-4883-a5e8-0f917282d6b6&quot;},&quot;type&quot;:&quot;deployment.toolbox.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;d63d460d-365a-4065-85e8-4ec6b6c39376&quot;},&quot;authorEmail&quot;:&quot;m.j.coak@bham.ac.uk&quot;,&quot;authorName&quot;:&quot;Matthew Coak&quot;,&quot;authorOrganization&quot;:&quot;University of Birmingham&quot;,&quot;description&quot;:&quot;Description&quot;,&quot;gettingStartedGuideLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_72c058ae-ae84-4883-a5e8-0f917282d6b6&quot;,&quot;labelID&quot;:&quot;Deployment_GettingStartedGuideFile_72c058ae-ae84-4883-a5e8-0f917282d6b6&quot;},&quot;type&quot;:&quot;deployment.toolbox.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;abac9ee6-9bfd-4cc9-b137-f66c2e2b2671&quot;},&quot;matlabPathExclusionList&quot;:[&quot;Palladium DAQ/Tests&quot;,&quot;Palladium DAQ/Tests/Systems Tests - Simulated Hardware&quot;,&quot;Palladium DAQ/Tests/Testing User Files/Palladium DAQ - User Files&quot;,&quot;Palladium DAQ/Tests/UITests&quot;,&quot;Palladium DAQ/Tests/Unit Tests&quot;,&quot;Palladium DAQ/Tests/Unit Tests/Utilities&quot;],&quot;maxRelease&quot;:&quot;R2025b&quot;,&quot;minRelease&quot;:&quot;R2025a&quot;,&quot;outputFileName&quot;:&quot;PalladiumDAQ.mltbx&quot;,&quot;outputFolder&quot;:&quot;Palladium DAQ/Release&quot;,&quot;summary&quot;:&quot;Summary&quot;,&quot;supportedPlatforms&quot;:[&quot;Windows&quot;,&quot;Linux&quot;,&quot;Mac&quot;],&quot;toolboxFolder&quot;:&quot;Palladium DAQ&quot;,&quot;toolboxImgLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_72c058ae-ae84-4883-a5e8-0f917282d6b6&quot;,&quot;labelID&quot;:&quot;Deployment_ToolboxImageFile_72c058ae-ae84-4883-a5e8-0f917282d6b6&quot;},&quot;type&quot;:&quot;deployment.toolbox.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;605981e5-9b9b-4a35-9bdb-92db84cf8b85&quot;},&quot;toolboxName&quot;:&quot;Palladium DAQ&quot;,&quot;toolboxVersion&quot;:&quot;3.1.1&quot;,&quot;uniqueId&quot;:&quot;a519aa5c-b089-43be-b733-6bb3f9c08cf9&quot;},&quot;type&quot;:&quot;deployment.toolbox.model.ToolboxConfiguration&quot;,&quot;uuid&quot;:&quot;82c30c32-fb88-41d7-8718-87508db54d15&quot;},{&quot;content&quot;:{},&quot;type&quot;:&quot;deployment.toolbox.model.ProjectStateValidationIssueList&quot;,&quot;uuid&quot;:&quot;bb37ee89-f5c7-41d6-b5a4-1ce5d1cbbd05&quot;}],&quot;packageUris&quot;:[&quot;http://schema.mathworks.com/mf0/deployment_toolbox_model/1.0.0&quot;],&quot;version&quot;:&quot;1.0&quot;}" displayName="PalladiumDAQ" lastAccessed="1775732232054" taskID="10f38d42-fd9f-42cb-b54a-7c18d26a1d44" type="Toolbox" uniqueId="72c058ae-ae84-4883-a5e8-0f917282d6b6"/>
     </Files>
     <Files Location="MathWorksDeploymentConfigs">
         <DIR_SIGNIFIER Location="1">

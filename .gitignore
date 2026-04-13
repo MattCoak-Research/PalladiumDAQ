@@ -24,11 +24,6 @@ sccprj/
 # Settings folder
 Palladium DAQ/Palladium DAQ - Settings/
 
-# Drivers
-Palladium DAQ/Instrument Drivers/Paragraf MIST/
-Palladium DAQ/Instrument Drivers/Zurich Instruments/
-Palladium DAQ/Instrument Drivers/Quantum Design/
-
 # Batch script
 palladium_push.bat
 
@@ -36,3 +31,7 @@ palladium_push.bat
 deploymentLog.html
 derived/*
 resources/*
+
+#Python cache files
+*.pyc
+*.cpyth
