@@ -425,7 +425,11 @@ classdef Lakeshore331 < Palladium.Core.Instrument
         end
 
         function powerPerOhm = GetHeaterPowerPerOhmFromRange(this, heaterRangeIdx)
-            %Needs testing!
+            %Tested 2026-04-13 on 370 Ohm Resistor test box, Open Loop Mode
+            %with Manual Output at 1 and 4%. Measuring voltage across
+            %resistor with a DMM the reported and calculated V^2/R power
+            %agree to within DMM uncertainty.
+            
             % 0 = Off, 1 = Low (0.5 W), 2 = Medium (5 W), 3 = High (50 W) -
             % assuming 50 Ohms
             switch(heaterRangeIdx)
