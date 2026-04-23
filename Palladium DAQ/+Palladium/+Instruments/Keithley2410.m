@@ -44,105 +44,138 @@ classdef Keithley2410 < Palladium.Core.Instrument
     %% Methods (Public)
     methods (Access = public)
 
-        function [str, limits, xlabelStr, ylabelStr] = GetSweepUnitsString(this)
+        function ArmTrigger(this)
+            this.WriteCommand("TRIG:CLE");
+            this.WriteCommand("OUTP ON");%Turn output on - or it refuses to start
+            this.WriteCommand("ARM:SEQ:LAY:COUN INF");
+            this.WriteCommand("INIT:IMM");
+        end
+
+        function ClearStatus(this)
+            this.WriteCommand("*CLS");
+        end
+
+        function Close(this)
+            %Execute normal base class Close behaviour, but first place
+            %instrument in Local mode
+            this.SetLocal();
+            Close@Palladium.Core.Instrument(this);
+        end
+
+        function metadataStruct = CollectMetaData(this)             
+            %Record instrument settings and metadata like compliance,
+            %voltage, measurement mode, that will not change during the
+            %measurement and therefore don't merit logging each step
+            [~, metadataStruct.ComplianceLevel] = this.GetComplianceLevel();
+            metadataStruct.SourceMode = this.GetSourceMode();
+            [metadataStruct.NumPowerLineCycles,  metadataStruct.IntegrationTime_s] = this.GetNPLC();
+            metadataStruct.FourWireMode = this.GetFourWireEnabledStatus();
+        end
+
+        function Connect(this)
+            %Execute normal base class Connect behaviour, but then verify
+            %that the given settings match the hardware ones
+            Connect@Palladium.Core.Instrument(this);
+            this.VerifyConnectionSettings();
+        end
+
+        function [compValue, compStringWithUnits] = GetComplianceLevel(this)
+            if (this.SimulationMode)
+                compValue = 120e-6;
+            else
+                switch(this.SourceMode)
+                    case(this.SourceType("Voltage"))   %Compliance is opposite to source..
+                        compValue = this.QueryDouble("SENS:CURR:PROT:LEV?");
+                    case(this.SourceType("Current"))
+                        compValue = this.QueryDouble("SENS:VOLT:PROT:LEV?");
+                    otherwise
+                        error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                end
+
+            end
+
             switch(this.SourceMode)
-                case(this.MeasType("Voltage"))
-                    xlabelStr = "Source Voltage (V)";
-                    str = "V";
-                    limits = [-50, 50];    %Need to check what these physical limits actually are and improve this
-                case(this.MeasType("Current"))
-                    xlabelStr = "Source Current (A)";
-                    str = "A";
-                    limits = [-1, 1]; %Need to check what these physical limits actually are and improve this
+                case(this.SourceType("Voltage"))   %Compliance is opposite to source..
+                    str = " mA";
+                case(this.SourceType("Current"))
+                    str = " mV";
                 otherwise
                     error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
             end
 
-            hdrs = this.GetHeaders();
-            ylabelStr = hdrs(1);
+            %Multiply by 1000, millivolts or mA is easier to read
+            compStringWithUnits = num2str(compValue*1000) + str;
         end
 
         function [Headers, Units] = GetHeaders(this)
+
+            switch(this.SourceMode)
+                case(this.SourceType("Voltage"))
+                    sourceStr = "Source Voltage (V)";
+                    unitsstr = "V";
+                case(this.SourceType("Current"))
+                    sourceStr = "Source Current (A)";
+                    unitsstr = "A";
+                otherwise
+                    error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+            end
+
             switch(this.MeasMode)
                 case(this.MeasType("Resistance"))
-                    Headers = [this.Name + " - Resistance_Ohms", this.Name + " - Current_A", this.Name + " - Voltage_V"];
-                    Units = ["Ohms", "A", "V"];
+                    Headers = [this.Name + " - Resistance (Ohms)", this.Name + " - Current (A)", this.Name + " - Voltage (V)", this.Name + " - " + sourceStr, this.Name + " - Compliance Limited"];
+                    Units = ["Ohms", "A", "V", unitsstr, ""];
                 case(this.MeasType("Voltage"))
-                    Headers = [this.Name + " - Current_A", this.Name + " - Voltage_V"];
-                    Units = ["A", "V"];
+                    Headers = [this.Name + " - Current (A)", this.Name + " - Voltage (V)", this.Name + " - " + sourceStr, this.Name + " - Compliance Limited"];
+                    Units = ["A", "V", unitsstr, ""];
                 case(this.MeasType("Current"))
-                    Headers = [this.Name + " - Voltage_V", this.Name + " - Current_A"];
-                    Units = ["V", "A"];
+                    Headers = [this.Name + " - Voltage (V)", this.Name + " - Current (A)", this.Name + " - " + sourceStr, this.Name + " - Compliance Limited"];
+                    Units = ["V", "A", unitsstr, ""];
                 otherwise
                     error("Mode must be Resistance, Voltage, or Current, this was " + string(this.MeasMode));
             end
         end
 
-        function [dataRow] = Measure(this)
+        function fourWireEnabled = GetFourWireEnabledStatus(this)
+            result = this.QueryDouble("SYST:RSEN?");
+            fourWireEnabled = logical(result);
+        end
 
-            if(this.SimulationMode)
-                %Dummy values
-                resistance = 10 + 0.1*rand();
-                current = 5 + 0.01*rand();
-                voltage =1 + 0.01*rand;
-                srcLevel = this.GetSourceLevel();
-
+        function [nplc, integrationTime_s] = GetNPLC(this)
+            %Get the Number of Power Line Cycles for the selected
+            %measurement - the integration time for each reading. second
+            %output helpfully converts this into a time in seconds
+            if (this.SimulationMode)
+                nplc = 1;
+            else
                 switch(this.MeasMode)
                     case(this.MeasType("Resistance"))
-                        dataRow = [resistance, current, srcLevel];
+                        nplc = this.QueryDouble("SENS:RES:NPLC?");
                     case(this.MeasType("Voltage"))
-                        dataRow = [current, srcLevel];
+                        nplc = this.QueryDouble("SENS:VOLT:DC:NPLC?");
                     case(this.MeasType("Current"))
-                        %Assign data to output data row
-                        dataRow = [voltage, srcLevel];
+                        nplc = this.QueryDouble("SENS:CURR:DC:NPLC?");
                     otherwise
                         error("Mode must be Resistance, Voltage, or Current, this was " + this.MeasMode);
                 end
+            end
+
+            integrationTime_s = nplc / 60;
+        end
+
+        function sourceMode = GetSourceMode(this)
+            if (this.SimulationMode)
+                sourceMode = this.SourceMode;
                 return;
             end
 
-
-            %Query the source meter for latest measurement and get a string
-            %returned. example for a 184 kOhm resistor with 10 microA current: '+1.839736E+00,+9.999968E-06,+1.839742E+05,+6.482821E+04,+4.506000E+04'
-            if(this.OffsetComp)
-                %Error if not in Ohms mode
-                if(this.MeasMode ~= this.MeasType("Resistance"))
-                    error("OffsetComp only functions in Resistance Mode");
-                end
-
-                %Store the currently set source level
-                sourceLvl = this.GetSourceLevel();
-
-                %Set to zero source level and measure
-                this.SetSourceLevel(0, true);
-                data = this.QueryString("MEAS?");
-                [voltage1, current1, resistance1] = this.ParseDataString(data); %#ok<ASGLU>
-
-                %Set to initial source level and measure
-                this.SetSourceLevel(sourceLvl, true);
-                data = this.QueryString("MEAS?");
-                [voltage2, current2, resistance2] = this.ParseDataString(data);
-
-                resistance = resistance2 - resistance1;
-                voltage = voltage2; %Maybe should do something a bit more clever with these? Depending on source mode?
-                current = current2;
-            else
-                data = this.QueryString("MEAS?");
-                [voltage, current, resistance] = this.ParseDataString(data);
-            end
-
-
-            %Assign data to output data row
-            switch(this.MeasMode)
-                case(this.MeasType("Resistance"))
-                    dataRow = [resistance, current, voltage];
-                case(this.MeasType("Voltage"))
-                    dataRow = [current, voltage];
-                case(this.MeasType("Current"))
-                    %Assign data to output data row
-                    dataRow = [voltage, current];
+            result = string(strtrim(this.QueryString("SOUR:FUNC:MODE?")));
+            switch(result)
+                case("VOLT")   %Compliance is opposite to source..
+                    sourceMode = this.SourceType("Voltage");
+                case("CURR")
+                    sourceMode = this.SourceType("Current");
                 otherwise
-                    error("Mode must be Resistance, Voltage, or Current, this was " + this.MeasMode);
+                    error("Source mode must be VOLT or CURR, received " + string(result) + " when querying instrument");
             end
         end
 
@@ -165,6 +198,106 @@ classdef Keithley2410 < Palladium.Core.Instrument
                 otherwise
                     error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
             end
+        end
+
+        function [str, limits, xlabelStr, ylabelStr] = GetSweepUnitsString(this)
+            switch(this.SourceMode)
+                case(this.SourceType("Voltage"))
+                    xlabelStr = "Source Voltage (V)";
+                    str = "V";
+                    limits = [-50, 50];    %Need to check what these physical limits actually are and improve this
+                case(this.SourceType("Current"))
+                    xlabelStr = "Source Current (A)";
+                    str = "A";
+                    limits = [-1, 1]; %Need to check what these physical limits actually are and improve this
+                otherwise
+                    error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+            end
+
+            hdrs = this.GetHeaders();
+            ylabelStr = hdrs(1);
+        end
+
+        function [complianceLimited] = IsAtComplianceLimit(this)
+            if (this.SimulationMode)
+                compValue = 0;
+            else
+                %Run volt or current queries depending on measurement mode
+                switch(this.SourceMode)
+                    case(this.SourceType("Voltage"))   %Compliance is opposite to source..
+                        compValue = this.QueryDouble("SENS:CURR:PROT:TRIP?");
+                    case(this.SourceType("Current"))
+                        compValue = this.QueryDouble("SENS:VOLT:PROT:TRIP?");
+                    otherwise
+                        error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                end
+            end
+
+            complianceLimited = logical(compValue);
+        end
+
+        function [dataRow] = Measure(this)
+
+            %Store the currently set source level
+            sourceLvl = this.GetSourceLevel();
+
+            %Query the source meter for latest measurement and get a string
+            %returned. example for a 184 kOhm resistor with 10 microA current: '+1.839736E+00,+9.999968E-06,+1.839742E+05,+6.482821E+04,+4.506000E+04'
+            if(this.OffsetComp)
+                %Error if not in Ohms mode
+                if(this.MeasMode ~= this.MeasType("Resistance"))
+                    error("OffsetComp only functions in Resistance Mode");
+                end
+
+
+                %Set to zero source level and measure
+                this.SetSourceLevel(0, true);
+                [voltage1, current1, resistance1] = this.MeasureSingleShotData(); %#ok<ASGLU>
+
+                %Set to initial source level and measure
+                this.SetSourceLevel(sourceLvl, true);
+                [voltage2, current2, resistance2] = this.MeasureSingleShotData();
+
+                resistance = resistance2 - resistance1;
+                voltage = voltage2; %Maybe should do something a bit more clever with these? Depending on source mode?
+                current = current2;
+            else
+                [voltage, current, resistance] = this.MeasureSingleShotData();
+            end
+
+            %Check if we have hit compliance, save that (1 or 0) as a data column
+            complianceLimited = this.IsAtComplianceLimit();
+
+            %Assign data to output data row
+            switch(this.MeasMode)
+                case(this.MeasType("Resistance"))
+                    dataRow = [resistance, current, voltage, sourceLvl, complianceLimited];
+                case(this.MeasType("Voltage"))
+                    dataRow = [current, voltage, sourceLvl, complianceLimited];
+                case(this.MeasType("Current"))
+                    %Assign data to output data row
+                    dataRow = [voltage, current, sourceLvl, complianceLimited];
+                otherwise
+                    error("Mode must be Resistance, Voltage, or Current, this was " + this.MeasMode);
+            end
+        end
+
+        function [voltage, current, resistance] = MeasureSingleShotData(this)
+            if(this.SimulationMode)
+                %Dummy values
+                resistance = 10 + 0.1*rand();
+                current = 5 + 0.01*rand();
+                voltage =1 + 0.01*rand;
+                return;                
+            end
+
+            data = this.QueryString("MEAS?");
+            [voltage, current, resistance] = this.ParseDataString(data);
+
+        end
+
+        function SetLocal(this)
+            this.WriteCommand("SYST:LOC");
         end
 
         function SetNewSweepStepValue(this, value)
@@ -201,6 +334,19 @@ classdef Keithley2410 < Palladium.Core.Instrument
             end
 
         end
+
+        function data = FetchLatestData(this)
+            %This does not work in standard configuration. Here as a
+            %building block for future more complex triggered stuff
+            data = this.QueryDouble("SENS:DAT:LAT?");
+        end
+
+        function [voltage, current, resistance] = ReadData(this)
+            %This does not work
+            data = this.QueryDouble("READ?");
+            [voltage, current, resistance] = this.ParseDataString(data);
+        end        
+
     end
 
     %% Methods (Private)
@@ -232,6 +378,11 @@ classdef Keithley2410 < Palladium.Core.Instrument
                 otherwise
                     error("Mode must be Resistance, Voltage, or Current, this was " + string(this.MeasMode));
             end
+        end
+
+        function VerifyConnectionSettings(this)
+            instsrcMode = this.GetSourceMode();
+            assert(instsrcMode == this.SourceMode, "Source Mode set in Palladium does not match that set in the Hardware");
         end
         
     end
