@@ -42,15 +42,17 @@ classdef CommandController < handle
     %% Methods (Public)
     methods(Access = public)
 
-        function CacheCommand(this, instrument, command)
-             arguments
+        function CacheCommand(this, instrument, command, Settings)
+            arguments
                 this;
                 instrument (1,1) Palladium.Core.Instrument;
                 command {mustBeTextScalar};
-             end
+                Settings.FunctionOnComplete = [];
+            end
 
-             newCommand.Instrument = instrument;
-             newCommand.Command = command;
+            newCommand.Instrument = instrument;
+            newCommand.Command = command;
+            newCommand.FunctionOnComplete = Settings.FunctionOnComplete;
 
             this.CachedCommands = [this.CachedCommands, newCommand];
         end
@@ -66,6 +68,10 @@ classdef CommandController < handle
                 fnHandle(commandStruct.Instrument);
             else
                 fnHandle(commandStruct.Instrument, args);
+            end
+
+            if ~isempty(commandStruct.FunctionOnComplete)
+                commandStruct.FunctionOnComplete();
             end
         end
 

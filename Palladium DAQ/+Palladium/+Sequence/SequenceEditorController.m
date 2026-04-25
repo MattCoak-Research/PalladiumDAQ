@@ -124,7 +124,7 @@ classdef SequenceEditorController < handle
         end
 
         function SingleCommandQueued(this, ~, args)
-            this.Controller.CacheCommand(args.InstrumentRef, string(args.CommandString));
+            this.Controller.CacheCommand(args.InstrumentRef, string(args.CommandString), FunctionOnComplete = args.FunctionToRunOnComplete);
         end
     end
 
