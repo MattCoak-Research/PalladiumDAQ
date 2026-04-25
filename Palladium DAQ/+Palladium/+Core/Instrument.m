@@ -184,6 +184,14 @@ classdef(Abstract) Instrument < handle
             error("Could not find Control Detail Struct with name " + string(controlName) + ". Supported options: " + listOfPotentialNames);
         end
 
+        function names = GetRegisteredControlNames(this)
+            names = [];
+
+            for i = 1 : length(this.ControlClasses)
+                names = [names, string(this.ControlClasses(i).GetName())]; %#ok<AGROW>
+            end
+        end
+
         function [objsList, controlDetailsStructsList] = GetRegisteredControlObjects(this)
             objsList = [];
             controlDetailsStructsList = [];
