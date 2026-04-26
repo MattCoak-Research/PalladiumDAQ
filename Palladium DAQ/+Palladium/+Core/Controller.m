@@ -186,15 +186,16 @@ classdef Controller < handle
             end
         end
 
-        function CacheCommand(this, instrument, command, Settings)
+        function CacheInstrumentCommand(this, instrument, command, controlName, Settings)
             arguments
                 this;
                 instrument (1,1) Palladium.Core.Instrument;
                 command {mustBeTextScalar};
+                controlName = string.empty;
                 Settings.FunctionOnComplete = [];
             end
             
-            this.CommandController.CacheCommand(instrument, command, FunctionOnComplete = Settings.FunctionOnComplete);
+            this.CommandController.CacheInstrumentCommand(instrument, command, controlName, FunctionOnComplete = Settings.FunctionOnComplete);
         end
 
         function canStart = CanStart(this)

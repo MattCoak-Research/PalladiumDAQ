@@ -70,16 +70,11 @@ classdef SequenceEditorController < handle
             this.View.RefreshInstrumentNames(this.Instruments);
         end
 
-        function DirectorySelected(this, ~, eventArgs)
-            eventArgs
-            disp('dir select');
+        function DirectorySelected(this, ~, eventArgs)           
             this.View.OnDirectorySelected();
         end
 
         function FileSelected(this, ~, eventArgs)
-            eventArgs
-            disp('file select');
-
             this.View.OnFileSelected();
         end
 
@@ -124,7 +119,7 @@ classdef SequenceEditorController < handle
         end
 
         function SingleCommandQueued(this, ~, args)
-            this.Controller.CacheCommand(args.InstrumentRef, string(args.CommandString), FunctionOnComplete = args.FunctionToRunOnComplete);
+            this.Controller.CacheInstrumentCommand(args.InstrumentRef, string(args.CommandString), args.ControlName, FunctionOnComplete = args.FunctionToRunOnComplete);
         end
     end
 

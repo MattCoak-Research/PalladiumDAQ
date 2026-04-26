@@ -27,9 +27,8 @@ classdef InstrumentControlBase < handle
         RemoveControl(this, instrRef);
     end
 
-        %% Constructor
+    %% Constructor
     methods
-
         function this = InstrumentControlBase()
         end
     end
@@ -66,6 +65,15 @@ classdef InstrumentControlBase < handle
 
         function MeasurementsStopped(this, src, eventArgs) %#ok<INUSD>
 
+        end
+
+        function PrintIdentifier(this)
+            %PRINTIDENTIFIER - just prints some information about this
+            %instrument control to the command window. Basically for
+            %debugging/verification purposes
+            str = "Palladium Instrument Control " + this.GetName();
+            disp(str);
+            disp("Parent Instrument: " + this.Instrument.Name);
         end
 
         function RegisterEventListener(this, listnr)

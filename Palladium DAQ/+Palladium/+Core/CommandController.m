@@ -42,36 +42,46 @@ classdef CommandController < handle
     %% Methods (Public)
     methods(Access = public)
 
-        function CacheCommand(this, instrument, command, Settings)
+        function CacheInstrumentCommand(this, instrument, command, controlName, Settings)
             arguments
                 this;
                 instrument (1,1) Palladium.Core.Instrument;
                 command {mustBeTextScalar};
+                controlName = string.empty;
                 Settings.FunctionOnComplete = [];
             end
 
-            newCommand.Instrument = instrument;
-            newCommand.Command = command;
-            newCommand.FunctionOnComplete = Settings.FunctionOnComplete;
+            newCommand = Palladium.Sequence.Commands.InstrumentCommand(instrument, command, controlName, FunctionOnComplete = Settings.FunctionOnComplete);
 
             this.CachedCommands = [this.CachedCommands, newCommand];
         end
 
-        function ExecuteCommand(this, commandStruct)
+        function ExecuteCommand(this, command)
 
             %Get the function and a packaged struct of its arguments
-            [fnHandle, args] = this.AssembleFunctionHandle(commandStruct.Command);
+            [fnHandle, args] = this.AssembleFunctionHandle(command.CommandString);
+
+            %Retrieve the thing to call the function on - could be the
+            %instrument reference itself, if no control name given, or one
+            %of it's controls
+            if isempty(command.ControlName)
+                target = command.Instrument;
+            else
+                targets = command.Instrument.GetRegisteredControlObjectsFromName(command.ControlName);
+                assert(isscalar(targets), "Found multiple Controls or no Control of this name: " + string(command.ControlName));
+                target = targets(1);
+            end
 
             %Execute the function on the Instrument stored in the command
             %struct
             if isempty(args)
-                fnHandle(commandStruct.Instrument);
+                fnHandle(target);
             else
-                fnHandle(commandStruct.Instrument, args);
+                fnHandle(target, args);
             end
 
-            if ~isempty(commandStruct.FunctionOnComplete)
-                commandStruct.FunctionOnComplete();
+            if ~isempty(command.FunctionOnComplete)
+                command.FunctionOnComplete();
             end
         end
 

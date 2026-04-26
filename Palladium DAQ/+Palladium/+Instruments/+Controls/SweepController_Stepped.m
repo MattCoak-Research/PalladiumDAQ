@@ -216,7 +216,7 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
         end
 
         function MeasurementsStopped(this, ~, ~, ~)
-            this.GUIView.OnAbortButtonPushed();
+            this.GUIView.OnAbortSweep();
             this.LockRunButton();
             this.CachedData = [];
         end
@@ -234,6 +234,9 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
             this.StepNo = 0;
             this.Aborted = false;
             this.ClearData();
+
+            %Update the GUI
+            this.GUIView.OnRunSweep();
 
             %Set up a DataWriter, which will do things like generate the
             %Sweep Name, and pass in a bool to say if it will actually do any writing to file
