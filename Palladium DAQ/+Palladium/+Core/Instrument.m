@@ -197,7 +197,7 @@ classdef(Abstract) Instrument < handle
             controlDetailsStructsList = [];
 
             %Scan through all the Registered InstrumentControl classes and
-            %return all the ones with Name matching the input name
+            %return all
             for i = 1 : length(this.ControlClasses)
                 objsList = [objsList this.ControlClasses(i)]; %#ok<AGROW>
                 strct = this.ControlClasses(i).ControlDetailsStruct;

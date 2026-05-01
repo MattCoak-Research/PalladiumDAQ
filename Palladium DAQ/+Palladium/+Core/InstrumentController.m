@@ -8,6 +8,7 @@ classdef InstrumentController < handle
         Namespace string = "Palladium.Instruments";
         UserNamespace string = "PalladiumInstruments";
         ControlsNamespace string = "Palladium.Instruments.Controls";
+        UserControlsNamespace string = "PalladiumInstruments.Controls";
         InstrumentClassesToIgnore = {"TemplateInstrumentClass"};   %Instrument class names to NOT load into the Browser panel, even if they are in either built in or User instruments directories. Template Instrument is a good example - you don't actually want to ever create one
     end
 
@@ -161,8 +162,17 @@ classdef InstrumentController < handle
 
         function controlClassRef = AddInstrumentControl(this, tab, instrRef, controlDetailsStruct)
             try
+                %Check if the class is in the User Namespace. If it is, use
+                %that (so if it also exists in the built-in one, the user
+                %files will override)
+                if Palladium.Utilities.PluginLoading.CheckClassExistsInNamespace(this.UserControlsNamespace, controlDetailsStruct.ControlClassFileName)
+                    namespace = this.UserControlsNamespace;
+                else
+                    namespace = this.ControlsNamespace;
+                end
+
                 %Make an instance of the selected datasource class
-                controlClassRef = Palladium.Utilities.PluginLoading.InstantiateClass(this.ControlsNamespace, controlDetailsStruct.ControlClassFileName);
+                controlClassRef = Palladium.Utilities.PluginLoading.InstantiateClass(namespace, controlDetailsStruct.ControlClassFileName);
                 controlClassRef.ControlDetailsStruct = controlDetailsStruct;
                 controlClassRef.ProgrammeTargetUpdateTime = this.Controller.TimingLoopController.TargetUpdateTime;
 
