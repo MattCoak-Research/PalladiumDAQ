@@ -10,7 +10,6 @@ classdef test_PythonUtils < matlab.unittest.TestCase
     %% Tests
     methods (Test)
 
-        %% AppendFolderToPythonPath
         function test_AppendFolderToPythonPath(testCase)
             % Test to verify that a directory is appended to the Python path
 
@@ -26,6 +25,25 @@ classdef test_PythonUtils < matlab.unittest.TestCase
             %Test code file just multiplies input by 10 - expect 120 as the output
             convertedVal = double(val);
             testCase.verifyEqual(convertedVal, expectedVal);
+        end
+
+        function test_VerifyPythonInstall(testCase)
+            installed = Palladium.Utilities.PythonUtils.VerifyPythonInstall();
+            testCase.verifyTrue(installed);%Assuming that python IS in fact installed
+
+            installed = Palladium.Utilities.PythonUtils.VerifyPythonInstall(MinimumMainVersionNumber = 5);
+            testCase.verifyFalse(installed);%Assuming that python 5, which does not yet exist, is not in fact installed
+
+            installed = Palladium.Utilities.PythonUtils.VerifyPythonInstall(MinimumMainVersionNumber = 3, MinimumSubVersionNumber = 10);
+            testCase.verifyTrue(installed);%Assuming that python IS in fact installed
+        end
+
+        function test_VerifyPythonPackageInstalled(testCase)
+            installed = Palladium.Utilities.PythonUtils.VerifyPythonPackageInstalled("sys");
+            testCase.verifyTrue(installed);
+
+            installed = Palladium.Utilities.PythonUtils.VerifyPythonPackageInstalled("obviouslywrongpackagename");
+            testCase.verifyFalse(installed);
         end
 
     end
