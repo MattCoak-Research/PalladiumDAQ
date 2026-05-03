@@ -58,7 +58,9 @@ classdef Keithley2410 < Palladium.Core.Instrument
         function Close(this)
             %Execute normal base class Close behaviour, but first place
             %instrument in Local mode
-            this.SetLocal();
+            if ~isempty(this.DeviceHandle)
+                this.SetLocal();
+            end
             Close@Palladium.Core.Instrument(this);
         end
 
@@ -240,7 +242,6 @@ classdef Keithley2410 < Palladium.Core.Instrument
 
             %Store the currently set source level
             sourceLvl = this.GetSourceLevel();
-
             %Query the source meter for latest measurement and get a string
             %returned. example for a 184 kOhm resistor with 10 microA current: '+1.839736E+00,+9.999968E-06,+1.839742E+05,+6.482821E+04,+4.506000E+04'
             if(this.OffsetComp)

@@ -453,6 +453,7 @@ classdef Controller < handle
                 [success, msg, title] = this.InstrumentController.InitialiseInstruments();
 
                 if ~success
+                    Palladium.Logging.Logger.Log("Error", title, "FullMessage", msg, "LogFileMessageLevel", "Error", "CommandWindowMessageLevel", "Error", "GUIMessageLevel", "Error");
                     return;
                 end
 

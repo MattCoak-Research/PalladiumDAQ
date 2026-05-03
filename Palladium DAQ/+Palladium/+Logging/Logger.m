@@ -64,11 +64,14 @@ classdef Logger < handle
             %simpler. Otherwise, show both the builtin's error and the
             %user's error.
             message = string(message) + ": " + string(err.message);
-            if( strcmp(UserErrorFile, TopErrorFile))
+            if(strcmp(UserErrorFile, TopErrorFile))
                 ErrorString = string(sprintf("Error in " + TopErrorName + " - line " + num2str(TopErrorLine) + "\n\n")) + string(message);
             else
                 ErrorString = string(sprintf("Error in Matlab function " + TopErrorName + " - line " + num2str(TopErrorLine) + ":\n\n")) + string(message) + string(sprintf("\n\nError in user function " + UserErrorName + " - line " + num2str(UserErrorLine) + "."));
             end
+
+            %Write the error message to the logfile
+            Palladium.Logging.Logger.LogError(err, message);
 
             if isempty(uiFigureHandle)  %If we do not have a uiFigure GUI to create modal dialogue boses in..
                 %Show a normal dialogue box asking the user what they want
@@ -187,6 +190,20 @@ classdef Logger < handle
                 Palladium.Logging.Logger.LogToFile(level, string(fullMessage), filePath);
             end
 
+        end
+
+        function LogError(err, message)
+            arguments
+                err;
+                message = [];
+            end
+            try
+                report = string(getReport(err, 'extended'));
+                msg = string(err.message) + " : " + message;
+                Palladium.Logging.Logger.Log("Error", msg, "FullMessage", report, "LogFileMessageLevel", "Error", "CommandWindowMessageLevel", "Error", "GUIMessageLevel", "Error");
+            catch err
+                warning("Error thrown while attempting to log.. another error");
+            end
         end
 
     end
