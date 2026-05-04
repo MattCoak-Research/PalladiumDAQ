@@ -96,7 +96,7 @@ classdef InstrumentController < handle
                 elseif Palladium.Utilities.PluginLoading.CheckClassExistsInNamespace(this.UserNamespace, instrStringToAdd)
                     instRef = Palladium.Utilities.PluginLoading.InstantiateClass(this.UserNamespace, instrStringToAdd);
                 else
-                    error("InstrumentCreation:NotFoundInNamespace", "Could not find Instrument " + string(instrStringToAdd) + " in built in or user namespace. This should not be able to happen.");
+                    error("InstrumentCreation:NotFoundInNamespace", "Could not find Instrument " + string(instrStringToAdd) + " in built in or user namespace. This could indicate that the class file of this Instrument contains an error and MATLAB cannot compile it (missing END statement?).");
                 end
 
                 %Set the instrument name if that optional parameter was
