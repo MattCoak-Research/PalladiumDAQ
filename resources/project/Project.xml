@@ -702,6 +702,13 @@
                             </Category>
                         </Info>
                     </File>
+                    <File Location="HP_8722ES_NetworkAnalyser.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
                 </File>
                 <File Location="+Logging">
                     <Info/>
