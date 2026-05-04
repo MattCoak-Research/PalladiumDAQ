@@ -245,6 +245,54 @@ classdef(Abstract) Instrument < handle
             disp(str);
         end
 
+        function val = QueryDouble(this, command)
+            arguments
+                this;
+                command (1,1) string;
+            end
+
+            if(this.SimulationMode)
+                val = rand() + 100;
+            else
+                %Quickly check to make sure we are (in theory at least)
+                %connected before sending command - warn if not
+                assert(~isempty(this.DeviceHandle), "Device Handle is empty - device is not connected yet when sending Query command (" + this.FullName + ")");
+
+                %Send query
+                val = str2double(query(this.DeviceHandle, command));
+            end
+        end
+
+        function val = QueryString(this, command)
+            arguments
+                this;
+                command (1,1) string;
+            end
+
+            if(this.SimulationMode)
+                val = 'null';
+            else
+                %Quickly check to make sure we are (in theory at least)
+                %connected before sending command - warn if not
+                assert(~isempty(this.DeviceHandle), "Device Handle is empty - device is not connected yet when sending Query command (" + this.FullName + ")");
+
+                %Send query
+                val = query(this.DeviceHandle, command);
+            end
+        end
+
+        function data = ReadString(this)
+            if(this.SimulationMode)
+                data = 'null';
+            else
+                %Quickly check to make sure we are (in theory at least)
+                %connected before sending command - warn if not
+                assert(~isempty(this.DeviceHandle), "Device Handle is empty - device is not connected yet when sending Query command (" + this.FullName + ")");
+
+                data= fscanf(this.DeviceHandle);
+            end
+        end
+
         function SetNewSweepStepValue(this, value) %#ok<INUSD>
             warning("An override method for SetNewSweepStepValue has not been defined for this Instrument. A SweepController_Stepped is probably trying to tell this Instrument to go to the next step in its sweep but the Instrument doesn't have a function written to tell it how. Look at the Keithley2000 class for an example");
         end
@@ -305,6 +353,21 @@ classdef(Abstract) Instrument < handle
             value = true;
         end
 
+        function WriteCommand(this, command)
+            arguments
+                this;
+                command (1,1) string;
+            end
+
+            if(this.SimulationMode); return; end
+            %Quickly check to make sure we are (in theory at least)
+            %connected before sending command - warn if not
+            assert(~isempty(this.DeviceHandle), "Device Handle is empty - device is not connected yet when sending Query command (" + this.FullName + ")");
+
+            %Send command
+            fprintf(this.DeviceHandle, command);
+        end
+        
     end
 
     %% Methods (Public, Sealed)
@@ -515,53 +578,6 @@ classdef(Abstract) Instrument < handle
             %No default functionality - override in Implementation classes
         end
 
-        function val = QueryDouble(this, command)
-            arguments
-                this;
-                command (1,1) string;
-            end
-
-            if(this.SimulationMode)
-                val = rand() + 100;
-            else
-                %Quickly check to make sure we are (in theory at least)
-                %connected before sending command - warn if not
-                assert(~isempty(this.DeviceHandle), "Device Handle is empty - device is not connected yet when sending Query command (" + this.FullName + ")");
-
-                %Send query
-                val = str2double(query(this.DeviceHandle, command));
-            end
-        end
-
-        function val = QueryString(this, command)
-            arguments
-                this;
-                command (1,1) string;
-            end
-
-            if(this.SimulationMode)
-                val = 'null';
-            else
-                %Quickly check to make sure we are (in theory at least)
-                %connected before sending command - warn if not
-                assert(~isempty(this.DeviceHandle), "Device Handle is empty - device is not connected yet when sending Query command (" + this.FullName + ")");
-
-                %Send query
-                val = query(this.DeviceHandle, command);
-            end
-        end
-
-        function data = ReadString(this)
-            if(this.SimulationMode)
-                data = 'null';
-            else
-                %Quickly check to make sure we are (in theory at least)
-                %connected before sending command - warn if not
-                assert(~isempty(this.DeviceHandle), "Device Handle is empty - device is not connected yet when sending Query command (" + this.FullName + ")");
-
-                data= fscanf(this.DeviceHandle);
-            end
-        end
 
         function val = RetrieveSimulatedDataValue(this, propName, defaultValue)
             arguments
@@ -589,22 +605,6 @@ classdef(Abstract) Instrument < handle
             %We made it past all the error handling! Now we can just
             %extract the field, knowing it's there
             val = this.SimulatedData.(propName);
-        end
-
-
-        function WriteCommand(this, command)
-            arguments
-                this;
-                command (1,1) string;
-            end
-
-            if(this.SimulationMode); return; end
-            %Quickly check to make sure we are (in theory at least)
-            %connected before sending command - warn if not
-            assert(~isempty(this.DeviceHandle), "Device Handle is empty - device is not connected yet when sending Query command (" + this.FullName + ")");
-
-            %Send command
-            fprintf(this.DeviceHandle, command);
         end
 
     end
