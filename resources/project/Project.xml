@@ -520,6 +520,20 @@
                                 <Info/>
                             </File>
                         </File>
+                        <File Location="ScanController.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="design"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="ScanFileSetupControlPanel.mlapp">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="design"/>
+                                </Category>
+                            </Info>
+                        </File>
                     </File>
                     <File Location="+Events">
                         <Info/>
@@ -689,6 +703,13 @@
                         </Info>
                     </File>
                     <File Location="ZI_MFLI.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
+                    <File Location="PNA_L_NetworkAnalyser.m">
                         <Info>
                             <Category UUID="FileClassCategory">
                                 <Label UUID="design"/>

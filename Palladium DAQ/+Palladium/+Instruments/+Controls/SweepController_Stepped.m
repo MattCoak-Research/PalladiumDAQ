@@ -223,6 +223,7 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
 
         function OnSweepAbort(this)
             this.Aborted = true;
+            this.GUIView.OnAbortSweep();
         end
 
         function OnSweepComplete(~)
