@@ -220,7 +220,14 @@ classdef InstrumentControlBase < handle
             %generally useful across different sweeps etc
             controlGUIToSendDataBackTo = src;
             originalStr = evt.Value;
-            newStr = originalStr;            
+            newStr = originalStr;      
+
+            %Handle case of 1 header only
+            if isscalar(controller.Headers)
+                headers = string(controller.Headers{1});                
+            else
+                headers = controller.Headers;
+            end
 
             precisionStr = "%6.2f";
             parameterName = [];
@@ -236,7 +243,7 @@ classdef InstrumentControlBase < handle
             l2 = uilabel(gr, Text="Precision", HorizontalAlignment="Center", FontSize=14, FontName="Georgia");
             l2.Layout.Row = 2; 
             l2.Layout.Column = 4; 
-            d = uidropdown(gr, FontSize=14, FontName="Georgia", Items= controller.Headers);
+            d = uidropdown(gr, FontSize=14, FontName="Georgia", Items= headers);
             d.Layout.Row = 3; 
             d.Layout.Column = 2; 
             pr = uieditfield(gr, "text", Value=precisionStr, HorizontalAlignment="Center", FontSize=14, FontName="Georgia");
