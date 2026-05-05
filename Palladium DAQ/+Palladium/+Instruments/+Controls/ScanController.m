@@ -171,6 +171,10 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             %Sweep Name, and pass in a bool to say if it will actually do any writing to file
             this.CreateDataFile(this.ControlDetailsStruct.SweepDetails.SaveSweepFile);
             this.UpdatePlotterSavedPlotTitle();
+
+            %Tell the Instrument to run the scan - it must have a RunScan() method
+            %defined or this will error
+            this.Instrument.RunScan();
         end
 
         function ScanAbort(this, ~, ~)
