@@ -115,12 +115,13 @@ classdef Controller < handle
             view.AssignControllersAndHookUpEvents(this, this.TimingLoopController, this.InstrumentController);
         end
 
-        function pltr = AddNewPlotter(this, parent, Settings)
+        function pltr = AddNewPlotter(this, parent, parentFigure, Settings)
             %This is used by things like Instrument Control creating GUIs
             %and placing Plotters in existing Gridlayouts
             arguments
                 this;
                 parent = [];
+                parentFigure = [];
                 Settings.Size = "Medium";
                 Settings.RegisterPlotter = true;
             end
@@ -132,10 +133,18 @@ classdef Controller < handle
                     parent = uifigure();
                 end
 
+                %Work out which root uifigure to register context menu to
+                if isempty(parentFigure)
+                    cmParent = this.UIFigureHandle;
+                else
+                    cmParent = parentFigure;
+                end
+
                 %Get the Plotting Controller to actually construct the
                 %plotter, add it to whatever parent we sent in. All of this
                 %is View-agnostic, and doesn't need one at all.
                 pltr = this.PlottingController.CreateNewPlotter(parent, Settings.Size);
+                pltr.AttachContextMenu(cmParent);
 
                 %Subscribe to events
                 if Settings.RegisterPlotter
@@ -175,6 +184,7 @@ classdef Controller < handle
             try
                 %Pass through to View to handle GUI stuff
                 pltr = this.PlottingController.CreateNewSimplePlotter(parent, size);
+                pltr.AttachContextMenu(this.UIFigureHandle);
 
                 %Subscribe to events
                 addlistener(pltr, 'SavePlot', @(src,evnt)this.SavePlot(evnt));
