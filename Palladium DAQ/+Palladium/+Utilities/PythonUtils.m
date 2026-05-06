@@ -45,7 +45,7 @@ classdef PythonUtils
             env = pyenv;
 
             % If no Python environment configured, report not installed
-            if isempty(env)
+            if isempty(env) 
                 isInstalled = false;
                 verNo = 0;
                 subVerNo = 0;
@@ -54,6 +54,15 @@ classdef PythonUtils
 
             %Else, extract version info
             ver = env.Version;
+
+            %Empty version info means no install, report not installed
+            if isempty(ver) || strcmp(ver, "")
+                isInstalled = false;
+                verNo = 0;
+                subVerNo = 0;
+                return;
+            end
+
             c = strsplit(ver, '.');
             verNo = double(c(1));
             subVerNo = double(c(2));
