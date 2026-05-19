@@ -81,9 +81,7 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
         function OnSweepComplete(this, sweepData)
             this.SweepHandle = [];
             this.Running = false;
-
-            % disp(sweepData);
-
+sweepData
             %Plot the data
             this.Plotter.PlotData(sweepData);
 
@@ -99,25 +97,24 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
             end
         end
 
-        function CacheSweepRunFunction(this, eventData)
+        function CacheSweepRunFunction(this, sweepData)
             %Run commands will come asynchronously, as they are event
             %based. Cache the function to run, don't run it immediately, to
             %make sure it always executes at a well-defined time in the
             %measurement tick cycle
-            this.CachedSweepRunFunction = @()StartSweep(eventData);
-
+            this.CachedSweepRunFunction = @()this.StartSweep(sweepData);
         end
 
-        function OnSweepRun(this, eventData)
+        function OnSweepRun(this, sweepData)
             %Unpack the settings from the eventData struct for convenience
-            FileParams = eventData.FileParams;
+            FileParams = sweepData.FileParams;
             this.ControlDetailsStruct.SweepDetails = FileParams;
 
             %Clear any existing data from previous sweeps
             this.ClearData();
 
             %Create data writer if a data file is being written
-            this.CreateDataFile(eventData, this.ControlDetailsStruct.SweepDetails.SaveSweepFile);
+            this.CreateDataFile(sweepData, this.ControlDetailsStruct.SweepDetails.SaveSweepFile);
             this.UpdatePlotterSavedPlotTitle();
         end
 
@@ -131,19 +128,24 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
             this.Running = true;
             this.TimeElapsed_s = 0;
             this.timerVal = tic();
+            this.CacheSweepRunFunction(eventData.Value);
             this.OnSweepRun(eventData.Value);
         end
 
         function Update(this)
 
-
             if ~isempty(this.CachedSweepRunFunction)
                 %Execute the function (will be the command to actually
                 %start a sweep, so it is synchronous), and then clear that
                 %cache so it doesn't execute again
-                this.CachedSweepRunFunction();
+                try
+                    this.CachedSweepRunFunction();
+                catch ME
+                    this.CachedSweepRunFunction = [];
+                    rethrow(ME);
+                end
+
                 this.CachedSweepRunFunction = [];
-                disp("Cache")
 
                 %Wait until next tick to do anything with this
                 return;
@@ -154,27 +156,27 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
                 %complete
                 [sweepData, complete] = this.Instrument.Sweep_Check_Completion_Poll_Data(this.SweepHandle);
 
-                %Unpack data into an array
-                unpackedData = [sweepData.SweepValues,...
-                    sweepData.Amplitude,...
-                    sweepData.Phase,...
-                    sweepData.X,...
-                    sweepData.Y];
+                if ~isempty(sweepData)
+                    %Unpack data into an array
+                    unpackedData = [sweepData.SweepValues,...
+                        sweepData.Amplitude,...
+                        sweepData.Phase,...
+                        sweepData.X,...
+                        sweepData.Y];
 
-                %Cache the data - in case we abort, we can write the
-                %data-so-far to file
-                this.DataArray = unpackedData;
+                    %Cache the data - in case we abort, we can write the
+                    %data-so-far to file
+                    this.DataArray = unpackedData;
 
-                %Plot the data
-                % this.Plotter.PlotData(unpackedData);
+                    %Plot the data
+                    % this.Plotter.PlotData(unpackedData);
 
-                %Plot any data - this is a relic of having a SimplePlotter
-                % if ~isempty(SweepData.SweepValues)
-                %      this.UpdateData(SweepData.SweepValues, SweepData.Amplitude);
-                %  end
+                    %Plot any data - this is a relic of having a SimplePlotter
+                    % if ~isempty(SweepData.SweepValues)
+                    %      this.UpdateData(SweepData.SweepValues, SweepData.Amplitude);
+                    %  end
 
-                %Force a sync between threads (?)
-                % drawnow();
+                end
 
                 %Handle the sweep completion if it is finished
                 if complete
@@ -245,41 +247,7 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
             %   this.Plotter.ClearData();
         end
 
-        function StartSweep(this, eventData)
-            %Actually launch a sweep. This is called only via
-            %CachedSweepRunFunction, to ensure it gets calls synchronously in
-            %the measurement tick each time. RunSweep basically queues this up
 
-            %Unpack the settings from the eventData struct for convenience
-            SweepName = eventData.SweepName;
-            SweepParams = eventData.SweepParams;
-            FileParams = eventData.FileParams;
-            this.ControlDetailsStruct.SweepDetails = FileParams;
-
-            %Clear any existing data from previous sweeps
-            this.ClearData();
-
-            %Create a sweep object on the instrument
-            this.SweepHandle = this.Instrument.Sweep_InitialiseSweep("Aux1", 0,...
-                SweepName,...
-                "AveSample", SweepParams.AveSample,...
-                "AveTC", SweepParams.AveTC,...
-                "Bandwidth", SweepParams.Bandwidth,...
-                "FilterOrder", SweepParams.FilterOrder,...
-                "LogScale", SweepParams.LogScale,...
-                "NumberOfSteps", SweepParams.NumberOfSteps,...
-                "SettleTime", SweepParams.SettleTime,...
-                "SweepInaccuracy", SweepParams.SweepInaccuracy,...
-                "Start", SweepParams.Start,...
-                "Stop", SweepParams.Stop);
-
-            %Execute the sweep
-            this.Instrument.Sweep_Execute(this.SweepHandle);
-        end
-
-        function SweepEnded(this)
-            this.InsertEndMetadataIntoFile(this.DataWriter);
-        end
 
         function stringLine = CreateSweepMetaDataLine(this, sweepParams) %#ok<INUSD>
             SweepName = sweepParams.SweepName;
@@ -320,6 +288,41 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
             %Update the plotter axes labels
             %            this.Plotter.LabelAxes(xAx, "Amplitude (V)");
         end
+        function StartSweep(this, eventData)
+            %Actually launch a sweep. This is called only via
+            %CachedSweepRunFunction, to ensure it gets calls synchronously in
+            %the measurement tick each time. RunSweep basically queues this up
+
+            %Unpack the settings from the eventData struct for convenience
+            SweepName = eventData.SweepName;
+            SweepParams = eventData.SweepParams;
+            FileParams = eventData.FileParams;
+            this.ControlDetailsStruct.SweepDetails = FileParams;
+
+            %Clear any existing data from previous sweeps
+            this.ClearData();
+
+            %Create a sweep object on the instrument
+            this.SweepHandle = this.Instrument.Sweep_InitialiseSweep("Aux1", 0,...
+                SweepName,...
+                "AveSample", SweepParams.AveSample,...
+                "AveTC", SweepParams.AveTC,...
+                "Bandwidth", SweepParams.Bandwidth,...
+                "FilterOrder", SweepParams.FilterOrder,...
+                "LogScale", SweepParams.LogScale,...
+                "NumberOfSteps", SweepParams.NumberOfSteps,...
+                "SettleTime", SweepParams.SettleTime,...
+                "SweepInaccuracy", SweepParams.SweepInaccuracy,...
+                "Start", SweepParams.Start,...
+                "Stop", SweepParams.Stop);
+
+            %Execute the sweep
+            this.Instrument.Sweep_Execute(this.SweepHandle);
+        end
+
+        function SweepEnded(this)
+            this.InsertEndMetadataIntoFile(this.DataWriter);
+        end
 
         function UpdatePlotterSavedPlotTitle(this)
             this.Plotter.TitleForCopiedPlots = this.DataWriter.FileWriteDetails.FileName;
@@ -333,8 +336,8 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
                 %Add in an end-of sweep metadata line
                 this.InsertEndMetadataIntoFile(this.DataWriter);
             end
-
         end
+
     end
 end
 

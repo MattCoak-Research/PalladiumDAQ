@@ -49,7 +49,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             this.MeasurementMode = this.MeasType("Voltage RTheta");
 
             %Define the Instrument Controls that can be added
-            this.DefineInstrumentControl(Name = "MFLI Sweep Control", ClassName = "MFLI_SweepController", TabName = "MFLI Sweep Control", EnabledByDefault = false);
+            this.DefineInstrumentControl(Name = "MFLI Sweep Control", ClassName = "MFLI_SweepController", TabName = "MFLI Sweep Control", EnabledByDefault = true);
         end
     end
 
@@ -200,6 +200,11 @@ classdef ZI_MFLI < Palladium.Core.Instrument
 
         function Connect(this)
             % Function to connect to MFLI instrument.
+
+            %Make sure DeviceID is a string, and do some error
+            %checking/verification
+            this.DeviceID = string(this.DeviceID);
+            assert(strcmp(extractBefore(this.DeviceID,4), "DEV"), "MFLI_Connect_Error:InvalidDeviceID", "Invalid Device ID:\n" + string(this.DeviceID) + "\nin MFLI connect. Device ID must start with ""DEV"" - form is DEV123, as a string");
 
             switch(this.Connection_Type)
                 case(Palladium.Enums.ConnectionType.Debug)
@@ -1512,6 +1517,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             end
 
             SweepData = [];
+            complete = false;
 
             if(this.SimulationMode)
                 pause(0.1);
@@ -1535,7 +1541,13 @@ classdef ZI_MFLI < Palladium.Core.Instrument
 
             %Sweep handle can be empty in simulation mode - not if we get
             %to here though
-            assert(~isempty(sweepHandle), "MFLI_Sweep_Error:EmptySweepHandle", "Sweep handle is empty in MFLI Sweep_Check_Completion call");
+            %assert(~isempty(sweepHandle), "MFLI_Sweep_Error:EmptySweepHandle", "Sweep handle is empty in MFLI Sweep_Check_Completion call");
+
+            %Return and warn if handle is empty
+            if isempty(sweepHandle)
+                disp("empty sweep handle");
+                return;
+            end
 
             %Query whether the sweep is complete
             complete = ziDAQ('finished', sweepHandle);
