@@ -1225,9 +1225,6 @@
                 <DIR_SIGNIFIER Location="1">
                     <Info/>
                 </DIR_SIGNIFIER>
-                <File Location="PalladiumDAQ.mltbx">
-                    <Info/>
-                </File>
                 <File Location="deploymentLog.html">
                     <Info>
                         <Category UUID="FileClassCategory">
