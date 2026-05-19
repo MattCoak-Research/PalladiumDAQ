@@ -1293,6 +1293,9 @@
         <Reference Location="1e3ab4c6-54b9-4e91-a46b-30dbf138ce80">
             <Info Ref="Palladium DAQ/Tests/Systems Tests - Simulated Hardware" Type="Relative"/>
         </Reference>
+        <Reference Location="4118d18a-03e4-4568-b85b-b2dee53585f4">
+            <Info Ref="Palladium DAQ/+Palladium/+Components/Graphics" Type="Relative"/>
+        </Reference>
         <Reference Location="4feb6aeb-d05c-401d-9d2f-4ddb5e077133">
             <Info Ref="Palladium DAQ/Tests/UITests" Type="Relative"/>
         </Reference>
