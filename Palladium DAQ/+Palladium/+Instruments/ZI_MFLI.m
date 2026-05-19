@@ -1533,6 +1533,10 @@ classdef ZI_MFLI < Palladium.Core.Instrument
                 return;
             end
 
+            %Sweep handle can be empty in simulation mode - not if we get
+            %to here though
+            assert(~isempty(sweepHandle), "MFLI_Sweep_Error:EmptySweepHandle", "Sweep handle is empty in MFLI Sweep_Check_Completion call");
+
             %Query whether the sweep is complete
             complete = ziDAQ('finished', sweepHandle);
 
