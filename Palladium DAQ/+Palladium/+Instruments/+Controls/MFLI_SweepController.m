@@ -81,7 +81,7 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
         function OnSweepComplete(this, sweepData)
             this.SweepHandle = [];
             this.Running = false;
-sweepData
+
             %Plot the data
             this.Plotter.PlotData(sweepData);
 
