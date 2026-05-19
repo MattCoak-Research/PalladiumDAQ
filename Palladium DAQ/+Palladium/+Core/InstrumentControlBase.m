@@ -13,7 +13,8 @@ classdef InstrumentControlBase < handle
     %% Properties (Protected)
     properties (Access = protected)
         Instrument;
-        AvailableHeaders = [];
+        AvailableHeaders = [];  
+        DataArray = [];             %Use to store entire array of dataRows taken during an operation - need it if we change axes on a Plotter mid-sweep
     end
 
     %% Properties (Private)
@@ -65,6 +66,29 @@ classdef InstrumentControlBase < handle
 
         function MeasurementsStopped(this, src, eventArgs) %#ok<INUSD>
 
+        end
+
+        function PlotterAxesSelectionChange(this, pltr)
+            %This is needed for the case where we want to change the
+            %displayed data in a Plotter, but the loop is not running.
+            %While measurement loop is running, the Plotter will get an
+            %Update call with new data every tick, and if it has
+            %established that a button has been pressed and it needs to
+            %e.g. change the data plotted on a y axis, it sets a bool flag
+            %to do a plot refresh next update tick. If there are no ticks
+            %this does not happen, so in that case, we hook into the
+            %Plotter's event and fire a manual replot in the case that
+            %measurements are stopped
+            if ~this.Running
+                %Have to pass whole data table back in - Plotters do not
+                %store/copy these, that would be very expensive.
+                %If the data table is empty, for now just do nothing -
+                %might be clearer UX to clear the plot, but then again
+                %might be annoying to delete the data for no obvious reason
+                if ~isempty(this.DataArray)
+                    pltr.PlotData(this.DataArray);
+                end
+            end
         end
 
         function PrintIdentifier(this)
