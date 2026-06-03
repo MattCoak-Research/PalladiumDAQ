@@ -1541,13 +1541,13 @@ classdef ZI_MFLI < Palladium.Core.Instrument
 
             %Sweep handle can be empty in simulation mode - not if we get
             %to here though
-            %assert(~isempty(sweepHandle), "MFLI_Sweep_Error:EmptySweepHandle", "Sweep handle is empty in MFLI Sweep_Check_Completion call");
+            assert(~isempty(sweepHandle), "MFLI_Sweep_Error:EmptySweepHandle", "Sweep handle is empty in MFLI Sweep_Check_Completion call");
 
             %Return and warn if handle is empty
-            if isempty(sweepHandle)
-                disp("empty sweep handle");
-                return;
-            end
+            % if isempty(sweepHandle)
+            %     disp("empty sweep handle");
+            %     return;
+            % end
 
             %Query whether the sweep is complete
             complete = ziDAQ('finished', sweepHandle);
@@ -1642,6 +1642,9 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             switch(SweepName)
                 case("Frequency")
                     gridnode = ['oscs/' num2str(oscIndex) '/freq'] ;
+                case("Amplitude")
+                    sigoutIndex = 0;
+                    gridnode = ['sigouts/' num2str(sigoutIndex) '/amplitudes/1'] ;
                 case("AuxOutput1")
                     auxIndex = this.ConvertAuxChannelNameToChannelIndex(auxChannelName);
                     gridnode = ['auxouts/' num2str(auxIndex) '/offset'];
