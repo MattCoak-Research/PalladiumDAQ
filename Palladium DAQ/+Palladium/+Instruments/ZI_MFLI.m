@@ -1629,6 +1629,8 @@ classdef ZI_MFLI < Palladium.Core.Instrument
 
                 SweepParams.AveSample       (1,1) double  = 100; % Sets the effective number of samples (clock cycles) per sweeper parameter point that is considered in the measurement.
                 SweepParams.AveTC           (1,1) double  = 1;   % Effective calculation time is the maximum between samples and number of time constants. Usually set the Sample Count.
+               
+                SweepParams.SweepMode       {mustBeText}  = "Sequential";  %Select the scanning type, default is sequential (incremental scanning from start to stop value)
             end
 
             if(this.SimulationMode)
@@ -1681,7 +1683,19 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             else
                 ziDAQ('set', sweepHandle, 'sweep/xmapping', 0); % 0 = linear sweep - spacing between two values is linear
             end
-            ziDAQ('set', sweepHandle, 'sweep/scan', 0); % sequential sweep - values change incrementally from small to large
+
+            switch (SweepParams.SweepMode)
+                case("Sequential")
+                    ziDAQ('set', sweepHandle, 'sweep/scan', 0); % sequential sweep - values change incrementally from small to large
+                case("Binary")
+                    ziDAQ('set', sweepHandle, 'sweep/scan', 1); % sequential sweep - values change incrementally from small to large
+                case("BiDirectional")
+                    ziDAQ('set', sweepHandle, 'sweep/scan', 2); % sequential sweep - values change incrementally from small to large
+                case("Reverse")
+                    ziDAQ('set', sweepHandle, 'sweep/scan', 3); % sequential sweep - values change incrementally from small to large
+                otherwise 
+                    error("Unsupported sweep direction " + string(SweepParams.SweepMode));
+            end
 
             ziDAQ('set', sweepHandle, 'sweep/settling/time', settle_time);
             ziDAQ('set', sweepHandle, 'sweep/settling/inaccuracy', SweepParams.SweepInaccuracy);
