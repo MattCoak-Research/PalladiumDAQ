@@ -61,8 +61,6 @@ classdef SweepController_Ramp < Palladium.Instruments.Controls.SweepController
         function CreateInstrumentControlGUI(this, controller, tab, instrRef)
             %Make a specific reference to and from the Instrument Class
             this.Instrument = instrRef;
-            this.Instrument.SweepController = this;
-            this.Controller = controller;
 
             %Create grid and Sweepcontrol component and position them in the
             %tab.

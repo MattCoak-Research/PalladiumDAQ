@@ -16,7 +16,6 @@ classdef PPMS < Palladium.Core.Instrument
     properties(Constant, Access = private)
         InterfacePath = "QDInterface.dll";
         PPMSCommDirectory = "PPMS Communication";
-        DllDirectory = "dll";
     end
 
     %% Properties (Public, Set Observable)
@@ -55,13 +54,13 @@ classdef PPMS < Palladium.Core.Instrument
                 case(Palladium.Enums.ConnectionType.Debug)
                     disp("Connecting to simulated " + this.Name + " instrument...");
                     this.SimulationMode = true;
-                    this.Interface = this.ConnectToInterface(true, this.PPMSCommDirectory, this.DllDirectory, this.InterfacePath);
+                    this.Interface = this.ConnectToInterface(true, this.PPMSCommDirectory,this.InterfacePath);
                     disp("Connected to simulated " + this.Name);
 
                 case(Palladium.Enums.ConnectionType.Ethernet)
                     disp("Connecting to " + this.Name + " instrument.");
                     this.SimulationMode = false;
-                    this.Interface = this.ConnectToInterface(false, this.PPMSCommDirectory, this.DllDirectory, this.InterfacePath, this.IP_Address, this.ConnectionSettings.Port);
+                    this.Interface = this.ConnectToInterface(false, this.PPMSCommDirectory, this.InterfacePath, this.IP_Address, this.ConnectionSettings.Port);
                     disp("Connected to " + this.Name + " instrument.");
 
                 otherwise
@@ -132,11 +131,10 @@ classdef PPMS < Palladium.Core.Instrument
     %% Methods (Static, Private)
     methods(Static, Access = private)
 
-        function interfaceObj = ConnectToInterface(simulationMode, ppmsCommDir, dllDir, dllPath, ipAddress, portNumber)
+        function interfaceObj = ConnectToInterface(simulationMode, ppmsCommDir, dllPath, ipAddress, portNumber)
             arguments
                 simulationMode      (1,1) logical;
                 ppmsCommDir         {mustBeTextScalar};
-                dllDir              {mustBeTextScalar};
                 dllPath             {mustBeTextScalar};
                 ipAddress           {mustBeTextScalar}  = "127.0.0.1";
                 portNumber (1,1)    {mustBeInteger}     = 11000;
@@ -145,17 +143,25 @@ classdef PPMS < Palladium.Core.Instrument
             %Get full path to the folder - if it is on the MATLAB search
             %path, otherwise will return empty
             ppmsCommDir_Full = Palladium.Utilities.PathUtils.GetPathOfFolderOnSearchPath(ppmsCommDir);
-            fullDir = fullfile(ppmsCommDir_Full, dllDir);
 
             %Check the driver folder is there
-            assert(~isempty(fullDir), "Cannot find PPMS Communication driver directory - check installation and that folders are added to the search path (Instrument Drivers may be packaged separately)");
-            assert(isfolder(fullDir), "Cannot find PPMS Communication driver directory - check installation and that folders are added to the search path (Instrument Drivers may be packaged separately)");
+            assert(~isempty(ppmsCommDir_Full), "Cannot find PPMS Communication driver directory - check installation and that folders are added to the search path (Instrument Drivers may be packaged separately)");
+            assert(isfolder(ppmsCommDir_Full), "Cannot find PPMS Communication driver directory - check installation and that folders are added to the search path (Instrument Drivers may be packaged separately)");
+
+            %Check that the QD Instrument.dll file is there. User has to
+            %download that from Pharos themselves and place it in that
+            %folder, as it is not freely distributable
+            assert(exist(fullfile(ppmsCommDir_Full, "QDInterface.dll"), "File") == 2,...
+                "The built-in QDInterface.dll file is missing from the User Files directory. Restart Palladium and if this issue persists please contact the developer - this suggests something has gone wrong.");
+            assert(exist(fullfile(ppmsCommDir_Full, "QDInstrument.dll"), "File") == 2,...
+                "The driver file QDInstrument.dll is missing from the User Files directory. \n\nThis has to be installed manually by the end user as Quantum Design own the rights to it - it cannot be distributed as part of Palladium. This file can be downloaded from Quantum Design's Pharos file management site (requires creating an account).\n\n Once downloaded please place in:\n "+...
+                string(strrep(ppmsCommDir_Full, '\', '\\')) + "\n - there should already be a file in there called QDInterface.dll, which is a built in Palladium wrapper to the expected QDInstrument driver. \n\nNote that the QD Instrument Server must be running on the target PPMS PC for this to then work - see documentation on Pharos when downloading the driver.");
 
             %Type of instrument to connect to - PPMS = 0, VersaLab = 1, DynaCool = 2, SVSM = 3
             instrType = 0;
 
             %Add the .NET namespace to the MATLAB search path
-            NET.addAssembly(fullDir + "\" + dllPath);
+            NET.addAssembly(ppmsCommDir_Full + "\" + dllPath);
 
             %Create an instance of the Controller object in the dll's
             %namespace

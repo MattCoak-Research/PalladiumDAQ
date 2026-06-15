@@ -8,6 +8,7 @@ classdef InstrumentController < handle
         Namespace string = "Palladium.Instruments";
         UserNamespace string = "PalladiumInstruments";
         ControlsNamespace string = "Palladium.Instruments.Controls";
+        UserControlsNamespace string = "PalladiumInstruments.Controls";
         InstrumentClassesToIgnore = {"TemplateInstrumentClass"};   %Instrument class names to NOT load into the Browser panel, even if they are in either built in or User instruments directories. Template Instrument is a good example - you don't actually want to ever create one
     end
 
@@ -35,6 +36,7 @@ classdef InstrumentController < handle
         DataRowCollected;
         DefaultEnabledInstrumentControlAdd;
         InstrumentAdded;
+        InstrumentsChanged;
         InstrumentListPopulated;
         InstrumentRemoved;
     end
@@ -94,7 +96,7 @@ classdef InstrumentController < handle
                 elseif Palladium.Utilities.PluginLoading.CheckClassExistsInNamespace(this.UserNamespace, instrStringToAdd)
                     instRef = Palladium.Utilities.PluginLoading.InstantiateClass(this.UserNamespace, instrStringToAdd);
                 else
-                    error("InstrumentCreation:NotFoundInNamespace", "Could not find Instrument " + string(instrStringToAdd) + " in built in or user namespace. This should not be able to happen.");
+                    error("InstrumentCreation:NotFoundInNamespace", "Could not find Instrument " + string(instrStringToAdd) + " in built in or user namespace. This could indicate that the class file of this Instrument contains an error and MATLAB cannot compile it (missing END statement?).");
                 end
 
                 %Set the instrument name if that optional parameter was
@@ -148,6 +150,8 @@ classdef InstrumentController < handle
                 args = Palladium.Events.InstrumentAddedEventData(instrStringToAdd, instRef);
                 notify(this, "InstrumentAdded", args);
 
+                args = Palladium.Events.InstrumentsChangedEventData(this.SelectedInstruments);
+                notify(this, "InstrumentsChanged", args);
 
                 %Verbose/debug message printing
                 this.Controller.Log("Info", "Added Instrument: " + instrStringToAdd, "Green", "Added Instrument");
@@ -158,8 +162,17 @@ classdef InstrumentController < handle
 
         function controlClassRef = AddInstrumentControl(this, tab, instrRef, controlDetailsStruct)
             try
+                %Check if the class is in the User Namespace. If it is, use
+                %that (so if it also exists in the built-in one, the user
+                %files will override)
+                if Palladium.Utilities.PluginLoading.CheckClassExistsInNamespace(this.UserControlsNamespace, controlDetailsStruct.ControlClassFileName)
+                    namespace = this.UserControlsNamespace;
+                else
+                    namespace = this.ControlsNamespace;
+                end
+
                 %Make an instance of the selected datasource class
-                controlClassRef = Palladium.Utilities.PluginLoading.InstantiateClass(this.ControlsNamespace, controlDetailsStruct.ControlClassFileName);
+                controlClassRef = Palladium.Utilities.PluginLoading.InstantiateClass(namespace, controlDetailsStruct.ControlClassFileName);
                 controlClassRef.ControlDetailsStruct = controlDetailsStruct;
                 controlClassRef.ProgrammeTargetUpdateTime = this.Controller.TimingLoopController.TargetUpdateTime;
 
@@ -299,6 +312,36 @@ classdef InstrumentController < handle
             end
         end
 
+        function instRef = GetInstrumentFromName(this, instName)
+            arguments
+                this;
+                instName {mustBeTextScalar};
+            end
+
+            instRef = []; %#ok<NASGU>
+
+            for i = 1 : length(this.SelectedInstruments)
+                if this.SelectedInstruments{i}.Name == instName
+                    instRef = this.SelectedInstruments{i};                    
+                    return;
+                end
+            end
+
+            %If we got here, none of the instruments matched
+            instStringNameList = "";
+            for i = 1 : length(this.SelectedInstruments)
+                instStringNameList = instStringNameList + this.SelectedInstruments{i}.Name;
+                if i ~= length(this.SelectedInstruments)
+                    instStringNameList = instStringNameList + ", ";
+                end
+            end
+            if instStringNameList == ""
+                instStringNameList = "-NONE-";
+            end
+
+            error("GetInstrumentFromNameError:NotFound", "Could not find instrument of Name " + instName + ". Added Instruments: " + instStringNameList);
+        end
+
         function instRefs = GetInstruments(this)
             instRefs = this.SelectedInstruments;
         end
@@ -416,6 +459,7 @@ classdef InstrumentController < handle
             args = Palladium.Events.ValueChangedEventData(instrumentRef);
             notify(this, "InstrumentRemoved", args);
 
+
             %Remove it from the list held here
             for i = 1 : length(this.SelectedInstruments)
                 if strcmp(this.SelectedInstruments{i}.Name, instrumentRef.Name)
@@ -425,6 +469,10 @@ classdef InstrumentController < handle
                 end
             end
 
+            %Throw an InstrumentsChanged event, to update other things that
+            %rely on this list
+            args = Palladium.Events.InstrumentsChangedEventData(this.SelectedInstruments);
+            notify(this, "InstrumentsChanged", args);
 
             %Remove the instrument class reference from memory
             delete(instrumentRef);

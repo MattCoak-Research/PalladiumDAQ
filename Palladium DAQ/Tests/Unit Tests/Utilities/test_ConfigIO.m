@@ -82,7 +82,17 @@ classdef test_ConfigIO < matlab.unittest.TestCase
 
             %Point the CIO to the ConfigIO Testing/Test Config Dir, which
             %doesn't yet exist
-            testCase.ConfigIOInstance.ConfigDirectory = testCase.TestConfigDir;
+            fullPathToTestConfigDir = Palladium.Utilities.PathUtils.CleanPath(fullfile(testCase.ApplicationDir, testCase.TestConfigDir));
+            palladiumRootDir = Palladium.Utilities.PathUtils.CleanPath(fullfile(testCase.ApplicationDir, "..", "..", ".."));
+            configIODir = fullfile(palladiumRootDir, "+Palladium", "+Utilities");
+
+
+            % Verify that the ConfigIO.m file exists where we expect it
+            testCase.verifyTrue(exist(fullfile(configIODir, "ConfigIO.m"), "file")==2);
+
+            pathFromCIOClassLoc = Palladium.Utilities.PathUtils.MakeFilePathRelative(fullPathToTestConfigDir, RefDir=configIODir);
+
+            testCase.ConfigIOInstance.ConfigDirectory = pathFromCIOClassLoc;
 
             % Create a default config
             defaultConfig = testCase.ConfigIOInstance.GenerateDefaultConfigStruct();

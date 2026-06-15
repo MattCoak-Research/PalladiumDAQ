@@ -301,8 +301,9 @@ classdef Lakeshore331 < Palladium.Core.Instrument
             %Set a heater setpoint on specified channel
             %Get the selected channel, as a string '0' to '4', from the
             %enum value
+            loop = this.GetChannelIndexString(this.ControlChannel); %Specifies which loop to query: 1 or 2.
 
-            this.WriteCommand("SETP " + num2str(setPt));
+            this.WriteCommand("SETP " + loop + ", " + num2str(setPt));
         end
 
         function SetManualOutputPercent(this, percentage)
@@ -336,7 +337,8 @@ classdef Lakeshore331 < Palladium.Core.Instrument
                 enabledStr = "0";
             end
 
-            this.WriteCommand("RAMP " + "," + enabledStr + "," + num2str(rate));
+            loop = this.GetChannelIndexString(this.ControlChannel); %Specifies which loop to query: 1 or 2.
+            this.WriteCommand("RAMP " + loop + "," + enabledStr + "," + num2str(rate));
         end
 
     end
@@ -347,8 +349,9 @@ classdef Lakeshore331 < Palladium.Core.Instrument
         function ApplySettings(this, settings)
             this.SetControlMode(settings.ControlMode);
             this.SetHeaterRange(settings.HeaterRange);
-            this.SetHeaterSetpoint(settings.SetPoint);
             this.SetRamp(settings.RampEnabled, settings.RampRate);
+            pause(0.05);
+            this.SetHeaterSetpoint(settings.SetPoint);
 
             if(settings.ControlMode == this.ControlMode("Open Loop"))
                 this.SetManualOutputPercent(settings.ManualOutput);
@@ -393,17 +396,17 @@ classdef Lakeshore331 < Palladium.Core.Instrument
         function index = GetControlModeIndex(this, controlMode)
             switch(controlMode)
                 case (this.ControlMode("Manual PID"))
-                    index = 0;
-                case(this.ControlMode("Zone"))
                     index = 1;
-                case(this.ControlMode("Open Loop"))
+                case(this.ControlMode("Zone"))
                     index = 2;
-                case(this.ControlMode("AutoTune PID"))
+                case(this.ControlMode("Open Loop"))
                     index = 3;
-                case(this.ControlMode("AutoTune PI"))
+                case(this.ControlMode("AutoTune PID"))
                     index = 4;
-                case(this.ControlMode("AutoTune P"))
+                case(this.ControlMode("AutoTune PI"))
                     index = 5;
+                case(this.ControlMode("AutoTune P"))
+                    index = 6;
                 otherwise
                     error("Unsupported channel, should be Off, Closed Loop PID, Zone, Open Loop, Monitor Out or Warmup Supply, was " + string(controlMode));
             end
@@ -422,7 +425,11 @@ classdef Lakeshore331 < Palladium.Core.Instrument
         end
 
         function powerPerOhm = GetHeaterPowerPerOhmFromRange(this, heaterRangeIdx)
-            %Needs testing!
+            %Tested 2026-04-13 on 370 Ohm Resistor test box, Open Loop Mode
+            %with Manual Output at 1 and 4%. Measuring voltage across
+            %resistor with a DMM the reported and calculated V^2/R power
+            %agree to within DMM uncertainty.
+            
             % 0 = Off, 1 = Low (0.5 W), 2 = Medium (5 W), 3 = High (50 W) -
             % assuming 50 Ohms
             switch(heaterRangeIdx)

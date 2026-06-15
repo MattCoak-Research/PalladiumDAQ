@@ -40,6 +40,7 @@ classdef(Abstract) Instrument < handle
         ConnectionSettings = struct('GPIB_BoardIndex', 0,...
             'Port', 5025,...
             'GPIB_Terminators', ["CR/LF", "CR/LF"],...
+            'GPIB_Timeout', 10,...
             'SerialSettings', struct('BaudRate', 9600, 'DataBits', 8, 'Parity', 'none', 'StopBits', 2, 'Terminator', 'LF')...
             );
     end
@@ -184,12 +185,20 @@ classdef(Abstract) Instrument < handle
             error("Could not find Control Detail Struct with name " + string(controlName) + ". Supported options: " + listOfPotentialNames);
         end
 
+        function names = GetRegisteredControlNames(this)
+            names = [];
+
+            for i = 1 : length(this.ControlClasses)
+                names = [names, string(this.ControlClasses(i).GetName())]; %#ok<AGROW>
+            end
+        end
+
         function [objsList, controlDetailsStructsList] = GetRegisteredControlObjects(this)
             objsList = [];
             controlDetailsStructsList = [];
 
             %Scan through all the Registered InstrumentControl classes and
-            %return all the ones with Name matching the input name
+            %return all
             for i = 1 : length(this.ControlClasses)
                 objsList = [objsList this.ControlClasses(i)]; %#ok<AGROW>
                 strct = this.ControlClasses(i).ControlDetailsStruct;
@@ -228,6 +237,62 @@ classdef(Abstract) Instrument < handle
 
             this.OnInitialised();
         end      
+
+        function PrintIdentifier(this)
+            %PRINTIDENTIFIER - just prints some information about this
+            %instrument to the command window. Basically for
+            %debugging/verification purposes
+            str = "Palladium Instrument " + this.FullName;
+            disp(str);
+        end
+
+        function val = QueryDouble(this, command)
+            arguments
+                this;
+                command (1,1) string;
+            end
+
+            if(this.SimulationMode)
+                val = rand() + 100;
+            else
+                %Quickly check to make sure we are (in theory at least)
+                %connected before sending command - warn if not
+                assert(~isempty(this.DeviceHandle), "Device Handle is empty - device is not connected yet when sending Query command (" + this.FullName + ")");
+
+                %Send query
+                val = str2double(query(this.DeviceHandle, command));
+            end
+        end
+
+        function val = QueryString(this, command)
+            arguments
+                this;
+                command (1,1) string;
+            end
+
+            if(this.SimulationMode)
+                val = 'null';
+            else
+                %Quickly check to make sure we are (in theory at least)
+                %connected before sending command - warn if not
+                assert(~isempty(this.DeviceHandle), "Device Handle is empty - device is not connected yet when sending Query command (" + this.FullName + ")");
+
+                %Send query
+                val = query(this.DeviceHandle, command);
+            end
+        end
+
+        function data = ReadString(this)
+            if(this.SimulationMode)
+                data = 'null';
+            else
+                %Quickly check to make sure we are (in theory at least)
+                %connected before sending command - warn if not
+                assert(~isempty(this.DeviceHandle), "Device Handle is empty - device is not connected yet when sending Query command (" + this.FullName + ")");
+
+                data= fscanf(this.DeviceHandle);
+            end
+        end
 
         function SetNewSweepStepValue(this, value) %#ok<INUSD>
             warning("An override method for SetNewSweepStepValue has not been defined for this Instrument. A SweepController_Stepped is probably trying to tell this Instrument to go to the next step in its sweep but the Instrument doesn't have a function written to tell it how. Look at the Keithley2000 class for an example");
@@ -289,6 +354,21 @@ classdef(Abstract) Instrument < handle
             value = true;
         end
 
+        function WriteCommand(this, command)
+            arguments
+                this;
+                command (1,1) string;
+            end
+
+            if(this.SimulationMode); return; end
+            %Quickly check to make sure we are (in theory at least)
+            %connected before sending command - warn if not
+            assert(~isempty(this.DeviceHandle), "Device Handle is empty - device is not connected yet when sending Query command (" + this.FullName + ")");
+
+            %Send command
+            fprintf(this.DeviceHandle, command);
+        end
+        
     end
 
     %% Methods (Public, Sealed)
@@ -386,6 +466,7 @@ classdef(Abstract) Instrument < handle
         function ConnectGPIB(this)
             this.DeviceHandle = visadev("GPIB::" + num2str(this.GPIB_Address) + "::" + num2str(this.ConnectionSettings.GPIB_BoardIndex) + "::INSTR");
             configureTerminator(this.DeviceHandle, this.ConnectionSettings.GPIB_Terminators(1), this.ConnectionSettings.GPIB_Terminators(2));
+            this.DeviceHandle.Timeout = this.ConnectionSettings.GPIB_Timeout;%In seconds
         end
 
         function ConnectSerial(this)
@@ -499,53 +580,6 @@ classdef(Abstract) Instrument < handle
             %No default functionality - override in Implementation classes
         end
 
-        function val = QueryDouble(this, command)
-            arguments
-                this;
-                command (1,1) string;
-            end
-
-            if(this.SimulationMode)
-                val = rand() + 100;
-            else
-                %Quickly check to make sure we are (in theory at least)
-                %connected before sending command - warn if not
-                assert(~isempty(this.DeviceHandle), "Device Handle is empty - device is not connected yet when sending Query command (" + this.FullName + ")");
-
-                %Send query
-                val = str2double(query(this.DeviceHandle, command));
-            end
-        end
-
-        function val = QueryString(this, command)
-            arguments
-                this;
-                command (1,1) string;
-            end
-
-            if(this.SimulationMode)
-                val = 'null';
-            else
-                %Quickly check to make sure we are (in theory at least)
-                %connected before sending command - warn if not
-                assert(~isempty(this.DeviceHandle), "Device Handle is empty - device is not connected yet when sending Query command (" + this.FullName + ")");
-
-                %Send query
-                val = query(this.DeviceHandle, command);
-            end
-        end
-
-        function data = ReadString(this)
-            if(this.SimulationMode)
-                data = 'null';
-            else
-                %Quickly check to make sure we are (in theory at least)
-                %connected before sending command - warn if not
-                assert(~isempty(this.DeviceHandle), "Device Handle is empty - device is not connected yet when sending Query command (" + this.FullName + ")");
-
-                data= fscanf(this.DeviceHandle);
-            end
-        end
 
         function val = RetrieveSimulatedDataValue(this, propName, defaultValue)
             arguments
@@ -573,22 +607,6 @@ classdef(Abstract) Instrument < handle
             %We made it past all the error handling! Now we can just
             %extract the field, knowing it's there
             val = this.SimulatedData.(propName);
-        end
-
-
-        function WriteCommand(this, command)
-            arguments
-                this;
-                command (1,1) string;
-            end
-
-            if(this.SimulationMode); return; end
-            %Quickly check to make sure we are (in theory at least)
-            %connected before sending command - warn if not
-            assert(~isempty(this.DeviceHandle), "Device Handle is empty - device is not connected yet when sending Query command (" + this.FullName + ")");
-
-            %Send command
-            fprintf(this.DeviceHandle, command);
         end
 
     end

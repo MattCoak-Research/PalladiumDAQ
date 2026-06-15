@@ -49,7 +49,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             this.MeasurementMode = this.MeasType("Voltage RTheta");
 
             %Define the Instrument Controls that can be added
-            this.DefineInstrumentControl(Name = "MFLI Sweep Control", ClassName = "MFLI_SweepController", TabName = "MFLI Sweep Control", EnabledByDefault = false);
+            this.DefineInstrumentControl(Name = "MFLI Sweep Control", ClassName = "MFLI_SweepController", TabName = "MFLI Sweep Control", EnabledByDefault = true);
         end
     end
 
@@ -200,6 +200,11 @@ classdef ZI_MFLI < Palladium.Core.Instrument
 
         function Connect(this)
             % Function to connect to MFLI instrument.
+
+            %Make sure DeviceID is a string, and do some error
+            %checking/verification
+            this.DeviceID = string(this.DeviceID);
+            assert(strcmp(extractBefore(this.DeviceID,4), "DEV"), "MFLI_Connect_Error:InvalidDeviceID", "Invalid Device ID:\n" + string(this.DeviceID) + "\nin MFLI connect. Device ID must start with ""DEV"" - form is DEV123, as a string");
 
             switch(this.Connection_Type)
                 case(Palladium.Enums.ConnectionType.Debug)
@@ -1512,6 +1517,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             end
 
             SweepData = [];
+            complete = false;
 
             if(this.SimulationMode)
                 pause(0.1);
@@ -1532,6 +1538,16 @@ classdef ZI_MFLI < Palladium.Core.Instrument
                 complete = rand(1) > 0.85;
                 return;
             end
+
+            %Sweep handle can be empty in simulation mode - not if we get
+            %to here though
+            assert(~isempty(sweepHandle), "MFLI_Sweep_Error:EmptySweepHandle", "Sweep handle is empty in MFLI Sweep_Check_Completion call");
+
+            %Return and warn if handle is empty
+            % if isempty(sweepHandle)
+            %     disp("empty sweep handle");
+            %     return;
+            % end
 
             %Query whether the sweep is complete
             complete = ziDAQ('finished', sweepHandle);
@@ -1613,6 +1629,8 @@ classdef ZI_MFLI < Palladium.Core.Instrument
 
                 SweepParams.AveSample       (1,1) double  = 100; % Sets the effective number of samples (clock cycles) per sweeper parameter point that is considered in the measurement.
                 SweepParams.AveTC           (1,1) double  = 1;   % Effective calculation time is the maximum between samples and number of time constants. Usually set the Sample Count.
+               
+                SweepParams.SweepMode       {mustBeText}  = "Sequential";  %Select the scanning type, default is sequential (incremental scanning from start to stop value)
             end
 
             if(this.SimulationMode)
@@ -1626,6 +1644,9 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             switch(SweepName)
                 case("Frequency")
                     gridnode = ['oscs/' num2str(oscIndex) '/freq'] ;
+                case("Amplitude")
+                    sigoutIndex = 0;
+                    gridnode = ['sigouts/' num2str(sigoutIndex) '/amplitudes/1'] ;
                 case("AuxOutput1")
                     auxIndex = this.ConvertAuxChannelNameToChannelIndex(auxChannelName);
                     gridnode = ['auxouts/' num2str(auxIndex) '/offset'];
@@ -1662,7 +1683,19 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             else
                 ziDAQ('set', sweepHandle, 'sweep/xmapping', 0); % 0 = linear sweep - spacing between two values is linear
             end
-            ziDAQ('set', sweepHandle, 'sweep/scan', 0); % sequential sweep - values change incrementally from small to large
+
+            switch (SweepParams.SweepMode)
+                case("Sequential")
+                    ziDAQ('set', sweepHandle, 'sweep/scan', 0); % sequential sweep - values change incrementally from small to large
+                case("Binary")
+                    ziDAQ('set', sweepHandle, 'sweep/scan', 1); % sequential sweep - values change incrementally from small to large
+                case("BiDirectional")
+                    ziDAQ('set', sweepHandle, 'sweep/scan', 2); % sequential sweep - values change incrementally from small to large
+                case("Reverse")
+                    ziDAQ('set', sweepHandle, 'sweep/scan', 3); % sequential sweep - values change incrementally from small to large
+                otherwise 
+                    error("Unsupported sweep direction " + string(SweepParams.SweepMode));
+            end
 
             ziDAQ('set', sweepHandle, 'sweep/settling/time', settle_time);
             ziDAQ('set', sweepHandle, 'sweep/settling/inaccuracy', SweepParams.SweepInaccuracy);
