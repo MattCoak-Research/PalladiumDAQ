@@ -3,8 +3,10 @@ name: MATLAB Tests
 on:
   push:
     branches: [main]
+    tags:
+      - "v*.*.*"
   pull_request:
-    branches: [main]
+    branches: [main]    
 
 jobs:
   test:
