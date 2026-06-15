@@ -6,6 +6,10 @@ This is a modular framework for laboratory data acquisition. A library of Instru
 ## System Requirements
 To run PalladiumDAQ, MATLAB version 2025b is required, with the Instrument Control Toolbox installed.
 
+## Download
+Latest release download:
+* [PalladiumDAQ.mltbx](https://github.com/MattCoak-Research/PalladiumDAQ/releases/latest)
+
 
 ## Installation
 * Clone the repository to your local PC or download and extract the code zip file.
