@@ -25,3 +25,8 @@ jobs:
         with:
           name: toolbox
           path: "Palladium DAQ/Release/PalladiumDAQ.mltbx"
+      - name: Release
+        uses: softprops/action-gh-release@v3
+        if: github.ref_type == 'tag'
+        with:
+          files: "Palladium DAQ/Release/PalladiumDAQ.mltbx"
