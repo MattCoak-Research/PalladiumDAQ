@@ -505,6 +505,15 @@ classdef Controller < handle
             success = true;
         end
 
+        function InstrumentPropertyChanged(this, instr)           
+            %Display a status message in the logger
+            this.Log("Info", instr.Name + " Property Changed", "Green", instr.Name + " Property Changed");
+
+            %Run a refresh on the Sequence Editor, as instrument names may
+            %have changed
+            this.SequenceEditorController.RefreshInstrumentNames();
+        end
+
         function Log(this, level, logText, colour, statusText)
             %Passes through to both the Logger and the GUI status panel
             arguments

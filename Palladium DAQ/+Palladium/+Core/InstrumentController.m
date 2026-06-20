@@ -29,6 +29,7 @@ classdef InstrumentController < handle
     properties (Access = private)
         Controller; %Reference back to the overall Palladium Controller that handles all the main logic - feed things back to there
         AssignInstrumentRefsIntoWorkspace = true;
+        EventListeners;
     end
 
     %% Events
@@ -152,6 +153,14 @@ classdef InstrumentController < handle
 
                 args = Palladium.Events.InstrumentsChangedEventData(this.SelectedInstruments);
                 notify(this, "InstrumentsChanged", args);
+
+                %Subscribe to the event fired when instrument properties change.
+                %Note that we have to store and register this listener handle
+                %properly, or when we remove this control  the orphaned listener still lives on the instrument.
+                %When you then change a dropdown (e.g., SourceMode), the PostSet → PropertyChanged event fires, the orphaned listener
+                %tries to call RefreshUnitsAndLimits() on a deleted handle object, and MATLAB crashes.
+                ltr = addlistener(instRef, 'PropertyChanged', @(src,evnt)this.InstrumentPropertyChanged(evnt));
+                this.RegisterEventListener(ltr);
 
                 %Verbose/debug message printing
                 this.Controller.Log("Info", "Added Instrument: " + instrStringToAdd, "Green", "Added Instrument");
@@ -504,6 +513,23 @@ classdef InstrumentController < handle
         end
     end
 
+    %% Methods (Private)
+    methods(Access = private)
+
+        function InstrumentPropertyChanged(this, evnt)
+            instr = evnt.AffectedObject;
+            this.Controller.InstrumentPropertyChanged(instr);
+        end
+
+        function RegisterEventListener(this, listnr)
+            if isempty(this.EventListeners)
+                this.EventListeners = listnr;
+            else
+                this.EventListeners = [this.EventListeners, listnr];
+            end
+        end
+
+    end
 
 end
 
