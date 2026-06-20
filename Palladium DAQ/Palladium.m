@@ -298,6 +298,7 @@ classdef Palladium < handle
                 % Notify controller when there is no view to close
                 this.Controller.OnFigureClosed();
             end
+
             delete(this.View);
             delete(this.Controller);
             this.View = [];

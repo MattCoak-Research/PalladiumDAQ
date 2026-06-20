@@ -599,6 +599,11 @@ classdef Controller < handle
             this.Closing = true;
             this.TimingLoopController.CloseTimer();
             this.InstrumentController.CloseAll();
+
+            %Do cleanup events including e.g. shutting any
+            %Sequence Editor windows (not DataViewer ones though, by
+            %design)
+            this.SequenceEditorController.Close();
         end
 
         function OnLoaded(this)

@@ -26,6 +26,14 @@ classdef SequenceEditorController < handle
     %% Methods (Public)
     methods (Access = public)
 
+        function Close(this)
+            %Called by the Palladium main class, then Controller.Close.
+            %Close any open Views
+            if ~isempty(this.View)
+                this.View.Close();
+            end
+        end
+
         function CreateView(this, viewFileName, applicationDir, Settings)
             %Instantiate an instance of the View/GUI class from file, just
             %from the desired filename
