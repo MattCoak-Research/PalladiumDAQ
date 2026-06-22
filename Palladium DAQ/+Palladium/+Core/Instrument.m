@@ -238,9 +238,9 @@ classdef(Abstract) Instrument < handle
             this.OnInitialised();
         end      
 
-        function PrintIdentifier(this)
+        function str = PrintIdentifier(this)
             %PRINTIDENTIFIER - just prints some information about this
-            %instrument to the command window. Basically for
+            %instrument to the command window (and returns it as a string). Basically for
             %debugging/verification purposes
             str = "Palladium Instrument " + this.FullName;
             disp(str);
