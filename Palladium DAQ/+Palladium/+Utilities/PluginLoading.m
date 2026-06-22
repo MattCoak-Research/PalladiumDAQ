@@ -114,6 +114,49 @@ classdef PluginLoading
             NewName = tmpName;
         end
 
+        function meths = GetInstrumentMethods(instrRef)
+            %Retrieve all the methods/functions that can be called on a
+            %given instrument, as a list of exectuable strings like
+            %"GetSourceLevel(level, enable)". Used to populate context
+            %menus in Sequence Editor
+            methodNames = methods(instrRef);
+            methodSigs = methods(instrRef, "-full");
+
+            builtInNamesToExclude = ['addlistener', 'delete', 'eq', 'findobj', 'findprop', 'ge', 'gt','isvalid', 'le', 'listener', 'lt', 'ne', 'notify'];
+            
+            instrNamesToExclude = ["CollectMetaData", "DefineSupportedConnectionTypes", "GetAvailableControlOptions", "GetControlOption", "GetHeaders",...
+                "GetRegisteredControlNames", "GetRegisteredControlObjects", "GetRegisteredControlObjectsFromName", "GetSupportedConnectionTypes",...
+                "GrabMetadataString", "RegisterControlObject", "RemoveControlObject", "ShowProperty"];
+
+            className = class(instrRef);
+            parts = strsplit(className, '.');
+            constructorName = string(parts(end));
+
+            meths = [];
+
+            for i = 1 : length(methodNames)
+                
+                mn = methodNames{i};
+                if ~isempty(mn)
+                    if ~any(contains(builtInNamesToExclude, mn)) && ~any(contains(instrNamesToExclude, mn))
+                        if ~ strcmp(mn, constructorName)
+                            meths = [meths, CleanMethodSignature(string(mn), string(methodSigs{i}))]; %#ok<AGROW>  %Can't know in advance how many will pass criteria
+                        end
+                    end
+                end
+            end
+
+            function cleanSig = CleanMethodSignature(mName, mSig)
+                %Remove output signature eg this = Keithley2000() ->
+                %Keithley2000()
+                cleanSig = mName + extractAfter(mSig, mName);
+
+                %Remove any 'this, ' or 'this'
+                cleanSig = strrep(cleanSig, '(this, ', '(');
+                cleanSig = strrep(cleanSig, '(this', '(');
+            end
+        end
+
         function classInstance = InstantiateClass(namespace, className)
             %Instantiate an isntance of the named class (empty constructor)
 
