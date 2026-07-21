@@ -110,8 +110,8 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
             comp.SetTitle(instrRef.Name + " Sweep Control");
 
             %Subscribe to events
-            addlistener(comp, 'Run', @(src,evnt)this.SweepRun(src, evnt));
-            addlistener(comp, 'Abort', @(src,evnt)this.SweepAbort(src, evnt));
+            addlistener(comp, 'Run', @(src,evnt)this.SweepRun());
+            addlistener(comp, 'Abort', @(src,evnt)this.SweepAbort());
             addlistener(comp, 'SweepDataChange', @(src,evnt)this.SweepDataChanged(src, evnt));
             addlistener(comp, 'InsertSmartTag', @(src,evnt)this.InsertSmartTagRequest(src, evnt, controller));
 

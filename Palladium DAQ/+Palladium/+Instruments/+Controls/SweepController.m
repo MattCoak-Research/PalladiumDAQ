@@ -65,7 +65,7 @@ classdef SweepController < Palladium.Core.InstrumentControlBase
         end
 
 
-        function SweepAbort(this, ~, ~)
+        function SweepAbort(this)
             this.Running = false;
             this.TimeElapsed_s = 0;
             this.OnSweepAbort();
@@ -89,7 +89,7 @@ classdef SweepController < Palladium.Core.InstrumentControlBase
             this.OnParametersChanged(sweepDetails);
         end
 
-        function SweepRun(this, ~, ~)
+        function SweepRun(this)
             this.Running = true;
             this.TimeElapsed_s = 0;
             this.timerVal = tic();
