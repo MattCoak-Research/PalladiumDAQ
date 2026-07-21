@@ -174,7 +174,8 @@ classdef PluginLoading
             %given instrument, as a list of exectuable strings like
             %"GetSourceLevel(level, enable)". Used to populate context
             %menus in Sequence Editor
-            builtInNamesToExclude = ['addlistener', 'delete', 'eq', 'findobj', 'findprop', 'ge', 'gt','isvalid', 'le', 'listener', 'lt', 'ne', 'notify'];
+            builtInNamesToExclude = ["addlistener", "delete", "eq", "findobj", "findprop", "ge", "gt", "isvalid",...
+                "le", "listener", "lt", "ne", "notify"];
             
             instrNamesToExclude = ["CollectMetaData", "DefineSupportedConnectionTypes", "GetAvailableControlOptions", "GetControlOption", "GetHeaders",...
                 "GetRegisteredControlNames", "GetRegisteredControlObjects", "GetRegisteredControlObjectsFromName", "GetSupportedConnectionTypes",...

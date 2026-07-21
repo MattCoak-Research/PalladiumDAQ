@@ -98,6 +98,22 @@ classdef SweepController < Palladium.Core.InstrumentControlBase
 
     end
 
+    %% Methods (Protected)
+    methods(Access = protected)
+
+        function SetSweepDetailsValue(this, value, name)
+            if this.Running
+                warndlg("Cannot change sweep details while running");
+                return;
+            end
+
+            s = this.ControlDetailsStruct.SweepDetails;
+            s.(name) = value;
+            this.OnParametersChanged(s);
+        end
+
+    end
+
     %% Methods (Static, Public)
     methods (Static, Access = public)
 

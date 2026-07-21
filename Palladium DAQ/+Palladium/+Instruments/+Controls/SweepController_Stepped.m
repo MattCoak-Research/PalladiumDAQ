@@ -259,6 +259,10 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
             this.GUIView = [];
         end
 
+        function SetNumberOfSteps(this, numPoints)
+            this.SetSweepDetailsValue(numPoints, "TargetNumSteps");
+        end
+
         function UnlockRunButton(this)
             this.GUIView.UnlockRunButton();
         end
