@@ -3,7 +3,8 @@ classdef Command < handle
 
     %% Properties (Public)
     properties(Access = public)
-        
+        IsCompleteFn = [];  %If left blank, command will be assumed to have completed instantly. Overide to make the controller check each tick instead
+        FunctionOnComplete = [];
     end
 
     %% Constructor

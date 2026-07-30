@@ -23,9 +23,22 @@ classdef CommandController < handle
         DebugMode = false;
     end
 
+    %% Properties (Dependent)
+    properties (Dependent)
+        Busy;
+    end
+
+    %% Get and Set Accessors
+    methods
+        function val = get.Busy(this)
+            val = ~isempty(this.CommandCurrentlyExecuting);
+        end
+    end
+
     %% Properties (Private)
     properties(Access = private)
         CachedCommands = [];
+        CommandCurrentlyExecuting = [];
     end
 
     %% Constructor
@@ -80,9 +93,6 @@ classdef CommandController < handle
                 fnHandle(target, args);
             end
 
-            if ~isempty(command.FunctionOnComplete)
-                command.FunctionOnComplete();
-            end
         end
 
         function command = PullCachedCommand(this)
@@ -100,6 +110,40 @@ classdef CommandController < handle
            this.CachedCommands(1) = [];
         end
 
+        function Update(this)
+            if isempty(this.CommandCurrentlyExecuting)
+                %Execute any sequence/instrument commands
+                command = this.PullCachedCommand();
+                if ~isempty(command)
+                    this.ExecuteCommand(command);
+
+                    %Check if command finished right away and handle
+                    if isempty(command.IsCompleteFn)    %If left blank, command will be assumed to have completed instantly. Overide to make the controller check each tick instead
+                        %Function completed
+                        if ~isempty(command.FunctionOnComplete)
+                            command.FunctionOnComplete();
+                        end
+                    else
+                        %Function needs some time to complete. Set it as
+                        %CommandCurrentlyExecuting, blocking execution of future
+                        %ones until it is complete
+                        this.CommandCurrentlyExecuting = command;
+                    end
+                end
+            else
+                %Check to see if the running command is now finished
+                if this.CommandCurrentlyExecuting.IsCompleteFn()
+                    %Function completed
+                    if ~isempty(this.CommandCurrentlyExecuting.FunctionOnComplete)
+                        this.CommandCurrentlyExecuting.FunctionOnComplete();
+                    end
+
+                    %Clear the property to let the next command queue up
+                    %next tick
+                    this.CommandCurrentlyExecuting = [];
+                end
+            end
+        end
     end
 
     %% Methods (Private)

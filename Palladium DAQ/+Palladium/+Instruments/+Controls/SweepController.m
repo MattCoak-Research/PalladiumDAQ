@@ -42,6 +42,14 @@ classdef SweepController < Palladium.Core.InstrumentControlBase
             t_s = toc(this.timerVal);
         end
 
+        function busy = IsBusy(this)
+            busy = this.Running;
+        end
+
+        function complete = IsComplete(this)
+            complete = ~this.Running;
+        end
+
         function OnParametersChanged(this, sweepDetails)
 
             this.ControlDetailsStruct.SweepDetails = this.Calculate(sweepDetails);

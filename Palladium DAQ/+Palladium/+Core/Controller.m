@@ -535,11 +535,7 @@ classdef Controller < handle
             %grab data from Instruments and do things with it.
 
             try
-                %Execute any sequence/instrument commands
-                commandsToExecute = this.CommandController.PullCachedCommand();
-                for i = 1 :length(commandsToExecute)
-                    this.CommandController.ExecuteCommand(commandsToExecute(i));
-                end
+                this.CommandController.Update();
             catch e
                 CatchMeasurementLoopError(this, e);
             end

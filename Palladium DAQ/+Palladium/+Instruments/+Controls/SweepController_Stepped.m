@@ -25,7 +25,8 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
     %% Constructor
     methods
         function this = SweepController_Stepped()
-
+            
+            this.RegisterCommandCompleteQuery("SweepRun", @this.IsComplete);
         end
     end
 
