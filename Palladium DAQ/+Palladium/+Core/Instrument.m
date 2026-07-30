@@ -1,4 +1,4 @@
-classdef(Abstract) Instrument < handle
+classdef(Abstract) Instrument < Palladium.Core.Entity
     %Instrument - Abstract base class all instrument implementations must
     %inherit from.
 

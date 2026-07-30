@@ -219,6 +219,13 @@
                             </Category>
                         </Info>
                     </File>
+                    <File Location="Entity.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
                 </File>
                 <File Location="+DataWriting">
                     <Info/>
@@ -761,6 +768,13 @@
                             </Info>
                         </File>
                         <File Location="InstrumentCommand.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="design"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="WaitCommand.m">
                             <Info>
                                 <Category UUID="FileClassCategory">
                                     <Label UUID="design"/>

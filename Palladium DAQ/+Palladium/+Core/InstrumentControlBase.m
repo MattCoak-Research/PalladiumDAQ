@@ -1,4 +1,4 @@
-classdef InstrumentControlBase < handle
+classdef InstrumentControlBase < Palladium.Core.Entity
     %InstrumentControlBase - Base class for a Logic controller add-on object to be added on to an
     %Instrument object, eg LakeshoreHeaterControl.m
 
