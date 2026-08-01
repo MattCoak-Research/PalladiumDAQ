@@ -4,6 +4,7 @@ classdef WaitCommand < Palladium.Sequence.Commands.Command
     %% Properties (Public)
     properties(Access = public)
         Wait_seconds;
+        WaitDisplayUnit = "sec";
     end
 
     %% Properties (Private)
@@ -17,11 +18,13 @@ classdef WaitCommand < Palladium.Sequence.Commands.Command
             arguments
                 wait_Seconds (1,1) double {mustBePositive};
                 Settings.FunctionOnComplete = [];
+                Settings.WaitDisplayUnits;
             end
             
             this.FunctionOnComplete = Settings.FunctionOnComplete;
 
             this.Wait_seconds = wait_Seconds;
+            this.WaitDisplayUnit = string(Settings.WaitDisplayUnits);
 
             this.IsCompleteFn = @this.CheckComplete;
         end

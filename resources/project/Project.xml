@@ -782,6 +782,13 @@
                             </Info>
                         </File>
                     </File>
+                    <File Location="CommandEncoder.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
                 </File>
                 <File Location="+Utilities">
                     <Info/>
@@ -1083,6 +1090,12 @@
                                 <Info/>
                             </File>
                         </File>
+                        <File Location="SequenceAndCommands Testing">
+                            <Info/>
+                            <DIR_SIGNIFIER Location="1">
+                                <Info/>
+                            </DIR_SIGNIFIER>
+                        </File>
                     </File>
                     <File Location="testDataReader.m">
                         <Info>
@@ -1146,6 +1159,19 @@
                             </Info>
                         </File>
                         <File Location="test_ConfigIO.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                    </File>
+                    <File Location="SequenceAndCommands">
+                        <Info/>
+                        <DIR_SIGNIFIER Location="1">
+                            <Info/>
+                        </DIR_SIGNIFIER>
+                        <File Location="test_CommandEncoder.m">
                             <Info>
                                 <Category UUID="FileClassCategory">
                                     <Label UUID="test"/>
@@ -1312,6 +1338,9 @@
         </Reference>
         <Reference Location="7609db55-4dde-4c5c-8f65-a31715338fee">
             <Info Ref="Palladium DAQ/Tests/Unit Tests/Utilities" Type="Relative"/>
+        </Reference>
+        <Reference Location="89b71a5e-eee3-404a-ba66-0534f8edaa93">
+            <Info Ref="Palladium DAQ/Tests/Unit Tests/SequenceAndCommands" Type="Relative"/>
         </Reference>
         <Reference Location="8c702785-a0d0-4c75-ac4e-35ace840c4fb">
             <Info Ref="Palladium DAQ/Tests/Testing User Files/Palladium DAQ - User Files" Type="Relative"/>
