@@ -6,6 +6,7 @@ classdef SequenceEditorController < handle
     properties (Access = private)
         SelectedDir;
         View;
+        CommandEncoder;
         Controller;
         DataReader;
         DataWriter;
@@ -20,6 +21,8 @@ classdef SequenceEditorController < handle
             end
 
             this.Controller = controller;
+            instrumentController = controller.InstrumentController;
+            this.CommandEncoder = Palladium.Sequence.CommandEncoder(instrumentController);
         end
     end
 
@@ -32,6 +35,13 @@ classdef SequenceEditorController < handle
             if ~isempty(this.View)
                 this.View.Close();
             end
+        end
+
+        function CommandInserted(this, details)
+            cmd = this.CommandEncoder.BuildCommandFromEventDetails(details);            
+            str = this.CommandEncoder.CommandToString(cmd);
+            
+            this.InsertSequenceLine(str);
         end
 
         function CreateView(this, viewFileName, applicationDir, Settings)
@@ -65,9 +75,11 @@ classdef SequenceEditorController < handle
             this.View.SetIcon(Settings.IconPath);
 
             %Subscribe to events
+            addlistener(this.View, "CommandInsert", @(src, event)this.CommandInserted(event.Details));
             addlistener(this.View, "DirectorySelect", @(src, event)this.DirectorySelected(src, event));
             addlistener(this.View, "FileSelect", @(src, event)this.FileSelected(src, event));
             addlistener(this.View, "SingleCommandQueued", @(src, event)this.SingleCommandQueued(src, event));
+            addlistener(this.View, "SequenceRun", @(src, event)this.RunSequence(event));
 
             %Set default dir and Start in the default directory
             this.View.DefaultDir = this.SelectedDir;
@@ -112,6 +124,10 @@ classdef SequenceEditorController < handle
             this.DataWriter = Palladium.DataWriting.DataWriter(fileWriteDetails);
         end
 
+        function InsertSequenceLine(this, str)
+            this.View.InsertSequenceLine(str);
+        end
+
         function InstrumentsChanged(this, eventArgs)
             %Called by events when the list of Instruments in
             %InstrumentController changes (Instrument Added or Removed)
@@ -126,13 +142,19 @@ classdef SequenceEditorController < handle
             end
         end
 
+        function RunSequence(this, evnt)
+            seqTextCell = evnt.Value;
+            result = this.CommandEncoder.ParseSequenceText(seqTextCell);
+            result
+        end
+
         function SingleCommandQueued(this, ~, args)
             this.Controller.CacheInstrumentCommand(args.InstrumentRef, string(args.CommandString), args.ControlName, FunctionOnComplete = args.FunctionToRunOnComplete);
         end
     end
 
     %% Methods (Private)
-    methods(Access=private)
+    methods(Access=private)       
 
         function tf = ViewExists(this)
             tf = ~isempty(this.View) && isvalid(this.View);

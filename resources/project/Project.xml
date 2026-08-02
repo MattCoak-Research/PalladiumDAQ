@@ -356,6 +356,20 @@
                             </Category>
                         </Info>
                     </File>
+                    <File Location="CommandEntryEventData.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
+                    <File Location="SequenceEventData.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
                 </File>
                 <File Location="+Instruments">
                     <Info/>
@@ -775,6 +789,20 @@
                             </Info>
                         </File>
                         <File Location="WaitCommand.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="design"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="DataFileCommand.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="design"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="RunSequenceCommand.m">
                             <Info>
                                 <Category UUID="FileClassCategory">
                                     <Label UUID="design"/>
