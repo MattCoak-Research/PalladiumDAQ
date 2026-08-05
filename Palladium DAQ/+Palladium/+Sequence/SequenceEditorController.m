@@ -2,27 +2,34 @@ classdef SequenceEditorController < handle
     %SEQUENCEEDITORCONTROLLER - logic class that acts as the Model for the
     %Sequence Editor application
 
+    %% Properties (Public)
+    properties(Access=public)
+        
+    end
+
     %% Properties (Private)
     properties (Access = private)
         SelectedDir;
         View;
         CommandEncoder;
-        Controller;
         DataReader;
         DataWriter;
         Instruments = {};
     end
 
+    %% Events
+    events
+        SingleCommandQueue;
+    end
+
     %% Constructor
     methods
-        function this = SequenceEditorController(controller)
+        function this = SequenceEditorController()
             arguments
-                controller (1,1) Palladium.Core.Controller;
+                
             end
 
-            this.Controller = controller;
-            instrumentController = controller.InstrumentController;
-            this.CommandEncoder = Palladium.Sequence.CommandEncoder(instrumentController);
+            this.CommandEncoder = Palladium.Sequence.CommandEncoder();
         end
     end
 
@@ -78,6 +85,7 @@ classdef SequenceEditorController < handle
             addlistener(this.View, "CommandInsert", @(src, event)this.CommandInserted(event.Details));
             addlistener(this.View, "DirectorySelect", @(src, event)this.DirectorySelected(src, event));
             addlistener(this.View, "FileSelect", @(src, event)this.FileSelected(src, event));
+            addlistener(this.View, "SaveButtonPressed", @(src, event)this.SaveSequenceButtonPushed(event.Value));
             addlistener(this.View, "SingleCommandQueued", @(src, event)this.SingleCommandQueued(src, event));
             addlistener(this.View, "SequenceRun", @(src, event)this.RunSequence(event));
 
@@ -92,6 +100,36 @@ classdef SequenceEditorController < handle
 
         function DirectorySelected(this, ~, eventArgs)           
             this.View.OnDirectorySelected();
+        end
+
+        function instRef = GetInstrumentFromName(this, instName)
+            arguments
+                this;
+                instName {mustBeTextScalar};
+            end
+
+            instRef = []; %#ok<NASGU>
+
+            for i = 1 : length(this.Instruments)
+                if this.Instruments{i}.Name == instName
+                    instRef = this.Instruments{i};
+                    return;
+                end
+            end
+
+            %If we got here, none of the instruments matched
+            instStringNameList = "";
+            for i = 1 : length(this.Instruments)
+                instStringNameList = instStringNameList + this.Instruments{i}.Name;
+                if i ~= length(this.Instruments)
+                    instStringNameList = instStringNameList + ", ";
+                end
+            end
+            if instStringNameList == ""
+                instStringNameList = "-NONE-";
+            end
+
+            error("GetInstrumentFromNameError:NotFound", "Could not find instrument of Name " + instName + ". Added Instruments: " + instStringNameList);
         end
 
         function FileSelected(this, ~, eventArgs)
@@ -144,12 +182,27 @@ classdef SequenceEditorController < handle
 
         function RunSequence(this, evnt)
             seqTextCell = evnt.Value;
-            result = this.CommandEncoder.ParseSequenceText(seqTextCell);
+            result = this.CommandEncoder.ParseSequenceText(seqTextCell, this.Instruments);
             result
         end
 
+        function SaveSequenceButtonPushed(this, details)
+            [file,location] = uiputfile('*.m');
+            if isequal(file,0) || isequal(location,0)
+                disp('User clicked Cancel.')
+            else
+                disp(['User selected ',fullfile(location,file),...
+                    ' and then clicked Save.'])
+            end
+        end
+
         function SingleCommandQueued(this, ~, args)
-            this.Controller.CacheInstrumentCommand(args.InstrumentRef, string(args.CommandString), args.ControlName, FunctionOnComplete = args.FunctionToRunOnComplete);
+            %Pass on event - if a Controller made this as expected in a
+            %normal programme running (not a unit test for example), it
+            %will be listening and will call CacheInstrumentCommand
+            notify(this, "SingleCommandQueue", args);
+
+        %    this.Controller.CacheInstrumentCommand(args.InstrumentRef, string(args.CommandString), args.ControlName, FunctionOnComplete = args.FunctionToRunOnComplete);
         end
     end
 

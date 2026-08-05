@@ -30,6 +30,7 @@ classdef test_CommandEncoder < matlab.unittest.TestCase
             %Encode an example wait command into string, then translate it
             %back into a new command and check they match
             w = Palladium.Sequence.Commands.WaitCommand(2, "WaitDisplayUnits", "sec");
+
             ce = Palladium.Sequence.CommandEncoder();
 
             str = ce.CommandToString(w);

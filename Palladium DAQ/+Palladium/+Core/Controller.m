@@ -99,10 +99,11 @@ classdef Controller < handle
             this.CommandController = Palladium.Core.CommandController(DebugMode = this.DebugMode);
 
             %Create a SequenceViewerController
-            this.SequenceEditorController = Palladium.Sequence.SequenceEditorController(this);
+            this.SequenceEditorController = Palladium.Sequence.SequenceEditorController();
 
             %Hook up events
             addlistener(this.InstrumentController, "InstrumentsChanged", @(s,e)this.SequenceEditorController.InstrumentsChanged(e));      
+            addlistener(this.SequenceEditorController, "SingleCommandQueue", @(s,args)this.CacheInstrumentCommand(args.InstrumentRef, string(args.CommandString), args.ControlName, FunctionOnComplete = args.FunctionToRunOnComplete));      
         end
     end
 
@@ -204,7 +205,7 @@ classdef Controller < handle
                 controlName = string.empty;
                 Settings.FunctionOnComplete = [];
             end
-            
+
             this.CommandController.CacheInstrumentCommand(instrument, command, controlName, FunctionOnComplete = Settings.FunctionOnComplete);
         end
 

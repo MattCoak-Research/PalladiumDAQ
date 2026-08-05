@@ -1,5 +1,5 @@
 classdef CommandEncoder < handle
-    %COMMANDENCODER 
+    %COMMANDENCODER
     %Handles parsing sequence text into Command objects, and creating those
     %strings
     %
@@ -16,19 +16,18 @@ classdef CommandEncoder < handle
 
     %% Properties (Public)
     properties
-        
+
     end
 
     %% Properties (Private)
     properties(Access=private)
-        InstrumentController;
+
     end
-  
+
     %% Constructor
     methods
 
-        function this = CommandEncoder(instrumentController)
-            this.InstrumentController = instrumentController;
+        function this = CommandEncoder()
         end
 
     end
@@ -82,34 +81,36 @@ classdef CommandEncoder < handle
                     waitVal = com.Wait_seconds;
                     waitDisplayUnit = com.WaitDisplayUnit;
                     str = this.BuildWaitCommand(WaitValue=waitVal, WaitUnit=waitDisplayUnit);
-                otherwise 
+                otherwise
                     error("Unrecognised command class type in CommandEncoder: " + string(classType));
             end
 
         end
 
-        function result = ParseSequenceText(this, cellArrayOfSequenceLines)
+        function result = ParseSequenceText(this, cellArrayOfSequenceLines, instrumentsList)
             arguments
                 this;
                 cellArrayOfSequenceLines (:,1) cell;
+                instrumentsList = [];
             end
 
             %Remove empty and comment lines
             lns = cellArrayOfSequenceLines(~cellfun('isempty', cellArrayOfSequenceLines));
-            lns = lns(~startsWith(lns, '%')); 
+            lns = lns(~startsWith(lns, '%'));
 
             for i = 1 : length(lns)
-                result{i} = this.StringToCommand(string(lns{i}));
+                result{i} = this.StringToCommand(string(lns{i}), instrumentsList);
             end
 
         end
 
-        function com = StringToCommand(this, str)
+        function com = StringToCommand(this, str, instrumentsList)
             arguments
                 this;
                 str {mustBeTextScalar};
+                instrumentsList = [];
             end
-            
+
             typeStr = extractBetween(str, '[', ']');
             assert(~isempty(typeStr), "Type String not found");
 
@@ -122,7 +123,7 @@ classdef CommandEncoder < handle
 
                 case this.Enc_Instr
                     [instrumentName, command, controlName] = this.ParseInstrumentCommand(commandStr);
-                    instrument = this.GetInstrumentFromName(instrumentName);
+                    instrument = this.GetInstrumentFromName(instrumentName, instrumentsList);
                     com = Palladium.Sequence.Commands.InstrumentCommand(instrument, command, controlName);
                 case this.Enc_RunSequence
 
@@ -139,7 +140,7 @@ classdef CommandEncoder < handle
 
     %% Methods (Private)
     methods(Access=private)
-        
+
         function str = BuildInstrumentCommand(this, Settings)
             arguments
                 this;
@@ -187,8 +188,29 @@ classdef CommandEncoder < handle
             str = "[" + Palladium.Sequence.CommandEncoder.Enc_Wait + "]" + " " + num2str(val) + " " + Settings.WaitUnit;
         end
 
-        function instrRef = GetInstrumentFromName(this, instrumentName)
-            instrRef = this.InstrumentController.GetInstrumentFromName(instrumentName);
+        function instRef = GetInstrumentFromName(~, instName, instrumentsList)
+            instRef = []; %#ok<NASGU>
+
+            for i = 1 : length(instrumentsList)
+                if instrumentsList{i}.Name == instName
+                    instRef = instrumentsList{i};
+                    return;
+                end
+            end
+
+            %If we got here, none of the instruments matched
+            instStringNameList = "";
+            for i = 1 : length(instrumentsList)
+                instStringNameList = instStringNameList + instrumentsList.Name;
+                if i ~= length(instrumentsList)
+                    instStringNameList = instStringNameList + ", ";
+                end
+            end
+            if instStringNameList == ""
+                instStringNameList = "-NONE-";
+            end
+
+            error("GetInstrumentFromNameError:NotFound", "Could not find instrument of Name " + instName + ". Added Instruments: " + instStringNameList);
         end
 
         function [instrumentName, command, controlName] = ParseInstrumentCommand(this, str)
@@ -220,7 +242,7 @@ classdef CommandEncoder < handle
         end
 
         function [waitVal_Sec, waitUnit] = ParseWaitCommand(this, str)
-   
+
             ss = strsplit(str, " ");
             val = str2double(ss{1});
             waitUnit = ss{2};
