@@ -2,6 +2,11 @@ classdef SequenceEditorController < handle
     %SEQUENCEEDITORCONTROLLER - logic class that acts as the Model for the
     %Sequence Editor application
 
+    %% Properties (Constant, private)
+    properties(Constant, Access=private)
+        SequenceFileHeader = "Palladium Sequence File, Version [1.0]";
+    end
+
     %% Properties (Public)
     properties(Access=public)
         
@@ -12,8 +17,7 @@ classdef SequenceEditorController < handle
         SelectedDir;
         View;
         CommandEncoder;
-        DataReader;
-        DataWriter;
+        FileWriteDetails;
         Instruments = {};
     end
 
@@ -25,10 +29,6 @@ classdef SequenceEditorController < handle
     %% Constructor
     methods
         function this = SequenceEditorController()
-            arguments
-                
-            end
-
             this.CommandEncoder = Palladium.Sequence.CommandEncoder();
         end
     end
@@ -91,7 +91,7 @@ classdef SequenceEditorController < handle
 
             %Set default dir and Start in the default directory
             this.View.DefaultDir = this.SelectedDir;
-            this.View.FileExtension = this.DataWriter.FileWriteDetails.FileExtension;
+            this.View.FileExtension = this.FileWriteDetails.FileExtension;
             this.View.DirectorySelected(this.SelectedDir);
 
             %Update the newly minted View
@@ -134,6 +134,8 @@ classdef SequenceEditorController < handle
 
         function FileSelected(this, ~, eventArgs)
             this.View.OnFileSelected();
+
+            %TODO - hook to OpenFile in Private functions below?
         end
 
         function Initialise(this, Settings)
@@ -146,20 +148,16 @@ classdef SequenceEditorController < handle
 
             this.SelectedDir = Settings.DefaultSequenceDirectory;
 
-            %Construct a DataReader object to handle the nuts and bolts of
-            %reading files (designed like this so we can easily extend to
-            %different file encoding types later)
-            this.DataReader = Palladium.DataWriting.DataReader();
-
             %Construct a DataWriter object - for saving figures
             %Assign into private property struct FileWriteDetails
             fileWriteDetails.Directory = Settings.DefaultSequenceDirectory;
-            fileWriteDetails.FileName = "File Name";
+            fileWriteDetails.FileName = "New Sequence";
             fileWriteDetails.DescriptionText = "Sequence Description";
             fileWriteDetails.FileExtension = Settings.SequenceFileExtension;
             fileWriteDetails.SaveFile = true;
             fileWriteDetails.WriteMode = "Overwrite File";
-            this.DataWriter = Palladium.DataWriting.DataWriter(fileWriteDetails);
+            
+            this.FileWriteDetails = fileWriteDetails;
         end
 
         function InsertSequenceLine(this, str)
@@ -186,14 +184,25 @@ classdef SequenceEditorController < handle
             result
         end
 
-        function SaveSequenceButtonPushed(this, details)
-            [file,location] = uiputfile('*.m');
+        function SaveSequenceButtonPushed(this, sequenceLines)
+            this.SelectedDir
+            seqExt = "*" + string(this.FileWriteDetails.FileExtension);
+            filter = {seqExt, "Palladium Sequence Files"};
+            defaultpath = fullfile(this.SelectedDir, this.FileWriteDetails.FileName);
+            title = "Save Sequence As..";
+
+            %Open a save as file dialogue
+            [file,location] = uiputfile(filter, title, defaultpath);
             if isequal(file,0) || isequal(location,0)
-                disp('User clicked Cancel.')
-            else
-                disp(['User selected ',fullfile(location,file),...
-                    ' and then clicked Save.'])
+                return;
             end
+
+            path = fullfile(location,file);
+
+            this.SaveSequenceToFile(sequenceLines, path);
+
+            %Refresh the GUI, as a new file may well have appeared in it
+            this.View.RefreshDir();
         end
 
         function SingleCommandQueued(this, ~, args)
@@ -208,6 +217,24 @@ classdef SequenceEditorController < handle
 
     %% Methods (Private)
     methods(Access=private)       
+        
+        function sequenceLines = LoadSequenceFromFile(~, filePath)
+
+        end
+
+        function SaveSequenceToFile(~, sequenceLines, filePath)
+            %Will overwrite
+            fid = fopen(filePath, 'w');
+
+             fprintf(fid, '%s\n', Palladium.Sequence.SequenceEditorController.SequenceFileHeader);
+             fprintf(fid, '%s\n', "");
+
+            for i = 1 : length(sequenceLines)
+                fprintf(fid, '%s\n', sequenceLines{i});
+            end
+
+            fclose(fid);
+        end
 
         function tf = ViewExists(this)
             tf = ~isempty(this.View) && isvalid(this.View);

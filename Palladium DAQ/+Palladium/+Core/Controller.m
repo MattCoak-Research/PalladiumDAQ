@@ -412,7 +412,11 @@ classdef Controller < handle
                 %Initialise TimingLoopController
                 this.TimingLoopController.Initialise();
 
-                %Send paths and settings to the Sequence Controller
+                %Send paths and settings to the Sequence Controller - first
+                %make sure the sequence directory exists.
+                if ~exist(this.PathSettings.DefaultSequenceDirectory, "dir")
+                    mkdir(this.PathSettings.DefaultSequenceDirectory);
+                end                
                 this.SequenceEditorController.Initialise(...
                     "DefaultSequenceDirectory", this.PathSettings.DefaultSequenceDirectory,...
                     "SequenceFileExtension", this.PathSettings.SequenceFileExtension);
