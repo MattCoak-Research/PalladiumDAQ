@@ -9,7 +9,7 @@ classdef SequenceEditorController < handle
 
     %% Properties (Public)
     properties(Access=public)
-        
+
     end
 
     %% Properties (Private)
@@ -45,9 +45,9 @@ classdef SequenceEditorController < handle
         end
 
         function CommandInserted(this, details)
-            cmd = this.CommandEncoder.BuildCommandFromEventDetails(details);            
+            cmd = this.CommandEncoder.BuildCommandFromEventDetails(details);
             str = this.CommandEncoder.CommandToString(cmd);
-            
+
             this.InsertSequenceLine(str);
         end
 
@@ -98,7 +98,7 @@ classdef SequenceEditorController < handle
             this.View.RefreshInstrumentNames(this.Instruments);
         end
 
-        function DirectorySelected(this, ~, ~)           
+        function DirectorySelected(this, ~, ~)
             this.View.OnDirectorySelected();
         end
 
@@ -135,7 +135,7 @@ classdef SequenceEditorController < handle
         function FileSelected(this, ~, eventArgs)
             this.View.OnFileSelected();
             filePath = eventArgs.Value;
-            
+
             seqLines = this.LoadSequenceFromFile(filePath);
 
             this.SetSequence(seqLines);
@@ -159,7 +159,7 @@ classdef SequenceEditorController < handle
             fileWriteDetails.FileExtension = Settings.SequenceFileExtension;
             fileWriteDetails.SaveFile = true;
             fileWriteDetails.WriteMode = "Overwrite File";
-            
+
             this.FileWriteDetails = fileWriteDetails;
         end
 
@@ -172,7 +172,7 @@ classdef SequenceEditorController < handle
             %InstrumentController changes (Instrument Added or Removed)
 
             this.Instruments = eventArgs.Instruments;
-            this.RefreshInstrumentNames();        
+            this.RefreshInstrumentNames();
         end
 
         function RefreshInstrumentNames(this)
@@ -218,14 +218,14 @@ classdef SequenceEditorController < handle
             %will be listening and will call CacheInstrumentCommand
             notify(this, "SingleCommandQueue", args);
         end
-        
+
     end
 
     %% Methods (Private)
-    methods(Access=private)       
-        
+    methods(Access=private)
+
         function sequenceLines = LoadSequenceFromFile(~, filePath)
-         
+
             lnes = readlines(filePath);
 
             if isempty(lnes)
@@ -242,6 +242,20 @@ classdef SequenceEditorController < handle
 
             %Trim off first two lines (header)
             sequenceLines = lnes(3:end);
+
+            %Remove any trailing empty lines
+            foundLine = true;
+            while(foundLine)
+                sequenceLines(end)
+                if isempty(sequenceLines(end)) || strcmp(sequenceLines(end), "")
+                    sequenceLines(end) = [];
+                    foundLine = true;
+                else
+                    foundLine = false;
+                end
+            end
+
+
         end
 
         function SaveSequenceToFile(~, sequenceLines, filePath)
@@ -250,8 +264,20 @@ classdef SequenceEditorController < handle
 
             formatSpec = '%s\n';
 
-             fprintf(fid, formatSpec, Palladium.Sequence.SequenceEditorController.SequenceFileHeader);
-             fprintf(fid, formatSpec, "");
+            fprintf(fid, formatSpec, Palladium.Sequence.SequenceEditorController.SequenceFileHeader);
+            fprintf(fid, formatSpec, "");
+
+            %Remove any trailing empty lines
+            foundLine = true;
+            while(foundLine)
+                sequenceLines(end)
+                if isempty(sequenceLines(end)) || strcmp(sequenceLines(end), "")
+                    sequenceLines(end) = [];
+                    foundLine = true;
+                else
+                    foundLine = false;
+                end
+            end
 
             for i = 1 : length(sequenceLines)
                 fprintf(fid, formatSpec, sequenceLines{i});
