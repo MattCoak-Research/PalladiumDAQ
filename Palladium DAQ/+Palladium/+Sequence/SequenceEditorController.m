@@ -98,7 +98,7 @@ classdef SequenceEditorController < handle
             this.View.RefreshInstrumentNames(this.Instruments);
         end
 
-        function DirectorySelected(this, ~, eventArgs)           
+        function DirectorySelected(this, ~, ~)           
             this.View.OnDirectorySelected();
         end
 
@@ -134,8 +134,11 @@ classdef SequenceEditorController < handle
 
         function FileSelected(this, ~, eventArgs)
             this.View.OnFileSelected();
+            filePath = eventArgs.Value;
+            
+            seqLines = this.LoadSequenceFromFile(filePath);
 
-            %TODO - hook to OpenFile in Private functions below?
+            this.SetSequence(seqLines);
         end
 
         function Initialise(this, Settings)
@@ -205,32 +208,53 @@ classdef SequenceEditorController < handle
             this.View.RefreshDir();
         end
 
+        function SetSequence(this, seqLines)
+            this.View.SetSequence(seqLines);
+        end
+
         function SingleCommandQueued(this, ~, args)
             %Pass on event - if a Controller made this as expected in a
             %normal programme running (not a unit test for example), it
             %will be listening and will call CacheInstrumentCommand
             notify(this, "SingleCommandQueue", args);
-
-        %    this.Controller.CacheInstrumentCommand(args.InstrumentRef, string(args.CommandString), args.ControlName, FunctionOnComplete = args.FunctionToRunOnComplete);
         end
+        
     end
 
     %% Methods (Private)
     methods(Access=private)       
         
         function sequenceLines = LoadSequenceFromFile(~, filePath)
+         
+            lnes = readlines(filePath);
 
+            if isempty(lnes)
+                warndlg("Empty or invalid sequence file");
+                sequenceLines = [];
+                return;
+            end
+
+            if length(lnes) < 2
+                warndlg("Empty or invalid sequence file");
+                sequenceLines = [];
+                return;
+            end
+
+            %Trim off first two lines (header)
+            sequenceLines = lnes(3:end);
         end
 
         function SaveSequenceToFile(~, sequenceLines, filePath)
             %Will overwrite
             fid = fopen(filePath, 'w');
 
-             fprintf(fid, '%s\n', Palladium.Sequence.SequenceEditorController.SequenceFileHeader);
-             fprintf(fid, '%s\n', "");
+            formatSpec = '%s\n';
+
+             fprintf(fid, formatSpec, Palladium.Sequence.SequenceEditorController.SequenceFileHeader);
+             fprintf(fid, formatSpec, "");
 
             for i = 1 : length(sequenceLines)
-                fprintf(fid, '%s\n', sequenceLines{i});
+                fprintf(fid, formatSpec, sequenceLines{i});
             end
 
             fclose(fid);
