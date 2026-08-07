@@ -187,9 +187,63 @@ classdef SequenceEditorController < handle
         end
 
         function RunSequence(this, evnt)
-            seqTextCell = evnt.Value;
-            result = this.CommandEncoder.ParseSequenceText(seqTextCell, this.Instruments);
+            seqTextStrArray = evnt.Value;
+
+            %Make sure format is always the same - array of strings.
+            %TextArea is inconsistent in testing, depending on if file is
+            %loaded or edits are made manually.
+            if iscell(seqTextStrArray)
+                seqTextStrArray = convertCharsToStrings(seqTextStrArray);
+            end
+
+            %Parse the array of strings into a cell array of Command
+            %classes
+            result = this.CommandEncoder.ParseSequenceText(seqTextStrArray, this.Instruments);
+          
+            %Read any sequences called in RunSequence commands from disk,
+            %parse them and insert the contents into the queue in the place
+            %of that RunSequence line.
+            %This runs recursively, as the loaded sequence could also have
+            %another nested RunSequence command
+            [tf, index] = ContainsRunSequenceCommand(result);
+            while(tf)
+                seqCom = result{index};
+
+                %Remove the sequence command from the chain
+                result(index) = [];
+
+                %Load the sequence file and unpack it
+                newSeqStrArray = this.LoadSequenceFromFile(seqCom.SequencePath);    %This will be a string array, as it's loaded 
+                newSeq = this.CommandEncoder.ParseSequenceText(newSeqStrArray, this.Instruments);
+
+                %Insert the new commands into the sequence at index 'index'
+                edited = [result(1:index-1), newSeq, result(index:end)];
+                result = edited;
+
+                %Update, check again - do we need to loop round again, or
+                %did we get all the nested sequences?
+                [tf, index] = ContainsRunSequenceCommand(result);
+            end
+
             result
+
+            function [tf, index] = ContainsRunSequenceCommand(cellArrayOfCommands)
+                %Returns true and the index on first identified example, as
+                %when we use this to decode the seq and insert new lines
+                %for the nested sequence, the indices of any others further
+                %down will change, so just keep iterating the first until
+                %all are ticked off.
+                tf = false;
+                index = [];
+
+                for i = 1 : length(cellArrayOfCommands)
+                    if isa(cellArrayOfCommands{i}, 'Palladium.Sequence.Commands.RunSequenceCommand')
+                        tf = true;
+                        index = i;
+                        return;
+                    end
+                end
+            end
         end
 
         function SaveSequenceButtonPushed(this, sequenceLines)

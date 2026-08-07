@@ -100,19 +100,19 @@ classdef CommandEncoder < handle
 
         end
 
-        function result = ParseSequenceText(this, cellArrayOfSequenceLines, instrumentsList)
+        function result = ParseSequenceText(this, strArrayOfSequenceLines, instrumentsList)
             arguments
                 this;
-                cellArrayOfSequenceLines (:,1) cell;
+                strArrayOfSequenceLines (:,1) string;
                 instrumentsList = [];
             end
 
             %Remove empty and comment lines
-            lns = cellArrayOfSequenceLines(~cellfun('isempty', cellArrayOfSequenceLines));
+            lns = strArrayOfSequenceLines(~strcmp(strArrayOfSequenceLines(:,1),""), :);
             lns = lns(~startsWith(lns, '%'));
 
             for i = 1 : length(lns)
-                result{i} = this.StringToCommand(string(lns{i}), instrumentsList);
+                result{i} = this.StringToCommand(lns(i), instrumentsList);
             end
 
         end
