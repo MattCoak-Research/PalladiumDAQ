@@ -38,6 +38,9 @@ classdef PPMS < Palladium.Core.Instrument
             this.DefineSupportedConnectionTypes(["Debug", "Ethernet"]);
             this.IP_Address = "127.0.0.1";
             this.ConnectionSettings.Port = 11000;
+
+            this.RegisterCommandCompleteQuery("SetField", @this.IsFieldStable);
+            this.RegisterCommandCompleteQuery("SetTemperature", @this.IsTemperatureStable);
         end
     end
 
