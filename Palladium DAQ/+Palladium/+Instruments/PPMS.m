@@ -47,6 +47,10 @@ classdef PPMS < Palladium.Core.Instrument
         function Close(this)
             delete(this.Interface);
             this.Interface = [];
+
+            if this.SimulationMode
+                disp("Disconnected from simulated PPMS");
+            end
         end
 
         function Connect(this)
@@ -72,6 +76,68 @@ classdef PPMS < Palladium.Core.Instrument
             assert(~isempty(this.Interface), "PPMS interface object is empty - call Connect first?");
             B_Oe = this.Interface.GetField();
             B_T = B_Oe / 10000;
+        end
+
+        function [statusInt, statusName] = GetFieldStatus(this)
+            %Field status enum return values
+            % public enum FieldStatus
+            % {
+            %     MagnetUnknown,
+            %     StablePersistent,
+            %     WarmingSwitch,
+            %     CoolingSwitch,
+            %     StableDriven,
+            %     Iterating,
+            %     Charging,
+            %     Discharging,
+            %     CurrentError,
+            %     Unused9,
+            %     Unused10,
+            %     Unused11,
+            %     Unused12,
+            %     Unused13,
+            %     Unused14,
+            %     MagnetFailure
+            % }
+            assert(~isempty(this.Interface), "PPMS interface object is empty - call Connect first?");
+            statusInt = this.Interface.GetFieldStatus();
+
+            switch(statusInt)
+                case(0)
+                    statusName = "MagnetUnknown";
+                case(1)
+                    statusName = "StablePersistent";
+                case(2)
+                    statusName = "WarmingSwitch";
+                case(3)
+                    statusName = "CoolingSwitch";
+                case(4)
+                    statusName = "StableDriven";
+                case(5)
+                    statusName = "Iterating";
+                case(6)
+                    statusName = "Charging";
+                case(7)
+                    statusName = "Discharging";
+                case(8)
+                    statusName = "CurrentError";
+                case(9)
+                    statusName = "Unused9";
+                case(10)
+                    statusName = "Unused10";
+                case(11)
+                    statusName = "Unused11";
+                case(12)
+                    statusName = "Unused12";
+                case(13)
+                    statusName = "Unused13";
+                case(14)
+                    statusName = "Unused14";
+                case(15)
+                    statusName = "MagnetFailure";
+                otherwise
+                    error("Invalid status");
+            end
         end
 
         function [Headers, Units] = GetHeaders(this)
@@ -113,6 +179,109 @@ classdef PPMS < Palladium.Core.Instrument
             T_K = this.Interface.GetTemperature();
         end
 
+        function [statusInt, statusName] = GetTemperatureStatus(this)
+            %Temperature status enum return values
+            % public enum TemperatureStatus
+            % {
+            %     TemperatureUnknown, = 0
+            %     Stable, = 1
+            %     Tracking,
+            %     Unused3,
+            %     Unused4,
+            %     Near,
+            %     Chasing,
+            %     Filling,
+            %     Unused8,
+            %     Unused9,
+            %     Standby,
+            %     Unused11,
+            %     Unused12,
+            %     Disabled,
+            %     ImpedanceNotFunction,
+            %     TempFailure
+            % }
+            assert(~isempty(this.Interface), "PPMS interface object is empty - call Connect first?");
+            statusInt = this.Interface.GetTemperatureStatus();
+
+            switch(statusInt)
+                case(0)
+                    statusName = "TemperatureUnknown";
+                case(1)
+                    statusName = "Stable";
+                case(2)
+                    statusName = "Tracking";
+                case(3)
+                    statusName = "Unused3";
+                case(4)
+                    statusName = "Unused4";
+                case(5)
+                    statusName = "Near";
+                case(6)
+                    statusName = "Chasing";
+                case(7)
+                    statusName = "Filling";
+                case(8)
+                    statusName = "Unused8";
+                case(9)
+                    statusName = "Unused9";
+                case(10)
+                    statusName = "Standby";
+                case(11)
+                    statusName = "Unused11";
+                case(12)
+                    statusName = "Unused12";
+                case(13)
+                    statusName = "Disabled";
+                case(14)
+                    statusName = "ImpedanceNotFunction";
+                case(15)
+                    statusName = "TempFailure";
+                otherwise
+                    error("Invalid status");
+            end
+        end
+
+        %Chamber status enum return values
+        % public enum ChamberStatus
+        % {
+        %     ChamberUnknown,
+        %     PurgedAndSealed,
+        %     VentedAndSealed,
+        %     Sealed,
+        %     Purging,
+        %     Venting,
+        %     PreHiVac,
+        %     HighVac,
+        %     PumpContinuous,
+        %     VentContinuous,
+        %     Unused10,
+        %     Unused11,
+        %     Unused12,
+        %     Unused13,
+        %     Unused14,
+        %     ChamberFailure
+        % }
+
+        function tf = IsFieldStable(this)
+            val = this.GetFieldStatus();
+
+            if val == 1 || val == 4
+                tf = true;
+            else
+                tf = false;
+            end
+        end
+
+        function tf = IsTemperatureStable(this)
+            val = this.GetTemperatureStatus();
+
+            if val == 1
+                tf = true;
+            else
+                tf = false;
+            end
+        end
+
         function [dataRow] = Measure(this)
 
             field_T = this.GetField();
@@ -124,6 +293,71 @@ classdef PPMS < Palladium.Core.Instrument
             if this.RotatorInstalled
                 dataRow(end + 1) = this.GetRotatorPosition();
             end
+        end
+
+        function SetField(this, val_T, rate_TperMin, Settings)
+            arguments
+                this;
+                val_T (1,1) double;
+                rate_TperMin (1,1) double {mustBePositive};
+                Settings.ApproachMode {mustBeMember(Settings.ApproachMode, {"Linear", "NoOvershoot", "Oscillate"})};
+                Settings.FieldMode {mustBeMember(Settings.FieldMode, {"Persistent", "Driven"})};
+            end
+
+            switch(Settings.ApproachMode)
+                case("Linear")
+                    am = 0;
+                case("NoOvershoot")
+                    am = 1;
+                case("Oscillate")
+                    am = 2;
+                otherwise
+                    error("Invalid approach mode");
+            end
+
+            switch(Settings.FieldMode)
+                case("Persistent")
+                    fm = 0;
+                case("Driven")
+                    fm = 1;
+                otherwise
+                    error("Invalid field mode");
+            end
+
+            val_Oe = val_T * 10000;
+            rate_OePerMin = rate_TperMin * 10000;
+
+            if this.SimulationMode
+                disp("Setting PPMS field to " + num2str(val_Oe) + " Oe, at rate " + num2str(rate_OePerMin) + " Oe per min, " + string(Settings.ApproachMode) + ", " + string(Settings.FieldMode));
+            end
+
+            assert(~isempty(this.Interface), "PPMS interface object is empty - call Connect first?");            
+            this.Interface.SetField(val_Oe, rate_OePerMin, am, fm);
+        end
+
+        function SetTemperature(this, val_K, rate_KperMin, Settings)
+            arguments
+                this;
+                val_K (1,1) double;
+                rate_KperMin (1,1) double {mustBePositive};
+                Settings.ApproachMode {mustBeMember(Settings.ApproachMode, ["FastSettle", "NoOvershoot"])};
+            end
+
+            switch(Settings.ApproachMode)
+                case("FastSettle")
+                    am = 0;
+                case("NoOvershoot")
+                    am = 1;
+                otherwise
+                    error("Invalid approach mode");
+            end
+
+            if this.SimulationMode
+                disp("Setting PPMS temperature to " + num2str(val_K) + " K, at rate " + num2str(rate_KperMin) + " K per min, " + string(Settings.ApproachMode));
+            end
+
+            assert(~isempty(this.Interface), "PPMS interface object is empty - call Connect first?");
+            this.Interface.SetTemperature(val_K, rate_KperMin, am);
         end
 
     end
