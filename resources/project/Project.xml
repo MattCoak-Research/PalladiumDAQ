@@ -1415,13 +1415,6 @@
                     </File>
                 </File>
             </File>
-            <File Location="main.m">
-                <Info>
-                    <Category UUID="FileClassCategory">
-                        <Label UUID="design"/>
-                    </Category>
-                </Info>
-            </File>
         </File>
         <File Location="README.md">
             <Info/>
@@ -1430,16 +1423,6 @@
             <Info>
                 <Category UUID="FileClassCategory">
                     <Label UUID="design"/>
-                </Category>
-            </Info>
-        </File>
-        <File Location="main.m">
-            <Info>
-                <Category UUID="FileClassCategory">
-                    <Label UUID="design"/>
-                </Category>
-                <Category UUID="Deployment_Category_f8b5dac1-7178-40a3-a667-a5c00785352e">
-                    <Label UUID="Deployment_MainFile_f8b5dac1-7178-40a3-a667-a5c00785352e"/>
                 </Category>
             </Info>
         </File>
