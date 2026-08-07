@@ -15,6 +15,8 @@ classdef SequenceEditorController < handle
     %% Properties (Private)
     properties (Access = private)
         SelectedDir;
+        DefaultDataFileName;
+        DefaultDataDirectory;
         View;
         CommandEncoder;
         FileWriteDetails;
@@ -89,13 +91,12 @@ classdef SequenceEditorController < handle
             addlistener(this.View, "SingleCommandQueued", @(src, event)this.SingleCommandQueued(src, event));
             addlistener(this.View, "SequenceRun", @(src, event)this.RunSequence(event));
 
-            %Set default dir and Start in the default directory
-            this.View.DefaultDir = this.SelectedDir;
-            this.View.FileExtension = this.FileWriteDetails.FileExtension;
-            this.View.DirectorySelected(this.SelectedDir);
-
             %Update the newly minted View
             this.View.RefreshInstrumentNames(this.Instruments);
+
+
+            %Set default dir and Start in the default directory
+            this.View.SetDefaultPaths(this.SelectedDir, this.FileWriteDetails.FileExtension, this.DefaultDataDirectory, this.DefaultDataFileName);
         end
 
         function DirectorySelected(this, ~, ~)
@@ -144,12 +145,16 @@ classdef SequenceEditorController < handle
         function Initialise(this, Settings)
             arguments
                 this;
+                Settings.DefaultDataDirectory {mustBeText};
                 Settings.DefaultSequenceDirectory {mustBeText};
+                Settings.DefaultDataFileName {mustBeText};
                 Settings.SequenceFileExtension {mustBeText};
             end
 
 
             this.SelectedDir = Settings.DefaultSequenceDirectory;
+            this.DefaultDataFileName = Settings.DefaultDataFileName;
+            this.DefaultDataDirectory = Settings.DefaultDataDirectory;
 
             %Construct a DataWriter object - for saving figures
             %Assign into private property struct FileWriteDetails
@@ -161,7 +166,7 @@ classdef SequenceEditorController < handle
             fileWriteDetails.WriteMode = "Overwrite File";
 
             this.FileWriteDetails = fileWriteDetails;
-        end
+     end
 
         function InsertSequenceLine(this, str)
             this.View.InsertSequenceLine(str);
@@ -246,7 +251,6 @@ classdef SequenceEditorController < handle
             %Remove any trailing empty lines
             foundLine = true;
             while(foundLine)
-                sequenceLines(end)
                 if isempty(sequenceLines(end)) || strcmp(sequenceLines(end), "")
                     sequenceLines(end) = [];
                     foundLine = true;
@@ -270,7 +274,6 @@ classdef SequenceEditorController < handle
             %Remove any trailing empty lines
             foundLine = true;
             while(foundLine)
-                sequenceLines(end)
                 if isempty(sequenceLines(end)) || strcmp(sequenceLines(end), "")
                     sequenceLines(end) = [];
                     foundLine = true;

@@ -3,8 +3,8 @@ classdef DataFileCommand < Palladium.Sequence.Commands.Command
 
     %% Properties (Public)
     properties(Access = public)
-        Wait_seconds;
-        WaitDisplayUnit = "sec";
+        WriteToFile;
+        DataFilePath;
     end
 
     %% Properties (Private)
@@ -14,33 +14,23 @@ classdef DataFileCommand < Palladium.Sequence.Commands.Command
 
     %% Constructor
     methods
-        function this = DataFileCommand(wait_Seconds, Settings)
+        function this = DataFileCommand(writeToFile, Settings)
             arguments
-                wait_Seconds (1,1) double {mustBePositive};
+                writeToFile (1,1) logical;
                 Settings.FunctionOnComplete = [];
-                Settings.WaitDisplayUnits;
+                Settings.DataFilePath {mustBeTextScalar} = string.empty;
             end
             
             this.FunctionOnComplete = Settings.FunctionOnComplete;
 
-            this.Wait_seconds = wait_Seconds;
-            this.WaitDisplayUnit = string(Settings.WaitDisplayUnits);
-
-            this.IsCompleteFn = @this.CheckComplete;
+            this.WriteToFile = writeToFile;
+            this.DataFilePath = string(Settings.DataFilePath);
         end
     end
 
     %% Methods (Public)
     methods(Access = public)
-
-        function isComplete = CheckComplete(this)
-            elapsed = toc(this.Timer);
-
-            isComplete = elapsed >= this.Wait_seconds;
-        end
-
-        function Start(this)
-            this.Timer = tic;  
-        end
+        
     end
+
 end

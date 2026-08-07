@@ -38,11 +38,20 @@ classdef CommandEncoder < handle
         function com = BuildCommandFromEventDetails(this, details)
             switch details.Type
                 case this.Enc_DataFile
+                    writeToFile = details.WriteToFile;
+                    if writeToFile
+                        filePath = fullfile(details.Directory, details.FileName);
+                        com = Palladium.Sequence.Commands.DataFileCommand(true, "DataFilePath", filePath);
+                    else
+                        com = Palladium.Sequence.Commands.DataFileCommand(false);
+                    end
 
                 case this.Enc_Instr
                     instr = details.Instrument;
                     com = Palladium.Sequence.Commands.InstrumentCommand(instr, details.CommandString, details.ControlName);
+
                 case this.Enc_RunSequence
+                    com = Palladium.Sequence.Commands.RunSequenceCommand(details.SequenceFilePath);
 
                 case this.Enc_Wait
                     %Fetch and convert the wait value (get it into seconds,
@@ -72,15 +81,19 @@ classdef CommandEncoder < handle
 
             switch(classType)
                 case("DataFileCommand")
+                    str = this.BuildDataFileCommand(FilePath=com.DataFilePath, WriteToFile=com.WriteToFile);
 
                 case("InstrumentCommand")
                     str = this.BuildInstrumentCommand(Instrument=com.Instrument, CommandString=com.CommandString, ControlName=com.ControlName);
+                
                 case("RunSequenceCommand")
+                    str = this.BuildRunSequenceCommand(FilePath=com.SequencePath);
 
                 case("WaitCommand")
                     waitVal = com.Wait_seconds;
                     waitDisplayUnit = com.WaitDisplayUnit;
                     str = this.BuildWaitCommand(WaitValue=waitVal, WaitUnit=waitDisplayUnit);
+
                 otherwise
                     error("Unrecognised command class type in CommandEncoder: " + string(classType));
             end
@@ -120,16 +133,22 @@ classdef CommandEncoder < handle
             % Parse the command string based on the provided type
             switch typeStr{1}
                 case this.Enc_DataFile
+                    [writeToFile, filePath] = this.ParseDataFileCommand(commandStr);
+                    com = Palladium.Sequence.Commands.DataFileCommand(writeToFile, "DataFilePath", filePath);
 
                 case this.Enc_Instr
                     [instrumentName, command, controlName] = this.ParseInstrumentCommand(commandStr);
                     instrument = this.GetInstrumentFromName(instrumentName, instrumentsList);
                     com = Palladium.Sequence.Commands.InstrumentCommand(instrument, command, controlName);
+
                 case this.Enc_RunSequence
+                    seqFilePath = this.ParseRunSequenceCommand(commandStr);
+                    com = Palladium.Sequence.Commands.RunSequenceCommand(seqFilePath);
 
                 case this.Enc_Wait
                     [waitVal_Sec, waitUnits] = this.ParseWaitCommand(commandStr);
                     com = Palladium.Sequence.Commands.WaitCommand(waitVal_Sec, "WaitDisplayUnits", waitUnits);
+
                 otherwise
                     error("Unrecognised command type string: " + string(typeStr{1}));
             end
@@ -140,6 +159,21 @@ classdef CommandEncoder < handle
 
     %% Methods (Private)
     methods(Access=private)
+
+        function str = BuildDataFileCommand(this, Settings)
+            arguments
+                this;
+                Settings.FilePath {mustBeTextScalar} = string.empty;
+                Settings.WriteToFile (1,1) logical;
+            end
+
+            %Build the command
+            str = "[" + Palladium.Sequence.CommandEncoder.Enc_DataFile + "]" + " " + num2str(Settings.WriteToFile);
+            
+            if Settings.WriteToFile
+                str = str + " : " + string(Settings.FilePath);
+            end
+        end
 
         function str = BuildInstrumentCommand(this, Settings)
             arguments
@@ -157,6 +191,16 @@ classdef CommandEncoder < handle
             %Build the command
             %[INSTR] Keithley2410_1.SweepControl : PrintIdentifier(foo)
             str = "[" + Palladium.Sequence.CommandEncoder.Enc_Instr + "]" + " " + name + " : " + Settings.CommandString;
+        end
+
+        function str = BuildRunSequenceCommand(this, Settings)
+            arguments
+                this;
+                Settings.FilePath {mustBeTextScalar};
+            end
+
+            %Build the command
+            str = "[" + Palladium.Sequence.CommandEncoder.Enc_RunSequence + "]" + " " + string(Settings.FilePath);
         end
 
         function str = BuildWaitCommand(this, Settings)
@@ -213,6 +257,17 @@ classdef CommandEncoder < handle
             error("GetInstrumentFromNameError:NotFound", "Could not find instrument of Name " + instName + ". Added Instruments: " + instStringNameList);
         end
 
+        function [writeFile, path] = ParseDataFileCommand(this, str)
+            ss = strsplit(str, ":");
+            writeFile = logical(strtrim(ss{1}));
+
+            if writeFile
+                path = string(strtrim(ss{2}));
+            else
+                path = string.empty;
+            end
+        end
+
         function [instrumentName, command, controlName] = ParseInstrumentCommand(this, str)
 
             %[INSTR] Keithley2410_1.SweepControl : PrintIdentifier(foo)
@@ -239,6 +294,11 @@ classdef CommandEncoder < handle
                 controlName = string.empty;
             end
 
+        end
+
+        function [seqFilePath] = ParseRunSequenceCommand(this, str)
+
+           seqFilePath = str;
         end
 
         function [waitVal_Sec, waitUnit] = ParseWaitCommand(this, str)
