@@ -303,8 +303,8 @@ classdef PPMS < Palladium.Core.Instrument
                 this;
                 val_T (1,1) double;
                 rate_TperMin (1,1) double {mustBePositive};
-                Settings.ApproachMode {mustBeMember(Settings.ApproachMode, {"Linear", "NoOvershoot", "Oscillate"})};
-                Settings.FieldMode {mustBeMember(Settings.FieldMode, {"Persistent", "Driven"})};
+                Settings.ApproachMode {mustBeMember(Settings.ApproachMode, ["Linear", "NoOvershoot", "Oscillate"])};
+                Settings.FieldMode {mustBeMember(Settings.FieldMode, ["Persistent", "Driven"])};
             end
 
             switch(Settings.ApproachMode)
