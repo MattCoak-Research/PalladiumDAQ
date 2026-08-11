@@ -25,7 +25,8 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
     %% Constructor
     methods
         function this = SweepController_Stepped()
-
+            
+            this.RegisterCommandCompleteQuery("SweepRun", @this.IsComplete);
         end
     end
 
@@ -110,8 +111,8 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
             comp.SetTitle(instrRef.Name + " Sweep Control");
 
             %Subscribe to events
-            addlistener(comp, 'Run', @(src,evnt)this.SweepRun(src, evnt));
-            addlistener(comp, 'Abort', @(src,evnt)this.SweepAbort(src, evnt));
+            addlistener(comp, 'Run', @(src,evnt)this.SweepRun());
+            addlistener(comp, 'Abort', @(src,evnt)this.SweepAbort());
             addlistener(comp, 'SweepDataChange', @(src,evnt)this.SweepDataChanged(src, evnt));
             addlistener(comp, 'InsertSmartTag', @(src,evnt)this.InsertSmartTagRequest(src, evnt, controller));
 
@@ -257,6 +258,10 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
             %Delete GUI objects
             delete(this.GUIView);
             this.GUIView = [];
+        end
+
+        function SetNumberOfSteps(this, numPoints)
+            this.SetSweepDetailsValue(numPoints, "TargetNumSteps");
         end
 
         function UnlockRunButton(this)

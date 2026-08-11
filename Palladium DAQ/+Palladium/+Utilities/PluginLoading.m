@@ -114,6 +114,76 @@ classdef PluginLoading
             NewName = tmpName;
         end
 
+        function meths = GetClassMethodsClean(classRef, builtInNamesToExclude, extraNamesToExclude)
+            %Private shared functionality between
+            %GetInstrumentControlMethods and GetInstrumentMethods
+
+            methodNames = methods(classRef);
+            methodSigs = methods(classRef, "-full");
+
+            className = class(classRef);
+            parts = strsplit(className, '.');
+            constructorName = string(parts(end));
+
+            meths = [];
+
+            for i = 1 : length(methodNames)
+
+                mn = methodNames{i};
+                if ~isempty(mn)
+                    if ~any(strcmp(builtInNamesToExclude, mn)) && ~any(strcmp(extraNamesToExclude, mn))
+                        if ~ strcmp(mn, constructorName)
+                            meths = [meths, CleanMethodSignature(string(mn), string(methodSigs{i}))]; %#ok<AGROW>  %Can't know in advance how many will pass criteria
+                        end
+                    end
+                end
+            end
+
+            function cleanSig = CleanMethodSignature(mName, mSig)
+                %Remove output signature eg this = Keithley2000() ->
+                %Keithley2000()
+                cleanSig = mName + extractAfter(mSig, mName);
+
+                %Remove any 'this, ' or 'this'
+                cleanSig = strrep(cleanSig, '(this, ', '(');
+                cleanSig = strrep(cleanSig, '(this', '(');
+            end
+        end
+
+        function meths = GetInstrumentControlMethods(instrRef, controlName)
+            %Retrieve all the methods/functions that can be called on a
+            %given instrument control, as a list of exectuable strings like
+            %"RunSweep(arg1, arg2)". Used to populate context
+            %menus in Sequence Editor
+
+            controlRef = instrRef.GetRegisteredControlObjectsFromName(controlName);
+
+
+            builtInNamesToExclude = ["addlistener", "delete", "eq", "findobj", "findprop", "ge", "gt", "isvalid",...
+                "le", "listener", "lt", "ne", "notify"];
+
+            instrNamesToExclude = ["CreateInstrumentControlGUI", "DataRowCollected", "GetCommandCompleteFn", "GetName", "MeasurementsInitialised", "MeasurementsPaused", "MeasurementsResumed", "MeasurementsStarted", "MeasurementsStopped",...
+                "OnParametersChanged", "OnSweepAbort", "OnSweepComplete", "OnSweepRun", "PlotterAxesSelectionChange",  "RegisterEventListener", "RegisterCommandCompleteQuery",...
+                "RemoveControl", "SweepDataChanged", "UnsubscribeFromEvents"];
+
+            meths = Palladium.Utilities.PluginLoading.GetClassMethodsClean(controlRef, builtInNamesToExclude, instrNamesToExclude);
+        end
+
+        function meths = GetInstrumentMethods(instrRef)
+            %Retrieve all the methods/functions that can be called on a
+            %given instrument, as a list of exectuable strings like
+            %"GetSourceLevel(level, enable)". Used to populate context
+            %menus in Sequence Editor
+            builtInNamesToExclude = ["addlistener", "delete", "eq", "findobj", "findprop", "ge", "gt", "isvalid",...
+                "le", "listener", "lt", "ne", "notify"];
+            
+            instrNamesToExclude = ["CollectMetaData", "DefineSupportedConnectionTypes", "GetAvailableControlOptions", "GetCommandCompleteFn", "GetControlOption", "GetHeaders",...
+                "GetRegisteredControlNames", "GetRegisteredControlObjects", "GetRegisteredControlObjectsFromName", "GetSupportedConnectionTypes",...
+                "GrabMetadataString", "RegisterControlObject", "RegisterCommandCompleteQuery", "RemoveControlObject", "ShowProperty"];
+           
+            meths = Palladium.Utilities.PluginLoading.GetClassMethodsClean(instrRef, builtInNamesToExclude, instrNamesToExclude);
+        end
+
         function classInstance = InstantiateClass(namespace, className)
             %Instantiate an isntance of the named class (empty constructor)
 

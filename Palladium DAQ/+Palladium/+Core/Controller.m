@@ -99,10 +99,11 @@ classdef Controller < handle
             this.CommandController = Palladium.Core.CommandController(DebugMode = this.DebugMode);
 
             %Create a SequenceViewerController
-            this.SequenceEditorController = Palladium.Sequence.SequenceEditorController(this);
+            this.SequenceEditorController = Palladium.Sequence.SequenceEditorController();
 
             %Hook up events
             addlistener(this.InstrumentController, "InstrumentsChanged", @(s,e)this.SequenceEditorController.InstrumentsChanged(e));      
+            addlistener(this.SequenceEditorController, "SingleCommandQueue", @(s,args)this.CacheInstrumentCommand(args.InstrumentRef, string(args.CommandString), args.ControlName, FunctionOnComplete = args.FunctionToRunOnComplete));      
         end
     end
 
@@ -204,7 +205,7 @@ classdef Controller < handle
                 controlName = string.empty;
                 Settings.FunctionOnComplete = [];
             end
-            
+
             this.CommandController.CacheInstrumentCommand(instrument, command, controlName, FunctionOnComplete = Settings.FunctionOnComplete);
         end
 
@@ -411,9 +412,15 @@ classdef Controller < handle
                 %Initialise TimingLoopController
                 this.TimingLoopController.Initialise();
 
-                %Send paths and settings to the Sequence Controller
+                %Send paths and settings to the Sequence Controller - first
+                %make sure the sequence directory exists.
+                if ~exist(this.PathSettings.DefaultSequenceDirectory, "dir")
+                    mkdir(this.PathSettings.DefaultSequenceDirectory);
+                end                
                 this.SequenceEditorController.Initialise(...
+                    "DefaultDataDirectory", this.PathSettings.DefaultDirectory,...
                     "DefaultSequenceDirectory", this.PathSettings.DefaultSequenceDirectory,...
+                    "DefaultDataFileName", this.PathSettings.DefaultFileName,...
                     "SequenceFileExtension", this.PathSettings.SequenceFileExtension);
 
                 %Display a status message in the logger
@@ -505,6 +512,15 @@ classdef Controller < handle
             success = true;
         end
 
+        function InstrumentPropertyChanged(this, instr)           
+            %Display a status message in the logger
+            this.Log("Info", instr.Name + " Property Changed", "Green", instr.Name + " Property Changed");
+
+            %Run a refresh on the Sequence Editor, as instrument names may
+            %have changed
+            this.SequenceEditorController.RefreshInstrumentNames();
+        end
+
         function Log(this, level, logText, colour, statusText)
             %Passes through to both the Logger and the GUI status panel
             arguments
@@ -526,11 +542,7 @@ classdef Controller < handle
             %grab data from Instruments and do things with it.
 
             try
-                %Execute any sequence/instrument commands
-                commandsToExecute = this.CommandController.PullCachedCommand();
-                for i = 1 :length(commandsToExecute)
-                    this.CommandController.ExecuteCommand(commandsToExecute(i));
-                end
+                this.CommandController.Update();
             catch e
                 CatchMeasurementLoopError(this, e);
             end
@@ -599,6 +611,11 @@ classdef Controller < handle
             this.Closing = true;
             this.TimingLoopController.CloseTimer();
             this.InstrumentController.CloseAll();
+
+            %Do cleanup events including e.g. shutting any
+            %Sequence Editor windows (not DataViewer ones though, by
+            %design)
+            this.SequenceEditorController.Close();
         end
 
         function OnLoaded(this)

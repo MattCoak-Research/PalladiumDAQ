@@ -207,6 +207,11 @@ classdef PathUtils
             dirs = regexp(path, pathsep,'split');          %cell of all individual paths
             temp = unique(cellfun(@(P) strjoin(P(1:find(strcmp(esctofind, P),1,'last')),filesep), regexp(dirs,filesep,'split'), 'uniform', 0));    %don't let the blue smoke escape
             dirPathCell = temp(~cellfun(@isempty,temp));     %non-empty results only
+
+            if isempty(dirPathCell)
+                error("Could not find directory " + string(dirName) + " on the MATLAB path (PathUtils.GetPathOfFolderOnSearchPath");
+            end
+
             dirPath = string(dirPathCell{1});
         end
 

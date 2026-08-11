@@ -6,7 +6,7 @@ classdef InstrumentCommand < Palladium.Sequence.Commands.Command
         Instrument;
         CommandString;
         ControlName = string.empty;
-        FunctionOnComplete = [];
+        Target; %Either the instrument or the control, if a control 
     end
 
     %% Constructor
@@ -23,6 +23,16 @@ classdef InstrumentCommand < Palladium.Sequence.Commands.Command
             this.CommandString = command;
             this.ControlName = controlName;
             this.FunctionOnComplete = Settings.FunctionOnComplete;
+
+            %Set the target to either the instrument or its control, if
+            %that is not empty
+            if isempty(controlName)
+                this.Target = this.Instrument;
+            else
+                this.Target = this.Instrument.GetRegisteredControlObjectsFromName(controlName);
+            end
+
+            this.IsCompleteFn = this.GetCompleteFn(this.Target);
         end
     end
 
@@ -30,5 +40,14 @@ classdef InstrumentCommand < Palladium.Sequence.Commands.Command
     methods(Access = public)
 
         
+    end
+
+    %% Methods (Private)
+    methods(Access = private)
+
+        function completeFn = GetCompleteFn(this, target)
+            completeFn = target.GetCommandCompleteFn(this.CommandString);
+        end
+
     end
 end

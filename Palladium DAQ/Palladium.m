@@ -31,7 +31,7 @@ classdef Palladium < handle
 
         %Build version number - semantic versioning used of form
         %major.minor.build, each of these are integers.
-        BuildVersionNo = 4;
+        BuildVersionNo = 5;
 
         %Author information
         AuthorString = "M.J. Coak, University of Birmingham";
@@ -108,6 +108,11 @@ classdef Palladium < handle
                 Settings.Preset = [];
                 Settings.View = "PalladiumDAQ_DefaultGUI";
             end
+
+            %Compiler hint to tell MATLAB to include the default GUI in its
+            %dependency analysis search when compiling (or it doesn't get
+            %bundled in to the standalone exe)
+            %#function Palladium.Views.PalladiumDAQ_DefaultGUI 
 
             %Check that new enough Matlab version is installed, toolboxes
             %are there.. etc etc. Will throw error if not
@@ -298,6 +303,7 @@ classdef Palladium < handle
                 % Notify controller when there is no view to close
                 this.Controller.OnFigureClosed();
             end
+
             delete(this.View);
             delete(this.Controller);
             this.View = [];
@@ -543,8 +549,12 @@ classdef Palladium < handle
             fullViewCodeFilePath = fullfile(viewDir,viewFileName);
             namespaceClassPath = "Palladium.Views." + viewFileName;
 
-            %Check that this file exists in the expected folder
-            assert(exist(fullViewCodeFilePath + ".m", "file") || exist(fullViewCodeFilePath + ".mlapp", "file"), "View file " + fullViewCodeFilePath + " not found");
+            %Check that this file exists in the expected folder - only if
+            %not in a compiled exe version, where paths are not the same
+            %deal
+            if ~isdeployed
+                assert(exist(fullViewCodeFilePath + ".m", "file") || exist(fullViewCodeFilePath + ".mlapp", "file"), "View file " + fullViewCodeFilePath + " not found");
+            end
 
             %Create an instance of the required class (empty constructor)
             fnHandle = str2func(namespaceClassPath);

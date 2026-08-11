@@ -42,6 +42,14 @@ classdef SweepController < Palladium.Core.InstrumentControlBase
             t_s = toc(this.timerVal);
         end
 
+        function busy = IsBusy(this)
+            busy = this.Running;
+        end
+
+        function complete = IsComplete(this)
+            complete = ~this.Running;
+        end
+
         function OnParametersChanged(this, sweepDetails)
 
             this.ControlDetailsStruct.SweepDetails = this.Calculate(sweepDetails);
@@ -65,7 +73,7 @@ classdef SweepController < Palladium.Core.InstrumentControlBase
         end
 
 
-        function SweepAbort(this, ~, ~)
+        function SweepAbort(this)
             this.Running = false;
             this.TimeElapsed_s = 0;
             this.OnSweepAbort();
@@ -89,11 +97,27 @@ classdef SweepController < Palladium.Core.InstrumentControlBase
             this.OnParametersChanged(sweepDetails);
         end
 
-        function SweepRun(this, ~, ~)
+        function SweepRun(this)
             this.Running = true;
             this.TimeElapsed_s = 0;
             this.timerVal = tic();
             this.OnSweepRun();
+        end
+
+    end
+
+    %% Methods (Protected)
+    methods(Access = protected)
+
+        function SetSweepDetailsValue(this, value, name)
+            if this.Running
+                warndlg("Cannot change sweep details while running");
+                return;
+            end
+
+            s = this.ControlDetailsStruct.SweepDetails;
+            s.(name) = value;
+            this.OnParametersChanged(s);
         end
 
     end
