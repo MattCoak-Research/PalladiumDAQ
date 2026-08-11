@@ -100,7 +100,9 @@ buildResult = BuildStandalone(buildOpts);
 %Build a debug version of the .exe which has a console window (just using
 %the all platform version, on windows). This will not work for mac
 %developers
-BuildDebugStandalone(buildOpts);
+if ispc
+    BuildDebugStandalone(buildOpts);
+end
 
 
 %AdditionalFiles - Additional files
