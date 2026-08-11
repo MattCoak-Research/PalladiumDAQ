@@ -109,6 +109,11 @@ classdef Palladium < handle
                 Settings.View = "PalladiumDAQ_DefaultGUI";
             end
 
+            %Compiler hint to tell MATLAB to include the default GUI in its
+            %dependency analysis search when compiling (or it doesn't get
+            %bundled in to the standalone exe)
+            %#function Palladium.Views.PalladiumDAQ_DefaultGUI 
+
             %Check that new enough Matlab version is installed, toolboxes
             %are there.. etc etc. Will throw error if not
             Palladium.Utilities.Verification.ValidateInstall(MatlabVersion="R2025b", ToolboxNames = {"Instrument Control Toolbox"});
@@ -544,8 +549,12 @@ classdef Palladium < handle
             fullViewCodeFilePath = fullfile(viewDir,viewFileName);
             namespaceClassPath = "Palladium.Views." + viewFileName;
 
-            %Check that this file exists in the expected folder
-            assert(exist(fullViewCodeFilePath + ".m", "file") || exist(fullViewCodeFilePath + ".mlapp", "file"), "View file " + fullViewCodeFilePath + " not found");
+            %Check that this file exists in the expected folder - only if
+            %not in a compiled exe version, where paths are not the same
+            %deal
+            if ~isdeployed
+                assert(exist(fullViewCodeFilePath + ".m", "file") || exist(fullViewCodeFilePath + ".mlapp", "file"), "View file " + fullViewCodeFilePath + " not found");
+            end
 
             %Create an instance of the required class (empty constructor)
             fnHandle = str2func(namespaceClassPath);
