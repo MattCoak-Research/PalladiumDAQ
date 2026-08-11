@@ -37,6 +37,138 @@
                 <Info Name="Getting Started Guide" ReadOnly="WRITABLE"/>
             </Label>
         </Category>
+        <Category Location="Deployment_Category_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a">
+            <Info DataType="None" Name="Standalone Application - StandaloneDesktopApp1" ReadOnly="0" SingleValued="0"/>
+            <Label Location="Deployment_AdditionalFiles_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a">
+                <Info Name="Additional File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_MainFile_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a">
+                <Info Name="Main Function" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_ExeIconFile_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a">
+                <Info Name="Executable Icon File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_ExeSplashImageFile_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a">
+                <Info Name="Executable Splash Image File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_HelpTextFile_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a">
+                <Info Name="Help Text File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_AddRemoveProgramsIconFile_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a">
+                <Info Name="Windows Apps &amp; Features Icon File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_InstallerAdditionalFiles_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a">
+                <Info Name="Installer Additional Files" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_InstallerIconFile_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a">
+                <Info Name="Installer Icon File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_InstallerSplashFile_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a">
+                <Info Name="Installer Splash Image File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_InstalerLogoFile_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a">
+                <Info Name="Installer Logo Image File" ReadOnly="WRITABLE"/>
+            </Label>
+        </Category>
+        <Category Location="Deployment_Category_0430e45e-ad63-4734-b059-737fe2bc565e">
+            <Info DataType="None" Name="Standalone Application - StandaloneDesktopApp2" ReadOnly="0" SingleValued="0"/>
+            <Label Location="Deployment_AdditionalFiles_0430e45e-ad63-4734-b059-737fe2bc565e">
+                <Info Name="Additional File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_MainFile_0430e45e-ad63-4734-b059-737fe2bc565e">
+                <Info Name="Main Function" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_ExeIconFile_0430e45e-ad63-4734-b059-737fe2bc565e">
+                <Info Name="Executable Icon File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_ExeSplashImageFile_0430e45e-ad63-4734-b059-737fe2bc565e">
+                <Info Name="Executable Splash Image File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_HelpTextFile_0430e45e-ad63-4734-b059-737fe2bc565e">
+                <Info Name="Help Text File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_AddRemoveProgramsIconFile_0430e45e-ad63-4734-b059-737fe2bc565e">
+                <Info Name="Windows Apps &amp; Features Icon File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_InstallerAdditionalFiles_0430e45e-ad63-4734-b059-737fe2bc565e">
+                <Info Name="Installer Additional Files" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_InstallerIconFile_0430e45e-ad63-4734-b059-737fe2bc565e">
+                <Info Name="Installer Icon File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_InstallerSplashFile_0430e45e-ad63-4734-b059-737fe2bc565e">
+                <Info Name="Installer Splash Image File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_InstalerLogoFile_0430e45e-ad63-4734-b059-737fe2bc565e">
+                <Info Name="Installer Logo Image File" ReadOnly="WRITABLE"/>
+            </Label>
+        </Category>
+        <Category Location="Deployment_Category_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5">
+            <Info DataType="None" Name="Standalone Application - StandaloneDesktopApp3" ReadOnly="0" SingleValued="0"/>
+            <Label Location="Deployment_AdditionalFiles_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5">
+                <Info Name="Additional File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_MainFile_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5">
+                <Info Name="Main Function" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_ExeIconFile_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5">
+                <Info Name="Executable Icon File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_ExeSplashImageFile_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5">
+                <Info Name="Executable Splash Image File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_HelpTextFile_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5">
+                <Info Name="Help Text File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_AddRemoveProgramsIconFile_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5">
+                <Info Name="Windows Apps &amp; Features Icon File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_InstallerAdditionalFiles_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5">
+                <Info Name="Installer Additional Files" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_InstallerIconFile_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5">
+                <Info Name="Installer Icon File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_InstallerSplashFile_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5">
+                <Info Name="Installer Splash Image File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_InstalerLogoFile_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5">
+                <Info Name="Installer Logo Image File" ReadOnly="WRITABLE"/>
+            </Label>
+        </Category>
+        <Category Location="Deployment_Category_0dcd35ec-c32f-42b3-a66f-9384089da80f">
+            <Info DataType="None" Name="Standalone Application - StandaloneDesktopApp4" ReadOnly="0" SingleValued="0"/>
+            <Label Location="Deployment_AdditionalFiles_0dcd35ec-c32f-42b3-a66f-9384089da80f">
+                <Info Name="Additional File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_MainFile_0dcd35ec-c32f-42b3-a66f-9384089da80f">
+                <Info Name="Main Function" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_ExeIconFile_0dcd35ec-c32f-42b3-a66f-9384089da80f">
+                <Info Name="Executable Icon File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_ExeSplashImageFile_0dcd35ec-c32f-42b3-a66f-9384089da80f">
+                <Info Name="Executable Splash Image File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_HelpTextFile_0dcd35ec-c32f-42b3-a66f-9384089da80f">
+                <Info Name="Help Text File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_AddRemoveProgramsIconFile_0dcd35ec-c32f-42b3-a66f-9384089da80f">
+                <Info Name="Windows Apps &amp; Features Icon File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_InstallerAdditionalFiles_0dcd35ec-c32f-42b3-a66f-9384089da80f">
+                <Info Name="Installer Additional Files" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_InstallerIconFile_0dcd35ec-c32f-42b3-a66f-9384089da80f">
+                <Info Name="Installer Icon File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_InstallerSplashFile_0dcd35ec-c32f-42b3-a66f-9384089da80f">
+                <Info Name="Installer Splash Image File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_InstalerLogoFile_0dcd35ec-c32f-42b3-a66f-9384089da80f">
+                <Info Name="Installer Logo Image File" ReadOnly="WRITABLE"/>
+            </Label>
+        </Category>
     </Categories>
     <Files Location="Root">
         <File Location=".gitattributes">
@@ -54,7 +186,6 @@
                 <Info/>
             </DIR_SIGNIFIER>
             <File Location="+Palladium">
-                <Info/>
                 <DIR_SIGNIFIER Location="1">
                     <Info/>
                 </DIR_SIGNIFIER>
@@ -840,6 +971,7 @@
                         </Info>
                     </File>
                 </File>
+                <Info/>
             </File>
             <File Location="+PalladiumPresets">
                 <Info/>
@@ -1234,7 +1366,6 @@
                 </File>
             </File>
             <File Location="Instrument Drivers">
-                <Info/>
                 <DIR_SIGNIFIER Location="1">
                     <Info/>
                 </DIR_SIGNIFIER>
@@ -1264,6 +1395,11 @@
                         </File>
                     </File>
                 </File>
+                <Info>
+                    <Category UUID="Deployment_Category_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5">
+                        <Label UUID="Deployment_AdditionalFiles_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5"/>
+                    </Category>
+                </Info>
             </File>
         </File>
         <File Location="README.md">
@@ -1273,6 +1409,16 @@
             <Info>
                 <Category UUID="FileClassCategory">
                     <Label UUID="design"/>
+                </Category>
+            </Info>
+        </File>
+        <File Location="launchApplication.m">
+            <Info>
+                <Category UUID="FileClassCategory">
+                    <Label UUID="design"/>
+                </Category>
+                <Category UUID="Deployment_Category_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5">
+                    <Label UUID="Deployment_MainFile_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5"/>
                 </Category>
             </Info>
         </File>
@@ -1332,6 +1478,30 @@
         <DIR_SIGNIFIER Location="1">
             <Info/>
         </DIR_SIGNIFIER>
-        <Info configMapData="{&quot;PalladiumDAQ&quot;:&quot;MathWorksDeploymentConfig{1dcbeca0-4c8d-486c-9564-d296b0b3900b}&quot;}"/>
+        <Info configMapData="{&quot;PalladiumDAQ&quot;:&quot;MathWorksDeploymentConfig{1dcbeca0-4c8d-486c-9564-d296b0b3900b}&quot;,&quot;StandaloneDesktopApp1&quot;:&quot;MathWorksDeploymentConfig{fdc06890-ed17-4937-8a74-a25edbbd1457}&quot;,&quot;StandaloneDesktopApp2&quot;:&quot;MathWorksDeploymentConfig{6daad4a0-450a-43a3-98e6-979383796d6e}&quot;,&quot;StandaloneDesktopApp3&quot;:&quot;MathWorksDeploymentConfig{69d068e0-cc56-4b7f-bc17-7c02cc1fdcc7}&quot;,&quot;StandaloneDesktopApp4&quot;:&quot;MathWorksDeploymentConfig{395f17a4-6b9e-44eb-b7d6-f761e59d144e}&quot;}"/>
+    </Files>
+    <Files Location="MathWorksDeploymentConfig{fdc06890-ed17-4937-8a74-a25edbbd1457}">
+        <DIR_SIGNIFIER Location="1">
+            <Info/>
+        </DIR_SIGNIFIER>
+        <Info StandaloneAppConfigModel="{&quot;entries&quot;:[{&quot;content&quot;:{&quot;addRemoveProgramsIconLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a&quot;,&quot;labelID&quot;:&quot;Deployment_AddRemoveProgramsIconFile_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;5c4a2c8e-bd98-4760-9839-8da718129045&quot;},&quot;additionalFileLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a&quot;,&quot;labelID&quot;:&quot;Deployment_InstallerAdditionalFiles_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;53b72dee-f0c7-4bcd-a012-b370bbad7066&quot;},&quot;installerIconLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a&quot;,&quot;labelID&quot;:&quot;Deployment_InstallerIconFile_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;f3535c6b-4fcd-4e53-8143-b2631ef19021&quot;},&quot;installerLogoLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a&quot;,&quot;labelID&quot;:&quot;Deployment_InstalerLogoFile_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;1c056bd9-e5a8-4d5a-8787-807d90f11876&quot;},&quot;installerSplashLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a&quot;,&quot;labelID&quot;:&quot;Deployment_InstallerSplashFile_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;05b2e210-57bb-4227-963f-39b13e94f4e2&quot;},&quot;installerVersion&quot;:&quot;1.0.0&quot;,&quot;outputFolder&quot;:&quot;StandaloneDesktopApp1/output/package&quot;},&quot;type&quot;:&quot;deployment.compiler.model.InstallerPackageOptions&quot;,&quot;uuid&quot;:&quot;970941ce-227e-4eaf-87c8-e118449b8b99&quot;},{&quot;content&quot;:{&quot;additionalFileLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a&quot;,&quot;labelID&quot;:&quot;Deployment_AdditionalFiles_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;587c0d1d-8566-444b-af00-32aa79d7d94f&quot;},&quot;exeIconLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a&quot;,&quot;labelID&quot;:&quot;Deployment_ExeIconFile_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;15c26d65-2fff-4e77-ba01-da534eccc78b&quot;},&quot;exeSplashScreenLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a&quot;,&quot;labelID&quot;:&quot;Deployment_ExeSplashImageFile_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;bbff05b1-884b-4c40-a7f2-ba5eba2bb357&quot;},&quot;executableName&quot;:&quot;MyDesktopApplication&quot;,&quot;helpTextFileLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a&quot;,&quot;labelID&quot;:&quot;Deployment_HelpTextFile_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;914c8e90-a714-4b4e-a12c-47ee8dee463c&quot;},&quot;mainFileLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a&quot;,&quot;labelID&quot;:&quot;Deployment_MainFile_909fdbe4-6e17-4edb-8f95-7bd8bcc6997a&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;99b3875c-5753-401d-b3d9-eacc4a89cba6&quot;},&quot;name&quot;:&quot;My Desktop Application&quot;,&quot;outputFolder&quot;:&quot;StandaloneDesktopApp1/output/build&quot;,&quot;supportPackageData&quot;:{&quot;content&quot;:{},&quot;type&quot;:&quot;deployment.compiler.model.SupportPackageInfo&quot;,&quot;uuid&quot;:&quot;32041c92-84ac-4064-80ad-05da985adf3a&quot;},&quot;suppressWindowsCmdPrompt&quot;:false,&quot;version&quot;:&quot;1.0.0&quot;},&quot;type&quot;:&quot;deployment.compiler.model.StandaloneAppBuildConfiguration&quot;,&quot;uuid&quot;:&quot;384fd283-e064-4ae1-90b9-08519b950cc3&quot;}],&quot;packageUris&quot;:[&quot;http://schema.mathworks.com/mf0/deployment_compiler_model/1.0.0&quot;],&quot;version&quot;:&quot;1.0&quot;}" displayName="StandaloneDesktopApp1" type="StandaloneDesktopApp" uniqueId="909fdbe4-6e17-4edb-8f95-7bd8bcc6997a"/>
+    </Files>
+    <Files Location="MathWorksDeploymentConfig{6daad4a0-450a-43a3-98e6-979383796d6e}">
+        <DIR_SIGNIFIER Location="1">
+            <Info/>
+        </DIR_SIGNIFIER>
+        <Info StandaloneAppConfigModel="{&quot;entries&quot;:[{&quot;content&quot;:{&quot;addRemoveProgramsIconLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_0430e45e-ad63-4734-b059-737fe2bc565e&quot;,&quot;labelID&quot;:&quot;Deployment_AddRemoveProgramsIconFile_0430e45e-ad63-4734-b059-737fe2bc565e&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;cee3751b-0764-4715-b549-5c0f8246f2ac&quot;},&quot;additionalFileLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_0430e45e-ad63-4734-b059-737fe2bc565e&quot;,&quot;labelID&quot;:&quot;Deployment_InstallerAdditionalFiles_0430e45e-ad63-4734-b059-737fe2bc565e&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;3899c575-a95e-41e2-b484-596071140af0&quot;},&quot;installerIconLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_0430e45e-ad63-4734-b059-737fe2bc565e&quot;,&quot;labelID&quot;:&quot;Deployment_InstallerIconFile_0430e45e-ad63-4734-b059-737fe2bc565e&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;6a248563-1079-4a91-b4f9-77070199e968&quot;},&quot;installerLogoLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_0430e45e-ad63-4734-b059-737fe2bc565e&quot;,&quot;labelID&quot;:&quot;Deployment_InstalerLogoFile_0430e45e-ad63-4734-b059-737fe2bc565e&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;7145c351-b100-4346-877a-57a29a796104&quot;},&quot;installerSplashLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_0430e45e-ad63-4734-b059-737fe2bc565e&quot;,&quot;labelID&quot;:&quot;Deployment_InstallerSplashFile_0430e45e-ad63-4734-b059-737fe2bc565e&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;43b460d9-f946-4e3e-9359-b9a2c2a5170c&quot;},&quot;installerVersion&quot;:&quot;1.0.0&quot;,&quot;outputFolder&quot;:&quot;StandaloneDesktopApp2/output/package&quot;},&quot;type&quot;:&quot;deployment.compiler.model.InstallerPackageOptions&quot;,&quot;uuid&quot;:&quot;2e7914a0-a0f4-4154-87d8-86c9e9f243d4&quot;},{&quot;content&quot;:{&quot;additionalFileLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_0430e45e-ad63-4734-b059-737fe2bc565e&quot;,&quot;labelID&quot;:&quot;Deployment_AdditionalFiles_0430e45e-ad63-4734-b059-737fe2bc565e&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;38a5409a-972d-4f54-931c-a80059c4a247&quot;},&quot;exeIconLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_0430e45e-ad63-4734-b059-737fe2bc565e&quot;,&quot;labelID&quot;:&quot;Deployment_ExeIconFile_0430e45e-ad63-4734-b059-737fe2bc565e&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;e90cab47-7dca-4886-a1a2-4170defc83da&quot;},&quot;exeSplashScreenLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_0430e45e-ad63-4734-b059-737fe2bc565e&quot;,&quot;labelID&quot;:&quot;Deployment_ExeSplashImageFile_0430e45e-ad63-4734-b059-737fe2bc565e&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;d5d297ab-6ef3-4350-9854-e311472a15fe&quot;},&quot;executableName&quot;:&quot;MyDesktopApplication&quot;,&quot;helpTextFileLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_0430e45e-ad63-4734-b059-737fe2bc565e&quot;,&quot;labelID&quot;:&quot;Deployment_HelpTextFile_0430e45e-ad63-4734-b059-737fe2bc565e&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;65dda4eb-71c1-4550-a0ae-ee986489c0af&quot;},&quot;mainFileLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_0430e45e-ad63-4734-b059-737fe2bc565e&quot;,&quot;labelID&quot;:&quot;Deployment_MainFile_0430e45e-ad63-4734-b059-737fe2bc565e&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;355d58e1-32f0-424e-8ed1-463a0832a6fd&quot;},&quot;name&quot;:&quot;My Desktop Application&quot;,&quot;outputFolder&quot;:&quot;StandaloneDesktopApp2/output/build&quot;,&quot;supportPackageData&quot;:{&quot;content&quot;:{},&quot;type&quot;:&quot;deployment.compiler.model.SupportPackageInfo&quot;,&quot;uuid&quot;:&quot;60e0b778-40cb-45be-a2ed-1b6cb058f2ce&quot;},&quot;suppressWindowsCmdPrompt&quot;:false,&quot;version&quot;:&quot;1.0.0&quot;},&quot;type&quot;:&quot;deployment.compiler.model.StandaloneAppBuildConfiguration&quot;,&quot;uuid&quot;:&quot;bbace73d-3eb1-4a94-842a-4eeacfbb7bf1&quot;}],&quot;packageUris&quot;:[&quot;http://schema.mathworks.com/mf0/deployment_compiler_model/1.0.0&quot;],&quot;version&quot;:&quot;1.0&quot;}" displayName="StandaloneDesktopApp2" type="StandaloneDesktopApp" uniqueId="0430e45e-ad63-4734-b059-737fe2bc565e"/>
+    </Files>
+    <Files Location="MathWorksDeploymentConfig{69d068e0-cc56-4b7f-bc17-7c02cc1fdcc7}">
+        <DIR_SIGNIFIER Location="1">
+            <Info/>
+        </DIR_SIGNIFIER>
+        <Info StandaloneAppConfigModel="{&quot;entries&quot;:[{&quot;content&quot;:{&quot;additionalFileLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5&quot;,&quot;labelID&quot;:&quot;Deployment_AdditionalFiles_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;d8fd04a8-c7ff-4948-bfd4-c59925ac3d0e&quot;},&quot;exeIconLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5&quot;,&quot;labelID&quot;:&quot;Deployment_ExeIconFile_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;d89a0570-bdfd-4fb3-b49d-8a853c94372b&quot;},&quot;exeSplashScreenLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5&quot;,&quot;labelID&quot;:&quot;Deployment_ExeSplashImageFile_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;04868868-eb1e-4335-aa31-670c8e184827&quot;},&quot;executableName&quot;:&quot;PalladiumDAQ&quot;,&quot;helpTextFileLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5&quot;,&quot;labelID&quot;:&quot;Deployment_HelpTextFile_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;4aac001d-1d38-4082-ae54-6641ce342e3f&quot;},&quot;mainFileLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5&quot;,&quot;labelID&quot;:&quot;Deployment_MainFile_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;7d417d24-a1e2-43b6-a9c1-3a809e115816&quot;},&quot;name&quot;:&quot;My Desktop Application&quot;,&quot;outputFolder&quot;:&quot;Palladium DAQ/Release/output/build&quot;,&quot;supportPackageData&quot;:{&quot;content&quot;:{},&quot;type&quot;:&quot;deployment.compiler.model.SupportPackageInfo&quot;,&quot;uuid&quot;:&quot;b74ccdf5-910a-4d8f-a80f-bbe675d1e0de&quot;},&quot;suppressWindowsCmdPrompt&quot;:false,&quot;version&quot;:&quot;1.0.0&quot;},&quot;type&quot;:&quot;deployment.compiler.model.StandaloneAppBuildConfiguration&quot;,&quot;uuid&quot;:&quot;e0a9a849-e09c-4565-af46-2fd18910cf75&quot;},{&quot;content&quot;:{&quot;addRemoveProgramsIconLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5&quot;,&quot;labelID&quot;:&quot;Deployment_AddRemoveProgramsIconFile_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;d2ebb87a-061c-48d7-81de-5d534af721b1&quot;},&quot;additionalFileLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5&quot;,&quot;labelID&quot;:&quot;Deployment_InstallerAdditionalFiles_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;f2179b5b-eb0a-4feb-b2bb-970227cb65c9&quot;},&quot;installerIconLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5&quot;,&quot;labelID&quot;:&quot;Deployment_InstallerIconFile_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;98dd2f58-3e01-459e-ae1b-57a7cc2dfbbb&quot;},&quot;installerLogoLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5&quot;,&quot;labelID&quot;:&quot;Deployment_InstalerLogoFile_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;b09607f6-6c4f-41e5-a6f1-7978b7dae2ec&quot;},&quot;installerName&quot;:&quot;PalladiumDAQInstaller&quot;,&quot;installerSplashLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5&quot;,&quot;labelID&quot;:&quot;Deployment_InstallerSplashFile_dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;1399a353-fb75-489e-8e2a-286e7a5d19f9&quot;},&quot;installerVersion&quot;:&quot;1.0.0&quot;,&quot;outputFolder&quot;:&quot;Palladium DAQ/Release/output/package&quot;},&quot;type&quot;:&quot;deployment.compiler.model.InstallerPackageOptions&quot;,&quot;uuid&quot;:&quot;4ee1c056-73e5-41a5-9dab-6f7dc0bfcbbc&quot;},{&quot;content&quot;:{},&quot;type&quot;:&quot;deployment.compiler.model.ProjectStateValidationIssueList&quot;,&quot;uuid&quot;:&quot;72c510f3-4e81-4022-ad02-8a83fd541c3d&quot;}],&quot;packageUris&quot;:[&quot;http://schema.mathworks.com/mf0/deployment_compiler_model/1.0.0&quot;],&quot;version&quot;:&quot;1.0&quot;}" displayName="StandaloneDesktopApp3" lastAccessed="1786441681768" taskID="26fae85c-ef0a-4a9e-9d77-977d4371a302" type="StandaloneDesktopApp" uniqueId="dd9e905d-b986-4cc8-a1ee-fa55a7cea5e5"/>
+    </Files>
+    <Files Location="MathWorksDeploymentConfig{395f17a4-6b9e-44eb-b7d6-f761e59d144e}">
+        <DIR_SIGNIFIER Location="1">
+            <Info/>
+        </DIR_SIGNIFIER>
+        <Info StandaloneAppConfigModel="{&quot;entries&quot;:[{&quot;content&quot;:{&quot;addRemoveProgramsIconLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_0dcd35ec-c32f-42b3-a66f-9384089da80f&quot;,&quot;labelID&quot;:&quot;Deployment_AddRemoveProgramsIconFile_0dcd35ec-c32f-42b3-a66f-9384089da80f&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;0bc35f6a-7972-4226-a289-b14d54030668&quot;},&quot;additionalFileLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_0dcd35ec-c32f-42b3-a66f-9384089da80f&quot;,&quot;labelID&quot;:&quot;Deployment_InstallerAdditionalFiles_0dcd35ec-c32f-42b3-a66f-9384089da80f&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;bf846979-607c-42df-8d8e-d23c931e67e0&quot;},&quot;installerIconLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_0dcd35ec-c32f-42b3-a66f-9384089da80f&quot;,&quot;labelID&quot;:&quot;Deployment_InstallerIconFile_0dcd35ec-c32f-42b3-a66f-9384089da80f&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;87a7712c-4d11-4c92-a1ca-92e5d243a436&quot;},&quot;installerLogoLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_0dcd35ec-c32f-42b3-a66f-9384089da80f&quot;,&quot;labelID&quot;:&quot;Deployment_InstalerLogoFile_0dcd35ec-c32f-42b3-a66f-9384089da80f&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;97c6371a-170a-4962-b425-52b6eca585b5&quot;},&quot;installerSplashLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_0dcd35ec-c32f-42b3-a66f-9384089da80f&quot;,&quot;labelID&quot;:&quot;Deployment_InstallerSplashFile_0dcd35ec-c32f-42b3-a66f-9384089da80f&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;b1f204c5-f413-4988-8fad-28b68161f5ec&quot;},&quot;installerVersion&quot;:&quot;1.0.0&quot;,&quot;outputFolder&quot;:&quot;StandaloneDesktopApp4/output/package&quot;},&quot;type&quot;:&quot;deployment.compiler.model.InstallerPackageOptions&quot;,&quot;uuid&quot;:&quot;3b30691a-373d-41e0-8562-37d9ccc63c1d&quot;},{&quot;content&quot;:{&quot;additionalFileLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_0dcd35ec-c32f-42b3-a66f-9384089da80f&quot;,&quot;labelID&quot;:&quot;Deployment_AdditionalFiles_0dcd35ec-c32f-42b3-a66f-9384089da80f&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;ce2f1265-c607-4fd3-a8cd-2571a31fa69f&quot;},&quot;exeIconLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_0dcd35ec-c32f-42b3-a66f-9384089da80f&quot;,&quot;labelID&quot;:&quot;Deployment_ExeIconFile_0dcd35ec-c32f-42b3-a66f-9384089da80f&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;a01c94c7-7edb-4531-b8c3-d2a1509fea0b&quot;},&quot;exeSplashScreenLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_0dcd35ec-c32f-42b3-a66f-9384089da80f&quot;,&quot;labelID&quot;:&quot;Deployment_ExeSplashImageFile_0dcd35ec-c32f-42b3-a66f-9384089da80f&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;d46bbdf9-d4af-4436-a2b9-de718afe2505&quot;},&quot;executableName&quot;:&quot;MyDesktopApplication&quot;,&quot;helpTextFileLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_0dcd35ec-c32f-42b3-a66f-9384089da80f&quot;,&quot;labelID&quot;:&quot;Deployment_HelpTextFile_0dcd35ec-c32f-42b3-a66f-9384089da80f&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;ab405619-2f4f-4cbb-beac-6f0bea7ef1a7&quot;},&quot;mainFileLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_0dcd35ec-c32f-42b3-a66f-9384089da80f&quot;,&quot;labelID&quot;:&quot;Deployment_MainFile_0dcd35ec-c32f-42b3-a66f-9384089da80f&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;06a67152-67e8-4ed6-835f-f402f2934268&quot;},&quot;name&quot;:&quot;My Desktop Application&quot;,&quot;outputFolder&quot;:&quot;StandaloneDesktopApp4/output/build&quot;,&quot;supportPackageData&quot;:{&quot;content&quot;:{},&quot;type&quot;:&quot;deployment.compiler.model.SupportPackageInfo&quot;,&quot;uuid&quot;:&quot;8ed1b4d6-dda3-4331-a59b-48078071fe04&quot;},&quot;suppressWindowsCmdPrompt&quot;:false,&quot;version&quot;:&quot;1.0.0&quot;},&quot;type&quot;:&quot;deployment.compiler.model.StandaloneAppBuildConfiguration&quot;,&quot;uuid&quot;:&quot;bc74c971-ccf2-47f4-90e3-7eeb38430ccc&quot;}],&quot;packageUris&quot;:[&quot;http://schema.mathworks.com/mf0/deployment_compiler_model/1.0.0&quot;],&quot;version&quot;:&quot;1.0&quot;}" displayName="StandaloneDesktopApp4" lastAccessed="1786441663410" taskID="e477c596-e2bc-4e83-9757-74c89760cc12" type="StandaloneDesktopApp" uniqueId="0dcd35ec-c32f-42b3-a66f-9384089da80f"/>
     </Files>
 </project>

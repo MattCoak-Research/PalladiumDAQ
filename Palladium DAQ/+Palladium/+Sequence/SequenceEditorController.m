@@ -44,12 +44,12 @@ classdef SequenceEditorController < handle
             end
 
             %Construct the needed paths
-            viewDir = fullfile(applicationDir,"+Palladium","+Sequence","+Views");
-            fullViewCodeFilePath = fullfile(viewDir,viewFileName);
+            % viewDir = fullfile(applicationDir,"+Palladium","+Sequence","+Views");
+            % fullViewCodeFilePath = fullfile(viewDir,viewFileName);
             namespaceClassPath = "Palladium.Sequence.Views." + viewFileName;
 
             %Check that this file exists in the expected folder
-            assert(exist(fullViewCodeFilePath + ".m", "file") || exist(fullViewCodeFilePath + ".mlapp", "file"), "View file " + fullViewCodeFilePath + " not found");
+            % assert(exist(fullViewCodeFilePath + ".m", "file") || exist(fullViewCodeFilePath + ".mlapp", "file"), "View file " + fullViewCodeFilePath + " not found");
 
             %Create an instance of the required class (empty constructor)
             fnHandle = str2func(namespaceClassPath);
