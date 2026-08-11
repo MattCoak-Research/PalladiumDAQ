@@ -28,3 +28,7 @@ function packageTask(~)
     opts.ToolboxVersion = string(verStruct.VersionString);
     matlab.addons.toolbox.packageToolbox(opts);
 end
+
+function deployTask(~)
+    deploymentScript;
+end
