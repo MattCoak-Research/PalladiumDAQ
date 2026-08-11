@@ -65,9 +65,21 @@ projectRoot = ""; %Was full path: "E:\OneDrive\OneDrive - University of Birmingh
 % 'off' | on/off logical value
 % Verbose - Flag to control build verbosity
 % 'off' | on/off logical value
+
+
+%Define, then clear (ready to write to) output directory
+exeDir = fullfile(projectRoot, "Palladium DAQ", "Release", "Executable_MultiPlatform");
+if exist(exeDir, "dir")
+    rmdir(exeDir, "s");
+end
+winExeDir = fullfile(projectRoot, "Palladium DAQ", "Release", "Executable_Windows");
+if exist(winExeDir, "dir")
+    rmdir(winExeDir, "s");
+end
+
 buildOpts = compiler.build.StandaloneApplicationOptions(fullfile(projectRoot, "Palladium DAQ", "Palladium.m"));
 buildOpts.AutoDetectDataFiles = true;
-buildOpts.OutputDir = fullfile(projectRoot, "Palladium DAQ", "Release", "Build");
+buildOpts.OutputDir = exeDir;
 buildOpts.ObfuscateArchive = false;
 buildOpts.Verbose = true;
 buildOpts.EmbedArchive = true;
@@ -77,9 +89,21 @@ buildOpts.ExecutableName = "PalladiumDAQ";
 %Retrieve version
 verStruct = Palladium.ver();
 verString = string(verStruct.VersionString);
+
+
+%Set build options
 buildOpts.ExecutableVersion = verString;
 buildOpts.TreatInputsAsNumeric = false;
+
+%Build multi-platform version
 buildResult = compiler.build.standaloneApplication(buildOpts);
+
+%Build windows-specific version - which will not open a console window
+%behind it
+winBuildOpts = buildOpts;
+winBuildOpts.ExecutableName = "PalladiumDAQ";
+winBuildOpts.OutputDir = winExeDir;
+winOnlyBuildResult = compiler.build.standaloneWindowsApplication(winBuildOpts);
 
 % Download the MATLAB Runtime to include in the installer.
 compiler.runtime.download;
@@ -88,7 +112,7 @@ compiler.runtime.download;
 packageOpts = compiler.package.InstallerOptions(buildResult);
 
 %Define, then clear (ready to write to) output directory
-packageDir = fullfile(projectRoot, "Palladium DAQ", "Release", "Package");
+packageDir = fullfile(projectRoot, "Palladium DAQ", "Release", "Installer");
 if exist(packageDir, "dir")
     rmdir(packageDir, "s");
 end
