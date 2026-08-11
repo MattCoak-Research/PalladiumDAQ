@@ -78,36 +78,64 @@ classdef Logger < handle
                 %to do
                 msg = ErrorString;
                 title = "Error";
-                ErrorQuestResult = questdlg(string(msg), title, ...
-                    "Stop Measurements", "Stop & Go to Code", "Ignore", "Ignore");
+                if isdeployed
+                    ErrorQuestResult = questdlg(string(msg), title, ...
+                        "Stop Measurements", "Ignore", "Ignore");
+                else
+                    ErrorQuestResult = questdlg(string(msg), title, ...
+                        "Stop Measurements", "Stop & Go to Code", "Ignore", "Ignore");
+                end
             else
                 %Show a modal dialogue box asking the user what they want
                 %to do
                 fig = uiFigureHandle;
                 msg = ErrorString;
                 title = "Error";
-                ErrorQuestResult = uiconfirm(fig, string(msg), title, ...
-                    "Options", ["Stop Measurements", "Stop & Go to Code", "Suppress Error", "Ignore"], ...
-                    "Icon","warning", "Interpreter", "HTML",...
-                    "DefaultOption", 1, "CancelOption", 4);
+                if isdeployed
+                    ErrorQuestResult = uiconfirm(fig, string(msg), title, ...
+                        "Options", ["Stop Measurements", "Suppress Error", "Ignore"], ...
+                        "Icon","warning", "Interpreter", "HTML",...
+                        "DefaultOption", 1, "CancelOption", 3);
+                else
+                    ErrorQuestResult = uiconfirm(fig, string(msg), title, ...
+                        "Options", ["Stop Measurements", "Stop & Go to Code", "Suppress Error", "Ignore"], ...
+                        "Icon","warning", "Interpreter", "HTML",...
+                        "DefaultOption", 1, "CancelOption", 4);
+
+                 end
             end
 
             %On error, either switch to the command window to view full
             %stack trace, open editor at mistake lines or just do nothing.
-            switch(ErrorQuestResult)
-                case "Stop Measurements"
-                    Halt = true;
-                case "Stop & Go to Code"
-                    Halt = true;
-                    fprintf(2, '%s\n', getReport(err, 'extended'));
-                    matlab.desktop.editor.openAndGoToLine(TopErrorFile, TopErrorLine);
-                    matlab.desktop.editor.openAndGoToLine(UserErrorFile, UserErrorLine);
-                case "Suppress Error"
-                    suppressError = true;
-                case "Ignore"
-                    %Do nothing
-                otherwise
-                    error("Awful meta-error in the error handling");
+            if isdeployed
+                switch(ErrorQuestResult)
+                    case "Stop Measurements"
+                        Halt = true;
+                    case "Suppress Error"
+                        suppressError = true;
+                    case "Ignore"
+                        %Do nothing
+                    otherwise
+                        error("Awful meta-error in the error handling");
+                end
+            else                
+                switch(ErrorQuestResult)
+                    case "Stop Measurements"
+                        Halt = true;
+                    case "Stop & Go to Code"
+                        Halt = true;
+                        fprintf(2, '%s\n', getReport(err, 'extended'));
+                        %#exclude matlab.desktop.editor.openAndGoToLine
+                        matlab.desktop.editor.openAndGoToLine(TopErrorFile, TopErrorLine);
+                        %#exclude matlab.desktop.editor.openAndGoToLine
+                        matlab.desktop.editor.openAndGoToLine(UserErrorFile, UserErrorLine);
+                    case "Suppress Error"
+                        suppressError = true;
+                    case "Ignore"
+                        %Do nothing
+                    otherwise
+                        error("Awful meta-error in the error handling");
+                end
             end
         end
 
