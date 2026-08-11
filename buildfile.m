@@ -2,7 +2,7 @@ function plan = buildfile
 plan = buildplan(localfunctions);
 plan("test").Dependencies = "check";
 plan("package").Dependencies = "test";
-plan("buildExecutableInstallers").Dependencies = "package";
+plan("deploy").Dependencies = "package";
 end
 
 function checkTask(~)
@@ -30,8 +30,7 @@ opts.ToolboxVersion = string(verStruct.VersionString);
 matlab.addons.toolbox.packageToolbox(opts);
 end
 
-function buildExecutableInstallersTask(~)
-
+function deployTask(~)
 projectRoot = ""; %Was full path: "E:\OneDrive\OneDrive - University of Birmingham\Physics\Matlab\Palladium DAQ";
 
 % Create target build options object, set build properties and build.
@@ -66,56 +65,43 @@ projectRoot = ""; %Was full path: "E:\OneDrive\OneDrive - University of Birmingh
 % Verbose - Flag to control build verbosity
 % 'off' | on/off logical value
 
-
 %Define, then clear (ready to write to) output directory
-exeDir = fullfile(projectRoot, "Palladium DAQ", "Release", "Executable_MultiPlatform");
+exeDir = fullfile(projectRoot, "Palladium DAQ", "Release", "Standalone", "Build");
 if exist(exeDir, "dir")
     rmdir(exeDir, "s");
 end
-winExeDir = fullfile(projectRoot, "Palladium DAQ", "Release", "Executable_Windows");
-if exist(winExeDir, "dir")
-    rmdir(winExeDir, "s");
-end
 
-buildOpts = compiler.build.StandaloneApplicationOptions(fullfile(projectRoot, "Palladium DAQ", "Palladium.m"));
-buildOpts.AutoDetectDataFiles = true;
-buildOpts.OutputDir = exeDir;
-buildOpts.ObfuscateArchive = false;
-buildOpts.Verbose = true;
-buildOpts.EmbedArchive = true;
-buildOpts.ExecutableIcon = fullfile(projectRoot, "Palladium DAQ", "+Palladium", "+Components", "Graphics", "PalladiumDAQIcon.png");
-buildOpts.ExecutableName = "PalladiumDAQ";
+%Define, then clear (ready to write to) output directory
+packageDir = fullfile(projectRoot, "Palladium DAQ", "Release", "Standalone", "Package");
+if exist(packageDir, "dir")
+    rmdir(packageDir, "s");
+end
 
 %Retrieve version
 verStruct = Palladium.ver();
 verString = string(verStruct.VersionString);
 
-
 %Set build options
+buildOpts = compiler.build.StandaloneApplicationOptions(fullfile(projectRoot, "Palladium DAQ", "Palladium.m"));
+buildOpts.AutoDetectDataFiles = true;
+buildOpts.EmbedArchive = true;
+buildOpts.ExecutableIcon = fullfile(projectRoot, "Palladium DAQ", "+Palladium", "+Components", "Graphics", "PalladiumDAQIcon.png");
+buildOpts.ExecutableName = "PalladiumDAQ";
 buildOpts.ExecutableVersion = verString;
+buildOpts.OutputDir = exeDir;
+buildOpts.ObfuscateArchive = false;
 buildOpts.TreatInputsAsNumeric = false;
+buildOpts.Verbose = true;
 
-%Build multi-platform version
-buildResult = compiler.build.standaloneApplication(buildOpts);
+%Build the standalone .exe file (not yet the full installer) to the Build
+%folder
+buildResult = BuildStandalone(buildOpts);
 
-%Build windows-specific version - which will not open a console window
-%behind it
-winBuildOpts = buildOpts;
-winBuildOpts.ExecutableName = "PalladiumDAQ";
-winBuildOpts.OutputDir = winExeDir;
-winOnlyBuildResult = compiler.build.standaloneWindowsApplication(winBuildOpts);
+%Build a debug version of the .exe which has a console window (just using
+%the all platform version, on windows). This will not work for mac
+%developers
+BuildDebugStandalone(buildOpts);
 
-% Download the MATLAB Runtime to include in the installer.
-compiler.runtime.download;
-
-% Create package options object, set package properties and package.
-packageOpts = compiler.package.InstallerOptions(buildResult);
-
-%Define, then clear (ready to write to) output directory
-packageDir = fullfile(projectRoot, "Palladium DAQ", "Release", "Installer");
-if exist(packageDir, "dir")
-    rmdir(packageDir, "s");
-end
 
 %AdditionalFiles - Additional files
 % character vector | string scalar | cell array of character vectors | string array
@@ -160,26 +146,57 @@ end
 % Verbose - Flag to control output verbosity
 % "off" | on/off logical value
 
+% Create package options object, set package properties and package.
+packageOpts = compiler.package.InstallerOptions(buildResult);
 packageOpts.ApplicationName = "Palladium DAQ";
+packageOpts.AuthorName = "Matthew Coak";
+packageOpts.AuthorCompany = "University of Birmingham";
 packageOpts.InstallerIcon = fullfile(projectRoot, "Palladium DAQ", "+Palladium", "+Components", "Graphics", "PalladiumDAQIcon.png");
-packageOpts.InstallerName = "Palladium DAQ Setup - Runtime Bundled";
 packageOpts.OutputDir = packageDir;
-packageOpts.RuntimeDelivery = "installer";
-
 packageOpts.Version = verString;
 packageOpts.Verbose = true;
-compiler.package.installer(buildResult, "Options", packageOpts);
+
+%Create the installer files
+GenerateInstallers(packageOpts, buildResult);
+
+end
+
+function buildResult = BuildStandalone(buildOpts)
+if ispc
+    %Build windows-specific version - which will not open a console window
+    %behind it
+    buildResult = compiler.build.standaloneWindowsApplication(buildOpts);
+else
+    %Build multi-platform version
+    buildResult = compiler.build.standaloneApplication(buildOpts);
+end
+end
+
+function BuildDebugStandalone(buildOpts)
+buildOpts.ExecutableName = "PalladiumDAQ_Debug";
+compiler.build.standaloneApplication(buildOpts);
+end
+
+function GenerateInstallers(packageOpts, buildResult)
+
+% Download the MATLAB Runtime to include in the installer.
+compiler.runtime.download;
+
+%Make installer with runtime bundled
+% packageOpts.RuntimeDelivery = "installer";
+% packageOpts.InstallerName = "Palladium DAQ Installer - Runtime Bundled";
+% compiler.package.installer(buildResult, "Options", packageOpts);
 
 
 %Make Web installer
 packageOpts.RuntimeDelivery = "web";
-packageOpts.InstallerName = "Palladium DAQ Setup - Web Installer";
+packageOpts.InstallerName = "Palladium DAQ Installer - Runtime Web Installer";
 compiler.package.installer(buildResult, "Options", packageOpts);
 
 
 %Make installer without runtime included
 packageOpts.RuntimeDelivery = "none";
-packageOpts.InstallerName = "Palladium DAQ Setup";
+packageOpts.InstallerName = "Palladium DAQ Installer - No Runtime";
 compiler.package.installer(buildResult, "Options", packageOpts);
 
 end
