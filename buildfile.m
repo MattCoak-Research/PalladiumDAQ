@@ -89,8 +89,9 @@ packageOpts = compiler.package.InstallerOptions(buildResult);
 
 %Define, then clear (ready to write to) output directory
 packageDir = fullfile(projectRoot, "Palladium DAQ", "Release", "Package");
-delete(fullfile(packageDir, "*"));
-rmdir(packageDir);
+if exist(packageDir, "dir")
+    rmdir(packageDir, "s");
+end
 
 %AdditionalFiles - Additional files
 % character vector | string scalar | cell array of character vectors | string array
