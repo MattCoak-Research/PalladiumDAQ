@@ -103,17 +103,18 @@ classdef Controller < handle
 
             %Hook up events
             addlistener(this.InstrumentController, "InstrumentsChanged", @(s,e)this.SequenceEditorController.InstrumentsChanged(e));      
-            addlistener(this.SequenceEditorController, "SingleCommandQueue", @(s,args)this.CacheInstrumentCommand(args.InstrumentRef, string(args.CommandString), args.ControlName, FunctionOnComplete = args.FunctionToRunOnComplete));      
+            addlistener(this.SequenceEditorController, "SingleCommandQueue", @(s,args)this.CacheInstrumentCommand(args.InstrumentRef, string(args.CommandString), args.ControlName, FunctionOnComplete = args.FunctionToRunOnComplete)); 
+            addlistener(this.SequenceEditorController, "SequenceQueue", @(s,args)this.QueueSequence(args));     
+            addlistener(this.SequenceEditorController, "SequenceAbort", @(s, args)this.AbortSequence());  
+            addlistener(this.CommandController, "CommandsFinished", @(s, args)this.SequenceEditorController.CommandsFinished());    
         end
     end
 
     %% Methods (Public)
     methods (Access = public)
 
-        function AttachView(this, view)
-            %Assign controllers into the View and have it subscribe to
-            %their events
-            view.AssignControllersAndHookUpEvents(this, this.TimingLoopController, this.InstrumentController);
+        function AbortSequence(this)
+            this.CommandController.AbortSequence();
         end
 
         function pltr = AddNewPlotter(this, parent, parentFigure, Settings)
@@ -195,6 +196,12 @@ classdef Controller < handle
             catch err
                 this.HandleError("Error adding new simple plotter", err);
             end
+        end
+
+        function AttachView(this, view)
+            %Assign controllers into the View and have it subscribe to
+            %their events
+            view.AssignControllersAndHookUpEvents(this, this.TimingLoopController, this.InstrumentController);
         end
 
         function CacheInstrumentCommand(this, instrument, command, controlName, Settings)
@@ -654,6 +661,13 @@ classdef Controller < handle
             catch err
                 this.HandleError("Error opening Sequence Viewer", err);
             end
+        end
+        
+        function QueueSequence(this, args)
+            disp("queue seq");
+            cellArrayOfCommands = args.Value;
+
+            this.CommandController.CacheCommands(cellArrayOfCommands);
         end
 
         function RegisterUIFigure(this, uiFigureHandle)

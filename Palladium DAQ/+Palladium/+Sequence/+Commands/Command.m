@@ -16,5 +16,11 @@ classdef Command < handle
     %% Methods (Public)
     methods(Access = public)
 
+        function Abort(this)
+            %Doesn't do anything, override for functionality.
+            %Only a command currently being executed will get this called,
+            %not every command queued up in a Sequence
+        end
+
     end
 end

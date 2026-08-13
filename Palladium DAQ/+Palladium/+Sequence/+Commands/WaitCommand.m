@@ -34,9 +34,18 @@ classdef WaitCommand < Palladium.Sequence.Commands.Command
     methods(Access = public)
 
         function isComplete = CheckComplete(this)
+            if isempty(this.Timer)
+                isComplete = false;
+                return;
+            end
+
             elapsed = toc(this.Timer);
 
             isComplete = elapsed >= this.Wait_seconds;
+        end
+
+        function str = GetDurationString(this)
+            str = num2str(this.Wait_seconds) + " seconds";
         end
 
         function Start(this)

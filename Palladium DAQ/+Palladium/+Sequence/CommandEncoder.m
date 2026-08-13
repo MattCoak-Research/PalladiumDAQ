@@ -111,6 +111,10 @@ classdef CommandEncoder < handle
             lns = strArrayOfSequenceLines(~strcmp(strArrayOfSequenceLines(:,1),""), :);
             lns = lns(~startsWith(lns, '%'));
 
+            if isempty(lns)
+                result = [];
+            end
+
             for i = 1 : length(lns)
                 result{i} = this.StringToCommand(lns(i), instrumentsList);
             end

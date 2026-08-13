@@ -31,6 +31,13 @@ classdef DataFileCommand < Palladium.Sequence.Commands.Command
     %% Methods (Public)
     methods(Access = public)
         
+        function str = GetDescription(this)
+            if this.WriteToFile
+                str = "Write to: " + fprintf(this.DataFilePath, "%s");
+            else
+                str = "Write Disable";
+            end
+        end
     end
 
 end

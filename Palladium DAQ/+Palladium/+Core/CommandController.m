@@ -39,6 +39,12 @@ classdef CommandController < handle
     properties(Access = private)
         CachedCommands = [];
         CommandCurrentlyExecuting = [];
+        SequenceRunning = false;
+    end
+
+    %% Events
+    events
+        CommandsFinished;
     end
 
     %% Constructor
@@ -55,6 +61,22 @@ classdef CommandController < handle
     %% Methods (Public)
     methods(Access = public)
 
+        function AbortSequence(this)
+            %Clears all cached commands, sequence and single alike            
+            this.CachedCommands = [];
+            this.SequenceRunning = false;
+
+            if ~isempty(this.CommandCurrentlyExecuting)
+                this.CommandCurrentlyExecuting.Abort();
+                this.CommandCurrentlyExecuting = [];
+            end
+        end
+
+        function CacheCommands(this, cellArrayOfCommands)           
+            this.CachedCommands = [this.CachedCommands, cellArrayOfCommands];
+            this.SequenceRunning = true;
+        end
+
         function CacheInstrumentCommand(this, instrument, command, controlName, Settings)
             arguments
                 this;
@@ -66,33 +88,26 @@ classdef CommandController < handle
 
             newCommand = Palladium.Sequence.Commands.InstrumentCommand(instrument, command, controlName, FunctionOnComplete = Settings.FunctionOnComplete);
 
-            this.CachedCommands = [this.CachedCommands, newCommand];
+            if isempty(this.CachedCommands)
+                this.CachedCommands = {newCommand};
+            else
+                this.CachedCommands{end+1} = newCommand;
+            end
         end
 
         function ExecuteCommand(this, command)
+            cmdType = class(command);
 
-            %Get the function and a packaged struct of its arguments
-            [fnHandle, args] = this.AssembleFunctionHandle(command.CommandString);
-
-            %Retrieve the thing to call the function on - could be the
-            %instrument reference itself, if no control name given, or one
-            %of it's controls
-            if isempty(command.ControlName)
-                target = command.Instrument;
-            else
-                targets = command.Instrument.GetRegisteredControlObjectsFromName(command.ControlName);
-                assert(isscalar(targets), "Found multiple Controls or no Control of this name: " + string(command.ControlName));
-                target = targets(1);
+            switch(cmdType)
+                case("Palladium.Sequence.Commands.InstrumentCommand")
+                    this.ExecuteInstrumentCommand(command);
+                case("Palladium.Sequence.Commands.WaitCommand")
+                    this.ExecuteWaitCommand(command);
+                case("Palladium.Sequence.Commands.DataFileCommand")
+                    this.ExecuteDataFileCommand(command);
+                otherwise
+                    error("Unsupported command type " + string(cmdType))
             end
-
-            %Execute the function on the Instrument stored in the command
-            %struct
-            if isempty(args)
-                fnHandle(target);
-            else
-                fnHandle(target, args);
-            end
-
         end
 
         function command = PullCachedCommand(this)
@@ -104,7 +119,7 @@ classdef CommandController < handle
                 return;
             end
 
-           command = this.CachedCommands(1);
+           command = this.CachedCommands{1};
 
            %Delete from heap - first in first out
            this.CachedCommands(1) = [];
@@ -129,6 +144,10 @@ classdef CommandController < handle
                         %ones until it is complete
                         this.CommandCurrentlyExecuting = command;
                     end
+                else
+                    if this.SequenceRunning
+                        this.AllCommandsFinished();
+                    end
                 end
             else
                 %Check to see if the running command is now finished
@@ -148,6 +167,12 @@ classdef CommandController < handle
 
     %% Methods (Private)
     methods(Access = private)
+
+        function AllCommandsFinished(this)
+            this.SequenceRunning = false;
+            this.Log("All commands finished, Sequence complete");
+            notify(this, "CommandsFinished");
+        end
 
         function [fnHandle, args] = AssembleFunctionHandle(this, commandStr)
 
@@ -181,14 +206,14 @@ classdef CommandController < handle
             str = "@" + "(" + inputValuesStr + ")" + cmd;
 
             if this.DebugMode
-                disp(" ");
-                disp("Function to Execute:");
-                disp(str);
-                disp(" ");
+                this.Log(" ");
+                this.Log("Function to Execute:");
+                this.Log(str);
+                this.Log(" ");
                 if ~isempty(args)
-                    disp("With arguments:");
-                    disp(args);
-                    disp(" ");
+                    this.Log("With arguments:");
+                    this.Log(args);
+                    this.Log(" ");
                 end
             end
             fnHandle = str2func(str);
@@ -202,7 +227,7 @@ classdef CommandController < handle
             end
         end
 
-        function outVal = ConvertArgumentType(this, arg)
+        function outVal = ConvertArgumentType(~, arg)
             if arg == "true"
                 outVal = true;
                 return;
@@ -239,11 +264,55 @@ classdef CommandController < handle
             end
         end
 
+        function ExecuteDataFileCommand(this, command)
+            this.Log("Data File Command: " + command.GetDescription());
+
+            %TODO
+        end
+
+        function ExecuteInstrumentCommand(this, command)
+
+            %Get the function and a packaged struct of its arguments
+            [fnHandle, args] = this.AssembleFunctionHandle(command.CommandString);
+
+            %Retrieve the thing to call the function on - could be the
+            %instrument reference itself, if no control name given, or one
+            %of it's controls
+            if isempty(command.ControlName)
+                target = command.Instrument;
+            else
+                targets = command.Instrument.GetRegisteredControlObjectsFromName(command.ControlName);
+                assert(isscalar(targets), "Found multiple Controls or no Control of this name: " + string(command.ControlName));
+                target = targets(1);
+            end
+
+            %Execute the function on the Instrument stored in the command
+            %struct
+            if isempty(args)
+                fnHandle(target);
+            else
+                fnHandle(target, args);
+            end
+
+        end
+
+        function ExecuteWaitCommand(this, command)
+            this.Log("Starting wait, " + command.GetDurationString());
+            command.Start();
+        end
+
         function str = InsertArgumentsStr(~, commandStr, argStr)
             deletedArgStr = eraseBetween(commandStr, '(', ')');
             str = replaceBetween(deletedArgStr, '(', ')', argStr);
         end
 
+        function Log(this, str)
+            if isempty(str) || strcmp(str, " ")
+                disp(" ");
+            else
+                disp("Seq:: " + string(str));
+            end
+        end
     end
 
 end
