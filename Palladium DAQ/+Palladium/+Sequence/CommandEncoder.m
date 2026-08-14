@@ -111,6 +111,10 @@ classdef CommandEncoder < handle
             lns = strArrayOfSequenceLines(~strcmp(strArrayOfSequenceLines(:,1),""), :);
             lns = lns(~startsWith(lns, '%'));
 
+            if isempty(lns)
+                result = [];
+            end
+
             for i = 1 : length(lns)
                 result{i} = this.StringToCommand(lns(i), instrumentsList);
             end
@@ -258,11 +262,24 @@ classdef CommandEncoder < handle
         end
 
         function [writeFile, path] = ParseDataFileCommand(this, str)
-            ss = strsplit(str, ":");
-            writeFile = logical(strtrim(ss{1}));
+            %We want to split off everything after the : token, but 
+            %Paths on windows have another : character in them, after the
+            %drive, so just do first split
+            indicesOfDelims = strfind(str, ":");
+
+            if isempty(indicesOfDelims)
+                error("Data File Command String Does not contain expected : Delimiter, Cannot Parse: " + string(str));
+            end
+
+            indexOfFirstDelim = indicesOfDelims(1);
+            charstr = char(str);
+            ss1 = strtrim(charstr(1:indexOfFirstDelim-1));
+            ss2 = strtrim(charstr(indexOfFirstDelim+1:end));
+
+            writeFile = logical(ss1);
 
             if writeFile
-                path = string(strtrim(ss{2}));
+                path = string(ss2);
             else
                 path = string.empty;
             end

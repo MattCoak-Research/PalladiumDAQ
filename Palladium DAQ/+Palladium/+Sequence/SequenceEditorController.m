@@ -25,6 +25,8 @@ classdef SequenceEditorController < handle
 
     %% Events
     events
+        SequenceAbort;
+        SequenceQueue;
         SingleCommandQueue;
     end
 
@@ -37,6 +39,17 @@ classdef SequenceEditorController < handle
 
     %% Methods (Public)
     methods (Access = public)
+
+        function AbortSequence(this)
+            %Pass on event - if a Controller made this as expected in a
+            %normal programme running (not a unit test for example), it
+            %will be listening 
+            notify(this, "SequenceAbort");
+
+             if ~isempty(this.View)
+                this.View.OnSequenceAbort();
+            end
+        end
 
         function Close(this)
             %Called by the Palladium main class, then Controller.Close.
@@ -51,6 +64,15 @@ classdef SequenceEditorController < handle
             str = this.CommandEncoder.CommandToString(cmd);
 
             this.InsertSequenceLine(str);
+        end
+
+        function CommandsFinished(this)
+            %This gets called via event thrown in CommandController, when a
+            %sequence has completed all its Commands
+
+             if ~isempty(this.View)
+                this.View.SequenceComplete();
+            end
         end
 
         function CreateView(this, viewFileName, applicationDir, Settings)
@@ -90,6 +112,7 @@ classdef SequenceEditorController < handle
             addlistener(this.View, "SaveButtonPressed", @(src, event)this.SaveSequenceButtonPushed(event.Value));
             addlistener(this.View, "SingleCommandQueued", @(src, event)this.SingleCommandQueued(src, event));
             addlistener(this.View, "SequenceRun", @(src, event)this.RunSequence(event));
+            addlistener(this.View, "SequenceAbort", @(src, event)this.AbortSequence());
 
             %Update the newly minted View
             this.View.RefreshInstrumentNames(this.Instruments);
@@ -199,6 +222,15 @@ classdef SequenceEditorController < handle
             %Parse the array of strings into a cell array of Command
             %classes
             result = this.CommandEncoder.ParseSequenceText(seqTextStrArray, this.Instruments);
+
+            if isempty(result)
+                warndlg("Empty sequence, cannot run");
+                if ~isempty(this.View)
+                    disp("Sequence Aborted");
+                    this.View.OnSequenceAbort();
+                end                
+                return;
+            end
           
             %Read any sequences called in RunSequence commands from disk,
             %parse them and insert the contents into the queue in the place
@@ -225,7 +257,11 @@ classdef SequenceEditorController < handle
                 [tf, index] = ContainsRunSequenceCommand(result);
             end
 
-            result
+            %Pass on event - if a Controller made this as expected in a
+            %normal programme running (not a unit test for example), it
+            %will be listening and will call CacheInstrumentCommand etc
+            args = Palladium.Events.SequenceEventData(result);
+            notify(this, "SequenceQueue", args);
 
             function [tf, index] = ContainsRunSequenceCommand(cellArrayOfCommands)
                 %Returns true and the index on first identified example, as
