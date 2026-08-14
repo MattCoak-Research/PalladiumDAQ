@@ -50,7 +50,7 @@ classdef Controller < handle
         DefaultDataDir;
 
         Closing = false;    %Will get set by an attached GUI if it is in the process of being closed, to tell us to stop sending events to a now-invalid GUI
-
+       
         SuppressedErrorMessages = {};
         UIFigureHandle = []; %Needed for error handling - need to know if we are throwing a modal dialogue box in an attached UIFigure, or a free floating normal one if there is no listening View
     end
@@ -107,6 +107,7 @@ classdef Controller < handle
             addlistener(this.SequenceEditorController, "SequenceQueue", @(s,args)this.QueueSequence(args));     
             addlistener(this.SequenceEditorController, "SequenceAbort", @(s, args)this.AbortSequence());  
             addlistener(this.CommandController, "CommandsFinished", @(s, args)this.SequenceEditorController.CommandsFinished());    
+            addlistener(this.CommandController, "DataFileCommandRun", @(s, args)this.SetFilePathWhileRunning(args.FileWriteDetails.FullPath, args.FileWriteDetails.SaveFile));    
         end
     end
 
@@ -664,10 +665,12 @@ classdef Controller < handle
         end
         
         function QueueSequence(this, args)
-            disp("queue seq");
             cellArrayOfCommands = args.Value;
 
             this.CommandController.CacheCommands(cellArrayOfCommands);
+
+            %Verbose/debug message printing
+            this.Log("Info", "Queued Sequence", "Green", "Queued Sequence");
         end
 
         function RegisterUIFigure(this, uiFigureHandle)
@@ -705,6 +708,49 @@ classdef Controller < handle
                 this.Log("Info", "Removed Instrument Control: " + controlDetailsStruct.Name, "Green", "Removed Instrument Control");
             catch err
                 this.HandleError("Error removing instrument control " + controlDetailsStruct.Name, err);
+            end
+        end
+
+        function SetFilePathWhileRunning(this, filePath, saveFileBool)
+            %This is designed as the entry point for sequences modifying
+            %the file write options while the loop is running. Needs to
+            %Stop/Start the data writer. Note that this doesn't need to be
+            %cached, it is not async/event driven - this is called from
+            %CommandController.Update, the first call in the Measure loop
+            %tick
+            arguments
+                this;
+                filePath string {mustBeTextScalar};
+                saveFileBool (1,1) logical;
+            end
+
+            try
+                %Pull apart the path into its components
+                [filepath, fileName, fileExtension] = fileparts(filePath);
+
+                %Assign the variables
+                this.FileWriteDetails.Directory = Palladium.Utilities.PathUtils.CleanPath(filepath);
+                if ~isempty(fileExtension)
+                    if ~strcmp(string(fileExtension), "")
+                        this.FileWriteDetails.FileExtension = fileExtension;
+                    end
+                end
+
+                %Make sure the filename doesn't have an extra file extension
+                %included by user by mistake - we will add an extension on
+                fileNameNoExt = Palladium.Utilities.PathUtils.StripExtension(fileName);
+
+                %Helpfully replace <DATE> tag with today's actual date
+                fileNameDateRp = Palladium.Utilities.PathUtils.ReplaceDateTag(fileNameNoExt);
+
+                %Set the variable
+                this.FileWriteDetails.FileName = fileNameDateRp;
+                this.FileWriteDetails.SaveFile = saveFileBool;             
+
+                %Refresh the data writer. This will also Update the View
+                this.InitialiseDataWriting();
+            catch err
+                this.HandleError("Error in SetFilePathsDirectory", err);
             end
         end
 

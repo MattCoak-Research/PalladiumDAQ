@@ -45,6 +45,7 @@ classdef CommandController < handle
     %% Events
     events
         CommandsFinished;
+        DataFileCommandRun;
     end
 
     %% Constructor
@@ -267,7 +268,11 @@ classdef CommandController < handle
         function ExecuteDataFileCommand(this, command)
             this.Log("Data File Command: " + command.GetDescription());
 
-            %TODO
+            fileWriteDetails.FullPath = command.DataFilePath;
+            fileWriteDetails.SaveFile = command.WriteToFile;
+
+            args = Palladium.Events.DataFileEventData(fileWriteDetails);
+            notify(this, "DataFileCommandRun", args);
         end
 
         function ExecuteInstrumentCommand(this, command)
@@ -310,7 +315,7 @@ classdef CommandController < handle
             if isempty(str) || strcmp(str, " ")
                 disp(" ");
             else
-                disp("Seq:: " + string(str));
+                disp("Seq:: " + string(strrep(str, '\', '\\')));    %Properly escape filepath separators so the string of a path renders properly
             end
         end
     end

@@ -33,7 +33,7 @@ classdef DataFileCommand < Palladium.Sequence.Commands.Command
         
         function str = GetDescription(this)
             if this.WriteToFile
-                str = "Write to: " + fprintf(this.DataFilePath, "%s");
+                str = "Write to: " + string(this.DataFilePath);
             else
                 str = "Write Disable";
             end
