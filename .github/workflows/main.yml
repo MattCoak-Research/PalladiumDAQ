@@ -19,16 +19,19 @@ jobs:
         with:
           products: >
             Instrument_Control_Toolbox
+            MATLAB_Compiler
       - uses: actions/setup-python@v6
         with:
             python-version: '3.13' 
       - uses: matlab-actions/run-build@v2
         with:
-          tasks: package
+          tasks: deploy
       - uses: actions/upload-artifact@v4
         with:
-          name: toolbox
-          path: "Palladium DAQ/Release/PalladiumDAQ.mltbx"
+          name: artifact_upload
+          path: |
+            Palladium\ DAQ/Release/PalladiumDAQ.mltbx
+            Palladium\ DAQ/Release/Standalone/Package/
       - name: Release
         uses: softprops/action-gh-release@v3
         if: github.ref_type == 'tag'
