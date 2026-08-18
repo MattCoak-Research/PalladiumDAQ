@@ -380,30 +380,32 @@ classdef Controller < handle
                 this.UserFilesDir = Palladium.Utilities.PathUtils.CleanPath(this.PathSettings.UserFilesDirectory);
                 this.EnsureUserFilesDirExists(this.UserFilesDir);
 
-                %Copy example/template Instrument class files into that
-                %folder if they don't yet exist
-                classesToCopy = "TemplateInstrumentClass.m";
-                Palladium.Utilities.PathUtils.CopyFiles(classesToCopy,...
-                    fullfile(this.ApplicationDir, "+Palladium", "+Instruments"), this.UserInstrumentsDir,...
-                    Overwrite=false);
- 
-                %Copy example/template Preset class files into that
-                %folder if they don't yet exist
-                classesToCopy = "Example.m";
-                Palladium.Utilities.PathUtils.CopyFiles(classesToCopy,...
-                    fullfile(this.ApplicationDir, "+PalladiumPresets"), this.UserPresetsDir,...
-                    Overwrite=false);
+                if ~isdeployed
+                    %Copy example/template Instrument class files into that
+                    %folder if they don't yet exist
+                    classesToCopy = "TemplateInstrumentClass.m";
+                    Palladium.Utilities.PathUtils.CopyFiles(classesToCopy,...
+                        fullfile(this.ApplicationDir, "+Palladium", "+Instruments"), this.UserInstrumentsDir,...
+                        Overwrite=false);
 
-                %Copy Instrument Drivers class files into User Instrument
-                %Drivers folder if they don't yet exist. At the moment this
-                %is just the QDInterface dll which almost certainly needs
-                %to sit in a folder alongside the QDInstrument dll file
-                %that the user will have to install themselves.
-                classesToCopy = "QDInterface.dll";
-                Palladium.Utilities.PathUtils.CopyFiles(classesToCopy,...
-                    fullfile(this.ApplicationDir, "Instrument Drivers", "Quantum Design", "PPMS Communication"),...
-                    fullfile(this.UserInstrumentDriversDir, "Quantum Design", "PPMS Communication"),...
-                    Overwrite=false);
+                    %Copy example/template Preset class files into that
+                    %folder if they don't yet exist
+                    classesToCopy = "Example.m";
+                    Palladium.Utilities.PathUtils.CopyFiles(classesToCopy,...
+                        fullfile(this.ApplicationDir, "+PalladiumPresets"), this.UserPresetsDir,...
+                        Overwrite=false);
+
+                    %Copy Instrument Drivers class files into User Instrument
+                    %Drivers folder if they don't yet exist. At the moment this
+                    %is just the QDInterface dll which almost certainly needs
+                    %to sit in a folder alongside the QDInstrument dll file
+                    %that the user will have to install themselves.
+                    classesToCopy = "QDInterface.dll";
+                    Palladium.Utilities.PathUtils.CopyFiles(classesToCopy,...
+                        fullfile(this.ApplicationDir, "Instrument Drivers", "Quantum Design", "PPMS Communication"),...
+                        fullfile(this.UserInstrumentDriversDir, "Quantum Design", "PPMS Communication"),...
+                        Overwrite=false);
+                end
 
                 %Retrieve iconPath to pass to a GUI
                 this.WindowSettings.PalladiumIconPath = fullfile(this.ApplicationDir, "+Palladium", "+Components", "Graphics", "PalladiumDAQIcon.png");
@@ -927,12 +929,17 @@ classdef Controller < handle
             %And set up a Quantum Design/PPMS Communication folder inside
             %there, which will get the provided QDInterface.dll copied into
             %it
-            Palladium.Utilities.PathUtils.EnsureDirectoryExists(fullfile(this.UserInstrumentDriversDir, "Quantum Design", "PPMS Communication"));
+            if ~isdeployed
+                %todo - do something in deployed code here
+                Palladium.Utilities.PathUtils.EnsureDirectoryExists(fullfile(this.UserInstrumentDriversDir, "Quantum Design", "PPMS Communication"));
+            end
 
 
             %Add the User Dir to the MATLAB path
-            addpath(userDirPath);
-            addpath(genpath(this.UserInstrumentDriversDir));    %Includes subfolders
+            if ~isdeployed
+                addpath(userDirPath);
+                addpath(genpath(this.UserInstrumentDriversDir));    %Includes subfolders
+            end
         end
 
         function [logSettings, pathSettings, windowSettings, plotterSettings] = LoadSettings(this, Settings)

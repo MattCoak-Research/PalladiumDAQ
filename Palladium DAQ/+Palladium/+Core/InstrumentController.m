@@ -422,10 +422,17 @@ classdef InstrumentController < handle
             %Load the names of the classes from the built-in and User Files
             %Instruments directories
             builtInClassNames = Palladium.Utilities.PluginLoading.LoadPluginNames(builtInInstrsFolderPath);
-            userClassNames = Palladium.Utilities.PluginLoading.LoadPluginNames(userInstrsFolderPath);
 
-            %Combine the two lists
-            classNames = [builtInClassNames; userClassNames];
+            %Add on user classes if we are not deployed, ie are able to
+            %load in external .m files
+            if ~isdeployed
+                userClassNames = Palladium.Utilities.PluginLoading.LoadPluginNames(userInstrsFolderPath);
+
+                %Combine the two lists
+                classNames = [builtInClassNames; userClassNames];
+            else
+                classNames = builtInClassNames;
+            end
 
             %Remove any entries that are specified to be exluded - like
             %TemplateInstrumentClass
