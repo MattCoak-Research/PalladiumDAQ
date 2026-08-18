@@ -185,9 +185,9 @@ function GenerateInstallers(packageOpts, buildResult)
 compiler.runtime.download;
 
 %Make installer with runtime bundled
-% packageOpts.RuntimeDelivery = "installer";
-% packageOpts.InstallerName = "Palladium DAQ Installer - Runtime Bundled";
-% compiler.package.installer(buildResult, "Options", packageOpts);
+packageOpts.RuntimeDelivery = "installer";
+packageOpts.InstallerName = "Palladium DAQ Installer - Runtime Bundled";
+compiler.package.installer(buildResult, "Options", packageOpts);
 
 
 %Make Web installer
