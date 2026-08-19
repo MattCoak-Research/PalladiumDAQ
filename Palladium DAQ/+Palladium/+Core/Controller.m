@@ -4,8 +4,8 @@ classdef Controller < handle
     %% Properties (Constant, Private)
     properties(Constant, Access = private)
         UserFolderName = "Palladium DAQ - User Files";
-        UserInstrumentFolderName = "+PalladiumInstruments";
-        UserPresetFolderName = "+PalladiumPresets";
+        UserInstrumentFolderName = "+Palladium" + filesep + "+Instruments";
+        UserPresetFolderName = "+Palladium" + filesep + "+Presets";
         UserInstrumentDriversFolderName = "Instrument Drivers"; %Instrument drivers could actually be anywhere, as long as they are on the path. This folder will get temporarily added to the path on programme start though, so saving the user that headache if they put them in here
     end
 
@@ -414,7 +414,7 @@ classdef Controller < handle
 
                 %Load Instrument Classes
                 this.Log("Debug", "Initialising Instrument Classes", "Yellow", "Initialising Instruments...");
-                this.InstrumentController.LoadInstrumentClasses(fullfile(this.ApplicationDir, "+Palladium", "+Instruments"), this.UserInstrumentsDir);
+                this.InstrumentController.LoadInstrumentClasses();
                 this.Log("Debug", "Instrument Classes initialised", "Green", "Instruments intialised");
 
                 %Initialise TimingLoopController
