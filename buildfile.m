@@ -3,6 +3,7 @@ plan = buildplan(localfunctions);
 plan("test").Dependencies = "check";
 plan("package").Dependencies = "test";
 plan("deploy").Dependencies = "package";
+plan("deployDebug").Dependencies = "test";
 end
 
 function checkTask(~)
@@ -24,10 +25,46 @@ assertSuccess(results);
 end
 
 function packageTask(~)
+projectRoot = "";
 opts = matlab.addons.toolbox.ToolboxOptions("PalladiumDAQ.prj");
 verStruct = Palladium.ver();
 opts.ToolboxVersion = string(verStruct.VersionString);
+%opts.MinimumMatlabRelease("R2026a");
+opts.OutputFile = fullfile(projectRoot, "Release", "Toolbox", "PalladiumDAQ.mltbx");
+opts.AuthorName = "Matthew Coak";
+opts.AuthorCompany = "University of Birmingham";
+opts.AuthorEmail = "m.j.coak@bham.ac.uk";
+%opts.Description = "Palladium Data Acquisition";
+
 matlab.addons.toolbox.packageToolbox(opts);
+end
+
+function deployDebugTask(~)
+projectRoot = ""; %Was full path: "E:\OneDrive\OneDrive - University of Birmingham\Physics\Matlab\Palladium DAQ";
+
+%Define, then clear (ready to write to) output directory
+exeDir = fullfile(projectRoot, "Release", "Debug Build");
+if exist(exeDir, "dir")
+ %   rmdir(exeDir, "s");
+end
+
+%Retrieve version
+verStruct = Palladium.ver();
+verString = string(verStruct.VersionString);
+
+%Set build options
+buildOpts = compiler.build.StandaloneApplicationOptions(fullfile(projectRoot, "Palladium DAQ", "Palladium.m"));
+buildOpts.AutoDetectDataFiles = true;
+buildOpts.EmbedArchive = true;
+buildOpts.ExecutableIcon = fullfile(projectRoot, "Palladium DAQ", "+Palladium", "+Components", "Graphics", "PalladiumDAQIcon.png");
+buildOpts.ExecutableName = "PalladiumDAQ";
+buildOpts.ExecutableVersion = verString;
+buildOpts.OutputDir = exeDir;
+buildOpts.ObfuscateArchive = false;
+buildOpts.TreatInputsAsNumeric = false;
+buildOpts.Verbose = true;
+
+BuildDebugStandalone(buildOpts);
 end
 
 function deployTask(~)
@@ -66,13 +103,13 @@ projectRoot = ""; %Was full path: "E:\OneDrive\OneDrive - University of Birmingh
 % 'off' | on/off logical value
 
 %Define, then clear (ready to write to) output directory
-exeDir = fullfile(projectRoot, "Palladium DAQ", "Release", "Standalone", "Build");
+exeDir = fullfile(projectRoot, "Release", "Build");
 if exist(exeDir, "dir")
     rmdir(exeDir, "s");
 end
 
 %Define, then clear (ready to write to) output directory
-packageDir = fullfile(projectRoot, "Palladium DAQ", "Release", "Standalone", "Package");
+packageDir = fullfile(projectRoot, "Release", "Package");
 if exist(packageDir, "dir")
     rmdir(packageDir, "s");
 end
@@ -181,23 +218,28 @@ end
 
 function GenerateInstallers(packageOpts, buildResult)
 
+directory = packageOpts.OutputDir;
+
 % Download the MATLAB Runtime to include in the installer.
 compiler.runtime.download;
 
 %Make installer with runtime bundled
-% packageOpts.RuntimeDelivery = "installer";
-% packageOpts.InstallerName = "Palladium DAQ Installer - Runtime Bundled";
-% compiler.package.installer(buildResult, "Options", packageOpts);
+packageOpts.RuntimeDelivery = "installer";
+packageOpts.OutputDir = fullfile(directory, "Runtime Bundled");
+packageOpts.InstallerName = "Palladium DAQ Installer - Runtime Bundled";
+compiler.package.installer(buildResult, "Options", packageOpts);
 
 
 %Make Web installer
 packageOpts.RuntimeDelivery = "web";
+packageOpts.OutputDir = fullfile(directory, "Runtime Web Installer");
 packageOpts.InstallerName = "Palladium DAQ Installer - Runtime Web Installer";
 compiler.package.installer(buildResult, "Options", packageOpts);
 
 
 %Make installer without runtime included
 packageOpts.RuntimeDelivery = "none";
+packageOpts.OutputDir = fullfile(directory, "No Runtime");
 packageOpts.InstallerName = "Palladium DAQ Installer - No Runtime";
 compiler.package.installer(buildResult, "Options", packageOpts);
 
