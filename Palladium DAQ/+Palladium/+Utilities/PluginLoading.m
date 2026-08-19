@@ -185,7 +185,7 @@ classdef PluginLoading
         end
 
         function classInstance = InstantiateClass(namespace, className)
-            %Instantiate an isntance of the named class (empty constructor)
+            %Instantiate an instance of the named class (empty constructor)
 
             if(isempty(namespace))
                 classPath = className;
@@ -228,6 +228,31 @@ classdef PluginLoading
             classNames = string({classNames.name}');
             classNames = classNames.extractBefore(".m");    %Remove the .m at the end
         end
+
+        function classNames = LoadClassNamesInNamespace(namespaceString)
+            %Get a list (array of strings) of the names of all classes
+            %defined in a namespace. e.g. running this with
+            %"Palladium.Instruments" as the argument would give
+            %["Palladium.Instruments.Keithley2000",
+            %"Palladium.Instruments.Keithley2410",....
+            arguments
+                namespaceString string {mustBeTextScalar};
+            end
+
+            classData = namespaceClasses(namespaceString);
+
+            if isempty(classData)
+                warning("Namespace " + namespaceString + " is empty, no classes found. Not on the path?");
+                classNames = [];
+                return;
+            end
+
+            for i = 1 : length(classData)
+                str = string(classData(i).Name);
+                classNames(i) = erase(str, namespaceString + ".");
+            end
+        end
+
     end
 end
 

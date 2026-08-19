@@ -5,11 +5,9 @@ classdef InstrumentController < handle
 
     %% Properties (Constant, Private)
     properties (Access = private, Constant)
-        Namespace string = "Palladium.Instruments";
-        UserNamespace string = "PalladiumInstruments";
+        InstrumentsNamespace string = "Palladium.Instruments";
         ControlsNamespace string = "Palladium.Instruments.Controls";
-        UserControlsNamespace string = "PalladiumInstruments.Controls";
-        InstrumentClassesToIgnore = {"TemplateInstrumentClass"};   %Instrument class names to NOT load into the Browser panel, even if they are in either built in or User instruments directories. Template Instrument is a good example - you don't actually want to ever create one
+        InstrumentClassesToIgnore = {"Palladium.Instruments.TemplateInstrumentClass"};   %Instrument class names to NOT load into the Browser panel, even if they are in either built in or User instruments directories. Template Instrument is a good example - you don't actually want to ever create one
     end
 
     %% Properties (Public)
@@ -92,10 +90,8 @@ classdef InstrumentController < handle
                 assert(any(contains(this.ListOfAvailableInstrumentClassNameStrings, instrStringToAdd, "IgnoreCase", false)), string(instrStringToAdd) + " not found in list of avaliable Instruments");
 
                 %Make an instance of the selected datasource class
-                if Palladium.Utilities.PluginLoading.CheckClassExistsInNamespace(this.Namespace, instrStringToAdd)  %We aren't sure if this Instrument is in the User or Built in Namespace, so check them in turn
-                    instRef = Palladium.Utilities.PluginLoading.InstantiateClass(this.Namespace, instrStringToAdd);
-                elseif Palladium.Utilities.PluginLoading.CheckClassExistsInNamespace(this.UserNamespace, instrStringToAdd)
-                    instRef = Palladium.Utilities.PluginLoading.InstantiateClass(this.UserNamespace, instrStringToAdd);
+                if Palladium.Utilities.PluginLoading.CheckClassExistsInNamespace(this.InstrumentsNamespace, instrStringToAdd)
+                    instRef = Palladium.Utilities.PluginLoading.InstantiateClass(this.InstrumentsNamespace, instrStringToAdd);   
                 else
                     error("InstrumentCreation:NotFoundInNamespace", "Could not find Instrument " + string(instrStringToAdd) + " in built in or user namespace. This could indicate that the class file of this Instrument contains an error and MATLAB cannot compile it (missing END statement?).");
                 end
@@ -171,17 +167,8 @@ classdef InstrumentController < handle
 
         function controlClassRef = AddInstrumentControl(this, tab, instrRef, controlDetailsStruct)
             try
-                %Check if the class is in the User Namespace. If it is, use
-                %that (so if it also exists in the built-in one, the user
-                %files will override)
-                if Palladium.Utilities.PluginLoading.CheckClassExistsInNamespace(this.UserControlsNamespace, controlDetailsStruct.ControlClassFileName)
-                    namespace = this.UserControlsNamespace;
-                else
-                    namespace = this.ControlsNamespace;
-                end
-
                 %Make an instance of the selected datasource class
-                controlClassRef = Palladium.Utilities.PluginLoading.InstantiateClass(namespace, controlDetailsStruct.ControlClassFileName);
+                controlClassRef = Palladium.Utilities.PluginLoading.InstantiateClass(this.ControlsNamespace, controlDetailsStruct.ControlClassFileName);
                 controlClassRef.ControlDetailsStruct = controlDetailsStruct;
                 controlClassRef.ProgrammeTargetUpdateTime = this.Controller.TimingLoopController.TargetUpdateTime;
 
@@ -418,14 +405,11 @@ classdef InstrumentController < handle
             end
         end
 
-        function LoadInstrumentClasses(this, builtInInstrsFolderPath, userInstrsFolderPath)
+        function LoadInstrumentClasses(this)
             %Load the names of the classes from the built-in and User Files
-            %Instruments directories
-            builtInClassNames = Palladium.Utilities.PluginLoading.LoadPluginNames(builtInInstrsFolderPath);
-            userClassNames = Palladium.Utilities.PluginLoading.LoadPluginNames(userInstrsFolderPath);
-
-            %Combine the two lists
-            classNames = [builtInClassNames; userClassNames];
+            %Instruments directories - they are the same name, so a single
+            %namespace, that just happens to split over two folders. MATLAB
+            classNames = Palladium.Utilities.PluginLoading.LoadClassNamesInNamespace(this.InstrumentsNamespace);
 
             %Remove any entries that are specified to be exluded - like
             %TemplateInstrumentClass

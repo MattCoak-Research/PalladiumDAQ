@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Coak"
+  given-names: "Matthew"
+  email: m.j.coak@bham.ac.uk
+  affiliation: University of Birmingham
+  orcid: "https://orcid.org/0000-0002-1015-8683"
+title: "Palladium Data Acquisition"
+url: "https://github.com/MattCoak-Research/PalladiumDAQ"

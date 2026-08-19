@@ -116,14 +116,19 @@ classdef Palladium < handle
 
             %Check that new enough Matlab version is installed, toolboxes
             %are there.. etc etc. Will throw error if not
-            Palladium.Utilities.Verification.ValidateInstall(MatlabVersion="R2025b", ToolboxNames = {"Instrument Control Toolbox"});
+            Palladium.Utilities.Verification.ValidateInstall(MatlabVersion="R2026a", ToolboxNames = {"Instrument Control Toolbox"});
 
             %Set application paths for loading of child classes later - make
             %all paths relative to this, the filepath of the Palladium.m file
             %- if we don't do this they will be relative to the user's
             %current matlab open folder, which is a recipe for disaster
-            applicationPath = mfilename('fullpath');
-            [applicationDir, ~, ~] = fileparts(applicationPath);
+            if isdeployed % Stand-alone mode.
+                [~, result] = system('path');
+                applicationDir = char(regexpi(result, 'Path=(.*?);', 'tokens', 'once'));
+            else
+                applicationPath = mfilename('fullpath');
+                [applicationDir, ~, ~] = fileparts(applicationPath);
+            end
 
             %Grab the version numbers, to e.g. send to a created View
             versionInfo = Palladium.ver();
@@ -140,7 +145,6 @@ classdef Palladium < handle
             %Create a Controller class that will handle all the backend logic
             this.Controller = Palladium.Core.Controller( ...
                 "ApplicationDir", applicationDir,...
-                "ApplicationPath", applicationPath,...
                 "DebugMode", Settings.DebugMode...
                 );
 

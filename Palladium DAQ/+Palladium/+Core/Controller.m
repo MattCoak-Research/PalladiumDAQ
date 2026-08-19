@@ -4,16 +4,15 @@ classdef Controller < handle
     %% Properties (Constant, Private)
     properties(Constant, Access = private)
         UserFolderName = "Palladium DAQ - User Files";
-        UserInstrumentFolderName = "+PalladiumInstruments";
-        UserPresetFolderName = "+PalladiumPresets";
+        UserInstrumentFolderName = "+Palladium" + filesep + "+Instruments";
+        UserPresetFolderName = "+Palladium" + filesep + "+Presets";
         UserInstrumentDriversFolderName = "Instrument Drivers"; %Instrument drivers could actually be anywhere, as long as they are on the path. This folder will get temporarily added to the path on programme start though, so saving the user that headache if they put them in here
     end
 
     %% Properties (Public)
     properties (Access = public)
         %Paths and Directories
-        ApplicationPath;    %These will be set in StartUp Fcn of the UiFigure
-        ApplicationDir;     %These will be set in StartUp Fcn of the
+        ApplicationDir;     %Parent Directory the code is run from (Palladium.m location or .exe location)
         UserFilesDir;       %Parent directory that holds the Presets & User Instruments folders, editable by User
     end
 
@@ -75,14 +74,12 @@ classdef Controller < handle
         function this = Controller(Settings)
             arguments
                 Settings.ApplicationDir {mustBeTextScalar};
-                Settings.ApplicationPath {mustBeTextScalar};
                 Settings.DebugMode (1,1) logical = false;
             end
 
             this.DebugMode = Settings.DebugMode;
 
             this.ApplicationDir = Settings.ApplicationDir;
-            this.ApplicationPath = Settings.ApplicationPath;
 
             %Create a helper class for managing Instruments
             this.InstrumentController = Palladium.Core.InstrumentController(this);
@@ -94,7 +91,7 @@ classdef Controller < handle
             %And one for handling all things Plotting
             this.PlottingController = Palladium.Core.PlottingController();
 
-            %And a controller for handling sending arbitray instrument
+            %And a controller for handling sending arbitrary instrument
             %commands and sequences
             this.CommandController = Palladium.Core.CommandController(DebugMode = this.DebugMode);
 
@@ -380,33 +377,37 @@ classdef Controller < handle
                 this.UserFilesDir = Palladium.Utilities.PathUtils.CleanPath(this.PathSettings.UserFilesDirectory);
                 this.EnsureUserFilesDirExists(this.UserFilesDir);
 
-                %Copy example/template Instrument class files into that
-                %folder if they don't yet exist
-                classesToCopy = "TemplateInstrumentClass.m";
-                Palladium.Utilities.PathUtils.CopyFiles(classesToCopy,...
-                    fullfile(this.ApplicationDir, "+Palladium", "+Instruments"), this.UserInstrumentsDir,...
-                    Overwrite=false);
- 
-                %Copy example/template Preset class files into that
-                %folder if they don't yet exist
-                classesToCopy = "Example.m";
-                Palladium.Utilities.PathUtils.CopyFiles(classesToCopy,...
-                    fullfile(this.ApplicationDir, "+PalladiumPresets"), this.UserPresetsDir,...
-                    Overwrite=false);
+                if ~isdeployed
+                    %Copy example/template Instrument class files into that
+                    %folder if they don't yet exist
+                    classesToCopy = "TemplateInstrumentClass.m";
+                    Palladium.Utilities.PathUtils.CopyFiles(classesToCopy,...
+                        fullfile(this.ApplicationDir, "+Palladium", "+Instruments"), this.UserInstrumentsDir,...
+                        Overwrite=false);
 
-                %Copy Instrument Drivers class files into User Instrument
-                %Drivers folder if they don't yet exist. At the moment this
-                %is just the QDInterface dll which almost certainly needs
-                %to sit in a folder alongside the QDInstrument dll file
-                %that the user will have to install themselves.
-                classesToCopy = "QDInterface.dll";
-                Palladium.Utilities.PathUtils.CopyFiles(classesToCopy,...
-                    fullfile(this.ApplicationDir, "Instrument Drivers", "Quantum Design", "PPMS Communication"),...
-                    fullfile(this.UserInstrumentDriversDir, "Quantum Design", "PPMS Communication"),...
-                    Overwrite=false);
+                    %Copy example/template Preset class files into that
+                    %folder if they don't yet exist
+                    classesToCopy = "Example.m";
+                    Palladium.Utilities.PathUtils.CopyFiles(classesToCopy,...
+                        fullfile(this.ApplicationDir, "+PalladiumPresets"), this.UserPresetsDir,...
+                        Overwrite=false);
 
-                %Retrieve iconPath to pass to a GUI
-                this.WindowSettings.PalladiumIconPath = fullfile(this.ApplicationDir, "+Palladium", "+Components", "Graphics", "PalladiumDAQIcon.png");
+                    %Copy Instrument Drivers class files into User Instrument
+                    %Drivers folder if they don't yet exist. At the moment this
+                    %is just the QDInterface dll which almost certainly needs
+                    %to sit in a folder alongside the QDInstrument dll file
+                    %that the user will have to install themselves.
+                    classesToCopy = "QDInterface.dll";
+                    Palladium.Utilities.PathUtils.CopyFiles(classesToCopy,...
+                        fullfile(this.ApplicationDir, "Instrument Drivers", "Quantum Design", "PPMS Communication"),...
+                        fullfile(this.UserInstrumentDriversDir, "Quantum Design", "PPMS Communication"),...
+                        Overwrite=false);
+
+                    %Retrieve iconPath to pass to a GUI
+                    this.WindowSettings.PalladiumIconPath = fullfile(this.ApplicationDir, "+Palladium", "+Components", "Graphics", "PalladiumDAQIcon.png");
+                else
+                    this.WindowSettings.PalladiumIconPath = [];
+                end
 
                 %Send settings to the GUI
                 args = Palladium.Events.SettingsChangedEventData(this.PathSettings, this.WindowSettings);
@@ -414,7 +415,7 @@ classdef Controller < handle
 
                 %Load Instrument Classes
                 this.Log("Debug", "Initialising Instrument Classes", "Yellow", "Initialising Instruments...");
-                this.InstrumentController.LoadInstrumentClasses(fullfile(this.ApplicationDir, "+Palladium", "+Instruments"), this.UserInstrumentsDir);
+                this.InstrumentController.LoadInstrumentClasses();
                 this.Log("Debug", "Instrument Classes initialised", "Green", "Instruments intialised");
 
                 %Initialise TimingLoopController
@@ -931,8 +932,10 @@ classdef Controller < handle
 
 
             %Add the User Dir to the MATLAB path
-            addpath(userDirPath);
-            addpath(genpath(this.UserInstrumentDriversDir));    %Includes subfolders
+            if ~isdeployed
+                addpath(userDirPath);
+                addpath(genpath(this.UserInstrumentDriversDir));    %Includes subfolders
+            end
         end
 
         function [logSettings, pathSettings, windowSettings, plotterSettings] = LoadSettings(this, Settings)
