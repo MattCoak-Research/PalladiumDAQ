@@ -4,18 +4,19 @@ classdef ConfigIO < handle
 
     %% Properties (Constant, Public)
     properties(Constant, Access = public)
-        ConfigDirectoryName = "Palladium DAQ - Settings";
+        ConfigDirectoryName = "";   %Just have the config files in the root directory - will work with standalone deployed code as well as open source
+        ConfigFileName = "Config.json";
     end
 
     %% Properties (Public)
     properties(Access = public)
-        ConfigDirectory = fullfile("..", "..", Palladium.Utilities.ConfigIO.ConfigDirectoryName);
+        ConfigDirectory = fullfile(Palladium.Utilities.ConfigIO.ConfigDirectoryName);
         PromptForGUIEntryOfSettings = true;
     end
 
     %% Properties (Private)
     properties (Access = private)
-        EnteredSettingsStruct = []; %Hold enetered details (fired from event) in temp property that code can then access when execution resumes
+        EnteredSettingsStruct = []; %Hold entered details (fired from event) in temp property that code can then access when execution resumes
     end
 
     %% Constructor
@@ -37,8 +38,7 @@ classdef ConfigIO < handle
             try
                 %Load the default path if no override given
                 if isempty(Settings.ConfigFilePath)
-                    confDir = this.GetConfigDirPath();
-                    configPath = fullfile(confDir,"Config.json");
+                    configPath = fullfile(Settings.ApplicationDir, this.ConfigDirectory, this.ConfigFileName);
                 else
                     configPath = Settings.ConfigFilePath;
                 end
@@ -151,13 +151,6 @@ classdef ConfigIO < handle
             s.PlotterSettings.Markers = ["o", "o", "+", "*"];
             s.PlotterSettings.ShowLegends = true;
             % ------------------------------------------------------------
-        end
-
-        function dirPath = GetConfigDirPath(this)
-            functionPath = mfilename('fullpath');
-            [directoryOfThisFunction, ~, ~] = fileparts(functionPath);
-            dirPath = fullfile(directoryOfThisFunction, char(this.ConfigDirectory));
-            dirPath = Palladium.Utilities.PathUtils.CleanPath(dirPath);
         end
 
         function con = ShowConfigEntryGUI(this, initialConfig, applicationDir)
