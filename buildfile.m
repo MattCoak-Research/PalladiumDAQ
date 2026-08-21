@@ -26,16 +26,24 @@ end
 
 function packageTask(~)
 projectRoot = "";
+
+%Construct a toolbox options object to set parameters, and retrieve the
+%build version
 opts = matlab.addons.toolbox.ToolboxOptions("PalladiumDAQ.prj");
 verStruct = Palladium.ver();
-opts.ToolboxVersion = string(verStruct.VersionString);
-%opts.MinimumMatlabRelease("R2026a");
-opts.OutputFile = fullfile(projectRoot, "Release", "Toolbox", "PalladiumDAQ.mltbx");
-opts.AuthorName = "Matthew Coak";
+
+%Set various settings for the toolbox
 opts.AuthorCompany = "University of Birmingham";
 opts.AuthorEmail = "m.j.coak@bham.ac.uk";
-%opts.Description = "Palladium Data Acquisition";
+opts.AuthorName = "Matthew Coak";
+opts.Description = "Palladium Data Acquisition - an open source platform for laboratory instrument control, data acquisition logging and graphing. See https://github.com/MattCoak-Research/PalladiumDAQ for details.";
+opts.MinimumMatlabRelease = "R2026a";
+opts.MaximumMatlabRelease = "";
+opts.OutputFile = fullfile(projectRoot, "Release", "Toolbox", "PalladiumDAQ.mltbx");
+opts.ToolboxGettingStartedGuide = fullfile(projectRoot, "Docs", "Palladium DAQ Toolbox Getting Started Guide"); 
+opts.ToolboxVersion = string(verStruct.VersionString);
 
+%Build the .mltbx toolbox installation file
 matlab.addons.toolbox.packageToolbox(opts);
 end
 
@@ -45,80 +53,21 @@ projectRoot = ""; %Was full path: "E:\OneDrive\OneDrive - University of Birmingh
 %Define, then clear (ready to write to) output directory
 exeDir = fullfile(projectRoot, "Release", "Debug Build");
 if exist(exeDir, "dir")
+    %Don't delete the exeDir, as we'd quite like to lazily keep the config
+    %file in there..
  %   rmdir(exeDir, "s");
 end
 
-%Retrieve version
-verStruct = Palladium.ver();
-verString = string(verStruct.VersionString);
-
-%The compiler excludes any code files it doesn't find an explicit mention
-%of. Add those in here. Instrument files and dynamically loaded Views are
-%good examples.
-additionalFiles = GetAdditionalFilesFromFolders([...,...
-    fullfile("Palladium DAQ", "+Palladium", "+Components"),...
-    fullfile("Palladium DAQ", "+Palladium", "+Instruments"),...
-    fullfile("Palladium DAQ", "+Palladium", "+Instruments", "+Controls"),...
-    fullfile("Palladium DAQ", "+Palladium", "+Instruments", "+Events"),...
-    fullfile("Palladium DAQ", "+Palladium", "+Enums"),...
-    fullfile("Palladium DAQ", "+Palladium", "+Events"),...
-    fullfile("Palladium DAQ", "+Palladium", "+Sequence", "+Views"),...
-    fullfile("Palladium DAQ", "+Palladium", "+Views")]);
-
-additionalFiles = RemoveAdditionalFiles(additionalFiles, [...
-    fullfile("Palladium DAQ", "+Palladium", "+Instruments", "TestInstrument.m")...
-    ]);
-
 %Set build options
-buildOpts = compiler.build.StandaloneApplicationOptions(fullfile(projectRoot, "Palladium DAQ", "Palladium.m"));
-buildOpts.AdditionalFiles = additionalFiles;
-buildOpts.AutoDetectDataFiles = true;
-buildOpts.EmbedArchive = true;
-buildOpts.ExecutableIcon = fullfile(projectRoot, "Palladium DAQ", "+Palladium", "+Components", "Graphics", "PalladiumDAQIcon.png");
+buildOpts = AssembleBuildOptions(verString);
 buildOpts.ExecutableName = "PalladiumDAQ";
-buildOpts.ExecutableVersion = verString;
 buildOpts.OutputDir = exeDir;
-buildOpts.ObfuscateArchive = false;
-buildOpts.TreatInputsAsNumeric = false;
-buildOpts.Verbose = true;
 
 BuildDebugStandalone(buildOpts);
 end
 
 function deployTask(~)
 projectRoot = ""; %Was full path: "E:\OneDrive\OneDrive - University of Birmingham\Physics\Matlab\Palladium DAQ";
-
-% Create target build options object, set build properties and build.
-% AdditionalFiles - Additional files
-% character vector | string scalar | cell array of character vectors | string array
-% AutoDetectDataFiles - Flag to automatically include data files
-% 'on' | on/off logical value
-% CustomHelpTextFile - Path to help file
-% character vector | string scalar
-% EmbedArchive - Flag to embed deployable archive
-% 'on' | on/off logical value
-% ExecutableIcon - Path to icon image
-% character vector | string scalar
-% ExecutableName - Name of generated application
-% character vector | string scalar
-% ExecutableSplashScreen - Path to splash screen image
-% character vector | string scalar
-% ExecutableVersion - Executable version
-% '1.0.0.0' | character vector | string scalar
-% ExternalEncryptionKey - Paths to encryption key and loader files
-% scalar struct
-% ObfuscateArchive - Flag to obfuscate deployable archive
-% 'off' | on/off logical value
-% OutputDir - Path to output directory
-% character vector | string scalar
-% SecretsManifest - Path to JSON manifest file
-% character vector | string scalar
-% SupportPackages - Support packages
-% 'autodetect' | 'none' | string scalar | cell array of character vectors | string array
-% TreatInputsAsNumeric - Flag to interpret command line inputs
-% 'off' | on/off logical value
-% Verbose - Flag to control build verbosity
-% 'off' | on/off logical value
 
 %Define, then clear (ready to write to) output directory
 exeDir = fullfile(projectRoot, "Release", "Build");
@@ -137,18 +86,9 @@ verStruct = Palladium.ver();
 verString = string(verStruct.VersionString);
 
 %Set build options
-buildOpts = compiler.build.StandaloneApplicationOptions(fullfile(projectRoot, "Palladium DAQ", "Palladium.m"));
-
-buildOpts.AutoDetectDataFiles = true;
-buildOpts.EmbedArchive = true;
-buildOpts.ExecutableIcon = fullfile(projectRoot, "Palladium DAQ", "+Palladium", "+Components", "Graphics", "PalladiumDAQIcon.png");
+buildOpts = AssembleBuildOptions(verString);
 buildOpts.ExecutableName = "PalladiumDAQ";
-buildOpts.ExecutableSplashScreen = "splash.png";
-buildOpts.ExecutableVersion = verString;
 buildOpts.OutputDir = exeDir;
-buildOpts.ObfuscateArchive = false;
-buildOpts.TreatInputsAsNumeric = false;
-buildOpts.Verbose = true;
 
 %Build the standalone .exe file (not yet the full installer) to the Build
 %folder
@@ -240,4 +180,36 @@ for i = 1 : length(stringsToRemove)
     idx = strcmp(strIn,stringsToRemove(i));
     filePathsStrArray(idx) = [];
 end
+end
+
+function buildOpts = AssembleBuildOptions(verString)
+
+%The compiler excludes any code files it doesn't find an explicit mention
+%of. Add those in here. Instrument files and dynamically loaded Views are
+%good examples.
+additionalFiles = GetAdditionalFilesFromFolders([...,...
+    fullfile("Palladium DAQ", "+Palladium", "+Components"),...
+    fullfile("Palladium DAQ", "+Palladium", "+Instruments"),...
+    fullfile("Palladium DAQ", "+Palladium", "+Instruments", "+Controls"),...
+    fullfile("Palladium DAQ", "+Palladium", "+Instruments", "+Events"),...
+    fullfile("Palladium DAQ", "+Palladium", "+Enums"),...
+    fullfile("Palladium DAQ", "+Palladium", "+Events"),...
+    fullfile("Palladium DAQ", "+Palladium", "+Sequence", "+Views"),...
+    fullfile("Palladium DAQ", "+Palladium", "+Views")]);
+
+additionalFiles = RemoveAdditionalFiles(additionalFiles, [...
+    fullfile("Palladium DAQ", "+Palladium", "+Instruments", "TestInstrument.m")...
+    ]);
+
+%Set build options
+buildOpts = compiler.build.StandaloneApplicationOptions(fullfile(projectRoot, "Palladium DAQ", "Palladium.m"));
+buildOpts.AdditionalFiles = additionalFiles;
+buildOpts.AutoDetectDataFiles = true;
+buildOpts.EmbedArchive = true;
+buildOpts.ExecutableIcon = fullfile(projectRoot, "Palladium DAQ", "+Palladium", "+Components", "Graphics", "PalladiumDAQIcon.png");
+buildOpts.ExecutableVersion = verString;
+buildOpts.ObfuscateArchive = false;
+buildOpts.TreatInputsAsNumeric = false;
+buildOpts.Verbose = true;
+
 end
