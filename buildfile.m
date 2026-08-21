@@ -52,8 +52,26 @@ end
 verStruct = Palladium.ver();
 verString = string(verStruct.VersionString);
 
+%The compiler excludes any code files it doesn't find an explicit mention
+%of. Add those in here. Instrument files and dynamically loaded Views are
+%good examples.
+additionalFiles = GetAdditionalFilesFromFolders([...,...
+    fullfile("Palladium DAQ", "+Palladium", "+Components"),...
+    fullfile("Palladium DAQ", "+Palladium", "+Instruments"),...
+    fullfile("Palladium DAQ", "+Palladium", "+Instruments", "+Controls"),...
+    fullfile("Palladium DAQ", "+Palladium", "+Instruments", "+Events"),...
+    fullfile("Palladium DAQ", "+Palladium", "+Enums"),...
+    fullfile("Palladium DAQ", "+Palladium", "+Events"),...
+    fullfile("Palladium DAQ", "+Palladium", "+Sequence", "+Views"),...
+    fullfile("Palladium DAQ", "+Palladium", "+Views")]);
+
+additionalFiles = RemoveAdditionalFiles(additionalFiles, [...
+    fullfile("Palladium DAQ", "+Palladium", "+Instruments", "TestInstrument.m")...
+    ]);
+
 %Set build options
 buildOpts = compiler.build.StandaloneApplicationOptions(fullfile(projectRoot, "Palladium DAQ", "Palladium.m"));
+buildOpts.AdditionalFiles = additionalFiles;
 buildOpts.AutoDetectDataFiles = true;
 buildOpts.EmbedArchive = true;
 buildOpts.ExecutableIcon = fullfile(projectRoot, "Palladium DAQ", "+Palladium", "+Components", "Graphics", "PalladiumDAQIcon.png");
@@ -120,10 +138,12 @@ verString = string(verStruct.VersionString);
 
 %Set build options
 buildOpts = compiler.build.StandaloneApplicationOptions(fullfile(projectRoot, "Palladium DAQ", "Palladium.m"));
+
 buildOpts.AutoDetectDataFiles = true;
 buildOpts.EmbedArchive = true;
 buildOpts.ExecutableIcon = fullfile(projectRoot, "Palladium DAQ", "+Palladium", "+Components", "Graphics", "PalladiumDAQIcon.png");
 buildOpts.ExecutableName = "PalladiumDAQ";
+buildOpts.ExecutableSplashScreen = "splash.png";
 buildOpts.ExecutableVersion = verString;
 buildOpts.OutputDir = exeDir;
 buildOpts.ObfuscateArchive = false;
@@ -141,56 +161,13 @@ if ispc
     BuildDebugStandalone(buildOpts);
 end
 
-
-%AdditionalFiles - Additional files
-% character vector | string scalar | cell array of character vectors | string array
-% AddRemoveProgramsIcon - Add or remove programs icon
-% character vector | string scalar | string array
-% ApplicationName - Application name
-% "" | character vector | string scalar
-% AuthorCompany - Company name
-% "" | character vector | string scalar
-% AuthorEmail - Email address
-% "" | character vector | string scalar
-% AuthorName - Name
-% "" | character vector | string scalar
-% DefaultInstallationDir - Default installation path
-% character vector | string scalar
-% Description - Detailed application description
-% "" | character vector | string scalar
-% InstallationNotes - Notes
-% "" | character vector | string scalar
-% InstallerIcon - Path to icon image
-% character vector | string scalar
-% InstallerLogo - Path to installer image
-% character vector | string scalar
-% InstallerName - Name of installer file
-% MyAppInstaller | character vector | string scalar
-% InstallerSplash - Path to splash screen image
-% character vector | string scalar
-% OptionalDependencies - Optional dependencies to include
-% "all" | "none"
-% OutputDir - Path to folder where the installer will be saved
-% character vector | string scalar
-% PackageType - Installer file type
-% "auto" | "zip"
-% RuntimeDelivery - MATLAB Runtime delivery option
-% "web" | "installer" | "none"
-% Shortcut - Path to shortcut
-% "" | character vector | string scalar
-% Summary - Summary description of application
-% "" | character vector | string scalar
-% Version - Version of installed application
-% "1.0" | character vector | string scalar
-% Verbose - Flag to control output verbosity
-% "off" | on/off logical value
-
 % Create package options object, set package properties and package.
 packageOpts = compiler.package.InstallerOptions(buildResult);
 packageOpts.ApplicationName = "Palladium DAQ";
 packageOpts.AuthorName = "Matthew Coak";
 packageOpts.AuthorCompany = "University of Birmingham";
 packageOpts.InstallerIcon = fullfile(projectRoot, "Palladium DAQ", "+Palladium", "+Components", "Graphics", "PalladiumDAQIcon.png");
+packageOpts.InstallerSplash = "splash.png";
 packageOpts.OutputDir = packageDir;
 packageOpts.Version = verString;
 packageOpts.Verbose = true;
@@ -243,4 +220,24 @@ packageOpts.OutputDir = fullfile(directory, "No Runtime");
 packageOpts.InstallerName = "Palladium DAQ Installer - No Runtime";
 compiler.package.installer(buildResult, "Options", packageOpts);
 
+end
+
+function filePathsStrArray = GetAdditionalFilesFromFolders(listOfDirs)
+filePathsStrArray = [];
+
+for i = 1 : length(listOfDirs)
+    dr = listOfDirs(i);
+
+    assert(exist(dr, "dir"), "Directory " + dr + " not found in buildfile");
+   classNames = dir(fullfile(dr, '*.m'));
+    filePathsStrArray = [filePathsStrArray, fullfile(dr, string({classNames.name}))]; 
+end
+end
+
+function filePathsStrArray = RemoveAdditionalFiles(strIn, stringsToRemove)
+filePathsStrArray = strIn;
+for i = 1 : length(stringsToRemove)    
+    idx = strcmp(strIn,stringsToRemove(i));
+    filePathsStrArray(idx) = [];
+end
 end
