@@ -64,7 +64,7 @@ classdef ConfigIO < handle
                 %Load config struct from file
                 con = readstruct(configPath);
 
-                %Verfication - check all expected fields are present. This
+                %Verification - check all expected fields are present. This
                 %is mainly for if the software updates and there is an old
                 %config file on disk that doesn't have a newly added field.
                 %If so, add that in and re-save the config to upgrade it.
@@ -117,22 +117,38 @@ classdef ConfigIO < handle
         function s = GenerateDefaultConfigStruct(~)
 
             %% ------- Edit default config values / add new ones here ----
-            s.LogSettings.LogFileDirectory = ".." + filesep + "Palladium DAQ - Testing" + filesep + "Logs";
+            userDir = Palladium.Utilities.PathUtils.GetUserDirectory();
+
             s.LogSettings.LogFileFileName = "<DATE>_Log.txt";
-            s.LogSettings.LogFileDirectoryIsRelativePath = true;
+            if isdeployed
+                s.LogSettings.LogFileDirectory = fullfile(userDir, "Logs");
+                s.LogSettings.LogFileDirectoryIsRelativePath = false;
+            else
+                s.LogSettings.LogFileDirectory = ".." + filesep + "Palladium DAQ - Testing" + filesep + "Logs";
+                s.LogSettings.LogFileDirectoryIsRelativePath = true;
+            end
+
             s.LogSettings.CommandWindowMessageLevel = "Debug";
             s.LogSettings.PrintStackTraceInCommandWindow = false;
             s.LogSettings.GUIMessageLevel = "Warning";
             s.LogSettings.LogFileMessageLevel = "Debug";
             s.LogSettings.ErrorOnAllInstrumentErrors = false;
  
-            s.PathSettings.UserFilesDirectory = Palladium.Utilities.PathUtils.GetUserDirectory();
+            s.PathSettings.UserFilesDirectory = userDir;
             s.PathSettings.UserFilesDirectoryIsRelativePath = false;
             s.PathSettings.DefaultFileName = "<DATE>_Filename";
-            s.PathSettings.DefaultDirectory = ".." + filesep + "Palladium DAQ - Testing";
-            s.PathSettings.DefaultSequenceDirectory = ".." + filesep + "Palladium DAQ - Testing";
-            s.PathSettings.DataDirectoryIsRelativePath = true;
-            s.PathSettings.SequenceDirectoryIsRelativePath = true;
+            if isdeployed
+                s.PathSettings.DefaultDirectory = fullfile(userDir, "Data");
+                s.PathSettings.DefaultSequenceDirectory = fullfile(userDir, "Sequences");
+                s.PathSettings.DataDirectoryIsRelativePath = false;
+                s.PathSettings.SequenceDirectoryIsRelativePath = false;
+            else
+                s.PathSettings.DefaultDirectory = ".." + filesep + "Palladium DAQ - Testing";
+                s.PathSettings.DefaultSequenceDirectory = ".." + filesep + "Palladium DAQ - Testing";
+                s.PathSettings.DataDirectoryIsRelativePath = true;
+                s.PathSettings.SequenceDirectoryIsRelativePath = true;
+            end
+
             s.PathSettings.DataFileExtension = ".dat";
             s.PathSettings.SequenceFileExtension = ".seq";
             s.PathSettings.SaveFile = true;

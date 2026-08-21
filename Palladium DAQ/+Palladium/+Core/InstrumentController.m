@@ -7,7 +7,7 @@ classdef InstrumentController < handle
     properties (Access = private, Constant)
         InstrumentsNamespace string = "Palladium.Instruments";
         ControlsNamespace string = "Palladium.Instruments.Controls";
-        InstrumentClassesToIgnore = {"Palladium.Instruments.TemplateInstrumentClass"};   %Instrument class names to NOT load into the Browser panel, even if they are in either built in or User instruments directories. Template Instrument is a good example - you don't actually want to ever create one
+        InstrumentClassesToIgnore = {"TemplateInstrumentClass"};   %Instrument class names to NOT load into the Browser panel, even if they are in either built in or User instruments directories. Template Instrument is a good example - you don't actually want to ever create one
     end
 
     %% Properties (Public)
@@ -411,7 +411,7 @@ classdef InstrumentController < handle
             %namespace, that just happens to split over two folders. MATLAB
             classNames = Palladium.Utilities.PluginLoading.LoadClassNamesInNamespace(this.InstrumentsNamespace);
 
-            %Remove any entries that are specified to be exluded - like
+            %Remove any entries that are specified to be excluded - like
             %TemplateInstrumentClass
             for i = 1 : length(this.InstrumentClassesToIgnore)
                 classNames(strcmp(classNames, this.InstrumentClassesToIgnore{i})) = [];
