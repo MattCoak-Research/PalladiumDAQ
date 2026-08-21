@@ -37,10 +37,14 @@ opts.AuthorCompany = "University of Birmingham";
 opts.AuthorEmail = "m.j.coak@bham.ac.uk";
 opts.AuthorName = "Matthew Coak";
 opts.Description = "Palladium Data Acquisition - an open source platform for laboratory instrument control, data acquisition logging and graphing. See https://github.com/MattCoak-Research/PalladiumDAQ for details.";
-opts.MinimumMatlabRelease = "R2026a";
 opts.MaximumMatlabRelease = "";
+opts.MinimumMatlabRelease = "R2026a";
 opts.OutputFile = fullfile(projectRoot, "Release", "Toolbox", "PalladiumDAQ.mltbx");
-opts.ToolboxGettingStartedGuide = fullfile(projectRoot, "Docs", "Palladium DAQ Toolbox Getting Started Guide"); 
+opts.SupportedPlatforms.Win64 = true;
+opts.SupportedPlatforms.Mac = true;
+opts.SupportedPlatforms.Glnxa64 = true;
+opts.SupportedPlatforms.MatlabOnline = true;
+opts.ToolboxGettingStartedGuide = fullfile(projectRoot, "Palladium DAQ", "Docs", "Toolbox_Getting_Started_Guide.mlx"); 
 opts.ToolboxVersion = string(verStruct.VersionString);
 
 %Build the .mltbx toolbox installation file
@@ -58,8 +62,12 @@ if exist(exeDir, "dir")
  %   rmdir(exeDir, "s");
 end
 
+%Retrieve version
+verStruct = Palladium.ver();
+verString = string(verStruct.VersionString);
+
 %Set build options
-buildOpts = AssembleBuildOptions(verString);
+buildOpts = AssembleBuildOptions(verString, projectRoot);
 buildOpts.ExecutableName = "PalladiumDAQ";
 buildOpts.OutputDir = exeDir;
 
@@ -86,7 +94,7 @@ verStruct = Palladium.ver();
 verString = string(verStruct.VersionString);
 
 %Set build options
-buildOpts = AssembleBuildOptions(verString);
+buildOpts = AssembleBuildOptions(verString, projectRoot);
 buildOpts.ExecutableName = "PalladiumDAQ";
 buildOpts.OutputDir = exeDir;
 
@@ -182,7 +190,7 @@ for i = 1 : length(stringsToRemove)
 end
 end
 
-function buildOpts = AssembleBuildOptions(verString)
+function buildOpts = AssembleBuildOptions(verString, projectRoot)
 
 %The compiler excludes any code files it doesn't find an explicit mention
 %of. Add those in here. Instrument files and dynamically loaded Views are
@@ -207,6 +215,7 @@ buildOpts.AdditionalFiles = additionalFiles;
 buildOpts.AutoDetectDataFiles = true;
 buildOpts.EmbedArchive = true;
 buildOpts.ExecutableIcon = fullfile(projectRoot, "Palladium DAQ", "+Palladium", "+Components", "Graphics", "PalladiumDAQIcon.png");
+buildOpts.ExecutableSplashScreen = fullfile(projectRoot, "splash.png");
 buildOpts.ExecutableVersion = verString;
 buildOpts.ObfuscateArchive = false;
 buildOpts.TreatInputsAsNumeric = false;

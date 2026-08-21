@@ -1413,6 +1413,19 @@
                     </File>
                 </File>
             </File>
+            <File Location="Docs">
+                <Info/>
+                <DIR_SIGNIFIER Location="1">
+                    <Info/>
+                </DIR_SIGNIFIER>
+                <File Location="Toolbox_Getting_Started_Guide.mlx">
+                    <Info>
+                        <Category UUID="FileClassCategory">
+                            <Label UUID="design"/>
+                        </Category>
+                    </Info>
+                </File>
+            </File>
         </File>
         <File Location="README.md">
             <Info/>
@@ -1429,7 +1442,7 @@
             <DIR_SIGNIFIER Location="1">
                 <Info/>
             </DIR_SIGNIFIER>
-            <File Location="Palladium DAQ Toolbox Getting Started Guide.mlx">
+            <File Location="Toolbox_Getting_Started_Guide.mlx">
                 <Info>
                     <Category UUID="FileClassCategory">
                         <Label UUID="design"/>
@@ -1469,8 +1482,8 @@
         <Reference Location="b5cd85bd-bcc2-4e4d-994a-8ed24850effd">
             <Info Ref="Palladium DAQ/Tests/Unit Tests" Type="Relative"/>
         </Reference>
-        <Reference Location="2af29646-28ef-476f-8f4f-3acd60c12024">
-            <Info Ref="Docs" Type="Relative"/>
+        <Reference Location="1fc9fa05-d04a-477e-ba3d-5079a211b0f4">
+            <Info Ref="Palladium DAQ/Docs" Type="Relative"/>
         </Reference>
     </ProjectPath>
     <Files Location="MLTestManagerTestSuites">
