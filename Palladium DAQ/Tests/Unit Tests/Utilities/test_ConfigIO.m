@@ -99,7 +99,7 @@ classdef test_ConfigIO < matlab.unittest.TestCase
             configData = testCase.ConfigIOInstance.GenerateDefaultConfigStruct();
 
             % Save the config
-            testCase.ConfigIOInstance.SaveConfig(configData, ConfigPath=testFile);
+            testCase.ConfigIOInstance.SaveConfig(configData, ConfigFilePath=testFile);
 
             % Verify that the directory was created
             testCase.verifyTrue(exist(testDir, 'dir') == 7);
