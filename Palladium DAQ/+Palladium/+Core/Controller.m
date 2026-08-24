@@ -375,6 +375,9 @@ classdef Controller < handle
                 %Set the User Files path, and create the directory if it
                 %doesn't exist
                 this.UserFilesDir = Palladium.Utilities.PathUtils.CleanPath(this.PathSettings.UserFilesDirectory);
+
+               
+                %Now make sure that folder exists and create it if not
                 this.EnsureUserFilesDirExists(this.UserFilesDir);
 
                 if ~isdeployed
@@ -954,6 +957,21 @@ classdef Controller < handle
             windowSettings = settingsStruct.WindowSettings;
             plotterSettings = settingsStruct.PlotterSettings;
 
+            %Handle the case of the user directory being inadvertently
+            %in there twice - Physics\Matlab\Palladium DAQ - User Files\Palladium DAQ - User Files
+            %which creates a confusing mess of folders. If the last
+            %piece of the filepath is the name of the user dir (which
+            %hasn't yet been added here), amend it
+            [pth, dr, ~] = fileparts(pathSettings.UserFilesDirectory);
+            if strcmp(string(dr), this.UserFolderName)
+                %Strip off the trailing (duplicate) directory
+                pathSettings.UserFilesDirectory = pth;
+
+                %Write the tidied up paths back to file
+                this.SaveSettings(logSettings, pathSettings, windowSettings, plotterSettings, ConfigFilePath=Settings.ConfigFilePath);
+            end
+
+
             %Make relative path if specified
             if(pathSettings.DataDirectoryIsRelativePath)
                 pathSettings.DefaultDirectory = fullfile(this.ApplicationDir, pathSettings.DefaultDirectory);
@@ -1035,6 +1053,37 @@ classdef Controller < handle
                 this.HandleError("Error saving figure", err);
             end
         end
+
+        function SaveSettings(this, logSettings, pathSettings, windowSettings, plotterSettings, Settings)
+            arguments
+                this;
+                logSettings;
+                pathSettings;
+                windowSettings;
+                plotterSettings;
+                Settings.ConfigFilePath = [];                  % Default is blank ([]) - enter a filepath instead to override default Config json file loading and pass in the path for another settings file to be loaded from
+            end
+
+            %Load the settings file into struct
+            configIO = Palladium.Utilities.ConfigIO();
+
+            %Parse the entries neatly into the PathSettings struct property
+            settingsStruct.LogSettings = logSettings;
+            settingsStruct.PathSettings = pathSettings;
+            settingsStruct.WindowSettings = windowSettings;
+            settingsStruct.PlotterSettings = plotterSettings;
+
+            
+            %Save
+            if isempty(Settings.ConfigFilePath)
+                configPath = configIO.GetConfigPath("ApplicationDir", this.ApplicationDir);
+                configIO.SaveConfig(settingsStruct, ConfigFilePath = configPath);
+            else
+                configIO.SaveConfig(settingsStruct, ConfigFilePath = Settings.ConfigPath);
+            end
+
+        end
+
     end
 
 end

@@ -28,6 +28,15 @@ classdef ConfigIO < handle
     %% Methods (Public)
     methods(Access = public)
 
+        function configPath = GetConfigPath(this, Settings)
+            arguments
+                this;
+                Settings.ApplicationDir;   
+            end
+
+            configPath = fullfile(Settings.ApplicationDir, this.ConfigDirectory, this.ConfigFileName);
+        end
+
         function con = LoadConfig(this, Settings)
             arguments
                 this;
@@ -53,7 +62,7 @@ classdef ConfigIO < handle
                         disp("Opening GUI window for config settings entry.");
                         defaultConfig = this.GenerateDefaultConfigStruct();
                         enteredConfig = this.ShowConfigEntryGUI(defaultConfig, Settings.ApplicationDir);
-                        this.SaveConfig(enteredConfig, configPath);
+                        this.SaveConfig(enteredConfig, ConfigFilePath=configPath);
                     else
                         disp("Creating default, saving to file.");
                         fprintf("\n");
@@ -71,14 +80,22 @@ classdef ConfigIO < handle
                 [con, changesDetected] = this.VerifyConfigStruct(con);
                 if changesDetected
                     warndlg("Missing lines or obseleted properties found in Config file. Corrupted file or config version needs updating. Adding default values and saving new version of file.", "Config file verification");
-                    this.SaveConfig(con, configPath);
+                    this.SaveConfig(con, ConfigFilePath=configPath);
                 end
             catch e
                 error("Error loading Config file in ConfigIO: " + e.message);
             end
         end
 
-        function SaveConfig(~, config, configPath)
+        function SaveConfig(this, config, Settings)
+            arguments
+                this;
+                config;
+                Settings.ConfigFilePath;                  % Default is blank ([]) - enter a filepath instead to override default Config json file loading and pass in the path for another settings file to be loaded from
+            end
+
+            configPath = Settings.ConfigFilePath;
+
             try
                 %Extract file parts
                 [confDir, ~, ext] = fileparts(configPath);
@@ -98,7 +115,7 @@ classdef ConfigIO < handle
         function SaveDefaultConfig(this, configPath)
             try
                 s = this.GenerateDefaultConfigStruct();
-                this.SaveConfig(s, configPath);
+                this.SaveConfig(s, ConfigFilePath=configPath);
             catch e
                 error("Error saving new default Config file in ConfigIO: " + e.message);
             end
@@ -178,6 +195,8 @@ classdef ConfigIO < handle
                 "DefaultDataDirectoryIsRelativePath", initialConfig.PathSettings.DataDirectoryIsRelativePath,...
                 "DefaultLogFileDirectory", initialConfig.LogSettings.LogFileDirectory,...
                 "DefaultLogFileDirectoryIsRelativePath", initialConfig.LogSettings.LogFileDirectoryIsRelativePath,...
+                "DefaultSequenceDirectory", initialConfig.PathSettings.DefaultSequenceDirectory,...
+                "DefaultSequenceDirectoryIsRelativePath", initialConfig.PathSettings.SequenceDirectoryIsRelativePath,...
                 "DefaultFileName", initialConfig.PathSettings.DefaultFileName,...
                 "UserFilesDirectory", initialConfig.PathSettings.UserFilesDirectory,...
                 "UserFilesDirectoryIsRelativePath", initialConfig.PathSettings.UserFilesDirectoryIsRelativePath,...
@@ -194,6 +213,8 @@ classdef ConfigIO < handle
                 s = this.EnteredSettingsStruct;
                 con.PathSettings.DefaultDirectory = s.DefaultDirectory;
                 con.LogSettings.LogFileDirectory = s.LogFileDirectory;
+                con.PathSettings.DefaultSequenceDirectory = s.DefaultSequenceDirectory;
+                con.PathSettings.SequenceDirectoryIsRelativePath = s.SequenceDirectoryIsRelativePath;
                 con.PathSettings.DataDirectoryIsRelativePath = s.DataDirectoryIsRelativePath;
                 con.LogSettings.LogFileDirectoryIsRelativePath = s.LogFileDirectoryIsRelativePath;
                 con.PathSettings.DefaultFileName = s.DefaultFileName;
@@ -205,6 +226,7 @@ classdef ConfigIO < handle
                 %Clean up file paths and make desired ones relative instead
                 %of absolute
                 con.PathSettings.DefaultDirectory = Palladium.Utilities.PathUtils.CleanPath(con.PathSettings.DefaultDirectory);
+                con.PathSettings.DefaultSequenceDirectory = Palladium.Utilities.PathUtils.CleanPath(con.PathSettings.DefaultSequenceDirectory);
                 con.LogSettings.LogFileDirectory = Palladium.Utilities.PathUtils.CleanPath(con.LogSettings.LogFileDirectory);
                 con.PathSettings.UserFilesDirectory = Palladium.Utilities.PathUtils.CleanPath(con.PathSettings.UserFilesDirectory);
 
@@ -223,6 +245,15 @@ classdef ConfigIO < handle
                         con.LogSettings.LogFileDirectory = p;
                     else
                         con.LogSettings.LogFileDirectoryIsRelativePath = false;
+                    end
+                end
+
+                if con.PathSettings.SequenceDirectoryIsRelativePath
+                    [p, success] = Palladium.Utilities.PathUtils.MakeFilePathRelative(con.PathSettings.DefaultSequenceDirectory, RefDir=applicationDir);
+                    if success
+                        con.PathSettings.DefaultSequenceDirectory = p;
+                    else
+                        con.PathSettings.SequenceDirectoryIsRelativePath = false;
                     end
                 end
 
