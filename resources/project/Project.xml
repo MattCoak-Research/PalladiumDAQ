@@ -961,9 +961,6 @@
                             </Category>
                         </Info>
                     </File>
-                    <File Location="PluginLoading.asv">
-                        <Info/>
-                    </File>
                 </File>
                 <File Location="+Views">
                     <Info/>
@@ -971,6 +968,26 @@
                         <Info/>
                     </DIR_SIGNIFIER>
                     <File Location="PalladiumDAQ_DefaultGUI.mlapp">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
+                </File>
+                <File Location="+PythonInstruments">
+                    <Info/>
+                    <DIR_SIGNIFIER Location="1">
+                        <Info/>
+                    </DIR_SIGNIFIER>
+                    <File Location="PythonInstrument.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
+                    <File Location="PythonInstrumentController.m">
                         <Info>
                             <Category UUID="FileClassCategory">
                                 <Label UUID="design"/>
