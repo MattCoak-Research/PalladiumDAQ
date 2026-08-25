@@ -51,7 +51,7 @@ classdef ConfigIO < handle
                 else
                     configPath = Settings.ConfigFilePath;
                 end
-
+                
                 if ~exist(configPath, 'file')
                     %Show a warning in the command window - note that we do
                     %not have a Logger yet and so cannot use that

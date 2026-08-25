@@ -177,7 +177,7 @@ for i = 1 : length(listOfDirs)
     dr = listOfDirs(i);
 
     assert(exist(dr, "dir"), "Directory " + dr + " not found in buildfile");
-   classNames = dir(fullfile(dr, '*.m'));
+    classNames = dir(fullfile(dr, '*.m'));
     filePathsStrArray = [filePathsStrArray, fullfile(dr, string({classNames.name}))]; 
 end
 end
