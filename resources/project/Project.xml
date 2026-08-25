@@ -1368,15 +1368,6 @@
             <File Location="toolbox.ignore">
                 <Info/>
             </File>
-            <File Location="Palladium DAQ - Settings">
-                <Info/>
-                <DIR_SIGNIFIER Location="1">
-                    <Info/>
-                </DIR_SIGNIFIER>
-                <File Location="Config.json">
-                    <Info/>
-                </File>
-            </File>
             <File Location="Release">
                 <Info/>
                 <DIR_SIGNIFIER Location="1">
@@ -1422,6 +1413,19 @@
                     </File>
                 </File>
             </File>
+            <File Location="Docs">
+                <Info/>
+                <DIR_SIGNIFIER Location="1">
+                    <Info/>
+                </DIR_SIGNIFIER>
+                <File Location="Toolbox_Getting_Started_Guide.mlx">
+                    <Info>
+                        <Category UUID="FileClassCategory">
+                            <Label UUID="design"/>
+                        </Category>
+                    </Info>
+                </File>
+            </File>
         </File>
         <File Location="README.md">
             <Info/>
@@ -1464,6 +1468,9 @@
         </Reference>
         <Reference Location="b5cd85bd-bcc2-4e4d-994a-8ed24850effd">
             <Info Ref="Palladium DAQ/Tests/Unit Tests" Type="Relative"/>
+        </Reference>
+        <Reference Location="1fc9fa05-d04a-477e-ba3d-5079a211b0f4">
+            <Info Ref="Palladium DAQ/Docs" Type="Relative"/>
         </Reference>
     </ProjectPath>
     <Files Location="MLTestManagerTestSuites">

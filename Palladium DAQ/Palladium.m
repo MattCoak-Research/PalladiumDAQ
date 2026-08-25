@@ -31,7 +31,7 @@ classdef Palladium < handle
 
         %Build version number - semantic versioning used of form
         %major.minor.build, each of these are integers.
-        BuildVersionNo = 0;
+        BuildVersionNo = 1;
 
         %Author information
         AuthorString = "M.J. Coak, University of Birmingham";
@@ -113,6 +113,8 @@ classdef Palladium < handle
             %dependency analysis search when compiling (or it doesn't get
             %bundled in to the standalone exe)
             %#function Palladium.Views.PalladiumDAQ_DefaultGUI 
+            %#function Palladium.Instruments.Keithley2000
+            %#function Palladium.Instruments.Keithley2410
 
             %Check that new enough Matlab version is installed, toolboxes
             %are there.. etc etc. Will throw error if not
