@@ -13,6 +13,7 @@ classdef InstrumentController < handle
     %% Properties (Public)
     properties (Access = public)
         ErrorOnAllInstrumentErrors = false; %Note - gets set in LoadSettings from the Config.json file's value, overriding a value here. If this is set to true, a full error will be thrown every time an instruments fails to return data. Default (false) is to throw warnings and pad datafile with NaNs instead. Testing has shown that very rare communication errors do happen, and it's a shame to lose the whole experiment because a magnet not being used didn't return 0 properly..
+        PythonInstrumentController;
     end
 
     %% Properties (Public, Private Set)

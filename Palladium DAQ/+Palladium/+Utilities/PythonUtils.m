@@ -45,6 +45,7 @@ classdef PythonUtils
 
             importedModules = {};   % cell array of py.module objects
             importedNames = [];     % corresponding module names (strings)
+            shortNames = [];
 
             for k = 1:numel(d)
                 fname = d(k).name;

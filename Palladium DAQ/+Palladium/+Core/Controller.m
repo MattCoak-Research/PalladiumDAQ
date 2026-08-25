@@ -3,6 +3,7 @@ classdef Controller < handle
 
     %% Properties (Constant, Private)
     properties(Constant, Access = private)
+        PythonInstrumentNamespace = "PythonInstruments";
         UserFolderName = "Palladium DAQ - User Files";
         UserInstrumentFolderName = "+Palladium" + filesep + "+Instruments";
         UserPresetFolderName = "+Palladium" + filesep + "+Presets";
@@ -36,6 +37,7 @@ classdef Controller < handle
 
         %File paths
         UserInstrumentsDir;
+        UserPythonInstrumentsDir;
         UserPresetsDir;
         UserInstrumentDriversDir;
     end
@@ -420,6 +422,12 @@ classdef Controller < handle
                 this.Log("Debug", "Initialising Instrument Classes", "Yellow", "Initialising Instruments...");
                 this.InstrumentController.LoadInstrumentClasses();
                 this.Log("Debug", "Instrument Classes initialised", "Green", "Instruments intialised");
+
+                %Set up Python Instrument loading
+                this.Log("Debug", "Initialising Python Instrument Classes", "Yellow", "Initialising Instruments...");
+                this.InstrumentController.PythonInstrumentController = Palladium.PythonInstruments.PythonInstrumentController(this.PythonInstrumentNamespace, this.ApplicationDir);
+                this.InstrumentController.PythonInstrumentController.LoadInstrumentClasses(this.UserPythonInstrumentsDir);
+                this.Log("Debug", "Python Instrument Classes initialised", "Green", "Instruments intialised");
 
                 %Initialise TimingLoopController
                 this.TimingLoopController.Initialise();
@@ -909,17 +917,19 @@ classdef Controller < handle
 
 
             %Set up the User Instrument Directory
-            this.UserInstrumentsDir = fullfile(pathToDir, this.UserFolderName, this.UserInstrumentFolderName);
-            newDirCreated = Palladium.Utilities.PathUtils.EnsureDirectoryExists(this.UserInstrumentsDir);
-            if newDirCreated
-                this.Log("Info", "User directory at " + string(this.UserInstrumentsDir) + " not found - creating new empty directory", "Green", "Creating User Directories");
-            end
+            if ~isdeployed      %.m Instruments and Presets only make sense if not deployed as exe
+                this.UserInstrumentsDir = fullfile(pathToDir, this.UserFolderName, this.UserInstrumentFolderName);
+                newDirCreated = Palladium.Utilities.PathUtils.EnsureDirectoryExists(this.UserInstrumentsDir);
+                if newDirCreated
+                    this.Log("Info", "User directory at " + string(this.UserInstrumentsDir) + " not found - creating new empty directory", "Green", "Creating User Directories");
+                end
 
-            %Set up the Presets Directory
-            this.UserPresetsDir = fullfile(pathToDir, this.UserFolderName, this.UserPresetFolderName);
-            newDirCreated = Palladium.Utilities.PathUtils.EnsureDirectoryExists(this.UserPresetsDir);
-            if newDirCreated
-                this.Log("Info", "User directory at " + string(this.UserPresetsDir) + " not found - creating new empty directory", "Green", "Creating User Directories");
+                %Set up the Presets Directory
+                this.UserPresetsDir = fullfile(pathToDir, this.UserFolderName, this.UserPresetFolderName);
+                newDirCreated = Palladium.Utilities.PathUtils.EnsureDirectoryExists(this.UserPresetsDir);
+                if newDirCreated
+                    this.Log("Info", "User directory at " + string(this.UserPresetsDir) + " not found - creating new empty directory", "Green", "Creating User Directories");
+                end
             end
 
             %Set up the Instrument Drivers directory
@@ -933,6 +943,12 @@ classdef Controller < handle
             %it
             Palladium.Utilities.PathUtils.EnsureDirectoryExists(fullfile(this.UserInstrumentDriversDir, "Quantum Design", "PPMS Communication"));
 
+            % Ensure the user Python Instruments directory exists
+            this.UserPythonInstrumentsDir = string(fullfile(this.UserFilesDir, this.UserFolderName));
+            newDirCreated = Palladium.Utilities.PathUtils.EnsureDirectoryExists(fullfile(this.UserFilesDir, this.PythonInstrumentNamespace));
+            if newDirCreated
+                this.Log("Info", "User directory at " + string(fullfile(this.UserFilesDir, this.PythonInstrumentNamespace)) + " not found - creating new empty directory", "Green", "Creating User Directories");
+            end
 
             %Add the User Dir to the MATLAB path
             if ~isdeployed

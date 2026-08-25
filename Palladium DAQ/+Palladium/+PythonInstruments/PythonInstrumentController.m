@@ -5,7 +5,6 @@ classdef PythonInstrumentController < handle
 
     %% Properties (Constant, Private)
     properties (Access = private, Constant)
-        PythonInstrumentNamespace = "PythonInstruments";
     end
 
     %% Properties (Public)
@@ -16,6 +15,7 @@ classdef PythonInstrumentController < handle
     properties (GetAccess = public, SetAccess = private)
         AvailableInstrModules;
         AvaialableInstrNames;
+        PythonInstrumentNamespace;
     end
 
     %% Properties (Private)
@@ -29,10 +29,13 @@ classdef PythonInstrumentController < handle
 
     %% Constructor
     methods
-        function this = PythonInstrumentController(rootDir)
+        function this = PythonInstrumentController(pythonInstrNamespace, rootDir)
             arguments
+                pythonInstrNamespace {mustBeTextScalar};
                 rootDir = [];%Location of Palladium.m root - PalladiumPythonCore is in this folder
             end
+
+            this.PythonInstrumentNamespace = pythonInstrNamespace;
 
             %Make sure the PalladiumPythonCore folder is in a parent folder
             %which is on the Python path, so it can be seen
@@ -73,7 +76,7 @@ classdef PythonInstrumentController < handle
 
            
             % Load all Python instrument classes from the specified directory
-            [names, outp, shortNames] = Palladium.Utilities.PythonUtils.ImportPythonModulesInPackageFolder(directory, this.PythonInstrumentNamespace);
+            [~, outp, shortNames] = Palladium.Utilities.PythonUtils.ImportPythonModulesInPackageFolder(directory, this.PythonInstrumentNamespace);
             this.AvailableInstrModules = outp;
             this.AvaialableInstrNames = shortNames;
         end
