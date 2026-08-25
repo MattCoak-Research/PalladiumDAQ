@@ -850,6 +850,34 @@
                                 </Category>
                             </Info>
                         </File>
+                        <File Location="SequenceEditor_ComEntry_RunSequenceCommand.mlapp">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="design"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="SequenceEditor_ComEntry_DatafileCommand.mlapp">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="design"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="SequenceEditor_ComEntry_WaitCommand.mlapp">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="design"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="SequenceEditor_ComEntry_InstrumentCommand.mlapp">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="design"/>
+                                </Category>
+                            </Info>
+                        </File>
                     </File>
                     <File Location="SequenceEditorController.m">
                         <Info>
