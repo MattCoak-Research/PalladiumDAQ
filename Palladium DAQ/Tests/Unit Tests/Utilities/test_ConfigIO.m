@@ -73,7 +73,7 @@ classdef test_ConfigIO < matlab.unittest.TestCase
 
             % Create a default config
             defaultConfig = testCase.ConfigIOInstance.GenerateDefaultConfigStruct();
-
+disp("Default config created")
             % Load the config - file will not be found, so this will build
             % a new one from the default and load it back. This is
             % therefore a full test of read/write preserving a config
