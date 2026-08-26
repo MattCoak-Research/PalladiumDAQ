@@ -2,8 +2,8 @@ classdef SR7265_Lockin < Palladium.Core.Instrument
     %Instrument implementation for Signal Recovery 7265 or 7260 Model lockin
     %amplifiers
 
-    %% Properties (Constant, Public)
-    properties(Constant, Access = public)
+    %% Properties (Public)
+    properties(Access = public)
         FullName = "SR7265 Lockin";     %Full name, just for displaying on GUI
     end
 

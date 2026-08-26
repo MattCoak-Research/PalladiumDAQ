@@ -8,8 +8,8 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
     %recognised, and will echo the command if it worked, so we could build
     %in some verification on this.
 
-    %% Properties (Constant, Public)
-    properties(Constant, Access = public)
+    %% Properties (Public)
+    properties(Access = public)
         FullName = "Mercury 120 IPS";     %Full name, just for displaying on GUI
     end
 

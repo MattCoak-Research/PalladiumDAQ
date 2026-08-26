@@ -2,8 +2,8 @@ classdef Keithley2410 < Palladium.Core.Instrument
     %Instrument implementation for Keithley 2400 and 2410 source meters.
     %Note that this assumes the instrument is measuring already - just reads data.
 
-    %% Properties (Constant, Public)
-    properties(Constant, Access = public)
+    %% Properties (Public)
+    properties(Access = public)
         FullName = "Keithley 2410 Src Meter";       %Full name, just for displaying on GUI
     end
 

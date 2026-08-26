@@ -2,8 +2,8 @@ classdef SR830_Lockin < Palladium.Core.Instrument
     %Instrument implementation for Stanford Research 830 Model lockin
     %amplifiers
 
-    %% Properties (Constant, Public)
-    properties(Constant, Access = public)
+    %% Properties (Public)
+    properties(Access = public)
         FullName = "SR830 lockin";     %Full name, just for displaying on GUI
     end
 

@@ -11,11 +11,11 @@ classdef Keithley6220 < Palladium.Core.Instrument
     %querying a current source for voltage measurement data - it is
     %speaking for a pair of instruments.
 
-    %% Properties (Constant, Public)
-    properties(Constant, Access = public)
+    %% Properties (Public)
+    properties(Access = public)
         FullName = "Keithley 6220 Current Source";     %Full name, just for displaying on GUI
     end
-
+    
     %% Properties (Public, Set Observable)
     % These properties will appear in the Instrument Settings GUI and are editable there
     properties(Access = public, SetObservable)

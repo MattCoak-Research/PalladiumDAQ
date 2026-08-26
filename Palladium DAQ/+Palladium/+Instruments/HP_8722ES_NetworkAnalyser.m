@@ -3,8 +3,8 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
     %- other instruments in the series should work too, but could not
     %yet be tested
 
-    %% Properties (Constant, Public)
-    properties(Constant, Access = public)
+    %% Properties (Public)
+    properties(Access = public)
         FullName = "HP 8722ES Network Analyser";       %Full name, just for displaying on GUI
     end
 

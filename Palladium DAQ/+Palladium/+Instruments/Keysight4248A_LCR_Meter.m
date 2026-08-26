@@ -2,8 +2,8 @@ classdef Keysight4248A_LCR_Meter < Palladium.Core.Instrument
     %Instrument implementation for Keysight 4248A LCR Meter. Assumes instrument has already been set measuring,
     %and grabs latest values only.
 
-    %% Properties (Constant, Public)
-    properties(Constant, Access = public)
+    %% Properties (Public)
+    properties(Access = public)
         FullName = "4248A LCR Meter";     %Full name, just for displaying on GUI
     end
 

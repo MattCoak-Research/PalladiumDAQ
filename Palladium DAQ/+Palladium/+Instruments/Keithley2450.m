@@ -1,11 +1,11 @@
 classdef Keithley2450 < Palladium.Core.Instrument
     %Instrument implementation for Keithley 2450 source meter - use this rather than the 24X0 more general (and deprecated) option.
 
-    %% Properties (Constant, Public)
-    properties(Constant, Access = public)
+    %% Properties (Public)
+    properties(Access = public)
         FullName = "Keithley 2450 Src Meter";       %Full name, just for displaying on GUI
     end
-
+    
     %% Properties (Public, Set Observable)
     % These properties will appear in the Instrument Settings GUI and are editable there
     properties(Access = public, SetObservable)

@@ -1,8 +1,8 @@
 classdef Lakeshore350 < Palladium.Core.Instrument
     %Instrument implementation for a Lakeshore 350 temperature controller.
 
-    %% Properties (Constant, Public)
-    properties(Constant, Access = public)
+    %% Properties (Public)
+    properties(Access = public)
         FullName = "Lakeshore 350";                             %Full name, just for displaying on GUI
     end
 

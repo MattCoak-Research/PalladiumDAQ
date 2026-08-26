@@ -24,8 +24,8 @@ classdef Mercury120_10_IPS < Palladium.Core.Instrument
     %for returned number, 23.09 Amps would be returned as +02309 (multiply/divide
     %everything by 100?)
 
-    %% Properties (Constant, Public)
-    properties(Constant, Access = public)
+    %% Properties (Public)
+    properties(Access = public)
         FullName = "Mercury 120-10 IPS";     %Full name, just for displaying on GUI
     end
 
