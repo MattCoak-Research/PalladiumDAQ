@@ -135,8 +135,57 @@ classdef PythonUtils
                 end
 
                 instance = mod.(nameAfterNamespaces)();
-                instance
             end
+        end
+
+        function out = PyToMatlab(pyObj)
+            % Convert simple py types (from json.loads) to MATLAB using char/double/cell/struct
+            % pyObj here is typically a py.dict/list/str/numbers.
+            if isa(pyObj, 'py.dict')
+                keys = cell(pyObj.keys());
+                s = struct();
+                for i = 1:numel(keys)
+                    key = keys{i};
+                    val = pyObj{key};
+                    s.(char(key)) = matlabFromPy(val);
+                end
+                out = s;
+            else
+                out = matlabFromPy(pyObj);
+            end
+
+            function m = matlabFromPy(x)
+                if isa(x, 'py.str')
+                    m = char(x);
+                elseif isa(x, 'py.int') || isa(x, 'py.float')
+                    m = double(x);
+                elseif isa(x, 'py.bool')
+                    m = logical(x);
+                elseif isa(x, 'py.list') || isa(x, 'py.tuple')
+                    n = int64(py.len(x));
+                    c = cell(1,n);
+                    for ii = 1:n
+                        c{ii} = matlabFromPy(x{ii-1});
+                    end
+                    m = c;
+                elseif isa(x, 'py.dict')
+                    % recursive
+                    keys2 = cell(x.keys());
+                    t = struct();
+                    for ii = 1:numel(keys2)
+                        k2 = keys2{ii};
+                        t.(char(k2)) = matlabFromPy(x{k2});
+                    end
+                    m = t;
+                else
+                    try
+                        m = char(py.str(x));
+                    catch
+                        m = x;
+                    end
+                end
+            end
+
         end
 
         function [isInstalled, verNo, subVerNo] = VerifyPythonInstall(Settings)

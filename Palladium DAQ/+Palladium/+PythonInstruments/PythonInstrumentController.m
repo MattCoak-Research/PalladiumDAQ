@@ -44,6 +44,24 @@ classdef PythonInstrumentController < handle
             Palladium.Utilities.PythonUtils.AppendFolderToPythonPath(rootDir);
         end
 
+        function instrRef = CreateInstrument(this, instrName)
+            %Creates a PythonInstrument.m that wraps a .py instrument of
+            %the given name
+            arguments
+                this;
+                instrName {mustBeTextScalar};
+            end
+
+            pyInstrRef = this.InstantiateInstrument(instrName);
+
+            if isempty(pyInstrRef)
+                error("Py instrument instantiation failed");
+            end
+
+            instrRef = Palladium.PythonInstruments.PythonInstrument(pyInstrRef);
+
+        end
+
         function pyInstrRef = InstantiateInstrument(this, instrName)
             arguments
                 this;

@@ -1,5 +1,13 @@
 # Instrument.py
 from abc import ABC, abstractmethod
+import socket
+import json
+import time
+
+HOST = "127.0.0.1"
+PORT = 50000
+RETRY_DELAY = 1.0     # seconds between reconnect attempts
+SEND_INTERVAL = 0.5   # seconds between events in example loop
 
 class Instrument(ABC):
     """
@@ -8,9 +16,8 @@ class Instrument(ABC):
     and the abstract methods GetHeaders() and Measure().
     """
 
-    def __init__(self, mtlbInstr):
+    def __init__(self):
         # default, override or use subclass-set values
-        self.MatlabInstrInstance = mtlbInstr
         self.SimulationMode = True
 
     # Abstract properties (read-only)
@@ -60,4 +67,41 @@ class Instrument(ABC):
         """Default: no metadata (return None)."""
         return None
 
-    
+    def ConnectToMessageServer(self, port=PORT, host=HOST, timeout=5.0):
+        """Create and return a connected socket (blocking)."""
+        #while True:
+        try:
+            self.sock = socket.create_connection((host, port), timeout=timeout)
+            self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            print(f"Connected to {host}:{port}")
+        except Exception as e:
+            print(f"Connect failed: {e}; retrying in {RETRY_DELAY}s")
+          #  time.sleep(RETRY_DELAY)
+
+    def send_event(self, sock, name, data):
+        """Send a single event as newline-terminated JSON."""
+        msg = {"event": name, "data": data}
+        s = json.dumps(msg) + "\n"
+        try:
+            sock.sendall(s.encode("utf-8"))
+        except BrokenPipeError:
+            raise
+            
+    def send_event_full(self, name, data):
+        try:
+            self.send_event(self.sock, name, data)
+        except BrokenPipeError:
+            print("Connection lost, reconnecting...")
+            self.sock.close()
+            self.ConnectToMessageServer()
+            self.send_event(self.sock, name, data)
+            time.sleep(SEND_INTERVAL)
+        finally:
+            try:
+                sock.close()
+            except:
+                pass
+
+    def test_event(self):
+        print("TEST EVENT");
+        #self.send_event_full("test", 4.5)
