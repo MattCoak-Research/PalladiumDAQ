@@ -91,15 +91,25 @@ classdef InstrumentController < handle
                 assert(any(contains(this.ListOfAvailableInstrumentClassNameStrings, instrStringToAdd, "IgnoreCase", false)), string(instrStringToAdd) + " not found in list of avaliable Instruments");
 
                 %Make an instance of the selected datasource class
-                if Palladium.Utilities.PluginLoading.CheckClassExistsInNamespace(this.InstrumentsNamespace, instrStringToAdd)
+                if any(ismember(this.PythonInstrumentController.AvaialableInstrNames, instrStringToAdd))
+                    %Create a python-defined instrument if the name is
+                    %present in the PythonInstrumentController (ie is in
+                    %the PythonInstruments user folder)
+                    instRef = this.PythonInstrumentController.CreateInstrument(instrStringToAdd);
+                elseif Palladium.Utilities.PluginLoading.CheckClassExistsInNamespace(this.InstrumentsNamespace, instrStringToAdd)
+                    %If not, look for a standard built-in or user defined
+                    %MATLAB instrument. Note that .py instruments take
+                    %precedence by design - standalone user can overwrite a
+                    %built-in instrument this way and otherwise would be
+                    %unable to
                     instRef = Palladium.Utilities.PluginLoading.InstantiateClass(this.InstrumentsNamespace, instrStringToAdd);   
                 else
-                    error("InstrumentCreation:NotFoundInNamespace", "Could not find Instrument " + string(instrStringToAdd) + " in built in or user namespace. This could indicate that the class file of this Instrument contains an error and MATLAB cannot compile it (missing END statement?).");
+                    error("InstrumentCreation:NotFoundInNamespace", "Could not find Instrument " + string(instrStringToAdd) + " in built in or user namespace or Python library. This could indicate that the class file of this Instrument contains an error and MATLAB cannot compile it (missing END statement?).");
                 end
 
                 %Set the instrument name if that optional parameter was
                 %passed in. This is useful when setting up Instruments and
-                %their GUI controls programmtically - we want the name to
+                %their GUI controls programmatically - we want the name to
                 %be set before the control gets added in the line below..
                 if ~strcmp(settings.Name, "Auto")
                     instRef.Name = settings.Name;
@@ -422,6 +432,20 @@ classdef InstrumentController < handle
             [duplicates, combinedString] = Palladium.Utilities.Verification.CheckForDuplicatesInCellArrayOfStrings(classNames);
             if ~isempty(duplicates)
                 error("LoadInstrumentClass:DuplicatesError", "Error loading Instrument Classes - found duplicate names. Is an Instrument in the User Files Instrument folder named the same as one of the built in classes? \n\n Duplicates found: " + string(combinedString));
+            end
+
+            %Load Python Instrument classes too
+            if ~isempty(this.PythonInstrumentController)
+                pyNames = this.PythonInstrumentController.AvaialableInstrNames;
+
+                %Append to the list of names
+                classNames = [classNames pyNames];
+
+                %Error on any duplicates
+                [duplicates, combinedString] = Palladium.Utilities.Verification.CheckForDuplicatesInCellArrayOfStrings(classNames);
+                if ~isempty(duplicates)
+                    error("LoadInstrumentClass:DuplicatesError", "Error loading Instrument Classes - found duplicate names. Is an Instrument in the User Files Instrument folder named the same as one of the built in classes? \n\n Duplicates found: " + string(combinedString));
+                end
             end
 
             %Sort alphabetically - right now it is a design choice to have

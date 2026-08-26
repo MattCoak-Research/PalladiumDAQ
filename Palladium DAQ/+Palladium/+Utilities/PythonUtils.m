@@ -25,6 +25,72 @@ classdef PythonUtils
             pyrun("sys.path.append(r""" + directoryPath + """)");
         end
 
+        function out = ConvertPyStrFields(in)
+            % ConvertPyStrFields Convert py.str fields in a struct to MATLAB string
+            %   out = ConvertPyStrFields(in) scans fields of struct (recursively) and
+            %   converts Python strings (py.str) and Python sequences of strings
+            %   (py.list, py.tuple) to MATLAB string scalars/arrays.
+
+            if isempty(in)
+                out = in;
+                return
+            end
+
+            if isstruct(in)
+                out = in;
+                fn = fieldnames(in);
+                for i = 1:numel(fn)
+                    f = fn{i};
+                    out.(f) = Palladium.Utilities.PythonUtils.ConvertPyStrFields(in.(f));
+                end
+                return
+            end
+
+            % Cell arrays -> convert each element
+            if iscell(in)
+                out = cellfun(@Palladium.Utilities.PythonUtils.ConvertPyStrFields, in, 'UniformOutput', false);
+                return
+            end
+
+            % Python None -> empty
+            if isa(in, 'py.NoneType')
+                out = [];
+                return
+            end
+
+            % Python string -> MATLAB string scalar
+            if isa(in, 'py.str')
+                out = string(char(in));
+                return
+            end
+
+            % Python list/tuple -> try to convert each element; if elements are str produce string array
+            if isa(in, 'py.list') || isa(in, 'py.tuple')
+                try
+                    matlabCell = cell(in); % convert py sequence to cell
+                catch
+                    % fallback: iterate indices
+                    n = int32(py.len(in));
+                    matlabCell = cell(1,double(n));
+                    for k = 1:double(n)
+                        matlabCell{k} = in{k-1};
+                    end
+                end
+                % Convert each element
+                conv = cellfun(@Palladium.Utilities.PythonUtils.ConvertPyStrFields, matlabCell, 'UniformOutput', false);
+                % If all converted elements are strings, return string array
+                if all(cellfun(@(c) isstring(c) && isscalar(c), conv))
+                    out = string(conv);
+                else
+                    out = conv;
+                end
+                return
+            end
+
+            % Leave numeric, logical, datetime, etc. unchanged
+            out = in;
+        end
+
         function [importedNames, importedModules, shortNames] = ImportPythonModulesInPackageFolder(parentFolder, packageName)
             %Import all python modules (classes) in a folder (package).
             %Scans a folder contained in the parentFolder (path), imports each .py file as
@@ -165,7 +231,7 @@ classdef PythonUtils
                     n = int64(py.len(x));
                     c = cell(1,n);
                     for ii = 1:n
-                        c{ii} = matlabFromPy(x{ii-1});
+                        c{ii} = matlabFromPy(x{ii});
                     end
                     m = c;
                 elseif isa(x, 'py.dict')

@@ -9,7 +9,7 @@ classdef PythonInstrumentController < handle
 
     %% Properties (Public)
     properties (Access = public)
-       end
+    end
 
     %% Properties (Public, Private Set)
     properties (GetAccess = public, SetAccess = private)
@@ -43,6 +43,10 @@ classdef PythonInstrumentController < handle
             assert(exist(dr, "dir"), "PalladiumPythonCore directory not found at " + dr);
             Palladium.Utilities.PythonUtils.AppendFolderToPythonPath(rootDir);
         end
+    end
+
+    %% Methods (Public)
+    methods (Access = public)
 
         function instrRef = CreateInstrument(this, instrName)
             %Creates a PythonInstrument.m that wraps a .py instrument of
@@ -58,9 +62,29 @@ classdef PythonInstrumentController < handle
                 error("Py instrument instantiation failed");
             end
 
-            instrRef = Palladium.PythonInstruments.PythonInstrument(pyInstrRef);
 
+            instrRef = Palladium.PythonInstruments.PythonInstrument(pyInstrRef);
         end
+
+        function LoadInstrumentClasses(this, directory)
+            arguments
+                this
+                directory {mustBeTextScalar};
+            end
+
+            assert(exist(directory,"dir"), "Directory " + string(directory) + " not found (PythonInstrumentController Load)");
+
+
+            % Load all Python instrument classes from the specified directory
+            [~, outp, shortNames] = Palladium.Utilities.PythonUtils.ImportPythonModulesInPackageFolder(directory, this.PythonInstrumentNamespace);
+            this.AvailableInstrModules = outp;
+            this.AvaialableInstrNames = shortNames;
+        end
+
+    end
+
+    %% Methods (Private)
+    methods(Access = private)
 
         function pyInstrRef = InstantiateInstrument(this, instrName)
             arguments
@@ -83,31 +107,6 @@ classdef PythonInstrumentController < handle
 
             pyInstrRef = Palladium.Utilities.PythonUtils.InstantiatePythonModule(name, module);
         end
-
-        function LoadInstrumentClasses(this, directory)
-            arguments
-                this
-                directory {mustBeTextScalar};
-            end
-
-            assert(exist(directory,"dir"), "Directory " + string(directory) + " not found (PythonInstrumentController Load)");
-
-           
-            % Load all Python instrument classes from the specified directory
-            [~, outp, shortNames] = Palladium.Utilities.PythonUtils.ImportPythonModulesInPackageFolder(directory, this.PythonInstrumentNamespace);
-            this.AvailableInstrModules = outp;
-            this.AvaialableInstrNames = shortNames;
-        end
-    end
-
-    %% Methods (Public)
-    methods (Access = public)
-     
-    end
-
-    %% Methods (Private)
-    methods(Access = private)
-
 
     end
 

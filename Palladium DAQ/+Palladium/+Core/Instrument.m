@@ -332,7 +332,7 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
                 case(Palladium.Enums.ConnectionType.USB)
                     propertiesToIgnore = {"GPIB_Address", "IP_Address", "Serial_Address", "VISA_Address"};
                 otherwise
-                    error("Unsupported connection type: " + this.ConnectionType + ". ConnectionType can be tcpip, gpib, serial, or visa.");
+                    error("Unsupported connection type: " + this.Connection_Type + ". ConnectionType can be tcpip, gpib, serial, or visa.");
             end
 
             for i = 1 : length(propertiesToIgnore)
