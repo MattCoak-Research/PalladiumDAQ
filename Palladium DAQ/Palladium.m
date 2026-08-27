@@ -517,35 +517,7 @@ classdef Palladium < handle
 
     %% Methods (Private)
     methods (Access = private)
-
-        function ApplyPreset(this, presetFn, view)
-            try
-                %Display a status message in the logger
-                this.Controller.ShowStatus('Yellow', 'Applying Preset');
-
-                %Execute the Preset script file
-                presetFn(this, view);
-
-                %Display a status message in the logger
-                this.Controller.ShowStatus('Yellow', 'Finalising Preset');
-
-                %Finalise the preset - basically, update the GUI to reflect
-                %changes
-                notify(this.Controller, "FinalisePreset");
-            catch err
-
-                if strcmp(err.message, "Dot indexing is not supported for variables of this type.") && isempty(view)    %Add additional helpder text to the error if it's likely we are trying to call functions on an empty GUI. Note we're avoiding isempty checks or architectural complexity in the PReset functions to keep them easy to edit and understand, which means the user can do silly things like this
-                    try
-                        error("Assignment error in a Preset with no attached view. The 'gui' argument is null, are you trying to call functions like AddPlottingWindow on it? Error message: " + string(err.message));
-                    catch exception
-                        this.Controller.HandleError("Error applying Preset", exception);
-                    end
-                else
-                    this.Controller.HandleError("Error applying Preset", err);
-                end
-            end
-        end
-
+       
         function view = CreateView(~, viewFileName, applicationDir)
             %Instantiate an instance of the View/GUI class from file, just
             %from the desired filename
@@ -568,6 +540,11 @@ classdef Palladium < handle
         end
 
         function presetFn = LoadPreset(this, presetName)
+            %Presets are .json files, with lists of instruments to add
+            %(with their properties to set) and programme-level settings as
+            %well as GUI preferences like graph windows to show. Load a
+            %Preset from the User Presets directory and parse it, applying
+            %all the listed functions
             presetFn = [];
             %Display a status message in the logger
             this.Controller.ShowStatus('Yellow', 'Loading Preset');
@@ -575,14 +552,21 @@ classdef Palladium < handle
             try
                 %Fetch paths
                 presetsDir = this.Controller.UserPresetsDir;
-                presetPath = fullfile(presetsDir, presetName) + ".m";
+                presetPath = fullfile(presetsDir, presetName) + ".json";
 
                 %Error checking
                 assert(exist(presetsDir,"dir") == 7, "Presets directory " + string(presetsDir) + " not found");
                 assert(exist(presetPath,"file") == 2, "Preset file " + string(presetPath) + " not found");
 
-                %Load the present in as a function handle
-                presetFn = Palladium.Utilities.PluginLoading.InstantiatePreset("PalladiumPresets", presetName);
+                %Load the present in and apply all the settings
+                Palladium.Utilities.PluginLoading.ApplyPresetFromJson(this, this.View, presetPath);
+
+                %Display a status message in the logger
+                this.Controller.ShowStatus('Yellow', 'Finalising Preset');
+
+                %Finalize the preset - basically, update the GUI to reflect
+                %changes
+                notify(this.Controller, "FinalisePreset");
             catch err
                 this.Controller.HandleError("Error loading Preset", err);
             end

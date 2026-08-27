@@ -308,6 +308,13 @@
                             </Category>
                         </Info>
                     </File>
+                    <File Location="PresetLoader.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
                 </File>
                 <File Location="+DataWriting">
                     <Info/>
@@ -1024,19 +1031,6 @@
                     </File>
                 </File>
             </File>
-            <File Location="+PalladiumPresets">
-                <Info/>
-                <DIR_SIGNIFIER Location="1">
-                    <Info/>
-                </DIR_SIGNIFIER>
-                <File Location="Example.m">
-                    <Info>
-                        <Category UUID="FileClassCategory">
-                            <Label UUID="design"/>
-                        </Category>
-                    </Info>
-                </File>
-            </File>
             <File Location="DataViewer.mlapp">
                 <Info>
                     <Category UUID="FileClassCategory">
@@ -1469,6 +1463,21 @@
                             <Label UUID="design"/>
                         </Category>
                     </Info>
+                </File>
+            </File>
+            <File Location="ExamplesAndTemplates">
+                <Info/>
+                <DIR_SIGNIFIER Location="1">
+                    <Info/>
+                </DIR_SIGNIFIER>
+                <File Location="Presets">
+                    <Info/>
+                    <DIR_SIGNIFIER Location="1">
+                        <Info/>
+                    </DIR_SIGNIFIER>
+                    <File Location="Example.json">
+                        <Info/>
+                    </File>
                 </File>
             </File>
         </File>

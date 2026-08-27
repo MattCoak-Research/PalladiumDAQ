@@ -6,7 +6,7 @@ classdef Controller < handle
         PythonInstrumentNamespace = "PythonInstruments";
         UserFolderName = "Palladium DAQ - User Files";
         UserInstrumentFolderName = "+Palladium" + filesep + "+Instruments";
-        UserPresetFolderName = "+Palladium" + filesep + "+Presets";
+        UserPresetFolderName = "Presets";
         UserInstrumentDriversFolderName = "Instrument Drivers"; %Instrument drivers could actually be anywhere, as long as they are on the path. This folder will get temporarily added to the path on programme start though, so saving the user that headache if they put them in here
     end
 

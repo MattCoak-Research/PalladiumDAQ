@@ -1,0 +1,74 @@
+{
+    "Instruments": [
+        {
+            "Type": "Keithley2000",
+            "Properties": {}
+        },
+        {
+            "Type": "Lakeshore350",
+            "Properties": {
+                "Connection_Type": "Debug",
+                "Ch_A_Name": "1 K Pot Temp (K)",
+                "Ch_C_Name": "Sample Stage Temp (K)"
+            }
+        },
+        {
+            "Type": "Keithley2410",
+            "Properties": {
+                "Connection_Type": "Debug",
+                "MeasMode": "Current"
+            },
+            "Controls": [
+            {
+            "Name": "Sweep Control",
+            "ControlName": "Sweep Control Control Name",
+            "TabName": "Sweep Control Tab Name"
+            }
+            ]
+        }
+    ],
+    "PlottingTabs": [
+        {
+            "Row": 1,
+            "Col": 1,
+            "DefaultXAxis": [
+                "Time (mins)"
+            ],
+            "DefaultYAxes": [
+                ["1 K Pot Temp (K)", "Sample Stage Temp (K)"]
+            ]
+        },
+        {
+            "Row": 2,
+            "Col": 2
+        },
+        {
+            "Row": 2,
+            "Col": 2,
+            "DefaultXAxis": [
+                "Time (mins)",
+                "Time (mins)",
+                "Time (mins)",
+                "Time (mins)"
+            ],
+            "DefaultYAxes": [
+                ["Time (mins)", "Time (mins)"],
+                ["Time (mins)"],
+                ["Time (mins)", "Time (mins)", "Time (mins)", "Time (mins)"],
+                [null]
+            ]
+        }
+    ],
+    "PlottingWindows": [
+    {
+      "Row": 1,
+      "Col": 1,
+      "DefaultXAxis": [
+          "Time (mins)"
+      ],
+      "DefaultYAxes": [
+          ["Sample Stage Temp (K)", "Sample Stage Temp (K)", null, "1 K Pot Temp (K)"]
+      ]
+    }
+    ]
+}
