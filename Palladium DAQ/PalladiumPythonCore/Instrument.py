@@ -56,7 +56,7 @@ class Instrument(ABC):
         return self._name
 
     @Name.setter
-    def Name(self, val: string):
+    def Name(self, val: str):
         self._name = val
 
     # Concrete methods (can be used or overridden by subclasses)   
