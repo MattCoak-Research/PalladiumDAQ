@@ -559,7 +559,7 @@ classdef Palladium < handle
                 assert(exist(presetPath,"file") == 2, "Preset file " + string(presetPath) + " not found");
 
                 %Load the present in and apply all the settings
-                Palladium.Utilities.PluginLoading.ApplyPresetFromJson(this, this.View, presetPath);
+                Palladium.Utilities.PluginLoading.ApplyPresetFromJson(this.Controller, this.View, presetPath);
 
                 %Display a status message in the logger
                 this.Controller.ShowStatus('Yellow', 'Finalising Preset');

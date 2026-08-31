@@ -176,6 +176,64 @@ classdef InstrumentController < handle
             end
         end
 
+        function cont = AddInstrumentControlFromName(this, instrRef, controlName, view, Settings)
+            % ADDINSTRUMENTCONTROL - Order the GUI View to create and add a
+            % Control for an existing Instrument. For example, add a 'Sweep
+            % Control' Instrument Control object to a Keithley2000 that was
+            % already added to Palladium.
+            % This call is to be used by PluginLoading.ApplyPresetFromJson,
+            % and echoes the code in Palladium.m
+            %
+            % Input arguments:
+            % - instrRef - Palladium.Core.Instrument reference - the instrument to add the control to (required)
+            % - controlName - name of the control (text scalar) - must  match one of the Names defined in that Instrument's constructor, e.g. this.DefineInstrumentControl(Name = "Sweep Control", ClassName = "SweepController_Stepped", TabName = "Sweep Control", EnabledByDefault = false);
+            %
+            % Optional Name-Value pair arguments:
+            % (Blank by default, override with string values to redefine the default values for this control)
+            % - ControlName
+            % - TabName
+            arguments
+                this;
+                instrRef (1,1) Palladium.Core.Instrument;
+                controlName (1,1) {mustBeTextScalar};
+                view (1,1);
+                Settings.ControlName = [];
+                Settings.TabName = [];
+            end
+
+            %Grab the default definition struct to build that control from
+            %the instrument reference
+            controlDetailsStruct = instrRef.GetControlOption(controlName);
+
+            %Apply any optional configuration settings entered
+            if ~isempty(Settings.ControlName); controlDetailsStruct.Name = Settings.ControlName; end
+            if ~isempty(Settings.TabName); controlDetailsStruct.TabName = Settings.TabName; end
+
+            %Pass on to the more general function below
+            cont = this.AddInstrumentControlFromStruct(instrRef, controlDetailsStruct, view);
+        end
+
+        function cont = AddInstrumentControlFromStruct(~, instrRef, controlDetailsStruct, view)
+            % ADDINSTRUMENTCONTROLFROMSTRUCT - Create control from struct and
+            % attach to instrument. This is a more advanced version for
+            % scripting - easier to use ADDINSTRUMENTCONTROL which just needs
+            % the name of the Control.
+            %
+            % Input arguments:
+            % - this - container/manager object
+            % - instrRef - Palladium.Core.Instrument instance to attach control to
+            % - controlDetailsStruct - struct describing control parameters. Easiest way to get this is to call controlDetailsStruct = instrRef.GetControlOption(controlName) on an existing Instrument reference
+            arguments
+                ~;
+                instrRef (1,1) Palladium.Core.Instrument;
+                controlDetailsStruct (1,1) struct;
+                view (1,1);
+            end
+
+            %Pass on to the View
+            cont = view.AddInstrumentControl(instrRef, controlDetailsStruct);
+        end
+
         function controlClassRef = AddInstrumentControl(this, tab, instrRef, controlDetailsStruct)
             try
                 %Make an instance of the selected datasource class

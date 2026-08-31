@@ -4,7 +4,7 @@ classdef PluginLoading
     %% Methods (Static, Public)
     methods (Static, Access = public)
 
-        function ApplyPresetFromJson(palladium, gui, jsonFilePath)
+        function ApplyPresetFromJson(controller, gui, jsonFilePath)
             % Apply preset described in JSON file to palladium and gui objects.
 
             if ~isfile(jsonFilePath)
@@ -17,7 +17,7 @@ classdef PluginLoading
             % Top-level preset fields
             if isfield(data, 'UpdateTime')
                 try
-                    palladium.SetUpdateTime(data.UpdateTime);
+                    controller.SetUpdateTime(data.UpdateTime);
                 catch
                     warning('Failed to set UpdateTime from preset.');
                 end
@@ -44,10 +44,10 @@ classdef PluginLoading
                     %Controls get added or they will not auto-rename
                     if isfield(instSpec, 'Properties') && ~isempty(instSpec.Properties) && isfield(instSpec.Properties, 'Name')
                         %Add the Instrument with a custom Name
-                        instr = palladium.AddInstrument(instSpec.Type, "Name", instSpec.Properties.Name);
+                        instr = controller.InstrumentController.AddInstrument(string(instSpec.Type), "Name", instSpec.Properties.Name);
                     else
                         %Add the Instrument
-                        instr = palladium.AddInstrument(instSpec.Type);
+                        instr = controller.InstrumentController.AddInstrument(string(instSpec.Type));
                     end
 
                     %Set Instrument Properties
@@ -97,7 +97,7 @@ classdef PluginLoading
                             try
                                 % If the control entry is a simple string, add by name
                                 if ischar(ctrlSpec) || isstring(ctrlSpec)
-                                    palladium.AddInstrumentControl(instr, char(ctrlSpec));
+                                    controller.InstrumentController.AddInstrumentControlFromName(instr, char(ctrlSpec), gui);
                                 elseif isstruct(ctrlSpec)
                                     % Expect field 'Name' (control option name) and optional ControlName/TabName
                                     if ~isfield(ctrlSpec, 'Name')
@@ -111,13 +111,13 @@ classdef PluginLoading
                                     % Call AddInstrumentControl with name and settings
                                     % convert settings to name-value call
                                     if isfield(settings, 'ControlName') && isfield(settings, 'TabName')
-                                        palladium.AddInstrumentControl(instr, string(ctrlSpec.Name), ControlName = settings.ControlName, TabName = settings.TabName);
+                                        controller.InstrumentController.AddInstrumentControlFromName(instr, string(ctrlSpec.Name), gui, ControlName = settings.ControlName, TabName = settings.TabName);
                                     elseif isfield(settings, 'ControlName')
-                                        palladium.AddInstrumentControl(instr, string(ctrlSpec.Name), ControlName = settings.ControlName);
+                                        controller.InstrumentController.AddInstrumentControlFromName(instr, string(ctrlSpec.Name), gui, ControlName = settings.ControlName);
                                     elseif isfield(settings, 'TabName')
-                                        palladium.AddInstrumentControl(instr, string(ctrlSpec.Name), TabName = settings.TabName);
+                                        controller.InstrumentController.AddInstrumentControlFromName(instr, string(ctrlSpec.Name), gui, TabName = settings.TabName);
                                     else
-                                        palladium.AddInstrumentControl(instr, string(ctrlSpec.Name));
+                                        controller.InstrumentController.AddInstrumentControlFromName(instr, string(ctrlSpec.Name), gui);
                                     end
                                 else
                                     warning('Unknown control specification type for instrument %s. Skipping.', instSpec.Type);
@@ -532,6 +532,185 @@ classdef PluginLoading
             for i = 1 : length(classData)
                 str = string(classData(i).Name);
                 classNames(i) = erase(str, namespaceString + ".");
+            end
+        end
+
+        function SavePresetToJson(controller, instrController, gui, jsonFilePath)
+            % SavePresetToJson - Create a preset struct from runtime objects and write JSON.
+            %   SavePresetToJson(palladium, gui, jsonFilePath)
+            %   Produces JSON compatible with ApplyPresetFromJson.
+
+            % Build top-level preset
+            preset = struct();
+
+            %Clean up filepath
+            jsonFilePath = Palladium.Utilities.PathUtils.EnsureExtension(jsonFilePath, ".json");
+
+            %% Programme-wide general settings
+            preset.UpdateTime = controller.TimingLoopController.TargetUpdateTime;
+
+            %% Instruments
+            instList = instrController.GetInstruments();    % expected array or cell of instrument objects
+          
+            if isempty(instList)
+                preset.Instruments = [];
+            else
+                % normalize to cell array for safe iteration
+                if ~iscell(instList), instList = num2cell(instList); end
+                nI = numel(instList);
+                instOut = cell(1,nI);
+                for ii = 1:nI
+                    instr = instList{ii};
+                    instSpec = struct();
+                    if isprop(instr, 'Type')
+                        type = string(instr.Type);
+                    elseif ismethod(instr, 'GetType')
+                        type = string(instr.GetType());
+                    else
+                        type = string(class(instr)); % fallback
+                    end
+
+                    %Remove namespace part of string
+                    instSpec.Type = erase(type, "Palladium.Instruments.");
+
+                    % Properties: enumerate public properties if possible
+                    props = struct();
+                    meta = metaclass(instr);
+                    for p = 1:numel(meta.PropertyList)
+                        prop = meta.PropertyList(p);
+                        % Only include public, non-dependent properties that are set-observable
+                        if prop.GetAccess == "public" && ~prop.Dependent && prop.SetObservable
+                            pname = prop.Name;
+                            try
+                                val = instr.(pname);
+                                props.(pname) = val;
+                            catch
+                                % skip unreadable properties
+                            end
+                        end
+                    end
+                    if ~isempty(fieldnames(props))
+                        instSpec.Properties = props;
+                    end
+
+                    % Controls: attempt to obtain registered control names/objects
+                    try
+                        if ismethod(instr, "GetRegisteredControlNames")
+                            ctrlNames = instr.GetRegisteredControlNames();
+                        elseif ismethod(instr, "GetRegisteredControlObjectsFromName")
+                            % fall back to nothing
+                            ctrlNames = [];
+                        else
+                            ctrlNames = [];
+                        end
+                    catch
+                        ctrlNames = [];
+                    end
+
+                    if ~isempty(ctrlNames)
+                        % represent controls as array of structs with Name only (other properties optional)
+                        ctrls = [];
+                        for ci = 1:numel(ctrlNames)
+                            ctrlName = string(ctrlNames{ci});
+
+                            %Only retrieve controls that are not auto-added
+                            instrCtrlStruct = instr.GetControlOption(ctrlName);
+                            if ~ instrCtrlStruct.EnabledByDefault
+                                if isempty(ctrls)
+                                    ctrls = {struct('Name', ctrlName)};
+                                else
+                                    ctrls{end + 1} = struct('Name', ctrlName); %#ok<AGROW>
+                                end
+                            end
+                        end
+                        instSpec.Controls = ctrls;
+                    end
+
+                    instOut{ii} = instSpec;
+                end
+                % convert cell->struct array for JSON encoding
+                preset.Instruments = vertcat(instOut{:});
+            end
+
+            %% Plotting Tabs and Windows
+            % ADAPT: modify to match your gui view APIs to enumerate plotting tabs/windows and their settings
+            if ~isempty(gui)
+                [tabs, wins] = gui.GetPlottingWindowsAndTabs();
+                preset.PlottingTabs = [];
+                preset.PlottingWindows = [];
+                if ~isempty(tabs)
+                    for i = 1 : length(tabs)
+                        ptabData = buildPlotSpecs(tabs{i});
+
+                        if isempty(preset.PlottingTabs)
+                            preset.PlottingTabs = ptabData;
+                        else
+                            preset.PlottingTabs = [preset.PlottingTabs ptabData];
+                        end
+                    end
+
+                end
+
+                if ~isempty(wins)
+                    for i = 1 : length(wins)
+                        if isvalid(wins{i})
+                            pwinData = buildPlotSpecs(wins{i});
+
+                            if isempty(preset.PlottingWindows)
+                                preset.PlottingWindows = pwinData;
+                            else
+                                preset.PlottingWindows = [preset.PlottingWindows pwinData];
+                            end
+                        end
+                    end
+
+                end
+            else
+                preset.PlottingTabs = [];
+                preset.PlottingWindows = [];
+            end
+
+            %% Write JSON
+            jsonText = jsonencode(preset, PrettyPrint=true);
+            fid = fopen(jsonFilePath, 'w');
+            if fid == -1
+                error('SavePresetToJson:FileOpen', 'Unable to open %s for writing', jsonFilePath);
+            end
+            fwrite(fid, jsonText, 'char');
+            fclose(fid);
+
+            % Helper to build plotting specs array
+            function out = buildPlotSpecs(item)
+                %item is either or a window or a tab, with PlotterPanels
+                %added to it
+                if isempty(item)
+                    out = [];
+                    return;
+                end
+
+                out = struct();
+
+                %Grab the plotterpanels added to this object
+                pp = findobj(item, "Type", 'Palladium.Components.PlotterPanel');
+
+                %%Grab the grid layout
+                g = findobj(item, "Type", 'uigridlayout');
+                out.Row = length(g.RowHeight);
+                out.Column = length(g.ColumnWidth);
+
+                if isempty(pp)
+                    warning("Empty plotter holder");
+                    return;
+                end
+
+                for j = 1 : length(pp)
+                    pltr = pp(j);                   
+
+                    % DefaultXAxis / DefaultYAxes extraction 
+                    [x, y] = pltr.GetDefaultAxes();
+                    out.DefaultXAxis = x;
+                    out.DefaultYAxes = y;
+                end
             end
         end
 

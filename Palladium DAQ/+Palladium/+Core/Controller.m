@@ -725,6 +725,41 @@ classdef Controller < handle
             end
         end
 
+        function LoadPreset(this, view)
+            %This function is called from the Settings menu in the View,
+            %after launch
+            defaultFilePath = Palladium.Utilities.PathUtils.CleanPath(this.UserPresetsDir);
+
+            % Open file dialog in defaultFilePath and filter to .json
+            filter = {'*.json','JSON files'; '*.*','All Files'};
+            [file, location] = uigetfile(filter, "Load Preset", fullfile(defaultFilePath, '*.json'));
+
+            %Cancel if it was cancelled
+            if file == 0
+                return;
+            end
+            jsonFilePath = fullfile(location, file);
+
+            %Load the present in and apply all the settings
+            Palladium.Utilities.PluginLoading.ApplyPresetFromJson(this, view, jsonFilePath);
+        end
+
+        function SavePreset(this, view)
+            defaultFilePath = fullfile(this.UserPresetsDir, "NewPreset.json");
+            defaultFilePath = Palladium.Utilities.PathUtils.CleanPath(defaultFilePath);
+            
+            %Open a file browse dialog window
+            [file, location] = uiputfile(defaultFilePath, "Save Preset");
+
+            %Cancel if it was cancelled
+            if file == 0
+                return;
+            end
+            jsonFilePath = fullfile(location, file);
+
+            Palladium.Utilities.PluginLoading.SavePresetToJson(this, this.InstrumentController, view, jsonFilePath);
+        end
+
         function SetFilePathWhileRunning(this, filePath, saveFileBool)
             %This is designed as the entry point for sequences modifying
             %the file write options while the loop is running. Needs to
