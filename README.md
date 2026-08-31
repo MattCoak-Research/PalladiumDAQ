@@ -58,7 +58,7 @@ Latest release download:
 ### Toolbox Version
 * Type 'Palladium;' in the command window. All other options below are not required in 99% of cases, just stop here.
 * Optional parameters and presets can be included, like `Palladium(Preset = "Example");`
-(Presets are .json files that automatically configure the programme on launch, i.e. adding certain Instruments, setting their IP Addresses etc. Default examples are found in the PalladiumPresets folder, and new ones can be added to this folder and then ran)
+(Presets are .json files that automatically configure the programme on launch, i.e. adding certain Instruments, setting their IP Addresses etc. Default examples are found in the `Palladium DAQ - UserFiles/Presets` folder, and new ones can be added to this folder and then ran)
 * If a reference is stored to the Palladium.m entry point when calling it / wrapper object, methods can then be called on that, just like a Preset does. For example, one could run: `pd = Palladium(); pd.AddInstrument("Keithley2000", ConnectionType="Debug"); pd.Start();`
 
 ### Standalone Version
@@ -79,7 +79,7 @@ New Instruments are simple to write, and Controls - while more powerful and gene
 To write code for Palladium, clone the repository and navigate to it in MATLAB. It has a MATLAB Project - select the Project Tab and Open Project to locate the `Palladium.prj` file. This handles source control, deployment, path management etc all in one place.
 
 ### Run Tests
-* Test files are stored in the Palladium DAQTtests folder.
+* Test files are stored in the Palladium DAQ/Tests folder.
 * Open the **Test Browser** App and use this to select which of the test files to run.
 * Run the tests using the **Run** button.
 * To run individual tests in a test file:
