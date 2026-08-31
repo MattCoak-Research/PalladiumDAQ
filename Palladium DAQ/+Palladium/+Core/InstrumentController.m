@@ -13,6 +13,7 @@ classdef InstrumentController < handle
     %% Properties (Public)
     properties (Access = public)
         ErrorOnAllInstrumentErrors = false; %Note - gets set in LoadSettings from the Config.json file's value, overriding a value here. If this is set to true, a full error will be thrown every time an instruments fails to return data. Default (false) is to throw warnings and pad datafile with NaNs instead. Testing has shown that very rare communication errors do happen, and it's a shame to lose the whole experiment because a magnet not being used didn't return 0 properly..
+        PythonInstrumentController;
     end
 
     %% Properties (Public, Private Set)
@@ -90,15 +91,25 @@ classdef InstrumentController < handle
                 assert(any(contains(this.ListOfAvailableInstrumentClassNameStrings, instrStringToAdd, "IgnoreCase", false)), string(instrStringToAdd) + " not found in list of avaliable Instruments");
 
                 %Make an instance of the selected datasource class
-                if Palladium.Utilities.PluginLoading.CheckClassExistsInNamespace(this.InstrumentsNamespace, instrStringToAdd)
+                if any(ismember(this.PythonInstrumentController.AvaialableInstrNames, instrStringToAdd))
+                    %Create a python-defined instrument if the name is
+                    %present in the PythonInstrumentController (ie is in
+                    %the PythonInstruments user folder)
+                    instRef = this.PythonInstrumentController.CreateInstrument(instrStringToAdd);
+                elseif Palladium.Utilities.PluginLoading.CheckClassExistsInNamespace(this.InstrumentsNamespace, instrStringToAdd)
+                    %If not, look for a standard built-in or user defined
+                    %MATLAB instrument. Note that .py instruments take
+                    %precedence by design - standalone user can overwrite a
+                    %built-in instrument this way and otherwise would be
+                    %unable to
                     instRef = Palladium.Utilities.PluginLoading.InstantiateClass(this.InstrumentsNamespace, instrStringToAdd);   
                 else
-                    error("InstrumentCreation:NotFoundInNamespace", "Could not find Instrument " + string(instrStringToAdd) + " in built in or user namespace. This could indicate that the class file of this Instrument contains an error and MATLAB cannot compile it (missing END statement?).");
+                    error("InstrumentCreation:NotFoundInNamespace", "Could not find Instrument " + string(instrStringToAdd) + " in built in or user namespace or Python library. This could indicate that the class file of this Instrument contains an error and MATLAB cannot compile it (missing END statement?).");
                 end
 
                 %Set the instrument name if that optional parameter was
                 %passed in. This is useful when setting up Instruments and
-                %their GUI controls programmtically - we want the name to
+                %their GUI controls programmatically - we want the name to
                 %be set before the control gets added in the line below..
                 if ~strcmp(settings.Name, "Auto")
                     instRef.Name = settings.Name;
@@ -163,6 +174,64 @@ classdef InstrumentController < handle
             catch err
                 this.Controller.HandleError("Error adding instrument " + instrStringToAdd, err);
             end
+        end
+
+        function cont = AddInstrumentControlFromName(this, instrRef, controlName, view, Settings)
+            % ADDINSTRUMENTCONTROL - Order the GUI View to create and add a
+            % Control for an existing Instrument. For example, add a 'Sweep
+            % Control' Instrument Control object to a Keithley2000 that was
+            % already added to Palladium.
+            % This call is to be used by PluginLoading.ApplyPresetFromJson,
+            % and echoes the code in Palladium.m
+            %
+            % Input arguments:
+            % - instrRef - Palladium.Core.Instrument reference - the instrument to add the control to (required)
+            % - controlName - name of the control (text scalar) - must  match one of the Names defined in that Instrument's constructor, e.g. this.DefineInstrumentControl(Name = "Sweep Control", ClassName = "SweepController_Stepped", TabName = "Sweep Control", EnabledByDefault = false);
+            %
+            % Optional Name-Value pair arguments:
+            % (Blank by default, override with string values to redefine the default values for this control)
+            % - ControlName
+            % - TabName
+            arguments
+                this;
+                instrRef (1,1) Palladium.Core.Instrument;
+                controlName (1,1) {mustBeTextScalar};
+                view (1,1);
+                Settings.ControlName = [];
+                Settings.TabName = [];
+            end
+
+            %Grab the default definition struct to build that control from
+            %the instrument reference
+            controlDetailsStruct = instrRef.GetControlOption(controlName);
+
+            %Apply any optional configuration settings entered
+            if ~isempty(Settings.ControlName); controlDetailsStruct.Name = Settings.ControlName; end
+            if ~isempty(Settings.TabName); controlDetailsStruct.TabName = Settings.TabName; end
+
+            %Pass on to the more general function below
+            cont = this.AddInstrumentControlFromStruct(instrRef, controlDetailsStruct, view);
+        end
+
+        function cont = AddInstrumentControlFromStruct(~, instrRef, controlDetailsStruct, view)
+            % ADDINSTRUMENTCONTROLFROMSTRUCT - Create control from struct and
+            % attach to instrument. This is a more advanced version for
+            % scripting - easier to use ADDINSTRUMENTCONTROL which just needs
+            % the name of the Control.
+            %
+            % Input arguments:
+            % - this - container/manager object
+            % - instrRef - Palladium.Core.Instrument instance to attach control to
+            % - controlDetailsStruct - struct describing control parameters. Easiest way to get this is to call controlDetailsStruct = instrRef.GetControlOption(controlName) on an existing Instrument reference
+            arguments
+                ~;
+                instrRef (1,1) Palladium.Core.Instrument;
+                controlDetailsStruct (1,1) struct;
+                view (1,1);
+            end
+
+            %Pass on to the View
+            cont = view.AddInstrumentControl(instrRef, controlDetailsStruct);
         end
 
         function controlClassRef = AddInstrumentControl(this, tab, instrRef, controlDetailsStruct)
@@ -421,6 +490,20 @@ classdef InstrumentController < handle
             [duplicates, combinedString] = Palladium.Utilities.Verification.CheckForDuplicatesInCellArrayOfStrings(classNames);
             if ~isempty(duplicates)
                 error("LoadInstrumentClass:DuplicatesError", "Error loading Instrument Classes - found duplicate names. Is an Instrument in the User Files Instrument folder named the same as one of the built in classes? \n\n Duplicates found: " + string(combinedString));
+            end
+
+            %Load Python Instrument classes too
+            if ~isempty(this.PythonInstrumentController)
+                pyNames = this.PythonInstrumentController.AvaialableInstrNames;
+
+                %Append to the list of names
+                classNames = [classNames pyNames];
+
+                %Error on any duplicates
+                [duplicates, combinedString] = Palladium.Utilities.Verification.CheckForDuplicatesInCellArrayOfStrings(classNames);
+                if ~isempty(duplicates)
+                    error("LoadInstrumentClass:DuplicatesError", "Error loading Instrument Classes - found duplicate names. Is an Instrument in the User Files Instrument folder named the same as one of the built in classes? \n\n Duplicates found: " + string(combinedString));
+                end
             end
 
             %Sort alphabetically - right now it is a design choice to have

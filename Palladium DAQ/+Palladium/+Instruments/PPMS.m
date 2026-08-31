@@ -7,8 +7,8 @@ classdef PPMS < Palladium.Core.Instrument
     %Note that currently there is no way to UNload .NET assemblies in
     %MATLAB, but this is not a practical issue in this version of the code.
 
-    %% Properties (Constant, Public)
-    properties(Constant, Access = public)
+    %% Properties (Public)
+    properties(Access = public)
         FullName = 'PPMS';                                          %Full name, just for displaying on GUI
     end
 

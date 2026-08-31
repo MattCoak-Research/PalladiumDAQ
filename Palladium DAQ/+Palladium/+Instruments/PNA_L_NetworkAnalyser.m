@@ -3,8 +3,8 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
     %- other PNA instruments in the series should work too, but could not
     %yet be tested
 
-    %% Properties (Constant, Public)
-    properties(Constant, Access = public)
+    %% Properties (Public)
+    properties(Access = public)
         FullName = "Keithley PNA-L_Network Analyser N5232A";       %Full name, just for displaying on GUI
     end
 

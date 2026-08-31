@@ -3,8 +3,8 @@ classdef Agilent_53220A_FreqCounter < Palladium.Core.Instrument
     %Assumes device has already been manually configured and is measuring
     %frequency.
 
-    %% Properties (Constant, Public)
-    properties(Constant, Access = public)
+    %% Properties (Public)
+    properties(Access = public)
         FullName = 'Aglient 53220A Frequency Counter';              %Full name, just for displaying on GUI
     end
 

@@ -4,11 +4,11 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
 
     %% Properties (Abstract, Constant, Public)
     properties(Abstract, Constant, Access = public)
-        FullName;   %Will be displayed on eg instrument settings tab
     end
 
     %% Properties (Abstract, Public)
     properties(Abstract, Access = public)
+        FullName;   %Will be displayed on eg instrument settings tab
         Name;
         Connection_Type;   %Type of connection to use to communicate with the instrument. Value will be a member of the ConnectionType Enum
     end
@@ -81,6 +81,7 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
 
     %% Methods (Public)
     methods(Access = public)
+
         function AbortRamp(this)
             %Override in base classes to support SweepController_Ramp
             %functionality
@@ -331,7 +332,7 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
                 case(Palladium.Enums.ConnectionType.USB)
                     propertiesToIgnore = {"GPIB_Address", "IP_Address", "Serial_Address", "VISA_Address"};
                 otherwise
-                    error("Unsupported connection type: " + this.ConnectionType + ". ConnectionType can be tcpip, gpib, serial, or visa.");
+                    error("Unsupported connection type: " + this.Connection_Type + ". ConnectionType can be tcpip, gpib, serial, or visa.");
             end
 
             for i = 1 : length(propertiesToIgnore)

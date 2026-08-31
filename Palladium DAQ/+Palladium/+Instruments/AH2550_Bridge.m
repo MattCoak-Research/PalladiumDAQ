@@ -3,8 +3,8 @@ classdef AH2550_Bridge < Palladium.Core.Instrument
     %capacitance bridge. Assumes instrument has already been set measuring,
     %and grabs latest values only.
 
-    %% Properties (Constant, Public)
-    properties(Constant, Access = public)
+    %% Properties (Public)
+    properties(Access = public)
         FullName = "AH Bridge";     %Full name, just for displaying on GUI
     end
 

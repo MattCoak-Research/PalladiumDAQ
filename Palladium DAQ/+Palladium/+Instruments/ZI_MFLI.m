@@ -18,8 +18,8 @@ classdef ZI_MFLI < Palladium.Core.Instrument
     %indeed is intended to be used this way - complex settings and control are not
     %duplicated here.
 
-    %% Properties (Constant, Public)
-    properties(Constant, Access = public)
+    %% Properties (Public)
+    properties(Access = public)
         FullName = "Zurich Instruments MFLI";                           %Full name, just for displaying on GUI
     end
 

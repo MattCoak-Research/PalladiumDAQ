@@ -1,8 +1,8 @@
 classdef Keithley6430 < Palladium.Core.Instrument
     %Instrument implementation for Keithley 6430 source meters.
 
-    %% Properties (Constant, Public)
-    properties(Constant, Access = public)
+    %% Properties (Public)
+    properties(Access = public)
         FullName = 'Keithley 6430 Src Meter';       %Full name, just for displaying on GUI
     end
 
