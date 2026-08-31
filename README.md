@@ -6,6 +6,35 @@ This is a modular framework for laboratory data acquisition. A library of Instru
 > [!CAUTION]
 > This software is currently under active development and is not yet stable or feature complete
 
+### Features
+
+* Built in suite of Instruments supported, representing electronics and hardware to communicate with. Easy to expand by defining new MATLAB or Python classes, based on provided templates
+
+  <img width="601" alt="image" src="https://github.com/user-attachments/assets/c1c5d4f0-6aa1-4953-b773-34a0398da522" />
+
+* Flexible real-time plotting of all acquired data
+  
+  <img width="800" alt="image" src="https://github.com/user-attachments/assets/2bdaae25-57ba-4b4e-8e3d-ac6b1923c1f0" />
+
+* Powerful & user-extensible Instrument Controls - logic and GUI elements to acquire more complex data from Instruments and send custom commands
+
+  <img width="740" alt="image" src="https://github.com/user-attachments/assets/9e2ab22b-0178-433e-b2f1-23f8bbb96dd2" />
+
+* Presets - .json text file specifications of commonly-used hardware layouts and settings, to minimise repetitive clicks on startup
+
+  <img width="740" alt="image" src="https://github.com/user-attachments/assets/af13f221-c8df-4eda-a634-b7ec98c1245e" />
+
+* Built in Data Viewer programme for painless viewing and comparison of previously-saved datafiles
+
+  <img width="740" alt="image" src="https://github.com/user-attachments/assets/276804c1-a738-453c-a8e3-cdf7ada7963c" />
+
+* Sequence Editor to allow defining scripts of commands to run, for autonomous measurement runs
+
+  <img width="800" alt="image" src="https://github.com/user-attachments/assets/5c005410-36a1-4481-869a-e02e7322fb36" />
+
+
+
+
 ## System Requirements
 PalladiumDAQ can be installed as a Toolbox inside a MATLAB environment (allows more customisation) or, on machines with no MATLAB licence, as a standalone programme.
  - To run PalladiumDAQ Toolbox Version, MATLAB version 2026a is required, with the Instrument Control Toolbox installed.
