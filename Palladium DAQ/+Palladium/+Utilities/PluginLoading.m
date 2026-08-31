@@ -17,7 +17,7 @@ classdef PluginLoading
             % Top-level preset fields
             if isfield(data, 'UpdateTime')
                 try
-                    controller.SetUpdateTime(data.UpdateTime);
+                    controller.TimingLoopController.SetUpdateTime(data.UpdateTime);
                 catch
                     warning('Failed to set UpdateTime from preset.');
                 end
