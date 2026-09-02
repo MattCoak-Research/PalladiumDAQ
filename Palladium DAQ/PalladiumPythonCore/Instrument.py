@@ -3,6 +3,9 @@ from abc import ABC, abstractmethod
 from typing import Optional, Any
 import time
 import random
+import socket
+import pyvisa
+import serial
 
 
 class Instrument(ABC):
@@ -78,6 +81,126 @@ class Instrument(ABC):
                 return str(resp)
             except Exception as e:
                 raise RuntimeError(f"Failed to read from DeviceHandle.fscanf: {e}") from e
+
+    def connectTCPIP(self, ip, port):
+        """Called from MATLAB with (py.str(ip), int32(port))."""
+        host = str(ip)
+        port = int(port)
+        try:
+            timeout = float(getattr(self, "ConnectionSettings", {}).get("GPIB_Timeout", 10))
+        except Exception:
+            timeout = 10.0
+        try:
+            s = socket.create_connection((host, port), timeout=timeout)
+            self.DeviceHandle = s
+        except Exception as e:
+            raise RuntimeError(f"TCP/IP connection failed ({host}:{port}): {e}")
+
+    def connectGPIB(self, board_index, gpib_address, timeout):
+        """Called from MATLAB with (int32(boardIndex), int32(address), double(timeout))."""
+        rm = pyvisa.ResourceManager()
+        try:
+            board = int(board_index)
+        except Exception:
+            board = 0
+        addr = int(gpib_address)
+        # Use a pyvisa-friendly resource string. MATLAB used "GPIB::22::INSTR" while pyvisa commonly accepts "GPIB{board}::{addr}::INSTR"
+        resource = f"GPIB{board}::{addr}::INSTR"
+        try:
+            inst = rm.open_resource(resource)
+            # apply terminators/timeouts if ConnectionSettings available
+            cs = getattr(self, "ConnectionSettings", None)
+            if cs:
+                terms = None
+                try:
+                    terms = cs.get("GPIB_Terminators") if isinstance(cs, dict) else getattr(cs, "GPIB_Terminators", None)
+                except Exception:
+                    terms = None
+                if terms:
+                    inst.read_termination = terms[0]
+                    inst.write_termination = terms[1] if len(terms) > 1 else terms[0]
+                try:
+                    t = float(timeout)
+                    inst.timeout = int(t * 1000)  # pyvisa timeout in ms
+                except Exception:
+                    pass
+            self.DeviceHandle = inst
+        except Exception as e:
+            raise RuntimeError(f"GPIB connection failed ({resource}): {e}")
+            
+    def close(self):
+        """Close device handle (complementary to MATLAB Close)."""
+        if self.DeviceHandle is None:
+            return
+        try:
+            if hasattr(self.DeviceHandle, "close"):
+                self.DeviceHandle.close()
+            elif hasattr(self.DeviceHandle, "disconnect"):
+                self.DeviceHandle.disconnect()
+        finally:
+            self.DeviceHandle = None
+
+    def connectVISA(self, visa_address):
+        """Called from MATLAB with (py.str(visaAddress))."""
+        rm = pyvisa.ResourceManager()
+        resource = str(visa_address)
+        try:
+            inst = rm.open_resource(resource)
+            # apply optional settings
+            cs = getattr(self, "ConnectionSettings", None)
+            if cs:
+                terms = None
+                try:
+                    terms = cs.get("GPIB_Terminators") if isinstance(cs, dict) else getattr(cs, "GPIB_Terminators", None)
+                except Exception:
+                    terms = None
+                if terms:
+                    inst.read_termination = terms[0]
+                    inst.write_termination = terms[1] if len(terms) > 1 else terms[0]
+                try:
+                    timeout = getattr(cs, "GPIB_Timeout") if not isinstance(cs, dict) else cs.get("GPIB_Timeout", None)
+                    if timeout is not None:
+                        inst.timeout = int(float(timeout) * 1000)
+                except Exception:
+                    pass
+            self.DeviceHandle = inst
+        except Exception as e:
+            raise RuntimeError(f"VISA connection failed ({resource}): {e}")
+
+    def connectUSB(self):
+        """Default USB -> treat as VISA resource if self.VISA_Address present."""
+        va = getattr(self, "VISA_Address", None)
+        if va:
+            return self.connectVISA(str(va))
+        raise RuntimeError("connectUSB: No VISA_Address available to open USB device.")
+
+    def connectSerial(self, port):
+        """Called from MATLAB with (py.str(port))."""
+        port_str = str(port)
+        cs = getattr(self, "ConnectionSettings", {})
+        # support both dict-style or object-style ConnectionSettings
+        def get_cs(key, default=None):
+            if isinstance(cs, dict):
+                return cs.get(key, default)
+            return getattr(cs, key, default)
+        serial_settings = get_cs("SerialSettings", {})
+        try:
+            if isinstance(serial_settings, dict):
+                baud = int(serial_settings.get("BaudRate", 9600))
+                bytesize = int(serial_settings.get("DataBits", 8))
+                parity = serial_settings.get("Parity", "N")
+                stopbits = serial_settings.get("StopBits", 1)
+            else:
+                baud = int(getattr(serial_settings, "BaudRate", 9600))
+                bytesize = int(getattr(serial_settings, "DataBits", 8))
+                parity = getattr(serial_settings, "Parity", "N")
+                stopbits = getattr(serial_settings, "StopBits", 1)
+            timeout = float(get_cs("GPIB_Timeout", 10))
+            ser = serial.Serial(port=port_str, baudrate=baud, bytesize=bytesize, parity=parity, stopbits=stopbits, timeout=timeout)
+            self.DeviceHandle = ser
+        except Exception as e:
+            raise RuntimeError(f"Serial connection failed ({port_str}): {e}")
+
 
     def query_double(self, command: str) -> float:
         """
