@@ -132,19 +132,52 @@ classdef PythonInstrument < Palladium.Core.Instrument
            % metadataStruct = 
         end
 
+        function Close(this)
+            if isempty(this.PyInstr)
+                warning("Python Instrument assignment empty, cannot call Close until it is assigned");
+                return;
+            end
+
+            this.PyInstr.close();
+
+        end
+
         function Connect(this)
             assert(~isempty(this.PyInstr), "Python Instrument assignment empty, cannot call Connect until it is assigned");
 
-            if this.PyInstr.OverrideConnectMethod
-                this.PyInstr.Connect();%TODO
-            else
-                %Call base class behaviour
-                Connect@Palladium.Core.Instrument(this);
-                this.PyInstr.DeviceHandle = this.DeviceHandle;
-                this.PyInstr.SimulationMode = this.SimulationMode;
+            % Handle Debug locally (no Python connect call)
+            switch(this.Connection_Type)
+                case(Palladium.Enums.ConnectionType.Debug)
+                    disp("Connected to simulated " + this.Name + " instrument.");
+                    this.SimulationMode = true;
+                    % Inform Python side of simulation mode
+                    this.PyInstr.SimulationMode = py.bool(this.SimulationMode);
+                    return;
             end
 
+            % Ensure SimulationMode false for real connections
+            this.SimulationMode = false;
+
+            % Call Python connect functions with primitive args (char, int)
+            switch(this.Connection_Type)
+                case(Palladium.Enums.ConnectionType.Ethernet)
+                    this.PyInstr.connectTCPIP(py.str(char(this.IP_Address)), int32(this.ConnectionSettings.Port));
+                case(Palladium.Enums.ConnectionType.GPIB)
+                    this.PyInstr.connectGPIB(int32(this.ConnectionSettings.GPIB_BoardIndex), int32(this.GPIB_Address), double(this.ConnectionSettings.GPIB_Timeout));
+                case(Palladium.Enums.ConnectionType.VISA)
+                    this.PyInstr.connectVISA(py.str(char(this.VISA_Address)));
+                case(Palladium.Enums.ConnectionType.USB)
+                    this.PyInstr.connectUSB();
+                case(Palladium.Enums.ConnectionType.Serial)
+                    this.PyInstr.connectSerial(py.str(char(this.Serial_Address)));
+                otherwise
+                    error("Unsupported connection type: " + this.Connection_Type + ". ConnectionType can be tcpip, gpib, serial, usb, or visa.");
+            end
+
+            % Inform Python side of simulation state (false for real connections)
+            this.PyInstr.SimulationMode = py.bool(this.SimulationMode);
         end
+
 
         function [headers, units] = GetHeaders(this)
             % Call the Python GetHeaders() -> (headers, units)
