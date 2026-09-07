@@ -2,8 +2,8 @@ classdef TemplateInstrumentClass < Palladium.Core.Instrument
     %Instrument implementation for .. insert details here
     %Make a copy of this class and modify it when adding a new instrument
 
-    %% Properties (Constant, Public)
-    properties(Constant, Access = public)
+    %% Properties (Public)
+    properties(Access = public)
         FullName = 'FULLNAME';       %Full name, just for displaying on GUI
     end
 
