@@ -86,15 +86,7 @@ classdef Keysight4248A_LCR_Meter < Palladium.Core.Instrument
         end
 
         function [dataRow] = Measure(this)
-            %Update the sweep controller, if one is added and a sweep is currently running, and apply its
-            %latest target source level
-            if ~isempty(this.SweepController)
-                if this.SweepController.Running
-                    valueToSet = this.SweepController.Update();
-                    this.SetFrequency(valueToSet);
-                end
-            end
-
+        
             %Query instrument for latest data with a Fetch command
             [cap_pF, loss, bias] = this.FetchMeasurement();
 
@@ -115,6 +107,14 @@ classdef Keysight4248A_LCR_Meter < Palladium.Core.Instrument
 
             freqStr = numstr(freqHz);
             this.WriteCommand("FREQ " + freqStr + "HZ");
+        end
+
+        function SetNewSweepStepValue(this, value)
+            %This built-in function is defined in the Instrument base class
+            %(does nothing) and called by any added
+            %SweepController_Stepped. Define here what action to take when
+            %a new step is triggered
+            this.SetFrequency(value, true);
         end
 
         function SetVoltage(this, voltage_V)

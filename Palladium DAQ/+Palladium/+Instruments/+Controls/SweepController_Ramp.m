@@ -102,7 +102,7 @@ classdef SweepController_Ramp < Palladium.Instruments.Controls.SweepController
             %still ramping towards it
             reached = false;
 
-            rampStatus = this.Instrument.CheckRampStatus(timeElapsed_s, tDiff, currentTarget, rampRate_min);
+            rampStatus = this.Instrument.CheckRampStatus(timeElapsed_s, tDiff, currentTarget, rampRate_min, this);
 
             if rampStatus.TargetReached
                 reached = true;

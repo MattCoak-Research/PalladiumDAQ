@@ -50,11 +50,11 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
             this.SetState_Hold();
         end
 
-        function rampStatus = CheckRampStatus(this, timeElapsed_s, tDiff, currentTarget, rampRate_min) %#ok<INUSD>
+        function rampStatus = CheckRampStatus(this, timeElapsed_s, tDiff, currentTarget, rampRate_min, sweepController) %#ok<INUSD>
             %Return simulated data only if we are debugging without a
             %physical instrument connected
             if this.SimulationMode
-                rampStatus = this.SweepController.SimulateRamping(tDiff, currentTarget, rampRate_min);
+                rampStatus = sweepController.SimulateRamping(tDiff, currentTarget, rampRate_min);
                 this.SimulatedData.Field_T = rampStatus.CurrentField;
                 this.SimulatedData.Current_A = rampStatus.CurrentField*12;
                 return;
