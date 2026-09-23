@@ -115,6 +115,15 @@
                 <Info Name="Installer Logo Image File" ReadOnly="WRITABLE"/>
             </Label>
         </Category>
+        <Category Location="Deployment_Category_b594c4f1-0c74-43b8-9324-b742ff0fa4f3">
+            <Info DataType="None" Name="Standalone Application - StandaloneDesktopApp3" ReadOnly="0" SingleValued="0"/>
+            <Label Location="Deployment_AdditionalFiles_b594c4f1-0c74-43b8-9324-b742ff0fa4f3">
+                <Info Name="Additional File" ReadOnly="WRITABLE"/>
+            </Label>
+            <Label Location="Deployment_MainFile_b594c4f1-0c74-43b8-9324-b742ff0fa4f3">
+                <Info Name="Main Function" ReadOnly="WRITABLE"/>
+            </Label>
+        </Category>
     </Categories>
     <Files Location="Root">
         <File Location=".gitattributes">
@@ -820,6 +829,20 @@
                         </Info>
                     </File>
                     <File Location="HP_8722ES_NetworkAnalyser.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
+                    <File Location="MercuryITC.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
+                    <File Location="MercuryIPS.m">
                         <Info>
                             <Category UUID="FileClassCategory">
                                 <Label UUID="design"/>
@@ -1553,7 +1576,7 @@
         <DIR_SIGNIFIER Location="1">
             <Info/>
         </DIR_SIGNIFIER>
-        <Info configMapData="{&quot;PalladiumDAQ&quot;:&quot;MathWorksDeploymentConfig{1dcbeca0-4c8d-486c-9564-d296b0b3900b}&quot;,&quot;StandaloneDesktopApp1&quot;:&quot;MathWorksDeploymentConfig{153bce88-5a84-4e84-a75d-a03ac505a70e}&quot;,&quot;StandaloneDesktopApp2&quot;:&quot;MathWorksDeploymentConfig{1a0db9ce-bd26-4fc8-8e97-881080913e18}&quot;}"/>
+        <Info configMapData="{&quot;PalladiumDAQ&quot;:&quot;MathWorksDeploymentConfig{1dcbeca0-4c8d-486c-9564-d296b0b3900b}&quot;,&quot;StandaloneDesktopApp1&quot;:&quot;MathWorksDeploymentConfig{153bce88-5a84-4e84-a75d-a03ac505a70e}&quot;,&quot;StandaloneDesktopApp2&quot;:&quot;MathWorksDeploymentConfig{1a0db9ce-bd26-4fc8-8e97-881080913e18}&quot;,&quot;StandaloneDesktopApp3&quot;:&quot;MathWorksDeploymentConfig{e368a424-e5cd-4608-9e48-5a4807078f84}&quot;}"/>
     </Files>
     <Files Location="MathWorksDeploymentConfig{153bce88-5a84-4e84-a75d-a03ac505a70e}">
         <DIR_SIGNIFIER Location="1">
@@ -1566,5 +1589,11 @@
             <Info/>
         </DIR_SIGNIFIER>
         <Info StandaloneAppConfigModel="{&quot;entries&quot;:[{&quot;content&quot;:{&quot;addRemoveProgramsIconLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_f8b5dac1-7178-40a3-a667-a5c00785352e&quot;,&quot;labelID&quot;:&quot;Deployment_AddRemoveProgramsIconFile_f8b5dac1-7178-40a3-a667-a5c00785352e&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;60622156-f0aa-4264-affa-114356820dcf&quot;},&quot;additionalFileLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_f8b5dac1-7178-40a3-a667-a5c00785352e&quot;,&quot;labelID&quot;:&quot;Deployment_InstallerAdditionalFiles_f8b5dac1-7178-40a3-a667-a5c00785352e&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;71598dd2-2688-406f-8c15-74870d757250&quot;},&quot;installerIconLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_f8b5dac1-7178-40a3-a667-a5c00785352e&quot;,&quot;labelID&quot;:&quot;Deployment_InstallerIconFile_f8b5dac1-7178-40a3-a667-a5c00785352e&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;d963277e-04f3-42fe-bba5-2fad48b9e564&quot;},&quot;installerLogoLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_f8b5dac1-7178-40a3-a667-a5c00785352e&quot;,&quot;labelID&quot;:&quot;Deployment_InstalerLogoFile_f8b5dac1-7178-40a3-a667-a5c00785352e&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;7bb6868e-5330-406c-b9a3-7ca044ded4a0&quot;},&quot;installerName&quot;:&quot;Palladium DAQ Setup&quot;,&quot;installerSplashLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_f8b5dac1-7178-40a3-a667-a5c00785352e&quot;,&quot;labelID&quot;:&quot;Deployment_InstallerSplashFile_f8b5dac1-7178-40a3-a667-a5c00785352e&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;a8d55e8a-20b5-4a50-85a1-f1766f626114&quot;},&quot;installerVersion&quot;:&quot;1.0.0&quot;,&quot;mcrInstallation&quot;:&quot;installer&quot;,&quot;outputFolder&quot;:&quot;Palladium DAQ/Releas&quot;},&quot;type&quot;:&quot;deployment.compiler.model.InstallerPackageOptions&quot;,&quot;uuid&quot;:&quot;b4e3c831-9f77-4256-b5f2-e6d2ee8051ab&quot;},{&quot;content&quot;:{&quot;additionalFileLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_f8b5dac1-7178-40a3-a667-a5c00785352e&quot;,&quot;labelID&quot;:&quot;Deployment_AdditionalFiles_f8b5dac1-7178-40a3-a667-a5c00785352e&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;d6d6f5ae-93ab-4c4c-b08e-57a6f709b834&quot;},&quot;exeIconLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_f8b5dac1-7178-40a3-a667-a5c00785352e&quot;,&quot;labelID&quot;:&quot;Deployment_ExeIconFile_f8b5dac1-7178-40a3-a667-a5c00785352e&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;607d98d1-62df-4070-84da-7eb2c12b336f&quot;},&quot;exeSplashScreenLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_f8b5dac1-7178-40a3-a667-a5c00785352e&quot;,&quot;labelID&quot;:&quot;Deployment_ExeSplashImageFile_f8b5dac1-7178-40a3-a667-a5c00785352e&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;5fc1579f-b498-437c-b090-d1f363d113f9&quot;},&quot;executableName&quot;:&quot;PalladiumDAQ&quot;,&quot;helpTextFileLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_f8b5dac1-7178-40a3-a667-a5c00785352e&quot;,&quot;labelID&quot;:&quot;Deployment_HelpTextFile_f8b5dac1-7178-40a3-a667-a5c00785352e&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;c645602d-18ba-413b-8b8b-916f52217ecd&quot;},&quot;mainFileLabel&quot;:{&quot;content&quot;:{&quot;categoryID&quot;:&quot;Deployment_Category_f8b5dac1-7178-40a3-a667-a5c00785352e&quot;,&quot;labelID&quot;:&quot;Deployment_MainFile_f8b5dac1-7178-40a3-a667-a5c00785352e&quot;},&quot;type&quot;:&quot;deployment.compiler.model.ProjectLabel&quot;,&quot;uuid&quot;:&quot;99e0333f-900b-4f11-9db4-30f227d3a9c6&quot;},&quot;name&quot;:&quot;Palladium EXE&quot;,&quot;outputFolder&quot;:&quot;Palladium DAQ/Release/Build&quot;,&quot;supportPackageData&quot;:{&quot;content&quot;:{},&quot;type&quot;:&quot;deployment.compiler.model.SupportPackageInfo&quot;,&quot;uuid&quot;:&quot;8d8b3bbf-614f-4531-bb70-88462451ae52&quot;},&quot;version&quot;:&quot;1.0.0&quot;},&quot;type&quot;:&quot;deployment.compiler.model.StandaloneAppBuildConfiguration&quot;,&quot;uuid&quot;:&quot;acbfc7d3-90b5-4511-8f4e-64fdcef2a7ee&quot;},{&quot;content&quot;:{},&quot;type&quot;:&quot;deployment.compiler.model.ProjectStateValidationIssueList&quot;,&quot;uuid&quot;:&quot;b849e21b-a181-44b0-85a0-e5d4aa3b790f&quot;}],&quot;packageUris&quot;:[&quot;http://schema.mathworks.com/mf0/deployment_compiler_model/1.0.0&quot;],&quot;version&quot;:&quot;1.0&quot;}" displayName="StandaloneDesktopApp2" lastAccessed="1785784150328" taskID="e445b98e-4242-405c-aecf-731f2feac416" type="StandaloneDesktopApp" uniqueId="f8b5dac1-7178-40a3-a667-a5c00785352e"/>
+    </Files>
+    <Files Location="MathWorksDeploymentConfig{e368a424-e5cd-4608-9e48-5a4807078f84}">
+        <Info displayName="StandaloneDesktopApp3" type="StandaloneDesktopApp" uniqueId="b594c4f1-0c74-43b8-9324-b742ff0fa4f3"/>
+        <DIR_SIGNIFIER Location="1">
+            <Info/>
+        </DIR_SIGNIFIER>
     </Files>
 </project>
