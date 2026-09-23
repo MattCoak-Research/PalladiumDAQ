@@ -481,8 +481,6 @@ classdef Controller < handle
             this.ShowProgress("Initialising measurements", "Initialising..");
 
             try
-                %Generate column headers and validate
-                [this.Headers, headersString, this.Units] = this.InstrumentController.InitialiseHeaders();
 
                 %Initialise the (:, n) double array that will hold the
                 %data
@@ -491,10 +489,15 @@ classdef Controller < handle
                 %Initialise all instruments
                 [success, msg, title] = this.InstrumentController.InitialiseInstruments();
 
+                %Error out here and break if any instrument failed to
+                %connect
                 if ~success
                     Palladium.Logging.Logger.Log("Error", title, "FullMessage", msg, "LogFileMessageLevel", "Error", "CommandWindowMessageLevel", "Error", "GUIMessageLevel", "Error");
                     return;
                 end
+
+                %Generate column headers and validate
+                [this.Headers, headersString, this.Units] = this.InstrumentController.InitialiseHeaders();
 
                 %Initialise all graphs
                 this.PlottingController.UpdatePlotVariableNames(this.Headers);

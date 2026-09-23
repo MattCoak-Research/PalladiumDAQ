@@ -91,7 +91,7 @@ classdef InstrumentController < handle
                 assert(any(contains(this.ListOfAvailableInstrumentClassNameStrings, instrStringToAdd, "IgnoreCase", false)), string(instrStringToAdd) + " not found in list of avaliable Instruments");
 
                 %Make an instance of the selected datasource class
-                if any(ismember(this.PythonInstrumentController.AvaialableInstrNames, instrStringToAdd))
+                if ~isempty(this.PythonInstrumentController.AvaialableInstrNames) && any(ismember(this.PythonInstrumentController.AvaialableInstrNames, instrStringToAdd))
                     %Create a python-defined instrument if the name is
                     %present in the PythonInstrumentController (ie is in
                     %the PythonInstruments user folder)
@@ -423,9 +423,6 @@ classdef InstrumentController < handle
 
         function [headers, headersString, units] = InitialiseHeaders(this)
 
-            %Set the list of instruments from the selection panel's ItemData
-            this.Instruments = this.GetInstruments();
-
             %Generate column headers, for internal use and file writing
             [headers, headersString, units] = this.GetHeaders();
 
@@ -441,6 +438,9 @@ classdef InstrumentController < handle
             success = true;
             msg = "";
             title = "";
+
+            %Set the list of instruments from the selection panel's ItemData
+            this.Instruments = this.GetInstruments();
 
             %Initialise all instruments
             for i = 1 : length(this.Instruments)
