@@ -317,13 +317,6 @@
                             </Category>
                         </Info>
                     </File>
-                    <File Location="PresetLoader.m">
-                        <Info>
-                            <Category UUID="FileClassCategory">
-                                <Label UUID="design"/>
-                            </Category>
-                        </Info>
-                    </File>
                 </File>
                 <File Location="+DataWriting">
                     <Info/>
@@ -646,6 +639,20 @@
                                 </Category>
                             </Info>
                         </File>
+                        <File Location="Keithley2450_Double_GateSweep.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="design"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="Keithley2450_DoubleGateSweep.mlapp">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="design"/>
+                                </Category>
+                            </Info>
+                        </File>
                     </File>
                     <File Location="+Events">
                         <Info/>
@@ -667,6 +674,13 @@
                             </Info>
                         </File>
                         <File Location="SweepSetupEventData.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="design"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="SweepDataEventData.m">
                             <Info>
                                 <Category UUID="FileClassCategory">
                                     <Label UUID="design"/>

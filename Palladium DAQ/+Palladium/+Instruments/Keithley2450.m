@@ -39,6 +39,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
             %Define the Instrument Controls that can be added to the
             %Instrument
             this.DefineInstrumentControl(Name = "Sweep Control", ClassName = "SweepController_Stepped", TabName = "Sweep Control", EnabledByDefault = false);
+            this.DefineInstrumentControl(Name = "Double 2450 Gate Sweep", ClassName = "Keithley2450_Double_GateSweep", TabName = "Double 2450 Gate Sweep", EnabledByDefault = false);
 
             %Make sure to set values for Properties of Categorical type
             %like these

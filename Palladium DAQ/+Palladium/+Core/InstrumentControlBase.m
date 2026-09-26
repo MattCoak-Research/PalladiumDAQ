@@ -53,7 +53,7 @@ classdef InstrumentControlBase < Palladium.Core.Entity
         end
 
         function MeasurementsStarted(this, src, eventArgs) %#ok<INUSD>
-
+            this.OnMeasurementsStarted();
         end
 
         function MeasurementsPaused(this, src, eventArgs) %#ok<INUSD>
@@ -67,6 +67,11 @@ classdef InstrumentControlBase < Palladium.Core.Entity
         function MeasurementsStopped(this, src, eventArgs) %#ok<INUSD>
 
         end
+
+        function OnMeasurementsStarted(this)
+            %Do nothing, child classes can override
+        end
+
 
         function PlotterAxesSelectionChange(this, pltr)
             %This is needed for the case where we want to change the
