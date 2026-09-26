@@ -1,12 +1,28 @@
 classdef MercuryITC < Palladium.Core.Instrument
     %Instrument implementation for the Oxford Instruments Mercury iTC
     %temperature controller / sensor readout unit.
-    %Ported from the mercuryITC.py reference implementation (Benno Meier,
-    %2015). That implementation exposes generic read/write/set access to
-    %the instrument's DEV:<board>.<sensor>:SIG:<signal> command tree, used
-    %there to read out Voltage, Current, Resistance and Temperature from
-    %up to eight sensor boards. Heater/PID/setpoint control was never
-    %implemented in the Python source, so it is not present here either.
+    %Originally ported from the mercuryITC.py reference implementation
+    %(Benno Meier, 2015), then cross-checked and extended against the
+    %official "MercuryiTC" User Manual (Oxford Instruments NanoScience,
+    %MAN-NS-0014, Revision B), Chapter 10 "Command reference guide".
+    %
+    %Devices (temperature sensors, heaters, auxiliary/gas-flow boards,
+    %pressure sensors, etc) are addressed as DEV:<UID>:<TYPE>, discovered
+    %dynamically via SYS:CAT (see GetDeviceCatalogue). Each device exposes
+    %readable signals under DEV:<UID>:<TYPE>:SIG:<name> (see GetSignal).
+    %Temperature sensor devices additionally have an associated PID control
+    %loop, addressed as DEV:<UID>:TEMP:LOOP:<name> (see
+    %SetTemperatureSetpoint, SetPIDValues, EnablePIDControl, etc) - this
+    %was not implemented in the Python reference (which predates the
+    %manual being available) but is documented in the official manual and
+    %is implemented here.
+    %
+    %Not implemented: the LVL (helium/nitrogen level meter) device type,
+    %whose signals are nested under HEL:/NIT: sub-branches rather than a
+    %single flat SIG:<name>, and the niche Lambda/HelioxX pre-configured
+    %control-loop templates (sections 10.3.20/10.3.21 of the manual) -
+    %these require specific daughter-board hardware templates that are
+    %out of scope for a general-purpose driver.
 
     %% Properties (Public)
     properties(Access = public)
@@ -148,13 +164,7 @@ classdef MercuryITC < Palladium.Core.Instrument
             end
 
             resultString = this.ReadValue(string(deviceAddress) + ":SIG:" + string(signalName));
-
-            %Response is of the form ...:SIG:TEMP:<value><unitPrefix><unit>
-            %Take everything after the last colon
-            parts = strsplit(resultString, ":");
-            valueString = char(parts{end});
-
-            value = this.ParseSIPrefixedValue(valueString);
+            value = this.ParseSignalResponse(resultString);
         end
 
         function varargout = GetSensorInformation(this, deviceAddress, includeTemperature)
@@ -176,6 +186,168 @@ classdef MercuryITC < Palladium.Core.Instrument
             else
                 varargout = {v, c, r};
             end
+        end
+
+        function AssignAuxToLoop(this, deviceAddress, auxUID)
+            %Associate an auxiliary/gas-flow device (eg "DEV:DB3:AUX")
+            %with the PID control loop of the given temperature sensor
+            %device address (LOOP:AUX)
+            arguments
+                this;
+                deviceAddress {mustBeTextScalar};
+                auxUID {mustBeTextScalar};
+            end
+
+            if this.SimulationMode
+                disp("Aux device " + string(auxUID) + " assigned to loop on " + string(deviceAddress));
+                return;
+            end
+
+            this.SetLoopString(deviceAddress, "AUX", auxUID);
+        end
+
+        function AssignHeaterToLoop(this, deviceAddress, heaterUID)
+            %Associate a heater device (eg "DEV:MB0:HTR") with the PID
+            %control loop of the given temperature sensor device address
+            %(LOOP:HTR)
+            arguments
+                this;
+                deviceAddress {mustBeTextScalar};
+                heaterUID {mustBeTextScalar};
+            end
+
+            if this.SimulationMode
+                disp("Heater " + string(heaterUID) + " assigned to loop on " + string(deviceAddress));
+                return;
+            end
+
+            this.SetLoopString(deviceAddress, "HTR", heaterUID);
+        end
+
+        function DisablePIDControl(this, deviceAddress)
+            %Disable (Manual mode) the PID control loop of the given
+            %temperature sensor device address (LOOP:ENAB)
+            arguments
+                this;
+                deviceAddress {mustBeTextScalar};
+            end
+
+            if this.SimulationMode
+                disp("PID control disabled on " + string(deviceAddress));
+                return;
+            end
+
+            this.SetLoopString(deviceAddress, "ENAB", "OFF");
+        end
+
+        function EnablePIDControl(this, deviceAddress)
+            %Enable (Auto mode) the PID control loop of the given
+            %temperature sensor device address (LOOP:ENAB)
+            arguments
+                this;
+                deviceAddress {mustBeTextScalar};
+            end
+
+            if this.SimulationMode
+                disp("PID control enabled on " + string(deviceAddress));
+                return;
+            end
+
+            this.SetLoopString(deviceAddress, "ENAB", "ON");
+        end
+
+        function isEnabled = GetPIDControlEnabled(this, deviceAddress)
+            %Is the PID control loop of the given temperature sensor
+            %device address currently enabled (Auto) or disabled (Manual)
+            arguments
+                this;
+                deviceAddress {mustBeTextScalar};
+            end
+
+            if this.SimulationMode
+                isEnabled = false;
+                return;
+            end
+
+            isEnabled = strcmpi(this.GetLoopString(deviceAddress, "ENAB"), "ON");
+        end
+
+        function [P, I, D] = GetPIDValues(this, deviceAddress)
+            %Read the PID control loop values (LOOP:P/I/D) associated
+            %with the given temperature sensor device address
+            arguments
+                this;
+                deviceAddress {mustBeTextScalar};
+            end
+
+            if this.SimulationMode
+                P = 0;
+                I = 0;
+                D = 0;
+                return;
+            end
+
+            P = this.GetLoopValue(deviceAddress, "P");
+            I = this.GetLoopValue(deviceAddress, "I");
+            D = this.GetLoopValue(deviceAddress, "D");
+        end
+
+        function SetPIDValues(this, deviceAddress, P, I, D)
+            %Set the PID control loop values (LOOP:P/I/D) associated with
+            %the given temperature sensor device address
+            arguments
+                this;
+                deviceAddress {mustBeTextScalar};
+                P (1,1) double;
+                I (1,1) double;
+                D (1,1) double;
+            end
+
+            if this.SimulationMode
+                disp("PID values on " + string(deviceAddress) + " set to P=" + num2str(P) + ", I=" + num2str(I) + ", D=" + num2str(D));
+                return;
+            end
+
+            this.SetLoopValue(deviceAddress, "P", P);
+            this.SetLoopValue(deviceAddress, "I", I);
+            this.SetLoopValue(deviceAddress, "D", D);
+        end
+
+        function setpoint_K = GetTemperatureSetpoint(this, deviceAddress)
+            %Read the PID control loop's temperature setpoint (LOOP:TSET)
+            %associated with the given temperature sensor device address
+            arguments
+                this;
+                deviceAddress {mustBeTextScalar};
+            end
+
+            if this.SimulationMode
+                setpoint_K = 0;
+                return;
+            end
+
+            setpoint_K = this.GetLoopValue(deviceAddress, "TSET");
+        end
+
+        function SetTemperatureSetpoint(this, deviceAddress, setpoint_K)
+            %Set the PID control loop's temperature setpoint (LOOP:TSET)
+            %associated with the given temperature sensor device address.
+            %The loop must have a heater assigned (AssignHeaterToLoop) and
+            %PID control enabled (EnablePIDControl) for this to actually
+            %drive the temperature.
+            arguments
+                this;
+                deviceAddress {mustBeTextScalar};
+                setpoint_K (1,1) double;
+            end
+
+            if this.SimulationMode
+                disp("Temperature setpoint on " + string(deviceAddress) + " set to " + num2str(setpoint_K) + " K");
+                return;
+            end
+
+            achievedSetPt = this.SetLoopValue(deviceAddress, "TSET", setpoint_K);
+            assert(achievedSetPt == setpoint_K, "Failed to set temperature setpoint on " + string(deviceAddress) + ". Requested " + num2str(setpoint_K) + " K, achieved " + num2str(achievedSetPt) + " K.");
         end
 
         function [dataRow] = Measure(this)
@@ -257,14 +429,20 @@ classdef MercuryITC < Palladium.Core.Instrument
             %"TEMP". Mirrors GuessUnitFromDeviceAddress's type mapping.
             %Returns "" for device types this class doesn't otherwise
             %handle (eg LVL, PSU, GRPZ), which Measure() reports as NaN.
+            %
+            %Signal names are per the manual's per-device SIG tables
+            %(section 10.3.11 TEMP, 10.3.15 HTR, 10.3.17 AUX, 10.3.18
+            %PRES) - note HTR's power signal is "POWR", not "PWR".
             addr = upper(string(deviceAddress));
 
             if contains(addr, "TEMP")
                 signalName = "TEMP";
             elseif contains(addr, "HTR")
-                signalName = "PWR";
+                signalName = "POWR";
             elseif contains(addr, "AUX")
                 signalName = "PERC";
+            elseif contains(addr, "PRES")
+                signalName = "PRES";
             else
                 signalName = "";
             end
@@ -283,8 +461,175 @@ classdef MercuryITC < Palladium.Core.Instrument
                 unit = "W";
             elseif contains(addr, "AUX")
                 unit = "%";
+            elseif contains(addr, "PRES")
+                unit = "mbar";
             else
                 unit = "??";
+            end
+        end
+
+        function value = GetLoopValue(this, deviceAddress, loopCommand)
+            %Generic numeric read of a DEV:<uid>:TEMP:LOOP:<loopCommand>
+            %value, eg loopCommand = "TSET", "P", "I", "D"
+            arguments
+                this;
+                deviceAddress {mustBeTextScalar};
+                loopCommand {mustBeTextScalar};
+            end
+
+            if this.SimulationMode
+                value = 0;
+                return;
+            end
+
+            resultString = this.ReadValue(string(deviceAddress) + ":LOOP:" + string(loopCommand));
+            value = this.ParseSignalResponse(resultString);
+        end
+
+        function strVal = GetLoopString(this, deviceAddress, loopCommand)
+            %Generic string read of a DEV:<uid>:TEMP:LOOP:<loopCommand>
+            %value, eg loopCommand = "ENAB", "HTR", "AUX"
+            arguments
+                this;
+                deviceAddress {mustBeTextScalar};
+                loopCommand {mustBeTextScalar};
+            end
+
+            if this.SimulationMode
+                strVal = "";
+                return;
+            end
+
+            resultString = this.ReadValue(string(deviceAddress) + ":LOOP:" + string(loopCommand));
+            strVal = this.ParseStringResponse(resultString);
+        end
+
+        function mult = GetSIPrefixMultiplier(~, unitToken)
+            %Convert an SI-prefixed unit string (eg "mK", "uA") into its
+            %multiplier. A bare unit with no recognised prefix (eg "K",
+            %"A") returns a multiplier of 1, matching the manual's own
+            %definition of "$ - none" as one of the possible scales.
+            prefixMap = containers.Map(...
+                {'n', 'u', char(181), 'm', 'k', 'M'}, ...   %char(181) is the micro sign
+                {1e-9, 1e-6, 1e-6, 1e-3, 1e3, 1e6});
+
+            if isempty(unitToken) || strlength(string(unitToken)) < 2
+                mult = 1;
+                return;
+            end
+
+            firstChar = char(unitToken);
+            firstChar = firstChar(1);
+
+            if isKey(prefixMap, firstChar)
+                mult = prefixMap(firstChar);
+            else
+                mult = 1;
+            end
+        end
+
+        function value = ParseSignalResponse(this, responseString)
+            %Parse a STAT:...:<value> response into a double. Handles a
+            %SET confirmation echoing back a plain unscaled number (eg
+            %"...:TSET:4.321:VALID"), a READ of a signal returning the
+            %number and its SI-prefixed unit as separate colon-delimited
+            %tokens (eg "...:SIG:VOLT:12.345:mV:VALID"), and (as a
+            %fallback) the number and unit concatenated into one token.
+            tokens = this.StripAndCheckStatusToken(strsplit(char(responseString), ":"), responseString);
+
+            lastToken = tokens{end};
+
+            %Case 1 - plain unscaled numeric value
+            directValue = str2double(lastToken);
+            if ~isnan(directValue)
+                value = directValue;
+                return;
+            end
+
+            %Case 2 - number and SI-prefixed unit as separate tokens
+            if numel(tokens) >= 2 && ~isnan(str2double(tokens{end-1}))
+                value = str2double(tokens{end-1}) * this.GetSIPrefixMultiplier(lastToken);
+                return;
+            end
+
+            %Case 3 - number and unit concatenated into a single token
+            value = this.ParseSIPrefixedValue(lastToken);
+        end
+
+        function strVal = ParseStringResponse(this, responseString)
+            %Parse a STAT:...:<value> response where the value is a
+            %string/enumerated status (eg ON/OFF) rather than a number.
+            tokens = this.StripAndCheckStatusToken(strsplit(char(responseString), ":"), responseString);
+            strVal = string(tokens{end});
+        end
+
+        function confirmedValue = SetLoopValue(this, deviceAddress, loopCommand, value)
+            %Generic numeric write to a DEV:<uid>:TEMP:LOOP:<loopCommand>
+            %value, eg loopCommand = "TSET", "P", "I", "D". Verifies the
+            %instrument confirmed the value was VALID and returns the
+            %confirmed (echoed) value.
+            arguments
+                this;
+                deviceAddress {mustBeTextScalar};
+                loopCommand {mustBeTextScalar};
+                value (1,1) double;
+            end
+
+            if this.SimulationMode
+                confirmedValue = value;
+                return;
+            end
+
+            commandStr = string(deviceAddress) + ":LOOP:" + string(loopCommand) + ":" + num2str(value);
+            responseString = this.SetValue(commandStr);
+            confirmedValue = this.ParseSignalResponse(responseString);
+        end
+
+        function confirmedStr = SetLoopString(this, deviceAddress, loopCommand, valueStr)
+            %Generic string write to a DEV:<uid>:TEMP:LOOP:<loopCommand>
+            %value, eg loopCommand = "ENAB", "HTR", "AUX". Verifies the
+            %instrument confirmed the value was VALID and returns the
+            %confirmed (echoed) value.
+            arguments
+                this;
+                deviceAddress {mustBeTextScalar};
+                loopCommand {mustBeTextScalar};
+                valueStr {mustBeTextScalar};
+            end
+
+            if this.SimulationMode
+                confirmedStr = string(valueStr);
+                return;
+            end
+
+            commandStr = string(deviceAddress) + ":LOOP:" + string(loopCommand) + ":" + string(valueStr);
+            responseString = this.SetValue(commandStr);
+            confirmedStr = this.ParseStringResponse(responseString);
+        end
+
+        function tokens = StripAndCheckStatusToken(~, tokens, originalResponse)
+            %Strip a trailing VALID confirmation token, or raise a clear
+            %error for one of the manual's documented invalid-response
+            %tokens (section 10.4, Table 39): INVALID, NOT_FOUND, N/A or
+            %DENIED - rather than letting them fall through to a
+            %confusing numeric parse failure.
+            if isempty(tokens)
+                return;
+            end
+
+            lastToken = string(tokens{end});
+
+            switch(upper(lastToken))
+                case "VALID"
+                    tokens(end) = [];
+                case "INVALID"
+                    error("MercuryiTC could not interpret command (INVALID): " + string(originalResponse));
+                case "NOT_FOUND"
+                    error("MercuryiTC device UID not found (NOT_FOUND): " + string(originalResponse));
+                case "N/A"
+                    error("MercuryiTC - function does not apply to this device (N/A): " + string(originalResponse));
+                case "DENIED"
+                    error("MercuryiTC denied permission to change this parameter (DENIED): " + string(originalResponse));
             end
         end
 
