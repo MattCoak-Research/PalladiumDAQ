@@ -138,6 +138,11 @@ classdef Keithley2410 < Palladium.Core.Instrument
         end
 
         function fourWireEnabled = GetFourWireEnabledStatus(this)
+            if (this.SimulationMode)
+                fourWireEnabled = true;
+                return;
+            end
+
             result = this.QueryDouble("SYST:RSEN?");
             fourWireEnabled = logical(result);
         end
@@ -220,6 +225,12 @@ classdef Keithley2410 < Palladium.Core.Instrument
             ylabelStr = hdrs(1);
         end
 
+        function data = FetchLatestData(this)
+            %This does not work in standard configuration. Here as a
+            %building block for future more complex triggered stuff
+            data = this.QueryDouble("SENS:DAT:LAT?");
+        end
+        
         function [complianceLimited] = IsAtComplianceLimit(this)
             if (this.SimulationMode)
                 compValue = 0;
@@ -334,12 +345,6 @@ classdef Keithley2410 < Palladium.Core.Instrument
                     error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
             end
 
-        end
-
-        function data = FetchLatestData(this)
-            %This does not work in standard configuration. Here as a
-            %building block for future more complex triggered stuff
-            data = this.QueryDouble("SENS:DAT:LAT?");
         end
 
         function [voltage, current, resistance] = ReadData(this)
