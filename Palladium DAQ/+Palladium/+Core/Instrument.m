@@ -280,6 +280,9 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
 
                 %Send query
                 val = query(this.DeviceHandle, command);
+
+                %Strip any leading or trailing whitespace or newlines
+                val = strip(val);
             end
         end
 

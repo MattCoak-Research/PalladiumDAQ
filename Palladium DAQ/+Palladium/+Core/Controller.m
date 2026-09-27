@@ -227,7 +227,7 @@ classdef Controller < handle
                     error(['Error - file name not valid: ' strrep(this.FileWriteDetails.FileName, '\', '\\')]);
                 end
             catch err
-                this.Controller.HandleError('Invalid file path. Cannot start measurements', err);
+                this.HandleError('Invalid file path. Cannot start measurements', err);
                 return;
             end
 
@@ -581,7 +581,7 @@ classdef Controller < handle
                 %Need to do something here to keep programme running when
                 %CollectMeasurement errors - set the dataRow to NaNs.
                 dataRow = nan([1, length(this.Headers)]);
-                this.Controller.Log("Warning", "Data Row set to NaN values due to error thrown in CollectMeasurements", "Yellow", "Data Row set to NaN values due to error thrown in CollectMeasurements");
+                this.Log("Warning", "Data Row set to NaN values due to error thrown in CollectMeasurements", "Yellow", "Data Row set to NaN values due to error thrown in CollectMeasurements");
             end
 
             try

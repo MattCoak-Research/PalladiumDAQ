@@ -1,11 +1,17 @@
 classdef Keithley2450 < Palladium.Core.Instrument
-    %Instrument implementation for Keithley 2450 source meter - use this rather than the 24X0 more general (and deprecated) option.
+    %Instrument implementation for Keithley 2450 source meter. Most likely
+    %works for a 2470 too, but is not tested.
 
     %% Properties (Public)
     properties(Access = public)
         FullName = "Keithley 2450 Src Meter";       %Full name, just for displaying on GUI
     end
     
+    %% Properties (Constant)
+    properties(Constant)
+        ABORT_PAUSE_S = 0.05;       %s, wait after sending abort, and after a device clear, before the next step of AbortScript. Tested on two 2450s (fw 1.7.12b/1.7.16a) with hung TSP scripts: even 0 s worked reliably, this leaves a margin
+    end
+
     %% Properties (Public, Set Observable)
     % These properties will appear in the Instrument Settings GUI and are editable there
     properties(Access = public, SetObservable)
@@ -55,23 +61,58 @@ classdef Keithley2450 < Palladium.Core.Instrument
     %% Methods (Public)
     methods (Access = public)
 
+        function AbortScript(this, Settings)
+            %Stop anything running on the instrument (a TSP script, or the
+            %trigger model in SCPI), clear the GPIB interface so it is
+            %ready for new commands, and turn the output off. Use to
+            %recover from a hung script, e.g. one waiting forever for a
+            %trigger. Settings and stored data are not affected. To stop
+            %several instruments quickly, call SendAbortCommand,
+            %ClearInterface and TurnOutputOff on each in turn, sharing the
+            %pauses between them (see Keithley2450_Double_GateSweep)
+            arguments
+                this;
+                Settings.Pause_s (1,1) double {mustBeNonnegative} = this.ABORT_PAUSE_S;    %Wait after the abort and after the device clear, for the instrument to process each
+            end
+            if (this.SimulationMode); return; end
+
+            this.SendAbortCommand();
+            pause(Settings.Pause_s);
+
+            %Device clear - empties the input buffer, output queue and
+            %command queue, so no stale responses or queued commands remain
+            this.ClearInterface();
+            pause(Settings.Pause_s);
+
+            this.TurnOutputOff();
+        end
+
         function Connect(this)
             %Call base class functionality
             Connect@Palladium.Core.Instrument(this);
 
+            %Discard anything left over from an earlier session (e.g. a
+            %late reply to a query that timed out), so the first query below
+            %gets its own reply
+            this.ClearInterface();
+
             %Check the command language set on the hardware matches our
             %Language setting - it can only be changed on the instrument
-            %with a reboot, so adopt the hardware setting and warn the user
+            %with a reboot, so error with instructions if not
             if ~this.SimulationMode
                 hardwareLanguage = this.GetLanguage();
                 if hardwareLanguage ~= this.Language
                     msg = this.Name + " is configured on the hardware to use the " + string(hardwareLanguage) + ...
-                        " command set, but its Language setting was " + string(this.Language) + ". Using " + string(hardwareLanguage) + ...
-                        " for this session. To use " + string(this.Language) + ", change the command set on the instrument " + ...
-                        "(MENU > System > Settings > Command Set, or send *LANG " + string(this.Language) + ") and reboot it.";
+                        " command set, but its Language setting is " + string(this.Language) + ". Set Language to " + string(hardwareLanguage) + ...
+                        ", or change the command set on the instrument (MENU > System > Settings > Command Set, or send *LANG " + ...
+                        string(this.Language) + ") and reboot it.";
                     error(msg);
                 end
             end
+
+            %Start with an empty event log, so any errors reported during
+            %measurements come from this session
+            this.ClearErrorQueue();
 
             %Query hardware options and setup, set properties like
             %MeasurementMode based on this
@@ -79,11 +120,46 @@ classdef Keithley2450 < Palladium.Core.Instrument
             this.MeasMode = this.GetMeasurementMode();
         end
 
-        function metadataStruct = CollectMetaData(this)             
+        function ClearErrorQueue(this)
+            %Remove all events from the instrument's event log (errors,
+            %warnings and info) - note this also clears the front-panel
+            %event log
+            if (this.SimulationMode); return; end
+
+            switch(this.Language)
+                case(this.LanguageType("SCPI"))
+                    this.WriteCommand("SYST:CLE");
+                case(this.LanguageType("TSP"))
+                    this.WriteCommand("eventlog.clear()");
+                otherwise
+                    error("Unsupported language type " + string(this.Language));
+            end
+        end
+
+        function ClearInterface(this)
+            %Device clear: empties the instrument's input buffer, output
+            %queue and command queue, so no stale replies or queued
+            %commands are left to be mistaken for the next query's reply.
+            %Settings and stored data are not affected. Does not stop a
+            %running script - use AbortScript for that
+            if (this.SimulationMode); return; end
+
+            try
+                clrdevice(this.DeviceHandle);
+            catch
+                %Device clear only exists for VISA connections (GPIB, USB,
+                %VISA) - for Ethernet (tcpclient) just empty MATLAB's own
+                %buffers
+                flush(this.DeviceHandle);
+            end
+        end
+
+        function metadataStruct = CollectMetaData(this)
             %Record instrument settings and metadata like compliance,
             %voltage, measurement mode, that will not change during the
             %measurement and therefore don't merit logging each step
             [~, metadataStruct.ComplianceLevel] = this.GetComplianceLevel();
+            metadataStruct.MeasurementMode = this.MeasMode;
             metadataStruct.SourceMode = this.GetSourceMode();
             [metadataStruct.NumPowerLineCycles,  metadataStruct.IntegrationTime_s] = this.GetNPLC();
             metadataStruct.FourWireMode = this.GetFourWireEnabledStatus();
@@ -96,10 +172,10 @@ classdef Keithley2450 < Palladium.Core.Instrument
                 switch(this.Language)
                     case(this.LanguageType("SCPI"))
                         switch(this.SourceMode)
-                            case(this.SourceType("Voltage"))   %Compliance is opposite to source..
-                                compValue = this.QueryDouble("SENS:CURR:PROT:LEV?");
+                            case(this.SourceType("Voltage"))   %Compliance is opposite to source.. the 2450 names it after the source function, e.g. SOUR:VOLT:ILIM is the current limit when sourcing voltage
+                                compValue = this.QueryDouble("SOUR:VOLT:ILIM?");
                             case(this.SourceType("Current"))
-                                compValue = this.QueryDouble("SENS:VOLT:PROT:LEV?");
+                                compValue = this.QueryDouble("SOUR:CURR:VLIM?");
                             otherwise
                                 error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
                         end
@@ -133,6 +209,61 @@ classdef Keithley2450 < Palladium.Core.Instrument
             compStringWithUnits = num2str(compValue*1000, 6) + str;
         end
 
+        function errorCount = GetErrorCount(this)
+            %Number of unread errors in the instrument's event log (errors
+            %only, not warnings or info). Does not remove them
+            if (this.SimulationMode)
+                errorCount = 0;
+                return;
+            end
+
+            switch(this.Language)
+                case(this.LanguageType("SCPI"))
+                    errorCount = this.QueryDouble("SYST:ERR:COUN?");
+                case(this.LanguageType("TSP"))
+                    errorCount = this.QueryDouble("print(eventlog.getcount(eventlog.SEV_ERROR))");
+                otherwise
+                    error("Unsupported language type " + string(this.Language));
+            end
+        end
+
+        function errors = GetErrors(this)
+            %Read and remove all unread errors from the instrument's event
+            %log, oldest first. Returns a struct array with fields Code
+            %(event number) and Message - empty if there are no errors. Once
+            %read, errors can no longer be read remotely (they stay visible
+            %in the front-panel event log until cleared)
+            errors = struct("Code", {}, "Message", {});
+            if (this.SimulationMode); return; end
+
+            numErrors = this.GetErrorCount();
+            for i = 1:numErrors
+                switch(this.Language)
+                    case(this.LanguageType("SCPI"))
+                        %Returns e.g. -109,"Missing parameter;1;2017/05/06 12:57:04.484"
+                        %- the quoted part is message;type;timestamp
+                        result = strtrim(string(this.QueryString("SYST:ERR?")));
+                        code = str2double(extractBefore(result, ","));
+                        quoted = strip(extractAfter(result, ","), """");
+                        fields = split(quoted, ";");
+                        message = join(fields(1:max(1, end-2)), ";");
+                    case(this.LanguageType("TSP"))
+                        %Returns tab-separated: code, message, severity,
+                        %node, seconds, nanoseconds
+                        result = strtrim(string(this.QueryString("print(eventlog.next(eventlog.SEV_ERROR))")));
+                        fields = split(result, sprintf('\t'));
+                        code = str2double(fields(1));
+                        message = fields(min(2, end));
+                    otherwise
+                        error("Unsupported language type " + string(this.Language));
+                end
+
+                %Code 0 means the log is empty (nothing left to read)
+                if code == 0; break; end
+                errors(end+1) = struct("Code", code, "Message", message); %#ok<AGROW>
+            end
+        end
+
         function fourWireEnabled = GetFourWireEnabledStatus(this)
             if (this.SimulationMode)
                 fourWireEnabled = true;
@@ -141,7 +272,9 @@ classdef Keithley2450 < Palladium.Core.Instrument
 
             switch(this.Language)
                 case(this.LanguageType("SCPI"))
-                    result = this.QueryDouble("SYST:RSEN?");
+                    %Remote sense is set per measure function on the 2450
+                    %(there is no global SYST:RSEN as on the 2400)
+                    result = this.QueryDouble("SENS:" + this.MeasFunction + ":RSEN?");
                     fourWireEnabled = logical(result);
                 case(this.LanguageType("TSP"))
                      result = this.QueryString("print(smu.measure.sense)");
@@ -370,8 +503,43 @@ classdef Keithley2450 < Palladium.Core.Instrument
                     error("Unsupported language type " + string(this.Language));
             end
         end
-        
+
+        function [ovp_V, ovpSetting] = GetVoltageSourceOVP(this)
+            %Overvoltage protection level for the voltage source function
+            %(OVP is stored per source function - this reads the voltage
+            %one whichever function is active). ovp_V is the limit in volts
+            %(Inf for none); ovpSetting is the instrument's own value, e.g.
+            %"smu.PROTECT_40V" (TSP) or "PROT40" (SCPI), for passing back to
+            %SetVoltageSourceOVP - a reset clears it to none
+            if (this.SimulationMode)
+                ovp_V = Inf;
+                ovpSetting = "smu.PROTECT_NONE";
+                return;
+            end
+
+            switch(this.Language)
+                case(this.LanguageType("SCPI"))
+                    ovpSetting = strtrim(string(this.QueryString("SOUR:VOLT:PROT?")));
+                case(this.LanguageType("TSP"))
+                    ovpSetting = strtrim(string(this.QueryString("print(smu.source.getattribute(smu.FUNC_DC_VOLTAGE, smu.ATTR_SRC_PROTECT_LEVEL))")));
+                otherwise
+                    error("Unsupported language type " + string(this.Language));
+            end
+
+            if contains(ovpSetting, "NONE")
+                ovp_V = Inf;
+            else
+                ovp_V = str2double(regexp(ovpSetting, "\d+", "match", "once"));
+                if isnan(ovp_V)
+                    error("Unexpected overvoltage protection setting: " + ovpSetting);
+                end
+            end
+        end
+
         function [complianceLimited] = IsAtComplianceLimit(this)
+            %Note the hardware's tripped flag reflects the LAST measurement
+            %taken, it is not a live reading of the output - Measure takes
+            %its compliance flag from each reading's source status instead
             if (this.SimulationMode)
                 complianceLimited = false;
                 return;
@@ -382,9 +550,9 @@ classdef Keithley2450 < Palladium.Core.Instrument
                     %Run volt or current queries depending on measurement mode
                     switch(this.SourceMode)
                         case(this.SourceType("Voltage"))   %Compliance is opposite to source.. and note that this command is different in the newer 2450 to the older models
-                            compValue = this.QueryDouble("SENS:CURR:VLIM:TRIP?");
+                            compValue = this.QueryDouble("SOUR:VOLT:ILIM:TRIP?");
                         case(this.SourceType("Current"))
-                            compValue = this.QueryDouble("SENS:VOLT:ILIM:TRIP?");
+                            compValue = this.QueryDouble("SOUR:CURR:VLIM:TRIP?");
                         otherwise
                             error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
                     end
@@ -414,6 +582,47 @@ classdef Keithley2450 < Palladium.Core.Instrument
             end
         end
 
+        function tf = IsInterlockEngaged(this)
+            %true if the safety interlock is engaged - required to source
+            %more than 42 V; without it the output is silently limited to
+            %below 42 V. (The instrument calls this state "tripped")
+            if (this.SimulationMode)
+                tf = true;
+                return;
+            end
+
+            switch(this.Language)
+                case(this.LanguageType("SCPI"))
+                    tf = this.QueryDouble("OUTP:INT:TRIP?") == 1;
+                case(this.LanguageType("TSP"))
+                    result = strtrim(string(this.QueryString("print(smu.interlock.tripped)")));
+                    tf = any(result == ["smu.ON", "1"]);
+                otherwise
+                    error("Unsupported language type " + string(this.Language));
+            end
+        end
+
+        function tf = IsReplyWaiting(this)
+            %true if the instrument has a reply waiting to be read. Unlike
+            %a read, this never blocks: over GPIB/VISA it is a serial poll,
+            %which works even while a TSP script is running - so it can be
+            %used to wait for a script to print its result while staying
+            %responsive (e.g. to an Abort button). An error in the event
+            %log does not count as a reply
+            if (this.SimulationMode)
+                tf = true;
+                return;
+            end
+
+            try
+                tf = visastatus(this.DeviceHandle);
+            catch
+                %No serial poll for Ethernet (tcpclient) - check MATLAB's
+                %receive buffer instead
+                tf = this.DeviceHandle.NumBytesAvailable > 0;
+            end
+        end
+
         function [dataRow] = Measure(this)
             %Retrieve source level (will work for simulated and real data
             %both)
@@ -425,45 +634,90 @@ classdef Keithley2450 < Palladium.Core.Instrument
                 return;
             end
 
-            %Take a reading and retrieve it along with the source value
-            %stored with it in the buffer. With source readback on (the
-            %default) this is the measured source value, not the programmed
-            %level - these differ when in compliance. The reading's units
-            %(Ohms, V, A or W) follow MeasMode
+            %Take a reading and retrieve it along with the source value and
+            %source status stored with it in the buffer, plus the number of
+            %unread instrument errors, all in one query. With source
+            %readback on (the default) the source value is the measured one,
+            %not the programmed level - these differ when in compliance. The
+            %reading's units (Ohms, V, A or W) follow MeasMode
             switch(this.Language)
                 case(this.LanguageType("SCPI"))
-                    %Returns "reading,source"
-                    data = this.QueryString("READ? ""defbuffer1"", READ, SOUR");
+                    %Returns "reading,source,sourcestatus;errorcount"
+                    data = this.QueryString("READ? ""defbuffer1"", READ, SOUR, SOURSTAT;:SYST:ERR:COUN?");
                 case(this.LanguageType("TSP"))
-                    %Returns "reading<TAB>source". defbuffer1 is a
-                    %continuous (ring) buffer, so the newest entry is at
-                    %endindex - n stops increasing once it wraps
-                    data = this.QueryString("local r = smu.measure.read() print(r, defbuffer1.sourcevalues[defbuffer1.endindex])");
+                    %Returns "reading<TAB>source<TAB>sourcestatus<TAB>errorcount".
+                    %defbuffer1 is a continuous (ring) buffer, so the newest
+                    %entry is at endindex - n stops increasing once it wraps
+                    data = this.QueryString("local r = smu.measure.read() print(r, defbuffer1.sourcevalues[defbuffer1.endindex], defbuffer1.sourcestatuses[defbuffer1.endindex], eventlog.getcount(eventlog.SEV_ERROR))");
                 otherwise
                     error("Unsupported language type " + string(this.Language));
             end
 
-            values = str2double(strsplit(strtrim(string(data)), {',', sprintf('\t')}));
-            if numel(values) ~= 2
+            parts = strsplit(strtrim(string(data)), {',', ';', sprintf('\t')});
+
+            %The error count is always the last field - report any errors
+            %the instrument has logged (e.g. why a reading failed) as
+            %warnings before checking the reading. Reading them also clears
+            %them
+            if str2double(parts(end)) > 0
+                errors = this.GetErrors();
+                for i = 1:numel(errors)
+                    Palladium.Logging.Logger.Log("Warning", this.Name + " reported instrument error " + errors(i).Code + ": " + errors(i).Message);
+                end
+            end
+
+            %A failed read (e.g. output off in resistance/4-wire mode)
+            %returns no data in SCPI, leaving only the error count, while in
+            %TSP it prints nil for the reading with the source value and
+            %status from the previous reading in the buffer - so reject it
+            %rather than record stale values
+            if isscalar(parts) || parts(1) == "nil"
+                error("Measurement failed - instrument returned no reading (e.g. output off in Resistance or 4-wire mode). See the instrument error reported in the warning above.");
+            end
+
+            values = str2double(parts(1:end-1));
+            if numel(values) ~= 3 || any(isnan(values))
                 error("Unexpected measurement response: " + data);
             end
-            dataRow = values;
 
             %The instrument returns 9.9e37 for an overrange reading (fixed
             %range overflow) - record these as NaN rather than a huge number
+            dataRow = values(1:2);
             dataRow(abs(dataRow) >= 9.9e37) = NaN;
 
-            %Check if we have hit compliance, save that (1 or 0) as a data column
-            complianceLimited = this.IsAtComplianceLimit();
+            %Source status bit 5 (value 32, STAT_LIMIT) is set when the
+            %source was limited (in compliance) for this reading - save that
+            %(1 or 0) as a data column
+            complianceLimited = bitand(values(3), 32) ~= 0;
             dataRow = [dataRow, complianceLimited];
-        end    
+        end
 
         function Reset(this)
+            %Clear the interface first, so no stale replies or queued
+            %commands survive the reset, then reset all settings to defaults
+            this.ClearInterface();
+
             switch(this.Language)
                 case(this.LanguageType("SCPI"))
                     this.WriteCommand("*RST");
                 case(this.LanguageType("TSP"))
                     this.WriteCommand("reset(true)");
+                otherwise
+                    error("Unsupported language type " + string(this.Language));
+            end
+        end
+
+        function SendAbortCommand(this)
+            %Stop a running TSP script (or the trigger model in SCPI).
+            %abort is processed even while a script is running. Allow a
+            %short time (ABORT_PAUSE_S) before sending further commands
+            if (this.SimulationMode); return; end
+
+            switch(this.Language)
+                case(this.LanguageType("SCPI"))
+                    this.WriteCommand("ABOR");
+                case(this.LanguageType("TSP"))
+                    this.WriteCommand("abort");
                 otherwise
                     error("Unsupported language type " + string(this.Language));
             end
@@ -517,6 +771,41 @@ classdef Keithley2450 < Palladium.Core.Instrument
                     end
                 case(this.LanguageType("TSP"))
                     this.WriteCommand("smu.source.level = " + num2str(level));
+                otherwise
+                    error("Unsupported language type " + string(this.Language));
+            end
+        end
+
+        function SetVoltageSourceOVP(this, ovpSetting)
+            %Set the voltage source function's overvoltage protection, from
+            %a value returned by GetVoltageSourceOVP (e.g. to restore it
+            %after a reset). Set it before turning the output on
+            arguments
+                this;
+                ovpSetting (1,1) string;
+            end
+            if (this.SimulationMode); return; end
+
+            switch(this.Language)
+                case(this.LanguageType("SCPI"))
+                    assert(~isempty(regexp(ovpSetting, "^(PROT\d+|NONE)$", "once")), "Invalid SCPI overvoltage protection setting: " + ovpSetting);
+                    this.WriteCommand("SOUR:VOLT:PROT " + ovpSetting);
+                case(this.LanguageType("TSP"))
+                    assert(~isempty(regexp(ovpSetting, "^smu\.PROTECT_(\d+V|NONE)$", "once")), "Invalid TSP overvoltage protection setting: " + ovpSetting);
+                    this.WriteCommand("smu.source.setattribute(smu.FUNC_DC_VOLTAGE, smu.ATTR_SRC_PROTECT_LEVEL, " + ovpSetting + ")");
+                otherwise
+                    error("Unsupported language type " + string(this.Language));
+            end
+        end
+
+        function TurnOutputOff(this)
+            if (this.SimulationMode); return; end
+
+            switch(this.Language)
+                case(this.LanguageType("SCPI"))
+                    this.WriteCommand("OUTP OFF");
+                case(this.LanguageType("TSP"))
+                    this.WriteCommand("smu.source.output = smu.OFF");
                 otherwise
                     error("Unsupported language type " + string(this.Language));
             end

@@ -65,13 +65,16 @@ classdef InstrumentControlBase < Palladium.Core.Entity
         end
 
         function MeasurementsStopped(this, src, eventArgs) %#ok<INUSD>
-
+            this.OnMeasurementsStopped();
         end
 
         function OnMeasurementsStarted(this)
             %Do nothing, child classes can override
         end
 
+        function OnMeasurementsStopped(this)
+            %Do nothing, child classes can override
+        end
 
         function PlotterAxesSelectionChange(this, pltr)
             %This is needed for the case where we want to change the
@@ -155,13 +158,16 @@ classdef InstrumentControlBase < Palladium.Core.Entity
             dataRow = this.Instrument.LastFullDataRow;
             hdrsRow = this.Instrument.FullHeadersRow;
 
-            %Error checking
+            %Error checking - return an empty line (so callers can still
+            %write the rest of the file) if there is no data row yet, e.g.
+            %a sweep started before the first measurement tick
+            stringLine = "";
             if isempty(dataRow)
                 warning("Data row empty in " + this.Instrument.FullName + ", cannot log to file");
                 return;
             end
             if isempty(hdrsRow)
-                warning("Data row empty in "  + this.Instrument.FullName + ", cannot log to file");
+                warning("Headers row empty in "  + this.Instrument.FullName + ", cannot log to file");
                 return;
             end
 
