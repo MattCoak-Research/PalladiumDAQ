@@ -17,12 +17,17 @@ classdef Keithley2450 < Palladium.Core.Instrument
     %% Properties (Public, Private Set)
     properties(GetAccess = public, SetAccess = private)
         SourceMode;                                 %Source function/mode: Current or Voltage. Will be queried from the hardware right after connecting.
-        MeasMode;                                   %Measurement mode: Resistance, Voltage or Current. Will be queried from the hardware right after connecting.
+        MeasMode;                                   %Measurement mode: Resistance, Voltage, Current or Power. Will be queried from the hardware (measure function and units) right after connecting.
+    end
+
+    %% Properties (Private)
+    properties(Access = private)
+        MeasFunction;                               %Underlying SCPI measure function (CURR, VOLT or RES) - differs from MeasMode when units are changed, e.g. VOLT measured in Ohms gives Resistance
     end
 
     %% Categoricals
     methods
-        function catOut = MeasType(this, inputStr); catOut = this.ConvertToCategorical(inputStr, ["Resistance", "Voltage", "Current"]); end
+        function catOut = MeasType(this, inputStr); catOut = this.ConvertToCategorical(inputStr, ["Resistance", "Voltage", "Current", "Power"]); end
         function catOut = SourceType(this, inputStr); catOut = this.ConvertToCategorical(inputStr, ["Voltage", "Current"]); end
         function catOut = LanguageType(this, inputStr); catOut = this.ConvertToCategorical(inputStr, ["TSP", "SCPI"]); end
     end
@@ -50,6 +55,30 @@ classdef Keithley2450 < Palladium.Core.Instrument
     %% Methods (Public)
     methods (Access = public)
 
+        function Connect(this)
+            %Call base class functionality
+            Connect@Palladium.Core.Instrument(this);
+
+            %Check the command language set on the hardware matches our
+            %Language setting - it can only be changed on the instrument
+            %with a reboot, so adopt the hardware setting and warn the user
+            if ~this.SimulationMode
+                hardwareLanguage = this.GetLanguage();
+                if hardwareLanguage ~= this.Language
+                    msg = this.Name + " is configured on the hardware to use the " + string(hardwareLanguage) + ...
+                        " command set, but its Language setting was " + string(this.Language) + ". Using " + string(hardwareLanguage) + ...
+                        " for this session. To use " + string(this.Language) + ", change the command set on the instrument " + ...
+                        "(MENU > System > Settings > Command Set, or send *LANG " + string(this.Language) + ") and reboot it.";
+                    error(msg);
+                end
+            end
+
+            %Query hardware options and setup, set properties like
+            %MeasurementMode based on this
+            this.SourceMode = this.GetSourceMode();
+            this.MeasMode = this.GetMeasurementMode();
+        end
+
         function metadataStruct = CollectMetaData(this)             
             %Record instrument settings and metadata like compliance,
             %voltage, measurement mode, that will not change during the
@@ -74,17 +103,17 @@ classdef Keithley2450 < Palladium.Core.Instrument
                             otherwise
                                 error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
                         end
-                    case(this.LanguageType("TCP"))
+                    case(this.LanguageType("TSP"))
                         switch(this.SourceMode)
                             case(this.SourceType("Voltage"))   %Compliance is opposite to source..
-                                compValue = this.QueryDouble("smu.source.ilimit.level"); 
+                                compValue = this.QueryDouble("print(smu.source.ilimit.level)"); 
                             case(this.SourceType("Current"))
-                                compValue = this.QueryDouble("smu.source.vlimit.level"); 
+                                compValue = this.QueryDouble("print(smu.source.vlimit.level)"); 
                             otherwise
                                 error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
                         end
                     otherwise
-                        error("Unsupported language type " + string(this.LanguageType));
+                        error("Unsupported language type " + string(this.Language));
                 end
             end
 
@@ -97,8 +126,11 @@ classdef Keithley2450 < Palladium.Core.Instrument
                     error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
             end
 
-            %Multiply by 1000, millivolts or mA is easier to read
-            compStringWithUnits = num2str(compValue*1000) + str;
+            %Multiply by 1000, millivolts or mA is easier to read. Round to 6
+            %significant figures, as the hardware stores values like
+            %2.0999999046 for a 2.1 V limit (6 not 5, so the maximum 210 V
+            %limit prints as 210000 mV rather than in exponent form)
+            compStringWithUnits = num2str(compValue*1000, 6) + str;
         end
 
         function fourWireEnabled = GetFourWireEnabledStatus(this)
@@ -111,8 +143,8 @@ classdef Keithley2450 < Palladium.Core.Instrument
                 case(this.LanguageType("SCPI"))
                     result = this.QueryDouble("SYST:RSEN?");
                     fourWireEnabled = logical(result);
-                case(this.LanguageType("TCP"))
-                     result = this.QueryString("smu.measure.sense");
+                case(this.LanguageType("TSP"))
+                     result = this.QueryString("print(smu.measure.sense)");
                      if strcmp(result, "smu.SENSE_2WIRE")
                          fourWireEnabled = false;
                      elseif strcmp(result, "smu.SENSE_4WIRE")
@@ -120,7 +152,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                      end
 
                 otherwise
-                    error("Unsupported language type " + string(this.LanguageType));
+                    error("Unsupported language type " + string(this.Language));
             end
         end
 
@@ -144,14 +176,40 @@ classdef Keithley2450 < Palladium.Core.Instrument
                 case(this.MeasType("Voltage"))
                     Headers = [this.Name + " - Voltage_V", this.Name + " - Current_A", this.Name + " - Compliance Limited"];
                     Units = ["V", "A", ""];
+                case(this.MeasType("Power"))
+                    switch(this.SourceMode)
+                        case(this.SourceType("Current"))
+                            Headers = [this.Name + " - Power_W", this.Name + " - Current_A", this.Name + " - Compliance Limited"];
+                            Units = ["W", "A", ""];
+                        case(this.SourceType("Voltage"))
+                            Headers = [this.Name + " - Power_W", this.Name + " - Voltage_V", this.Name + " - Compliance Limited"];
+                            Units = ["W", "V", ""];
+                        otherwise
+                            error("Invalid type");
+                    end
                 otherwise
-                    error("Mode must be Resistance, Voltage, or Current, this was " + string(this.Mode));
+                    error("Mode must be Resistance, Voltage, Current or Power, this was " + string(this.MeasMode));
             end
 
             
         end
 
+        function lang = GetLanguage(this)
+            result = strtrim(string(this.QueryString("*LANG?")));
+            if strcmp(result, "TSP")
+                lang = this.LanguageType("TSP");
+            elseif strcmp(result, "SCPI")
+                lang = this.LanguageType("SCPI");
+            else
+                error("Unsupported instrument language: " + result);
+            end
+        end
+
         function measMode = GetMeasurementMode(this)
+            %The quantity actually measured depends on both the measure
+            %function and its units - e.g. a voltage measurement can be
+            %reported in Ohms (R = V / I_source) or Watts - so query both
+            %and set the mode from the units
             if (this.SimulationMode)
                 measMode = this.MeasType("Resistance");
                 return;
@@ -159,32 +217,54 @@ classdef Keithley2450 < Palladium.Core.Instrument
 
             switch(this.Language)
                 case(this.LanguageType("SCPI"))
+                    %Response is a quoted string with a possible suffix, e.g.
+                    %"CURR:DC" - strip quotes/whitespace and match on the start
                     result = this.QueryString("SENS:FUNC?");
+                    funcStr = upper(strtrim(erase(string(result), ["""", "'"])));
 
-                    if strcmp(result, "CURR")
-                        measMode = this.MeasType("Current");
-                    elseif strcmp(result, "VOLT")
-                        measMode = this.MeasType("Voltage");
-                    elseif strcmp(result, "RES")
-                        measMode = this.MeasType("Resistance");
+                    if startsWith(funcStr, "CURR")
+                        this.MeasFunction = "CURR";
+                    elseif startsWith(funcStr, "VOLT")
+                        this.MeasFunction = "VOLT";
+                    elseif startsWith(funcStr, "RES")
+                        this.MeasFunction = "RES";
                     else
-                        error("Unsupported source mode: " + result);
+                        error("Unsupported measurement function: " + result);
                     end
 
-                case(this.LanguageType("TCP"))
-                    result = this.QueryString("smu.measure.func");
-
-                    if strcmp(result, "smu.FUNC_DC_CURRENT")
-                        measMode = this.MeasType("Current");
-                    elseif strcmp(result, "smu.FUNC_DC_VOLTAGE")
-                        measMode = this.MeasType("Voltage");
-                    elseif strcmp(result, "smu.FUNC_DC_RESISTANCE")
-                        measMode = this.MeasType("Resistance");
+                    %Resistance function is always in Ohms, only voltage and
+                    %current have a selectable unit (AMP/VOLT, OHM or WATT)
+                    if this.MeasFunction == "RES"
+                        unitStr = "OHM";
                     else
-                        error("Unsupported source mode: " + result);
+                        unitStr = upper(strtrim(string(this.QueryString("SENS:" + this.MeasFunction + ":UNIT?"))));
                     end
+
+                case(this.LanguageType("TSP"))
+                    result = strtrim(string(this.QueryString("print(smu.measure.func)")));
+                    if ~any(strcmp(result, ["smu.FUNC_DC_CURRENT", "smu.FUNC_DC_VOLTAGE", "smu.FUNC_RESISTANCE"]))
+                        error("Unsupported measurement function: " + result);
+                    end
+
+                    %Returns e.g. smu.UNIT_OHM - strip the prefix to match
+                    %the SCPI unit names
+                    unitStr = strtrim(string(this.QueryString("print(smu.measure.unit)")));
+                    unitStr = upper(erase(unitStr, "smu.UNIT_"));
                 otherwise
-                    error("Unsupported language type " + string(this.LanguageType));
+                    error("Unsupported language type " + string(this.Language));
+            end
+
+            switch(unitStr)
+                case("AMP")
+                    measMode = this.MeasType("Current");
+                case("VOLT")
+                    measMode = this.MeasType("Voltage");
+                case("OHM")
+                    measMode = this.MeasType("Resistance");
+                case("WATT")
+                    measMode = this.MeasType("Power");
+                otherwise
+                    error("Unsupported measurement unit: " + unitStr);
             end
         end
 
@@ -197,20 +277,13 @@ classdef Keithley2450 < Palladium.Core.Instrument
             else
                 switch(this.Language)
                     case(this.LanguageType("SCPI"))
-                        switch(this.MeasMode)
-                            case(this.MeasType("Resistance"))
-                                nplc = this.QueryDouble("SENS:RES:NPLC?");
-                            case(this.MeasType("Voltage"))
-                                nplc = this.QueryDouble("SENS:VOLT:DC:NPLC?");
-                            case(this.MeasType("Current"))
-                                nplc = this.QueryDouble("SENS:CURR:DC:NPLC?");
-                            otherwise
-                                error("Mode must be Resistance, Voltage, or Current, this was " + this.MeasMode);
-                        end
-                    case(this.LanguageType("TCP"))
-                        nplc = this.QueryDouble("smu.measure.nplc");
+                        %NPLC belongs to the underlying measure function, not
+                        %the MeasMode (e.g. Resistance may be VOLT in Ohms)
+                        nplc = this.QueryDouble("SENS:" + this.MeasFunction + ":NPLC?");
+                    case(this.LanguageType("TSP"))
+                        nplc = this.QueryDouble("print(smu.measure.nplc)");
                     otherwise
-                        error("Unsupported language type " + string(this.LanguageType));
+                        error("Unsupported language type " + string(this.Language));
                 end
             end
 
@@ -219,11 +292,11 @@ classdef Keithley2450 < Palladium.Core.Instrument
 
         function [str, limits, xlabelStr, ylabelStr] = GetSweepUnitsString(this)
             switch(this.SourceMode)
-                case(this.MeasType("Voltage"))
+                case(this.SourceType("Voltage"))
                     xlabelStr = "Source Voltage (V)";
                     str = "V";
                     limits = [-50, 50];    %Need to check what these physical limits actually are and improve this
-                case(this.MeasType("Current"))
+                case(this.SourceType("Current"))
                     xlabelStr = "Source Current (A)";
                     str = "A";
                     limits = [-1, 1]; %Need to check what these physical limits actually are and improve this
@@ -246,19 +319,19 @@ classdef Keithley2450 < Palladium.Core.Instrument
                     switch(this.Language)
                         case(this.LanguageType("SCPI"))                            
                             srcLevel = this.QueryDouble("SOUR:VOLT:LEV:AMPL?");
-                        case(this.LanguageType("TCP"))
-                            srcLevel = this.QueryDouble("smu.source.getattribute(smu.FUNC_DC_VOLTAGE, smu.ATTR_SRC_LEVEL)");
+                        case(this.LanguageType("TSP"))
+                            srcLevel = this.QueryDouble("print(smu.source.getattribute(smu.FUNC_DC_VOLTAGE, smu.ATTR_SRC_LEVEL))");
                         otherwise
-                            error("Unsupported language type " + string(this.LanguageType));
+                            error("Unsupported language type " + string(this.Language));
                     end
                 case(this.SourceType("Current"))
                     switch(this.Language)
                         case(this.LanguageType("SCPI"))
                             srcLevel = this.QueryDouble("SOUR:CURR:LEV:AMPL?");
-                        case(this.LanguageType("TCP"))
-                            srcLevel = this.QueryDouble("smu.source.getattribute(smu.FUNC_DC_CURRENT, smu.ATTR_SRC_LEVEL)");
+                        case(this.LanguageType("TSP"))
+                            srcLevel = this.QueryDouble("print(smu.source.getattribute(smu.FUNC_DC_CURRENT, smu.ATTR_SRC_LEVEL))");
                         otherwise
-                            error("Unsupported language type " + string(this.LanguageType));
+                            error("Unsupported language type " + string(this.Language));
                     end
                 otherwise
                     error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
@@ -283,8 +356,8 @@ classdef Keithley2450 < Palladium.Core.Instrument
                         error("Unsupported source mode: " + result);
                     end
 
-                case(this.LanguageType("TCP"))
-                    result = this.QueryString("smu.source.func");
+                case(this.LanguageType("TSP"))
+                    result = this.QueryString("print(smu.source.func)");
 
                     if strcmp(result, "smu.FUNC_DC_CURRENT")
                         srcMode = this.SourceType("Current");
@@ -294,7 +367,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                         error("Unsupported source mode: " + result);
                     end
                 otherwise
-                    error("Unsupported language type " + string(this.LanguageType));
+                    error("Unsupported language type " + string(this.Language));
             end
         end
         
@@ -315,72 +388,87 @@ classdef Keithley2450 < Palladium.Core.Instrument
                         otherwise
                             error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
                     end
-                case(this.LanguageType("TCP"))
-                    compValue = this.QueryDouble("smu.source.xlimit.tripped");
-                otherwise
-                    error("Unsupported language type " + string(this.LanguageType));
-            end
+                    complianceLimited = logical(compValue);
+                case(this.LanguageType("TSP"))
+                    switch(this.SourceMode)
+                        case(this.SourceType("Voltage"))   %Compliance is opposite to source.. and note that this command is different in the newer 2450 to the older models
+                            result = this.QueryString("print(smu.source.ilimit.tripped)");
+                        case(this.SourceType("Current"))
+                            result = this.QueryString("print(smu.source.vlimit.tripped)");
+                        otherwise
+                            error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                    end
 
-            complianceLimited = logical(compValue);
+                    %Hardware returns the enum name smu.ON / smu.OFF (the
+                    %manual also documents 1 / 0, so accept either)
+                    result = strtrim(string(result));
+                    if any(strcmp(result, ["smu.ON", "1"]))
+                        complianceLimited = true;
+                    elseif any(strcmp(result, ["smu.OFF", "0"]))
+                        complianceLimited = false;
+                    else
+                        error("Unexpected compliance tripped response: " + result);
+                    end
+                otherwise
+                    error("Unsupported language type " + string(this.Language));
+            end
         end
 
         function [dataRow] = Measure(this)
             %Retrieve source level (will work for simulated and real data
             %both)
-            sourceLevel = this.GetSourceLevel();
-
             if(this.SimulationMode)
                 %Return dummy values if in simulation mode
+                sourceLevel = this.GetSourceLevel();
                 value = rand(1)*1e-7 + 2e-6;
                 dataRow = [value sourceLevel, 0];
                 return;
             end
 
-            %Query the source meter for latest measurement and get a string
+            %Take a reading and retrieve it along with the source value
+            %stored with it in the buffer. With source readback on (the
+            %default) this is the measured source value, not the programmed
+            %level - these differ when in compliance. The reading's units
+            %(Ohms, V, A or W) follow MeasMode
             switch(this.Language)
                 case(this.LanguageType("SCPI"))
-                    %returned. example for a 184 kOhm resistor with 10 microA current: '+1.839736E+00,+9.999968E-06,+1.839742E+05,+6.482821E+04,+4.506000E+04'
-                    data = this.QueryString("READ?");   %TODO - can this be a Querydouble instead? And avoid the splitting and converting below? Check how Srv Meas I etc work, only tried resistance so far..
-
-                case(this.LanguageType("TCP"))
-                    data = this.QueryString("smu.measure.read()");
+                    %Returns "reading,source"
+                    data = this.QueryString("READ? ""defbuffer1"", READ, SOUR");
+                case(this.LanguageType("TSP"))
+                    %Returns "reading<TAB>source". defbuffer1 is a
+                    %continuous (ring) buffer, so the newest entry is at
+                    %endindex - n stops increasing once it wraps
+                    data = this.QueryString("local r = smu.measure.read() print(r, defbuffer1.sourcevalues[defbuffer1.endindex])");
                 otherwise
-                    error("Unsupported language type " + string(this.LanguageType));
+                    error("Unsupported language type " + string(this.Language));
             end
 
-            %Split the string into a cell array, split at the commas
-            splitData = strsplit(data, ',');
-
-            switch(this.MeasMode)
-                case(this.MeasType("Resistance"))
-                    %Get measurement values from the split string
-                    resistance = str2double(splitData{1});
-
-                    %Assign data to output data row
-                    dataRow = [resistance, sourceLevel];
-
-                case(this.MeasType("Voltage"))
-                    %Get measurement values
-                    voltage = str2double(data);
-
-                    %Assign data to output data row
-                    dataRow = [voltage, sourceLevel];
-
-                case(this.MeasType("Current"))
-                    %Get measurement values
-                    current = str2double(data);
-
-                    %Assign data to output data row
-                    dataRow = [current, sourceLevel];
-                otherwise
-                    error("Mode must be Resistance, Voltage, or Current, this was " + string(this.Mode));
+            values = str2double(strsplit(strtrim(string(data)), {',', sprintf('\t')}));
+            if numel(values) ~= 2
+                error("Unexpected measurement response: " + data);
             end
+            dataRow = values;
+
+            %The instrument returns 9.9e37 for an overrange reading (fixed
+            %range overflow) - record these as NaN rather than a huge number
+            dataRow(abs(dataRow) >= 9.9e37) = NaN;
 
             %Check if we have hit compliance, save that (1 or 0) as a data column
             complianceLimited = this.IsAtComplianceLimit();
             dataRow = [dataRow, complianceLimited];
         end    
-        
+
+        function Reset(this)
+            switch(this.Language)
+                case(this.LanguageType("SCPI"))
+                    this.WriteCommand("*RST");
+                case(this.LanguageType("TSP"))
+                    this.WriteCommand("reset(true)");
+                otherwise
+                    error("Unsupported language type " + string(this.Language));
+            end
+        end
+
         function SetNewSweepStepValue(this, value)
             %This built-in function is defined in the Instrument base class
             %(does nothing) and called by any added
@@ -406,14 +494,14 @@ classdef Keithley2450 < Palladium.Core.Instrument
                     else
                         this.WriteCommand("OUTP OFF");
                     end
-                case(this.LanguageType("TCP"))
+                case(this.LanguageType("TSP"))
                     if(enableOutput)
                         this.WriteCommand("smu.source.output = smu.ON");
                     else
                         this.WriteCommand("smu.source.output = smu.OFF");
                     end
                 otherwise
-                    error("Unsupported language type " + string(this.LanguageType));
+                    error("Unsupported language type " + string(this.Language));
             end
 
             %Set the output level
@@ -427,10 +515,10 @@ classdef Keithley2450 < Palladium.Core.Instrument
                         otherwise
                             error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
                     end
-                case(this.LanguageType("TCP"))
+                case(this.LanguageType("TSP"))
                     this.WriteCommand("smu.source.level = " + num2str(level));
                 otherwise
-                    error("Unsupported language type " + string(this.LanguageType));
+                    error("Unsupported language type " + string(this.Language));
             end
         end
 
@@ -439,13 +527,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
     %% Methods (Protected)
     methods (Access = protected)
 
-        function OnInitialised(this)
-            %Function that gets fired after successful Connect()
-            %Query hardware options and setup, set properties like
-            %MeasurementMode based on this
-            this.SourceMode = this.GetSourceMode();
-            this.MeasMode = this.GetMeasurementMode();
-        end
+     
 
     end
 end
