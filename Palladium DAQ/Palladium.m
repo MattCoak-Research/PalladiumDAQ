@@ -89,7 +89,7 @@ classdef Palladium < handle
             % is that a Preset corresponds to a physical setup in the lab
             % that would be tedious to have to input and configure every time
             % the programme is launched - and thse are intended to be created and edited
-            % by the User. See help on Presets and the Example.m file in the Presets folder
+            % by the User. See help on Presets and the Example.json file in the Presets folder
             % for help on creating Presets.
             %
             % Input arguments (optional, see arguments block):

@@ -392,9 +392,9 @@ classdef Controller < handle
 
                     %Copy example/template Preset class files into that
                     %folder if they don't yet exist
-                    classesToCopy = "Example.m";
+                    classesToCopy = "Example.json";
                     Palladium.Utilities.PathUtils.CopyFiles(classesToCopy,...
-                        fullfile(this.ApplicationDir, "+PalladiumPresets"), this.UserPresetsDir,...
+                        fullfile(this.ApplicationDir, "ExamplesAndTemplates", "Presets"), this.UserPresetsDir,...
                         Overwrite=false);
 
                     %Copy Instrument Drivers class files into User Instrument
