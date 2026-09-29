@@ -424,6 +424,17 @@ classdef Keithley2450 < Palladium.Core.Instrument
         end
 
         function [str, limits, xlabelStr, ylabelStr] = GetSweepUnitsString(this)
+
+            %Handle the case of having not yet connected - so we don't yet
+            %know the source and measurement mode
+            if isempty(this.SourceMode)
+                xlabelStr = "";
+                str = "";
+                limits = [-inf, inf];
+                ylabelStr = "Measured value";
+                return;
+            end
+
             switch(this.SourceMode)
                 case(this.SourceType("Voltage"))
                     xlabelStr = "Source Voltage (V)";
