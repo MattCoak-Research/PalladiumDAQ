@@ -50,6 +50,12 @@ classdef PluginLoading
                         instr = controller.InstrumentController.AddInstrument(string(instSpec.Type));
                     end
 
+                    %Warn and break if that has come back empty
+                    if isempty(instr)
+                        warning("Instrument instantiation failed: " + string(instSpec.Type));
+                        continue;
+                    end
+
                     %Set Instrument Properties
                     if isfield(instSpec, 'Properties') && ~isempty(instSpec.Properties)
                         props = instSpec.Properties;

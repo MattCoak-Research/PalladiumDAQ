@@ -79,11 +79,15 @@ classdef InstrumentController < handle
                 settings.ConnectionType {mustBeTextScalar} = "Auto";
             end
 
+            %Initialise to empty so we always return something - empty is a
+            %nice clue that this failed
+            instRef = [];
+
             %Check for error cases like empty list box selection
             if(isempty(instrStringToAdd))
-                instRef = [];
                 return;
             end
+
             try
                 %Make sure the instrName is valid, and other error checking
                 assert(isstring(instrStringToAdd), "Instrument name must be a string");
@@ -105,6 +109,10 @@ classdef InstrumentController < handle
                     instRef = Palladium.Utilities.PluginLoading.InstantiateClass(this.InstrumentsNamespace, instrStringToAdd);   
                 else
                     error("InstrumentCreation:NotFoundInNamespace", "Could not find Instrument " + string(instrStringToAdd) + " in built in or user namespace or Python library. This could indicate that the class file of this Instrument contains an error and MATLAB cannot compile it (missing END statement?).");
+                end
+
+                if isempty(instRef)
+                    error("Instrument creation failed: " + string(instrStringToAdd));
                 end
 
                 %Set the instrument name if that optional parameter was
