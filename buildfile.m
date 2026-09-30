@@ -10,7 +10,7 @@ plan("doc").Outputs = [fullfile(docfolder,"**","*.html"), ... % output HTML
     fullfile(docfolder,"helpsearch-v*")]; % search database folder 
 plan("doc").Dependencies = "test";
 
-plan("package").Dependencies = "doc";
+plan("package").Dependencies = "test";
 plan("deploy").Dependencies = "package";
 plan("deployDebug").Dependencies = "test";
 
