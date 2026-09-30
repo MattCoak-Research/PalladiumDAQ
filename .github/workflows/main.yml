@@ -9,7 +9,7 @@ on:
     branches: [main]    
 
 jobs:
-  test:
+  BuildTask:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -19,7 +19,7 @@ jobs:
         with:
           products: >
             Instrument_Control_Toolbox
-            MATLAB_DocMaker
+            MATLAB DocMaker
       - uses: actions/setup-python@v6
         with:
             python-version: '3.13' 
