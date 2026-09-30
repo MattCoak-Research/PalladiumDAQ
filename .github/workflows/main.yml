@@ -19,7 +19,6 @@ jobs:
         with:
           products: >
             Instrument_Control_Toolbox
-            docmaker
       - uses: actions/setup-python@v6
         with:
             python-version: '3.13' 
@@ -29,9 +28,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: toolbox
-          path: "Palladium DAQ/Release/PalladiumDAQ.mltbx"
+          path: "Palladium DAQ/Release/Toolbox/PalladiumDAQ.mltbx"
       - name: Release
         uses: softprops/action-gh-release@v3
         if: github.ref_type == 'tag'
         with:
-          files: "Palladium DAQ/Release/PalladiumDAQ.mltbx"
+          files: "Palladium DAQ/Release/Toolbox/PalladiumDAQ.mltbx"
