@@ -430,7 +430,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
             if isempty(this.SourceMode)
                 xlabelStr = "";
                 str = "";
-                limits = [-inf, inf];
+                limits = [-0.1, 0.1];
                 ylabelStr = "Measured value";
                 return;
             end
