@@ -1,9 +1,19 @@
 function plan = buildfile
 plan = buildplan(localfunctions);
 plan("test").Dependencies = "check";
-plan("package").Dependencies = "test";
+
+docfolder = fullfile("Palladium DAQ", "Docs");
+plan("doc").Inputs = docfolder; 
+plan("doc").Outputs = [fullfile(docfolder,"**","*.html"), ... % output HTML
+    fullfile(docfolder,"resources"), ... % stylesheets and scripts
+    fullfile(docfolder,"*.xml"), ... % index files
+    fullfile(docfolder,"helpsearch-v*")]; % search database folder 
+plan("doc").Dependencies = "test";
+
+plan("package").Dependencies = "doc";
 plan("deploy").Dependencies = "package";
 plan("deployDebug").Dependencies = "test";
+
 end
 
 function checkTask(~)
@@ -23,6 +33,14 @@ function testTask(~)
 results = runtests("Palladium DAQ/Tests/Unit Tests/", IncludeSubfolders=true);
 assertSuccess(results);
 end
+
+function docTask(c)
+doc = c.Task.Inputs.Path; % source folder
+md = fullfile(doc,"**","*.md"); % Markdown documents
+html = docconvert(md); % convert to HTML
+docrun(html) % run code and insert output
+docindex(doc) % index
+end 
 
 function packageTask(~)
 projectRoot = "";
@@ -44,7 +62,11 @@ opts.SupportedPlatforms.Win64 = true;
 opts.SupportedPlatforms.Mac = true;
 opts.SupportedPlatforms.Glnxa64 = true;
 opts.SupportedPlatforms.MatlabOnline = true;
-opts.ToolboxGettingStartedGuide = fullfile(projectRoot, "Palladium DAQ", "Docs", "Toolbox_Getting_Started_Guide.mlx"); 
+%TODO - look at this now we moved to DocMaker -
+%this used to be a Getting Started.mlx that was included in source control
+%- need to add "Included Files" in Toolbox packages
+%opts.ToolboxGettingStartedGuide = fullfile(projectRoot, "Palladium DAQ",
+%"Docs", "index.html");
 opts.ToolboxVersion = string(verStruct.VersionString);
 
 %Build the .mltbx toolbox installation file

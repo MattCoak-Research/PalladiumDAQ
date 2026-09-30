@@ -35,3 +35,7 @@ resources/*
 #Python cache files
 *.pyc
 *.cpyth
+
+#Documentation output - docs will be generated in the buildfile. Just track the markdown .md files
+Palladium DAQ/Docs/*.xml
+Palladium DAQ/Docs/*.html
