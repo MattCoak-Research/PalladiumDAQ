@@ -328,6 +328,11 @@ classdef Keithley2450 < Palladium.Core.Instrument
         end
 
         function lang = GetLanguage(this)
+            if this.SimulationMode
+                lang = this.LanguageType("TSP");
+                return;
+            end
+
             result = strtrim(string(this.QueryString("*LANG?")));
             if strcmp(result, "TSP")
                 lang = this.LanguageType("TSP");

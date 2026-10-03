@@ -199,17 +199,6 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             end
         end
 
-        function OnMeasurementsStarted(this)
-            if ~isempty(this.GUIView)
-                this.GUIView.EnableRunButton();
-            end
-        end 
-
-        function OnMeasurementsStopped(this)
-            if ~isempty(this.GUIView)
-                this.GUIView.DisableRunButton();
-            end
-        end
 
         function RemoveControl(this, ~)
             if ~isempty(this.GUIView)
@@ -737,6 +726,24 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             end
         end
 
+        function OnMeasurementsInitialised(this, headers)
+            if ~isempty(this.GUIView)
+                this.GUIView.UpdateAvailableDataColumnHeaders(headers);
+                this.GUIView.SetReady();
+                this.GUIView.EnableRunButton();
+            end
+        end
+
+        function OnMeasurementsStarted(this)
+        end 
+
+        function OnMeasurementsStopped(this)
+            if ~isempty(this.GUIView)
+                this.GUIView.SetReady();
+                this.GUIView.DisableRunButton();
+            end
+        end
+
         function data = PullBufferData(this, numMeasurements)
             %Pull data back - one bulk transfer per instrument. printbuffer
             %with several columns interleaves them point by point
@@ -744,16 +751,28 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             this.Log("Pulling buffer data back from both SMUs...");
             nStr = num2str(numMeasurements);
 
+            
+
             %Main (bias/measure) instrument - measBuffer
-            mainStr = this.Instrument.QueryString("printbuffer(1, " + nStr + ", measBuffer.sourcevalues, measBuffer.readings, measBuffer.relativetimestamps)");
-            mainCols = this.SplitInterleavedColumns(mainStr, 3, numMeasurements);
+            if this.Instrument.SimulationMode
+                mainCols = this.Instrument.GenerateSimulatedData(3, numMeasurements, Transpose=true);
+            else
+                mainStr = this.Instrument.QueryString("printbuffer(1, " + nStr + ", measBuffer.sourcevalues, measBuffer.readings, measBuffer.relativetimestamps)");
+                mainCols = this.SplitInterleavedColumns(mainStr, 3, numMeasurements);
+            end
+
             data.Bias_Voltage_V = mainCols(1, :);
             data.Current_A = mainCols(2, :);
             data.Time_2450 = mainCols(3, :);
 
             %Gate (pulse) instrument - gateBuffer
-            gateStr = this.SecondInstrument.QueryString("printbuffer(1, " + nStr + ", gateBuffer.readings, gateBuffer.sourcevalues, gateBuffer.relativetimestamps)");
-            gateCols = this.SplitInterleavedColumns(gateStr, 3, numMeasurements);
+            if this.Instrument.SimulationMode
+                gateCols = this.SecondInstrument.GenerateSimulatedData(3, numMeasurements, Transpose=true);
+            else
+                gateStr = this.SecondInstrument.QueryString("printbuffer(1, " + nStr + ", gateBuffer.readings, gateBuffer.sourcevalues, gateBuffer.relativetimestamps)");
+                gateCols = this.SplitInterleavedColumns(gateStr, 3, numMeasurements);
+            end
+
             data.Gate_Leakage_Current_A = gateCols(1, :);
             data.Gate_Voltage_V = gateCols(2, :);
             data.Time_2450_Gate = gateCols(3, :);
