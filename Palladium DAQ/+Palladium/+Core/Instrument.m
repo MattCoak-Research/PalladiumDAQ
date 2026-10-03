@@ -159,6 +159,42 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             end
         end
 
+        function datArray = GenerateSimulatedData(this, numRows, numCols, Settings)
+            arguments
+                this;
+                numRows (1,1) {mustBeInteger};
+                numCols (1,1) {mustBeInteger} = 1;
+                Settings.Transpose (1,1) logical = false; % By default, columns are created with random but cohesive numbers. Tranpose=true switches to having rows be the simulated 'data column' instead
+            end
+
+            %Pre-initialise array
+            datArray = nan(numRows, numCols);
+
+            if Settings.Transpose
+                for i = 1 : numRows
+                    seed = rand*100;
+                    exp = round(rand*10 - 6);
+
+                    baseline = seed*10^exp;
+                    var = rand*5*10^exp;
+
+                    datArray(i, :) = rand(1, numCols) * var + baseline;
+                end
+            else
+                for i = 1 : numCols
+                    seed = rand*100;
+                    exp = round(rand*10 - 6);
+
+                    baseline = seed*10^exp;
+                    var = rand*5*10^exp;
+
+                    datArray(:, i) = rand(numRows, 1) * var + baseline;
+                end
+            end
+
+
+        end
+
         function controlDetailsStruct = GetControlOption(this, controlName)
             arguments
                 this;
