@@ -8,9 +8,8 @@ plan("doc").Outputs = [fullfile(docfolder,"**","*.html"), ... % output HTML
     fullfile(docfolder,"resources"), ... % stylesheets and scripts
     fullfile(docfolder,"*.xml"), ... % index files
     fullfile(docfolder,"helpsearch-v*")]; % search database folder 
-plan("doc").Dependencies = "test";
 
-plan("package").Dependencies = "test";
+plan("package").Dependencies = ["test", "doc"];
 plan("deploy").Dependencies = "package";
 plan("deployDebug").Dependencies = "test";
 
@@ -36,11 +35,47 @@ end
 
 function docTask(c)
 doc = c.Task.Inputs.Path; % source folder
-md = fullfile(doc,"**","*.md"); % Markdown documents
+
+EnsureDocMaker();
+
+%DocMaker (pre-0.8) copies its stylesheets/scripts from its read-only
+%add-on install folder, and the copies keep the read-only attribute - so
+%the next build can't overwrite them. Make any existing ones writable first
+res = fullfile(doc, "resources");
+if isfolder(res)
+    if ispc
+        fileattrib(res, "+w", "", "s");
+    else
+        fileattrib(res, "+w", "a", "s");
+    end
+end
+
+md =fullfile(doc,"**","*.md"); % Markdown documents
 html = docconvert(md); % convert to HTML
 docrun(html) % run code and insert output
 docindex(doc) % index
-end 
+end
+
+function EnsureDocMaker()
+%Check the DocMaker add-on (https://github.com/mathworks/docmaker) is
+%available. On GitHub Actions, install the pinned release below; locally,
+%ask the user to install it rather than doing so behind their back.
+%Update this tag to move CI onto a newer DocMaker release.
+docMakerVersion = "v0.7";
+
+if exist("docconvert", "file")
+    return
+end
+
+assert(getenv("GITHUB_ACTIONS") == "true", "BuildFile:DocMakerMissing", ...
+    "DocMaker not found. Install it from the Add-On Explorer, or from https://github.com/mathworks/docmaker/releases");
+
+url = "https://github.com/mathworks/docmaker/releases/download/" + docMakerVersion + "/MATLAB_DocMaker.mltbx";
+mltbx = fullfile(tempdir, "MATLAB_DocMaker.mltbx");
+websave(mltbx, url);
+matlab.addons.install(mltbx);
+fprintf(1, "Installed DocMaker %s from %s\n", docMakerVersion, url);
+end
 
 function packageTask(~)
 projectRoot = "";
