@@ -50,6 +50,8 @@ classdef InstrumentControlBase < Palladium.Core.Entity
         function MeasurementsInitialised(this, src, eventArgs)  %#ok<INUSD>
             headers = eventArgs.Headers;
             this.AvailableHeaders = headers;
+
+            this.OnMeasurementsInitialised(headers);
         end
 
         function MeasurementsStarted(this, src, eventArgs) %#ok<INUSD>
@@ -66,14 +68,6 @@ classdef InstrumentControlBase < Palladium.Core.Entity
 
         function MeasurementsStopped(this, src, eventArgs) %#ok<INUSD>
             this.OnMeasurementsStopped();
-        end
-
-        function OnMeasurementsStarted(this)
-            %Do nothing, child classes can override
-        end
-
-        function OnMeasurementsStopped(this)
-            %Do nothing, child classes can override
         end
 
         function PlotterAxesSelectionChange(this, pltr)
@@ -318,6 +312,26 @@ classdef InstrumentControlBase < Palladium.Core.Entity
             end
         end
 
+        function OnMeasurementsInitialised(this, headers) %#ok<INUSD>
+            %Do nothing, child classes can override
+        end
+
+        function OnMeasurementsPaused(this)
+            %Do nothing, child classes can override
+        end
+
+        function OnMeasurementsResumed(this)
+            %Do nothing, child classes can override
+        end
+
+        function OnMeasurementsStarted(this)
+            %Do nothing, child classes can override
+        end
+
+        function OnMeasurementsStopped(this)
+            %Do nothing, child classes can override
+        end
+        
         function fileNameOut = ProcessFileName(this, fileName, Settings)
             %Process the file name of e.g. a sweep. Make it a valid filename and do operations like: Grab a parameter - ie Temperature, Magnetic Field, to use to
             %e.g. automatically name a Sweep File when [Temperature (K)] is
