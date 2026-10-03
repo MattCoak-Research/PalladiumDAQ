@@ -40,7 +40,7 @@ classdef PythonInstrumentController < handle
             %Make sure the PalladiumPythonCore folder is in a parent folder
             %which is on the Python path, so it can be seen
             dr = fullfile(rootDir, "PalladiumPythonCore");
-            assert(exist(dr, "dir"), "PalladiumPythonCore directory not found at " + dr);
+            assert(exist(dr, "dir"), "PythonInstrumentControllerError:CoreDirectoryNotFound", "%s", "PalladiumPythonCore directory not found at " + dr);
             Palladium.Utilities.PythonUtils.AppendFolderToPythonPath(rootDir);
         end
     end
@@ -59,7 +59,7 @@ classdef PythonInstrumentController < handle
             pyInstrRef = this.InstantiateInstrument(instrName);
 
             if isempty(pyInstrRef)
-                error("Py instrument instantiation failed");
+                error("CreateInstrumentError:InstantiationFailed", "Py instrument instantiation failed");
             end
 
 
@@ -72,7 +72,7 @@ classdef PythonInstrumentController < handle
                 directory {mustBeTextScalar};
             end
 
-            assert(exist(directory,"dir"), "Directory " + string(directory) + " not found (PythonInstrumentController Load)");
+            assert(exist(directory,"dir"), "LoadInstrumentClassesError:DirectoryNotFound", "%s", "Directory " + string(directory) + " not found (PythonInstrumentController Load)");
 
 
             % Load all Python instrument classes from the specified directory
@@ -93,13 +93,13 @@ classdef PythonInstrumentController < handle
             end
 
             if isempty(this.AvaialableInstrNames)
-                warning("Available Python instruments not yet populated");
+                warning("InstantiateInstrumentWarning:NoInstrumentsAvailable", "Available Python instruments not yet populated");
             end
 
             index = find(ismember(this.AvaialableInstrNames, instrName));
 
             if isempty(index)
-                error("Instrument name '%s' not found in available instruments.", instrName);
+                error("InstantiateInstrumentError:InstrumentNotFound", "Instrument name '%s' not found in available instruments.", instrName);
             end
 
             name = this.AvaialableInstrNames(index);

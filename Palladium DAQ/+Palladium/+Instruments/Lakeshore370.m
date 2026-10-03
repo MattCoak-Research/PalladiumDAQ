@@ -81,7 +81,7 @@ classdef Lakeshore370 < Palladium.Core.Instrument
                 case(4)
                     controlMode = this.ControlMode("Off");
                 otherwise
-                    error("Error in control mode");
+                    error("Lakeshore370:InvalidControlMode", "Error in control mode");
             end
         end
 
@@ -228,7 +228,7 @@ classdef Lakeshore370 < Palladium.Core.Instrument
                 case(this.MeasType("Resistance"))
                     dataRow = [dataRow this.GetResistance()];
                 otherwise
-                    error("Unsupported measurement type " + string(this.Reading));
+                    error("Lakeshore370:UnsupportedMeasurementType", "%s", "Unsupported measurement type " + string(this.Reading));
             end
 
             %Append heater status columns to the data row
@@ -240,7 +240,7 @@ classdef Lakeshore370 < Palladium.Core.Instrument
             %Set the control mode: Off, Closed Loop PID,
             %Zone, or Open Loop.
             modeIndex = this.GetControlModeIndex(controlMode);
-            this.WriteCommand("CMODE " + num2str(modeIndex) +"\n");
+            this.WriteCommand("CMODE " + num2str(modeIndex) + newline);
         end
 
         function SetHeaterRange(this, range)
@@ -259,7 +259,7 @@ classdef Lakeshore370 < Palladium.Core.Instrument
 
         function SetManualOutputPercent(this, percentage)
             %Set the manual output setting.
-            assert(percentage <= 100 && percentage  >=0, 'Invalid output percentage');
+            assert(percentage <= 100 && percentage  >=0, "Lakeshore370:InvalidOutputPercentage", 'Invalid output percentage');
             this.WriteCommand("MOUT " + num2str(percentage));
         end
 
@@ -321,7 +321,7 @@ classdef Lakeshore370 < Palladium.Core.Instrument
                 case(this.ControlMode("Off"))
                     index = 4;
                 otherwise
-                    error("Unsupported control mode, should be Off, Closed Loop PID, Zone, Open Loop, was " + string(controlMode));
+                    error("Lakeshore370:UnsupportedControlMode", "%s", "Unsupported control mode, should be Off, Closed Loop PID, Zone, Open Loop, was " + string(controlMode));
             end
         end
 
@@ -346,7 +346,7 @@ classdef Lakeshore370 < Palladium.Core.Instrument
                 case(this.HeaterRange("100 mA (8)"))
                     index = 8;
                 otherwise
-                    error("Unsupported heater range, should be Off (0), 32 muA (1), 100 muA (2), 316 muA (3),   1 mA (4),   3 mA (5),  10 mA (6),  32 mA (7), 100 mA (8), was " + string(heaterRange));
+                    error("Lakeshore370:UnsupportedHeaterRange", "%s", "Unsupported heater range, should be Off (0), 32 muA (1), 100 muA (2), 316 muA (3),   1 mA (4),   3 mA (5),  10 mA (6),  32 mA (7), 100 mA (8), was " + string(heaterRange));
             end
         end
 
@@ -377,7 +377,7 @@ classdef Lakeshore370 < Palladium.Core.Instrument
                 case(8)
                     currentRange = 100e-3;
                 otherwise
-                    error("Unsupported heater range index in LS370: " + string(heaterRangeIdx));
+                    error("Lakeshore370:UnsupportedHeaterRangeIndex", "%s", "Unsupported heater range index in LS370: " + string(heaterRangeIdx));
             end
         end
 

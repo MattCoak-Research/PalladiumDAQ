@@ -128,8 +128,23 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
             this.Running = true;
             this.TimeElapsed_s = 0;
             this.timerVal = tic();
-            this.CacheSweepRunFunction(eventData.Value);
-            this.OnSweepRun(eventData.Value);
+
+            try
+                this.CacheSweepRunFunction(eventData.Value);
+                this.OnSweepRun(eventData.Value);
+            catch err
+                %The sweep could not be set up (eg it has no file name to
+                %save to). Drop the cached command to start it, which would
+                %otherwise still run on the next tick with nowhere to write
+                %the data
+                this.CachedSweepRunFunction = [];
+                this.Running = false;
+                this.TimeElapsed_s = 0;
+                if ~isempty(this.GUIView)
+                    this.GUIView.SweepComplete();
+                end
+                rethrow(err);
+            end
         end
 
         function Update(this)
@@ -223,7 +238,7 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
         function CreateDataFile(this, sweepParams, writeToFile)
             %Create or reset the data writer class
             fileNameSuffix = this.ControlDetailsStruct.SweepDetails.FileName;
-            this.DataWriter = this.InitialiseDataWriter(fileNameSuffix);
+            this.DataWriter = this.InitialiseDataWriter(fileNameSuffix, WriteToFile=writeToFile);
 
             %Built in functions in base class will write the data row of all instruments/diagnostics at the start
             %of the sweep, for things like temperature, time
@@ -273,7 +288,7 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
                 case("OutputOffset")
                     xAx = "Voltage (V)";
                 otherwise
-                    error(['Invalid Sweep Parameter for function. ' ...
+                    error("MFLI_SweepController:InvalidSweepParameter", ['Invalid Sweep Parameter for function. ' ...
                         'SweptParameter: Frequency, AuxOutput1, OutputOffset'])
             end
 

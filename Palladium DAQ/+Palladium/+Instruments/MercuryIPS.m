@@ -281,7 +281,7 @@ classdef MercuryIPS < Palladium.Core.Instrument
                 case("CLMP")
                     status.SweepStatus = "Clamped";
                 otherwise
-                    error("Error parsing MercuryiPS status - ramp action code " + string(actionCode) + " not recognised.");
+                    error("MercuryIPS:UnrecognisedRampAction", "%s", "Error parsing MercuryiPS status - ramp action code " + string(actionCode) + " not recognised.");
             end
 
             if this.GetSwitchHeaterOn()
@@ -378,7 +378,7 @@ classdef MercuryIPS < Palladium.Core.Instrument
             end
 
             achievedRate = this.SetPSUValue(this.AxisAddress, "SIG:RCST", currentRampRate_Amin);
-            assert(achievedRate == currentRampRate_Amin, "Failed to set magnet current ramp rate on " + this.Name + ". Requested " + num2str(currentRampRate_Amin) + " A/min, achieved " + num2str(achievedRate) + " A/min.");
+            assert(achievedRate == currentRampRate_Amin, "MercuryIPS:RampRateNotSet", "%s", "Failed to set magnet current ramp rate on " + this.Name + ". Requested " + num2str(currentRampRate_Amin) + " A/min, achieved " + num2str(achievedRate) + " A/min.");
         end
 
         function SetFieldRampRate_TeslaMin(this, fieldRampRate_Tmin)
@@ -393,7 +393,7 @@ classdef MercuryIPS < Palladium.Core.Instrument
             end
 
             achievedRate = this.SetPSUValue(this.AxisAddress, "SIG:RFST", fieldRampRate_Tmin);
-            assert(achievedRate == fieldRampRate_Tmin, "Failed to set magnet field ramp rate on " + this.Name + ". Requested " + num2str(fieldRampRate_Tmin) + " T/min, achieved " + num2str(achievedRate) + " T/min.");
+            assert(achievedRate == fieldRampRate_Tmin, "MercuryIPS:RampRateNotSet", "%s", "Failed to set magnet field ramp rate on " + this.Name + ". Requested " + num2str(fieldRampRate_Tmin) + " T/min, achieved " + num2str(achievedRate) + " T/min.");
         end
 
         function SetRampingToTarget(this, target, rate, ~)
@@ -488,7 +488,7 @@ classdef MercuryIPS < Palladium.Core.Instrument
             end
 
             achievedSetPt = this.SetPSUValue(this.AxisAddress, "SIG:CSET", current_A);
-            assert(achievedSetPt == current_A, "Failed to set magnet set point on " + this.Name + ". Requested " + num2str(current_A) + " A, achieved " + num2str(achievedSetPt) + " A.");
+            assert(achievedSetPt == current_A, "MercuryIPS:SetPointNotSet", "%s", "Failed to set magnet set point on " + this.Name + ". Requested " + num2str(current_A) + " A, achieved " + num2str(achievedSetPt) + " A.");
         end
 
         function SetTargetField(this, field_T)
@@ -503,7 +503,7 @@ classdef MercuryIPS < Palladium.Core.Instrument
             end
 
             achievedSetPt = this.SetPSUValue(this.AxisAddress, "SIG:FSET", field_T);
-            assert(achievedSetPt == field_T, "Failed to set magnet set point on " + this.Name + ". Requested " + num2str(field_T) + " T, achieved " + num2str(achievedSetPt) + " T.");
+            assert(achievedSetPt == field_T, "MercuryIPS:SetPointNotSet", "%s", "Failed to set magnet set point on " + this.Name + ". Requested " + num2str(field_T) + " T, achieved " + num2str(achievedSetPt) + " T.");
         end
 
         function resultString = SetValue(this, command)
@@ -610,7 +610,7 @@ classdef MercuryIPS < Palladium.Core.Instrument
             elseif isKey(siPrefixes, prefixChar)
                 value = str2double(valueString(1:end-2)) * siPrefixes(prefixChar);
             else
-                error("Could not parse SI-prefixed value: " + string(valueString));
+                error("MercuryIPS:SIValueParseFailed", "%s", "Could not parse SI-prefixed value: " + string(valueString));
             end
         end
 
@@ -625,7 +625,7 @@ classdef MercuryIPS < Palladium.Core.Instrument
 
             if ~isempty(tokens) && any(strcmpi(tokens{end}, ["VALID", "INVALID"]))
                 if strcmpi(tokens{end}, "INVALID")
-                    error("MercuryiPS returned INVALID for command response: " + string(responseString));
+                    error("MercuryIPS:InvalidResponse", "%s", "MercuryiPS returned INVALID for command response: " + string(responseString));
                 end
                 tokens(end) = [];
             end
@@ -657,7 +657,7 @@ classdef MercuryIPS < Palladium.Core.Instrument
 
             if ~isempty(tokens) && any(strcmpi(tokens{end}, ["VALID", "INVALID"]))
                 if strcmpi(tokens{end}, "INVALID")
-                    error("MercuryiPS returned INVALID for command response: " + string(responseString));
+                    error("MercuryIPS:InvalidResponse", "%s", "MercuryiPS returned INVALID for command response: " + string(responseString));
                 end
                 tokens(end) = [];
             end

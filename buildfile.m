@@ -56,7 +56,7 @@ opts.AuthorEmail = "m.j.coak@bham.ac.uk";
 opts.AuthorName = "Matthew Coak";
 opts.Description = "Palladium Data Acquisition - an open source platform for laboratory instrument control, data acquisition logging and graphing. See https://github.com/MattCoak-Research/PalladiumDAQ for details.";
 opts.MaximumMatlabRelease = "";
-opts.MinimumMatlabRelease = "R2026a";
+opts.MinimumMatlabRelease = "R2026b";
 opts.OutputFile = fullfile(projectRoot, "Release", "Toolbox", "PalladiumDAQ.mltbx");
 opts.SupportedPlatforms.Win64 = true;
 opts.SupportedPlatforms.Mac = true;
@@ -133,6 +133,7 @@ end
 
 % Create package options object, set package properties and package.
 packageOpts = compiler.package.InstallerOptions(buildResult);
+packageOpts.AddRemoveProgramsIcon = fullfile(projectRoot, "Palladium DAQ", "+Palladium", "+Components", "Graphics", "PalladiumDAQIcon.png");
 packageOpts.ApplicationName = "Palladium DAQ";
 packageOpts.AuthorName = "Matthew Coak";
 packageOpts.AuthorCompany = "University of Birmingham";

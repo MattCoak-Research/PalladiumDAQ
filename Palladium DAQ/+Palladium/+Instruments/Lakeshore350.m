@@ -101,7 +101,7 @@ classdef Lakeshore350 < Palladium.Core.Instrument
                 case(5)
                     controlMode = this.ControlMode("Warmup Supply");
                 otherwise
-                    error("Control mode error");
+                    error("Lakeshore350:InvalidControlMode", "Control mode error");
             end
         end
 
@@ -407,7 +407,7 @@ classdef Lakeshore350 < Palladium.Core.Instrument
             channelStr = num2str(this.GetHeaterChannelIndex(heaterChannel));
 
             %Check that the value is between 0 and 100
-            assert(percentage <= 100 && percentage  >=0, "Invalid output percentage");
+            assert(percentage <= 100 && percentage  >=0, "Lakeshore350:InvalidOutputPercentage", "Invalid output percentage");
 
             %Write the command
             this.WriteCommand("MOUT " + channelStr + "," + num2str(percentage));
@@ -475,7 +475,7 @@ classdef Lakeshore350 < Palladium.Core.Instrument
                 case(this.Channel("D"))
                     channelIndex = 4;
                 otherwise
-                    error("Unsupported channel, should be None, A, B, C or D, was " + string(channel));
+                    error("Lakeshore350:UnsupportedChannel", "%s", "Unsupported channel, should be None, A, B, C or D, was " + string(channel));
             end
         end
 
@@ -500,7 +500,7 @@ classdef Lakeshore350 < Palladium.Core.Instrument
                 case(this.ControlMode("Warmup Supply"))
                     index = 5;
                 otherwise
-                    error("Unsupported channel, should be Off, Closed Loop PID, Zone, Open Loop, Monitor Out or Warmup Supply, was " + string(controlMode));
+                    error("Lakeshore350:UnsupportedControlMode", "%s", "Unsupported channel, should be Off, Closed Loop PID, Zone, Open Loop, Monitor Out or Warmup Supply, was " + string(controlMode));
             end
         end
 
@@ -512,7 +512,7 @@ classdef Lakeshore350 < Palladium.Core.Instrument
                 case(this.OutputChannel("Ch2"))
                     channelIndex = 2;
                 otherwise
-                    error("Unsupported channel, should be Ch1 or Ch2, was " + string(heaterChannel));
+                    error("Lakeshore350:UnsupportedHeaterChannel", "%s", "Unsupported channel, should be Ch1 or Ch2, was " + string(heaterChannel));
             end
         end
 
@@ -532,7 +532,7 @@ classdef Lakeshore350 < Palladium.Core.Instrument
                 case(this.GetHeaterRangeIndex(this.HeaterRange("Range 5")))
                     powerPerOhm = 7.5;  %%??? Test!
                 otherwise
-                    error("Unsupported heater range index in LS350: " + string(heaterRangeIdx));
+                    error("Lakeshore350:UnsupportedHeaterRangeIndex", "%s", "Unsupported heater range index in LS350: " + string(heaterRangeIdx));
             end
         end
 
@@ -551,7 +551,7 @@ classdef Lakeshore350 < Palladium.Core.Instrument
                 case(this.HeaterRange("Range 5"))
                     index = 5;
                 otherwise
-                    error("Unsupported channel, should be Off, Closed Loop PID, Zone, Open Loop, Monitor Out or Warmup Supply, was " + string(heaterRangeEnumVal));
+                    error("Lakeshore350:UnsupportedHeaterRange", "%s", "Unsupported channel, should be Off, Closed Loop PID, Zone, Open Loop, Monitor Out or Warmup Supply, was " + string(heaterRangeEnumVal));
             end
         end
 

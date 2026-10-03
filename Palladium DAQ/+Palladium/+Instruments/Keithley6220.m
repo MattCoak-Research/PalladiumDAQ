@@ -64,7 +64,7 @@ classdef Keithley6220 < Palladium.Core.Instrument
                     Headers = this.Name + " - Seimens (S)";
                     Units = "S";
                 otherwise
-                    error("Invalid type");
+                    error("Keithley6220:InvalidUnitsType", "Invalid type");
             end
 
         end
@@ -104,7 +104,7 @@ classdef Keithley6220 < Palladium.Core.Instrument
 
         function value = QueryMeasurementValue(this) %#ok<MANU>
             value = 43; %#ok<NASGU>
-            error("Not implemented");
+            error("Keithley6220:NotImplemented", "Not implemented");
         end
     end
 end

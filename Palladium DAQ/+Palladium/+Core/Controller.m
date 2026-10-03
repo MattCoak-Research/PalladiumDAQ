@@ -221,10 +221,10 @@ classdef Controller < handle
             try
                 %Verify directory and path valid
                 if(~Palladium.Utilities.PathUtils.IsDirectoryValid(this.FileWriteDetails.Directory))
-                    error(['Error - directory not valid: ' strrep(this.FileWriteDetails.Directory, '\', '\\')]);
+                    error("CanStartError:InvalidDirectory", "%s", ['Error - directory not valid: ' this.FileWriteDetails.Directory]);
                 end
                 if(~Palladium.Utilities.PathUtils.IsFileNameValid(this.FileWriteDetails.FileName))
-                    error(['Error - file name not valid: ' strrep(this.FileWriteDetails.FileName, '\', '\\')]);
+                    error("CanStartError:InvalidFileName", "%s", ['Error - file name not valid: ' this.FileWriteDetails.FileName]);
                 end
             catch err
                 this.HandleError('Invalid file path. Cannot start measurements', err);
@@ -282,7 +282,7 @@ classdef Controller < handle
                 drawnow();
                 Palladium.Logging.Logger.Log("Error", msg, "FullMessage", msg + " : " + string(getReport(error, "extended", "hyperlinks", "on")));
             catch e
-                warning("An error was thrown while.. trying to handle an error.. : " + string(e.message));
+                warning("HandleErrorWarning:HandlingFailed", "%s", "An error was thrown while.. trying to handle an error.. :" + string(e.message));
             end
             
             %TODO - use the DebugMode property to show simple stack trace
@@ -318,10 +318,10 @@ classdef Controller < handle
                 else
                     %Our view is not a ui figure - just show a warning in the
                     %console
-                    warning(msg);
+                    warning("HandleWarningWarning:Message", "%s", msg);
                 end
             catch
-                warning(msg);
+                warning("HandleWarningWarning:Message", "%s", msg);
             end
         end
 
@@ -339,7 +339,7 @@ classdef Controller < handle
             catch e
                 %Note that we don't pass this in to any nice error handling
                 %because we haven't set that up yet
-                error("Error in loading settings in Controller.Initialise: " + string(e.message));
+                error("InitialiseError:LoadSettingsFailed", "%s", "Error in loading settings in Controller.Initialise: " + string(e.message));
             end
 
             %Now we know the settings to pass to it, create a Logger. Don't
@@ -908,7 +908,7 @@ classdef Controller < handle
                 case('Red')
                     notify(this, "RedStatus", Palladium.Events.MessageEventData(msg));
                 otherwise
-                    error('Colour unsupported in ShowStatus');
+                    error("ShowStatusError:UnsupportedColour", "Colour unsupported in ShowStatus");
             end
         end
 
@@ -1059,10 +1059,10 @@ classdef Controller < handle
                     mkdir(pathSettings.DefaultDirectory);
 
                     %Assert the creation was successful
-                    assert(isfolder(pathSettings.DefaultDirectory), "Folder not found at path");
+                    assert(isfolder(pathSettings.DefaultDirectory), "LoadSettingsError:FolderNotFound", "Folder not found at path");
                 catch exception
                     %Warn the user
-                    warning("Could not find directory " + pathSettings.DefaultDirectory + " specified in the config file, and hit an error while trying to create it. Reverting to fallback for default directory. Error message: " + string(exception.message));
+                    warning("LoadSettingsWarning:DefaultDirectoryCreationFailed", "%s", "Could not find directory " + pathSettings.DefaultDirectory + " specified in the config file, and hit an error while trying to create it. Reverting to fallback for default directory. Error message: " + string(exception.message));
 
                     %User folder eg c:/Matt/
                     userDir = fullfile(getenv('USERPROFILE'));

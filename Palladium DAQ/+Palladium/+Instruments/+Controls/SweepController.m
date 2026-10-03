@@ -101,7 +101,20 @@ classdef SweepController < Palladium.Core.InstrumentControlBase
             this.Running = true;
             this.TimeElapsed_s = 0;
             this.timerVal = tic();
-            this.OnSweepRun();
+
+            try
+                this.OnSweepRun();
+            catch err
+                %A sweep that could not be set up (eg it has no file name
+                %to save to) must not carry on running, stepping the
+                %instrument with nowhere to write the data
+                try
+                    this.SweepAbort();
+                catch
+                    this.Running = false;   %Whatever else fails, make sure of this
+                end
+                rethrow(err);
+            end
         end
 
     end
@@ -198,11 +211,11 @@ classdef SweepController < Palladium.Core.InstrumentControlBase
             if(isempty(numberOfSteps))
                 %Error checking and validation
                 if(abs(step) > abs(startPt - endPt))
-                    warning('Step is larger than difference between start and end points in MathsUtils.GenerateSweepPoints. Only the start point will be returned.');
+                    warning('SweepControllerWarning:StepTooLarge', 'Step is larger than difference between start and end points in MathsUtils.GenerateSweepPoints. Only the start point will be returned.');
                 end
 
                 if(step == 0)
-                    error('Step is set to zero when generating sweep points - this would generate an infinite number of points..');
+                    error('SweepController:ZeroStep', 'Step is set to zero when generating sweep points - this would generate an infinite number of points..');
                 end
 
                 %Ensure step has the correct sign

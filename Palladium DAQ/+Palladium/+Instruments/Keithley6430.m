@@ -50,7 +50,7 @@ classdef Keithley6430 < Palladium.Core.Instrument
                     Headers = [this.Name + " - Voltage_V", this.Name + " - Current_A"];
                     Units = ["V", "A"];
                 otherwise
-                    error("Mode must be Resistance, Voltage, or Current, this was " + string(this.Mode));
+                    error("Keithley6430:InvalidMeasureMode", "%s", "Mode must be Resistance, Voltage, or Current, this was " + string(this.Mode));
             end
         end
 
@@ -68,7 +68,7 @@ classdef Keithley6430 < Palladium.Core.Instrument
                 case(this.SourceType("Current"))
                     srcLevel = this.QueryDouble("SOUR:CURR:LEV:AMPL?");
                 otherwise
-                    error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                    error("Keithley6430:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
             end
         end
         
@@ -98,7 +98,7 @@ classdef Keithley6430 < Palladium.Core.Instrument
                             current = this.GetSourceLevel();
                             voltage = nan;
                         otherwise
-                            error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                            error("Keithley6430:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
                     end
 
                     %Assign data to output data row
@@ -118,7 +118,7 @@ classdef Keithley6430 < Palladium.Core.Instrument
                     %Assign data to output data row
                     dataRow = [voltage, current];
                 otherwise
-                    error("Mode must be Resistance, Voltage, or Current, this was " + string(this.Mode));
+                    error("Keithley6430:InvalidMeasureMode", "%s", "Mode must be Resistance, Voltage, or Current, this was " + string(this.Mode));
             end
 
         end
@@ -142,7 +142,7 @@ classdef Keithley6430 < Palladium.Core.Instrument
                 case(this.SourceType("Current"))
                     this.WriteCommand("SOUR:CURR:LEV " + num2str(level));
                 otherwise
-                    error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                    error("Keithley6430:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
             end
 
         end

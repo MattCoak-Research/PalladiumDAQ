@@ -71,12 +71,12 @@ classdef PPMS < Palladium.Core.Instrument
                     disp("Connected to " + this.Name + " instrument.");
 
                 otherwise
-                    error("Unsupported connection type on PPMS: " + this.Connection_Type);
+                    error("PPMS:UnsupportedConnectionType", "%s", "Unsupported connection type on PPMS: " + this.Connection_Type);
             end
         end
 
         function B_T = GetField(this)
-            assert(~isempty(this.Interface), "PPMS interface object is empty - call Connect first?");
+            assert(~isempty(this.Interface), "PPMS:InterfaceEmpty", "PPMS interface object is empty - call Connect first?");
             B_Oe = this.Interface.GetField();
             B_T = B_Oe / 10000;
         end
@@ -102,7 +102,7 @@ classdef PPMS < Palladium.Core.Instrument
             %     Unused14,
             %     MagnetFailure
             % }
-            assert(~isempty(this.Interface), "PPMS interface object is empty - call Connect first?");
+            assert(~isempty(this.Interface), "PPMS:InterfaceEmpty", "PPMS interface object is empty - call Connect first?");
             statusInt = this.Interface.GetFieldStatus();
 
             switch(statusInt)
@@ -139,7 +139,7 @@ classdef PPMS < Palladium.Core.Instrument
                 case(15)
                     statusName = "MagnetFailure";
                 otherwise
-                    error("Invalid status");
+                    error("PPMS:InvalidStatus", "Invalid status");
             end
         end
 
@@ -161,12 +161,12 @@ classdef PPMS < Palladium.Core.Instrument
                 channel (1,1) mustBeInteger;
             end
 
-            assert(~isempty(this.Interface), "PPMS interface object is empty - call Connect first?");
+            assert(~isempty(this.Interface), "PPMS:InterfaceEmpty", "PPMS interface object is empty - call Connect first?");
             val = this.Interface.GetMapValue(channel);
         end
 
         function pos_Deg = GetRotatorPosition(this)
-            assert(~isempty(this.Interface), "PPMS interface object is empty - call Connect first?");
+            assert(~isempty(this.Interface), "PPMS:InterfaceEmpty", "PPMS interface object is empty - call Connect first?");
             %pos_Deg = this.Interface.GetRotatorPosition();     %See
             %comments in the DLL source - GetRotatorPosition doesn't work
             %in there... or in Quantum Design's supplied example (!). THe
@@ -178,7 +178,7 @@ classdef PPMS < Palladium.Core.Instrument
         end
 
         function T_K = GetTemperature(this)
-            assert(~isempty(this.Interface), "PPMS interface object is empty - call Connect first?");
+            assert(~isempty(this.Interface), "PPMS:InterfaceEmpty", "PPMS interface object is empty - call Connect first?");
             T_K = this.Interface.GetTemperature();
         end
 
@@ -203,7 +203,7 @@ classdef PPMS < Palladium.Core.Instrument
             %     ImpedanceNotFunction,
             %     TempFailure
             % }
-            assert(~isempty(this.Interface), "PPMS interface object is empty - call Connect first?");
+            assert(~isempty(this.Interface), "PPMS:InterfaceEmpty", "PPMS interface object is empty - call Connect first?");
             statusInt = this.Interface.GetTemperatureStatus();
 
             switch(statusInt)
@@ -240,7 +240,7 @@ classdef PPMS < Palladium.Core.Instrument
                 case(15)
                     statusName = "TempFailure";
                 otherwise
-                    error("Invalid status");
+                    error("PPMS:InvalidStatus", "Invalid status");
             end
         end
 
@@ -315,7 +315,7 @@ classdef PPMS < Palladium.Core.Instrument
                 case("Oscillate")
                     am = 2;
                 otherwise
-                    error("Invalid approach mode");
+                    error("PPMS:InvalidApproachMode", "Invalid approach mode");
             end
 
             switch(Settings.FieldMode)
@@ -324,7 +324,7 @@ classdef PPMS < Palladium.Core.Instrument
                 case("Driven")
                     fm = 1;
                 otherwise
-                    error("Invalid field mode");
+                    error("PPMS:InvalidFieldMode", "Invalid field mode");
             end
 
             val_Oe = val_T * 10000;
@@ -334,7 +334,7 @@ classdef PPMS < Palladium.Core.Instrument
                 disp("Setting PPMS field to " + num2str(val_Oe) + " Oe, at rate " + num2str(rate_OePerMin) + " Oe per min, " + string(Settings.ApproachMode) + ", " + string(Settings.FieldMode));
             end
 
-            assert(~isempty(this.Interface), "PPMS interface object is empty - call Connect first?");            
+            assert(~isempty(this.Interface), "PPMS:InterfaceEmpty", "PPMS interface object is empty - call Connect first?");            
             this.Interface.SetField(val_Oe, rate_OePerMin, am, fm);
         end
 
@@ -352,14 +352,14 @@ classdef PPMS < Palladium.Core.Instrument
                 case("NoOvershoot")
                     am = 1;
                 otherwise
-                    error("Invalid approach mode");
+                    error("PPMS:InvalidApproachMode", "Invalid approach mode");
             end
 
             if this.SimulationMode
                 disp("Setting PPMS temperature to " + num2str(val_K) + " K, at rate " + num2str(rate_KperMin) + " K per min, " + string(Settings.ApproachMode));
             end
 
-            assert(~isempty(this.Interface), "PPMS interface object is empty - call Connect first?");
+            assert(~isempty(this.Interface), "PPMS:InterfaceEmpty", "PPMS interface object is empty - call Connect first?");
             this.Interface.SetTemperature(val_K, rate_KperMin, am);
         end
 
@@ -382,17 +382,17 @@ classdef PPMS < Palladium.Core.Instrument
             ppmsCommDir_Full = Palladium.Utilities.PathUtils.GetPathOfFolderOnSearchPath(ppmsCommDir);
 
             %Check the driver folder is there
-            assert(~isempty(ppmsCommDir_Full), "Cannot find PPMS Communication driver directory - check installation and that folders are added to the search path (Instrument Drivers may be packaged separately)");
-            assert(isfolder(ppmsCommDir_Full), "Cannot find PPMS Communication driver directory - check installation and that folders are added to the search path (Instrument Drivers may be packaged separately)");
+            assert(~isempty(ppmsCommDir_Full), "PPMS:DriverDirectoryNotFound", "Cannot find PPMS Communication driver directory - check installation and that folders are added to the search path (Instrument Drivers may be packaged separately)");
+            assert(isfolder(ppmsCommDir_Full), "PPMS:DriverDirectoryNotFound", "Cannot find PPMS Communication driver directory - check installation and that folders are added to the search path (Instrument Drivers may be packaged separately)");
 
             %Check that the QD Instrument.dll file is there. User has to
             %download that from Pharos themselves and place it in that
             %folder, as it is not freely distributable
             assert(exist(fullfile(ppmsCommDir_Full, "QDInterface.dll"), "File") == 2,...
-                "The built-in QDInterface.dll file is missing from the User Files directory. Restart Palladium and if this issue persists please contact the developer - this suggests something has gone wrong.");
+                "PPMS:InterfaceDllMissing", "The built-in QDInterface.dll file is missing from the User Files directory. Restart Palladium and if this issue persists please contact the developer - this suggests something has gone wrong.");
             assert(exist(fullfile(ppmsCommDir_Full, "QDInstrument.dll"), "File") == 2,...
-                "The driver file QDInstrument.dll is missing from the User Files directory. \n\nThis has to be installed manually by the end user as Quantum Design own the rights to it - it cannot be distributed as part of Palladium. This file can be downloaded from Quantum Design's Pharos file management site (requires creating an account).\n\n Once downloaded please place in:\n "+...
-                string(strrep(ppmsCommDir_Full, '\', '\\')) + "\n - there should already be a file in there called QDInterface.dll, which is a built in Palladium wrapper to the expected QDInstrument driver. \n\nNote that the QD Instrument Server must be running on the target PPMS PC for this to then work - see documentation on Pharos when downloading the driver.");
+                "PPMS:InstrumentDllMissing", "%s", "The driver file QDInstrument.dll is missing from the User Files directory. " + newline + newline + "This has to be installed manually by the end user as Quantum Design own the rights to it - it cannot be distributed as part of Palladium. This file can be downloaded from Quantum Design's Pharos file management site (requires creating an account)." + newline + newline + " Once downloaded please place in:" + newline + " "+...
+                string(ppmsCommDir_Full) + newline + " - there should already be a file in there called QDInterface.dll, which is a built in Palladium wrapper to the expected QDInstrument driver. " + newline + newline + "Note that the QD Instrument Server must be running on the target PPMS PC for this to then work - see documentation on Pharos when downloading the driver.");
 
             %Type of instrument to connect to - PPMS = 0, VersaLab = 1, DynaCool = 2, SVSM = 3
             instrType = 0;

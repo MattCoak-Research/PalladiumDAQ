@@ -264,8 +264,8 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
                 this.RetrieveSettingsFromGUIStruct(sweepDetails);
             end
 
-            assert(~isempty(this.Instrument), "Keithley2450_Double_GateSweep has no Main instrument set - add it as a Control on a Keithley2450, or pass Instrument= to the constructor, or call SetMainInstrument(instr).");
-            assert(~isempty(this.SecondInstrument), "Keithley2450_Double_GateSweep has no Gate instrument set - select it in the GUI, or pass SecondInstrument= to the constructor, or call SetSecondInstrument(instr).");
+            assert(~isempty(this.Instrument), "Keithley2450_Double_GateSweep:NoMainInstrument", "Keithley2450_Double_GateSweep has no Main instrument set - add it as a Control on a Keithley2450, or pass Instrument= to the constructor, or call SetMainInstrument(instr).");
+            assert(~isempty(this.SecondInstrument), "Keithley2450_Double_GateSweep:NoGateInstrument", "Keithley2450_Double_GateSweep has no Gate instrument set - select it in the GUI, or pass SecondInstrument= to the constructor, or call SetSecondInstrument(instr).");
 
             %Start both instruments from a well-defined state: stop any
             %script still running (e.g. left from a failed sweep), discard
@@ -548,10 +548,10 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             %Error with a clear message if an instrument is not a
             %Keithley2450 running the TSP command set
             if ~isa(instr, "Palladium.Instruments.Keithley2450")
-                error("Double Gate Sweep: the " + roleName + " instrument (" + instr.Name + ") must be a Keithley2450.");
+                error("Keithley2450_Double_GateSweep:InvalidInstrumentType", "%s", "Double Gate Sweep: the " + roleName + " instrument (" + instr.Name + ") must be a Keithley2450.");
             end
             if instr.GetLanguage() ~= instr.LanguageType("TSP")
-                error("Double Gate Sweep: the " + roleName + " instrument (" + instr.Name + ") is using the " + string(instr.GetLanguage()) + ...
+                error("Keithley2450_Double_GateSweep:WrongCommandSet", "%s", "Double Gate Sweep: the " + roleName + " instrument (" + instr.Name + ") is using the " + string(instr.GetLanguage()) + ...
                     " command set, but the sweep needs TSP. Change the command set on the instrument (MENU > System > Settings > Command Set, or send *LANG TSP) and reboot it.");
             end
         end
@@ -815,7 +815,7 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             %column requested (numCols x numPoints)
             values = Palladium.Instruments.Controls.Keithley2450_Double_GateSweep.ParseBufferString(str);
             if numel(values) ~= numCols * numPoints
-                error("Double Gate Sweep: expected " + (numCols * numPoints) + " values from printbuffer, got " + numel(values) + ".");
+                error("Keithley2450_Double_GateSweep:UnexpectedValueCount", "%s", "Double Gate Sweep: expected " + (numCols * numPoints) + " values from printbuffer, got " + numel(values) + ".");
             end
             cols = reshape(values, numCols, numPoints);
         end
@@ -849,7 +849,7 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             end
 
             if ~isempty(problems)
-                error("Double Gate Sweep cannot run - nothing has been sourced:" + newline + "  - " + strjoin(problems, newline + "  - "));
+                error("Keithley2450_Double_GateSweep:NothingSourced", "%s", "Double Gate Sweep cannot run - nothing has been sourced:" + newline + "  - " + strjoin(problems, newline + "  - "));
             end
         end
 
@@ -878,7 +878,7 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
                 if toc(waitTimer) > maxWait_s
                     this.Running = false;
                     this.AbortInstruments();
-                    error("Double Gate Sweep: no DONE from " + instr.Name + " after " + num2str(round(toc(waitTimer))) + ...
+                    error("Keithley2450_Double_GateSweep:DoneTimeout", "%s", "Double Gate Sweep: no DONE from " + instr.Name + " after " + num2str(round(toc(waitTimer))) + ...
                         " s - both instruments have been aborted and their outputs turned off.");
                 end
                 pause(this.PollInterval_s);
@@ -895,7 +895,7 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
         function CreateDataFile(this, writeToFile)
             %Create or reset the data writer class
             fileNameSuffix = this.FileSettings.FileName;
-            this.DataWriter = this.InitialiseDataWriter(fileNameSuffix);
+            this.DataWriter = this.InitialiseDataWriter(fileNameSuffix, WriteToFile=writeToFile);
 
             %Built in functions in base class will write the data row of all instruments/diagnostics at the start
             %of the sweep, for things like temperature, time

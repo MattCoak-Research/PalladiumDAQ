@@ -83,7 +83,7 @@ classdef ConfigIO < handle
                     this.SaveConfig(con, ConfigFilePath=configPath);
                 end
             catch e
-                error("Error loading Config file in ConfigIO: " + e.message);
+                error("LoadConfigError:LoadFailed", "%s", "Error loading Config file in ConfigIO: " + e.message);
             end
         end
 
@@ -99,7 +99,7 @@ classdef ConfigIO < handle
             try
                 %Extract file parts
                 [confDir, ~, ext] = fileparts(configPath);
-                assert(length(char(ext))>1, "SaveConfigError:MissingExtension", "File Extension must be included when specifying file path in SaveConfig. filepath was: " + string(configPath));
+                assert(length(char(ext))>1, "SaveConfigError:MissingExtension", "%s", "File Extension must be included when specifying file path in SaveConfig. filepath was: " + string(configPath));
 
                 %Make the config folder if it doesn't exist already
                 if ~exist(confDir, 'dir')
@@ -108,7 +108,7 @@ classdef ConfigIO < handle
 
                 writestruct(config, configPath, "FileType", "json");
             catch e
-                error("Error saving Config file in ConfigIO: " + e.message);
+                error("SaveConfigError:SaveFailed", "%s", "Error saving Config file in ConfigIO: " + e.message);
             end
         end
 
@@ -117,7 +117,7 @@ classdef ConfigIO < handle
                 s = this.GenerateDefaultConfigStruct();
                 this.SaveConfig(s, ConfigFilePath=configPath);
             catch e
-                error("Error saving new default Config file in ConfigIO: " + e.message);
+                error("SaveDefaultConfigError:SaveFailed", "%s", "Error saving new default Config file in ConfigIO: " + e.message);
             end
         end
         
@@ -284,7 +284,7 @@ classdef ConfigIO < handle
             %now match)
             conFlds = fields(con);
             dfFlds = fields(df);
-            assert(isequal(conFlds, dfFlds), "Something has gone wrong in Config verification - these lists of fields really should be equal");
+            assert(isequal(conFlds, dfFlds), "VerifyConfigStructError:FieldListMismatch", "Something has gone wrong in Config verification - these lists of fields really should be equal");
 
             %Go through each of those container structs in turn and repeat
             %same process
@@ -328,7 +328,7 @@ classdef ConfigIO < handle
 
                 for i = 1 : length(difference)
                     fieldToAdd = difference{i};
-                    warning("ConfigVerificationWarning:AddedMissingField", "Adding missing config field " + fieldToAdd);
+                    warning("ConfigVerificationWarning:AddedMissingField", "%s", "Adding missing config field " + fieldToAdd);
                     configStruct.(fieldToAdd) = defaultStructToCompareTo.(fieldToAdd);
                 end
             end
@@ -343,7 +343,7 @@ classdef ConfigIO < handle
 
                 for i = 1 : length(difference)
                     fieldToRemove = difference{i};
-                    warning("ConfigVerificationWarning:RemovedDeprecatedField", "Removing deprecated config field " + fieldToRemove);
+                    warning("ConfigVerificationWarning:RemovedDeprecatedField", "%s", "Removing deprecated config field " + fieldToRemove);
                     configStruct = rmfield(configStruct, fieldToRemove);
                 end
             end

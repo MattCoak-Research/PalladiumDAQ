@@ -116,7 +116,7 @@ classdef Logger < handle
                     case "Ignore"
                         %Do nothing
                     otherwise
-                        error("Awful meta-error in the error handling");
+                        error("HandleErrorError:UnsupportedErrorResponse", "Awful meta-error in the error handling");
                 end
             else                
                 switch(ErrorQuestResult)
@@ -134,7 +134,7 @@ classdef Logger < handle
                     case "Ignore"
                         %Do nothing
                     otherwise
-                        error("Awful meta-error in the error handling");
+                        error("HandleErrorError:UnsupportedErrorResponse", "Awful meta-error in the error handling");
                 end
             end
         end
@@ -230,7 +230,7 @@ classdef Logger < handle
                 msg = string(err.message) + " : " + message;
                 Palladium.Logging.Logger.Log("Error", msg, "FullMessage", report, "LogFileMessageLevel", "Error", "CommandWindowMessageLevel", "Error", "GUIMessageLevel", "Error");
             catch err
-                warning("Error thrown while attempting to log.. another error");
+                warning("LogErrorWarning:LoggingFailed", "Error thrown while attempting to log.. another error");
             end
         end
 
@@ -264,7 +264,7 @@ classdef Logger < handle
                 case("Error")
                     str = "[ERROR]   ";
                 otherwise
-                    error("Unsupported level in Logger: " + level);
+                    error("GetLevelTextError:UnsupportedLevel", "%s", "Unsupported level in Logger: " + level);
             end
         end
 
@@ -309,7 +309,7 @@ classdef Logger < handle
                             tf = false;
                     end
                 otherwise
-                    error("Unsupported level in Logger: " + cutoff);
+                    error("IsSeverityLevelAboveCutoffError:UnsupportedLevel", "%s", "Unsupported level in Logger: " + cutoff);
             end
         end
 
@@ -328,10 +328,10 @@ classdef Logger < handle
                     if(printStackTraceInCommandWindow)
                         warning(fullmessage, "backtrace", "on", "verbose", "on");
                     else
-                        fprintf(2, "\n" + strrep(fullMessage, '\', '\\') + "\n\n");    %fprintf with red text writes to command window in RED. Replace any '\' with '\\, assuming them to be file path separators
+                        fprintf(2, "\n%s\n\n", fullMessage);    %fprintf with red text writes to command window in RED. Message is passed through %s so backslashes (eg file path separators) and % characters are printed literally
                     end
                 otherwise
-                    error("Unsupported level in Logger: " + level);
+                    error("LogToCommandWindowError:UnsupportedLevel", "%s", "Unsupported level in Logger: " + level);
             end
         end
 
@@ -347,7 +347,7 @@ classdef Logger < handle
                 case("Error")
                     colour = "Red";
                 otherwise
-                    error("Unsupported level in Logger: " + level);
+                    error("LogToGUIError:UnsupportedLevel", "%s", "Unsupported level in Logger: " + level);
             end
 
             %Pass through the message and a colour to symbolise its

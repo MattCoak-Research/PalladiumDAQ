@@ -10,17 +10,15 @@ classdef testInstrumentCreation < matlab.unittest.TestCase
      methods (TestClassSetup)
         function configPathSetup(testCase)
             % Set up shared state for all tests.
-            testCase.ConfigPath = fullfile("..","Palladium DAQ", "Tests", "TestingConfig.json");
+            %Palladium writes its data files, sequences and logs to the
+            %Data, Sequences and Logs folders in Testing Data Files (see
+            %TestingConfig.json). The fixture removes them again afterwards.
+            testCase.applyFixture(matlab.unittest.fixtures.PathFixture(fullfile(fileparts(mfilename('fullpath')), "..", "Helpers")));
+            testCase.applyFixture(TestHelpers.ProgrammeOutputFixture);
+            testCase.ConfigPath = fullfile("Tests", "TestingConfig.json");   %Relative to the Palladium.m folder
         end
      end
 
-    methods (TestClassTeardown)
-        % Remove folder created during test
-        function TeardownFiles(~)
-            path = fullfile( '..','Palladium DAQ - Testing');
-            rmdir(path, 's');
-        end
-    end
 
     methods (TestMethodSetup)
 

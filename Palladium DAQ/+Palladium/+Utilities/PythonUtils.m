@@ -18,7 +18,7 @@ classdef PythonUtils
             end
 
             %Check the path exists first
-            assert(exist(directoryPath, 'dir')==7, "PythonPathError:NoSuchDirectory", "Directory " + strrep(directoryPath, "\", "\\") + " not found, could not add to Python path in PythonUtils");
+            assert(exist(directoryPath, 'dir')==7, "PythonPathError:NoSuchDirectory", "%s", "Directory " + directoryPath + " not found, could not add to Python path in PythonUtils");
 
             %Add to python search path inside MATLAB
             pyrun("import sys");
@@ -142,7 +142,7 @@ classdef PythonUtils
                         m = py.importlib.import_module(fullmod);
                     end
                 catch ME
-                    warning('Failed to import %s: %s', fullmod, ME.message);
+                    warning('ImportPythonModulesInPackageFolderWarning:ImportFailed', 'Failed to import %s: %s', fullmod, ME.message);
                     continue
                 end
 

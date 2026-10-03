@@ -3,7 +3,7 @@ classdef test_ConfigIO < matlab.unittest.TestCase
 
     %% Properties
     properties
-        TestingDir = fullfile("..", "data", "ConfigIO Testing");
+        TestingDir;   %Fresh folder for each test, inside Testing Data Files
         TestConfigDirName = "Test Config Dir";
         TestConfigDir;
         TestConfigDir_2;
@@ -19,27 +19,23 @@ classdef test_ConfigIO < matlab.unittest.TestCase
             [testCase.ApplicationDir, ~, ~] = fileparts(applicationPath);
             testCase.TestConfigPath = fullfile(testCase.ApplicationDir, fullfile("..", "..", "TestingConfig.json"));
             testCase.TestConfigPath = Palladium.Utilities.PathUtils.CleanPath(testCase.TestConfigPath);
-            testCase.TestConfigDir = fullfile(testCase.TestingDir, testCase.TestConfigDirName);     testCase.TestConfigDir = fullfile(testCase.TestingDir, testCase.TestConfigDirName);
-            testCase.TestConfigDir_2 = fullfile(testCase.TestingDir, testCase.TestConfigDirName + "_2");      
-        end
-    end
 
-    %% Methods (TestClassTeardown)
-    methods (TestClassTeardown)
-        % Remove folder created during test
-        function TeardownFiles(testCase)
-            if isfolder(testCase.TestConfigDir)
-                rmdir(testCase.TestConfigDir, 's')
-            end
-
-             if isfolder(testCase.TestConfigDir_2)
-                rmdir(testCase.TestConfigDir_2, 's')
-            end
+            %Test helpers, which keep everything the tests write inside Testing Data Files
+            testCase.applyFixture(matlab.unittest.fixtures.PathFixture(fullfile(testCase.ApplicationDir, "..", "..", "Helpers")));
         end
     end
 
     %% Methods(TestMethodSetup)
     methods(TestMethodSetup)
+        function createTestingFolders(testCase)
+            %A new folder in Testing Data Files for each test, removed by the fixture afterwards
+            fixture = testCase.applyFixture(TestHelpers.DataFolderFixture);
+            testCase.TestingDir = string(fixture.Folder);
+            testCase.TestConfigDir = fullfile(testCase.TestingDir, testCase.TestConfigDirName);   %Exists when the tests run
+            testCase.TestConfigDir_2 = fullfile(testCase.TestingDir, testCase.TestConfigDirName + "_2");   %Does not exist when the tests run
+            mkdir(testCase.TestConfigDir);
+        end
+
         function createConfigIOInstance(testCase)
             testCase.ConfigIOInstance = Palladium.Utilities.ConfigIO();
             testCase.ConfigIOInstance.PromptForGUIEntryOfSettings = false;
@@ -89,7 +85,7 @@ classdef test_ConfigIO < matlab.unittest.TestCase
             configFilePath = testCase.TestConfigPath;
 
             loadedConfig = testCase.ConfigIOInstance.LoadConfig(ApplicationDir=applicationDir, ConfigFilePath=configFilePath);
-            testCase.verifyEqual(loadedConfig.PathSettings.DefaultDirectory, "../Palladium DAQ/Tests/Palladium DAQ - Testing");
+            testCase.verifyEqual(loadedConfig.PathSettings.DefaultDirectory, "Tests/Testing Data Files/Data");
         end
 
         %% SaveConfig

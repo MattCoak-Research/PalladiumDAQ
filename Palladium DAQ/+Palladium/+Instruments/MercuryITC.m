@@ -137,7 +137,7 @@ classdef MercuryITC < Palladium.Core.Instrument
             Units = strings(1, 0);
 
             if isempty(this.DeviceCatalogue)
-                warning("Device Catalogue empty in Mercury ITC - no modules found or GetDeviceCatalogue not yet called");
+                warning("MercuryITCWarning:EmptyDeviceCatalogue", "Device Catalogue empty in Mercury ITC - no modules found or GetDeviceCatalogue not yet called");
             end
 
             for i = 1:length(this.DeviceCatalogue)
@@ -347,7 +347,7 @@ classdef MercuryITC < Palladium.Core.Instrument
             end
 
             achievedSetPt = this.SetLoopValue(deviceAddress, "TSET", setpoint_K);
-            assert(achievedSetPt == setpoint_K, "Failed to set temperature setpoint on " + string(deviceAddress) + ". Requested " + num2str(setpoint_K) + " K, achieved " + num2str(achievedSetPt) + " K.");
+            assert(achievedSetPt == setpoint_K, "MercuryITC:SetpointNotSet", "%s", "Failed to set temperature setpoint on " + string(deviceAddress) + ". Requested " + num2str(setpoint_K) + " K, achieved " + num2str(achievedSetPt) + " K.");
         end
 
         function [dataRow] = Measure(this)
@@ -623,13 +623,13 @@ classdef MercuryITC < Palladium.Core.Instrument
                 case "VALID"
                     tokens(end) = [];
                 case "INVALID"
-                    error("MercuryiTC could not interpret command (INVALID): " + string(originalResponse));
+                    error("MercuryITC:InvalidCommand", "%s", "MercuryiTC could not interpret command (INVALID): " + string(originalResponse));
                 case "NOT_FOUND"
-                    error("MercuryiTC device UID not found (NOT_FOUND): " + string(originalResponse));
+                    error("MercuryITC:DeviceUIDNotFound", "%s", "MercuryiTC device UID not found (NOT_FOUND): " + string(originalResponse));
                 case "N/A"
-                    error("MercuryiTC - function does not apply to this device (N/A): " + string(originalResponse));
+                    error("MercuryITC:FunctionNotApplicable", "%s", "MercuryiTC - function does not apply to this device (N/A): " + string(originalResponse));
                 case "DENIED"
-                    error("MercuryiTC denied permission to change this parameter (DENIED): " + string(originalResponse));
+                    error("MercuryITC:PermissionDenied", "%s", "MercuryiTC denied permission to change this parameter (DENIED): " + string(originalResponse));
             end
         end
 
@@ -652,7 +652,7 @@ classdef MercuryITC < Palladium.Core.Instrument
             elseif isKey(siPrefixes, prefixChar)
                 value = str2double(valueString(1:end-2)) * siPrefixes(prefixChar);
             else
-                error("Could not parse SI-prefixed value: " + string(valueString));
+                error("MercuryITC:SIValueParseFailed", "%s", "Could not parse SI-prefixed value: " + string(valueString));
             end
         end
 

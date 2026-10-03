@@ -64,7 +64,7 @@ classdef Keithley2000 < Palladium.Core.Instrument
                     Headers = [this.Name + " - Voltage_V", this.Name + " - Current_A"];
                     Units = ["V", "A"];
                 otherwise
-                    error("Mode must be Resistance, Voltage, or Current, this was " + string(this.Mode));
+                    error("Keithley2000:InvalidMeasureMode", "%s", "Mode must be Resistance, Voltage, or Current, this was " + string(this.Mode));
             end
         end
 
@@ -81,7 +81,7 @@ classdef Keithley2000 < Palladium.Core.Instrument
                 case(this.SourceType("Current"))
                     srcLevel = this.QueryDouble("SOUR:CURR:LEV:AMPL?");
                 otherwise
-                    error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                    error("Keithley2000:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
             end
         end
 
@@ -96,7 +96,7 @@ classdef Keithley2000 < Palladium.Core.Instrument
                     str = "A";
                     limits = [-1, 1]; %Need to check what these physical limits actually are and improve this
                 otherwise
-                    error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                    error("Keithley2000:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
             end
 
             hdrs = this.GetHeaders();
@@ -150,7 +150,7 @@ classdef Keithley2000 < Palladium.Core.Instrument
                 case(this.SourceType("Current"))
                     this.WriteCommand("SOUR:CURR:LEV " + num2str(level));
                 otherwise
-                    error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                    error("Keithley2000:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
             end
         end
 

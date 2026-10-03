@@ -55,6 +55,11 @@ classdef DataReader < handle
                 error('DataReader:OpenFileFailure','Failed to open data file');
             end
 
+            %Close the file on leaving this function however that happens -
+            %the checks below throw errors for malformed files, which would
+            %otherwise leave it open (and locked on Windows)
+            closeFile = onCleanup(@() fclose(fileID));
+
             %Read metadata (and work out how many lines it was so we know
             %where to read the Headers Row)
             endOfMetadataTextLine = "<<< END METADATA LINES >>>";
@@ -67,9 +72,6 @@ classdef DataReader < handle
 
             %Read the Headers
             [headers] = Palladium.DataWriting.DataReader.ReadHeadersLine(fileID);
-
-            % Close the text file.
-            fclose(fileID);
         end
 
     end
@@ -78,8 +80,11 @@ classdef DataReader < handle
     methods (Access = public, Static)
 
         function [dataArray] = ReadDataArray(filePath, numHeaderLines)
-            %Read the data
-            dataArray = readmatrix(filePath, 'FileType', 'text', 'NumHeaderLines', numHeaderLines, 'OutputType', 'double');
+            %Read the data. The delimiter is given explicitly (DataWriter
+            %always writes tab-delimited files) - left to auto-detection,
+            %readmatrix can fail on files with only a few data rows or with
+            %NaN/Inf in the first row, silently returning a column of NaN
+            dataArray = readmatrix(filePath, 'FileType', 'text', 'NumHeaderLines', numHeaderLines, 'Delimiter', '\t', 'OutputType', 'double');
         end
 
         function [headersStrArray] = ReadHeadersLine(fileID)

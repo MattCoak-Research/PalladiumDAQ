@@ -106,7 +106,7 @@ classdef Verification
             %Throw an error if the installed Matlab version is lower than the
             %specified release, eg "R2023b"
             if isMATLABReleaseOlderThan(releaseStr)
-                error("Unsupported Matlab version, please upgrade to at least version " + releaseStr);
+                error("VerifyMatlabVersionError:UnsupportedVersion", "%s", "Unsupported Matlab version, please upgrade to at least version " + releaseStr);
             end
         end
         
@@ -115,7 +115,7 @@ classdef Verification
             v_= ver;
             [installedToolboxes{1:length(v_)}] = deal(v_.Name);
             result = all(ismember(toolboxName,installedToolboxes));
-            assert(result, "VerifyToolboxError:ToolboxNotInstalled", "Error! " + string(toolboxName) + " is not installed");
+            assert(result, "VerifyToolboxError:ToolboxNotInstalled", "%s", "Error! " + string(toolboxName) + " is not installed");
         end       
         
     end

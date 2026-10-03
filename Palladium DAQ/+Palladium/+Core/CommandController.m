@@ -107,7 +107,7 @@ classdef CommandController < handle
                 case("Palladium.Sequence.Commands.DataFileCommand")
                     this.ExecuteDataFileCommand(command);
                 otherwise
-                    error("Unsupported command type " + string(cmdType))
+                    error("ExecuteCommandError:UnsupportedCommandType", "%s", "Unsupported command type " + string(cmdType))
             end
         end
 
@@ -287,7 +287,7 @@ classdef CommandController < handle
                 target = command.Instrument;
             else
                 targets = command.Instrument.GetRegisteredControlObjectsFromName(command.ControlName);
-                assert(isscalar(targets), "Found multiple Controls or no Control of this name: " + string(command.ControlName));
+                assert(isscalar(targets), "ExecuteInstrumentCommandError:ControlNotUnique", "%s", "Found multiple Controls or no Control of this name: " + string(command.ControlName));
                 target = targets(1);
             end
 

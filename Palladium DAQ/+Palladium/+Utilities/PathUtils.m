@@ -146,7 +146,7 @@ classdef PathUtils
             %If there is an extension there already, assert it's the same
             %as the requested one, then just return
             if ext~=""      %Fileparts returns "" not [] if no extension found - this is empty string test
-                assert(strcmp(string(ext), string(extension)), "EnsureExtensionError:WrongExtension", "Extension of file path " + string(filepath) + " contained an extension different to the expected " + string(extension));
+                assert(strcmp(string(ext), string(extension)), "EnsureExtensionError:WrongExtension", "%s", "Extension of file path " + string(filepath) + " contained an extension different to the expected " + string(extension));
                 newPath = filepath;
                 return;
             end
@@ -156,13 +156,30 @@ classdef PathUtils
         end
 
         function newFileName = GetIncrementedFileName(filepath)
-            % GETINCREMENTEDFILENAME - Return filepath with an incremented numeric suffix
+            % GETINCREMENTEDFILENAME - Return the file name (without folder or
+            % extension) to save as, so that no existing file is overwritten
+            %
+            % A file is numbered with a counter: a hyphen followed by
+            % exactly 5 digits at the end of the name, like "run-00001".
+            % A name without a counter gets "-00001" added. A name that
+            % already ends in a counter is incremented from there, if the
+            % file with that counter exists - so a name that has already
+            % been through here ("run-00001") goes to "run-00002" next time.
+            %
+            % A name that merely ends in numbers is not a counter and is never
+            % incremented: "run_Temperature297" becomes
+            % "run_Temperature297-00001", and so does "sample 02-Aug-2026".
+            % Hence exactly 5 digits - a year or a short number won't match.
+            %
+            % Past "-99999" the next number has 6 digits, which is no longer a
+            % counter, so a new one is started after it: "run-99999",
+            % "run-100000", "run-100000-00001", "run-100000-00002"...
             %
             % Input arguments:
-            % filepath - text scalar path or filename
+            % filepath - text scalar path, including the file extension
             %
             % Output arguments:
-            % newFileName  - filename with incremented numeric suffix if needed
+            % newFileName  - file name without folder or extension
             arguments
                 filepath {mustBeTextScalar};
             end
@@ -172,29 +189,28 @@ classdef PathUtils
 
             assert(Ext~="", "GetIncrementFileNameError:MissingExtension", "Extension must be given when passing file path into GetIncrementedFileName");
 
-            %Check last 3 characters to see if they are already a number.
-            %If not add em. We will then need to check if that filename
-            %already exists.
-            lastThree = extractBetween(fileNameWithoutExt, strlength(fileNameWithoutExt) - 2, strlength(fileNameWithoutExt));
-            if(isnan(str2double(lastThree)))    %If not numbers
-                fileNameWithoutExt = strcat(fileNameWithoutExt, '-001');
-            end
-
-            %Rebuild filepath to check if it exists
-            filepath = string(fullfile(directory, fileNameWithoutExt)) + string(Ext);
-            
-            while(exist(filepath, 'file') == 2)  %If file exists already
-                lastThree = extractBetween(fileNameWithoutExt, strlength(fileNameWithoutExt) - 2, strlength(fileNameWithoutExt));
-                n = str2double(lastThree);
-                numstring = num2str(n+1, '%03.f');
-
-                startStr = char(extractBetween(fileNameWithoutExt, 1, strlength(fileNameWithoutExt) - 3));
-                fileNameWithoutExt = strcat(startStr, numstring);
-
-                filepath = string(fullfile(directory, fileNameWithoutExt)) + Ext;
-            end
-
+            counterPattern = '^(.*)-(\d{5})$';
             newFileName = string(fileNameWithoutExt);
+
+            %Add a counter to a name that doesn't have one yet
+            if isempty(regexp(newFileName, counterPattern, 'once'))
+                newFileName = newFileName + "-00001";
+            end
+
+            %isfile, unlike exist, looks only at this exact path - exist
+            %also finds anything on the MATLAB search path with the name
+            candidatePath = string(fullfile(directory, newFileName)) + string(Ext);
+            while isfile(candidatePath)
+                tokens = regexp(newFileName, counterPattern, 'tokens', 'once');
+                if isempty(tokens)
+                    %Counter has overflowed to 6 or more digits, start a new one
+                    newFileName = newFileName + "-00001";
+                else
+                    newFileName = string(tokens{1}) + "-" + string(sprintf('%05d', str2double(tokens{2}) + 1));
+                end
+
+                candidatePath = string(fullfile(directory, newFileName)) + string(Ext);
+            end
         end
 
         function dirPath = GetPathOfFolderOnSearchPath(dirName)
@@ -209,7 +225,7 @@ classdef PathUtils
             dirPathCell = temp(~cellfun(@isempty,temp));     %non-empty results only
 
             if isempty(dirPathCell)
-                error("Could not find directory " + string(dirName) + " on the MATLAB path (PathUtils.GetPathOfFolderOnSearchPath");
+                error("GetPathOfFolderOnSearchPathError:DirectoryNotFound", "%s", "Could not find directory " + string(dirName) + " on the MATLAB path (PathUtils.GetPathOfFolderOnSearchPath");
             end
 
             dirPath = string(dirPathCell{1});

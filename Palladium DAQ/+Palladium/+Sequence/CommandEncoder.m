@@ -66,13 +66,13 @@ classdef CommandEncoder < handle
                         case("hr")
                             waitVal_Sec = waitValue * 3600;
                         otherwise
-                            error("Unrecognised wait unit: " + string(details.WaitUnits));
+                            error("BuildCommandFromEventDetailsError:UnrecognisedWaitUnit", "%s", "Unrecognised wait unit: " + string(details.WaitUnits));
                     end
 
                     com = Palladium.Sequence.Commands.WaitCommand(waitVal_Sec, "WaitDisplayUnits", details.WaitUnits);
 
                 otherwise
-                    error("Unrecognised command type string: " + string(details.Type));
+                    error("BuildCommandFromEventDetailsError:UnrecognisedCommandType", "%s", "Unrecognised command type string: " + string(details.Type));
             end
         end
 
@@ -95,7 +95,7 @@ classdef CommandEncoder < handle
                     str = this.BuildWaitCommand(WaitValue=waitVal, WaitUnit=waitDisplayUnit);
 
                 otherwise
-                    error("Unrecognised command class type in CommandEncoder: " + string(classType));
+                    error("CommandToStringError:UnrecognisedCommandClass", "%s", "Unrecognised command class type in CommandEncoder: " + string(classType));
             end
 
         end
@@ -129,7 +129,7 @@ classdef CommandEncoder < handle
             end
 
             typeStr = extractBetween(str, '[', ']');
-            assert(~isempty(typeStr), "Type String not found");
+            assert(~isempty(typeStr), "StringToCommandError:TypeStringNotFound", "Type String not found");
 
             commandStr = extractAfter(str, ']');
             commandStr = strtrim(commandStr);
@@ -154,7 +154,7 @@ classdef CommandEncoder < handle
                     com = Palladium.Sequence.Commands.WaitCommand(waitVal_Sec, "WaitDisplayUnits", waitUnits);
 
                 otherwise
-                    error("Unrecognised command type string: " + string(typeStr{1}));
+                    error("StringToCommandError:UnrecognisedCommandType", "%s", "Unrecognised command type string: " + string(typeStr{1}));
             end
 
         end
@@ -226,7 +226,7 @@ classdef CommandEncoder < handle
                 case("hr")
                     val = Settings.WaitValue / 3600;
                 otherwise
-                    error("Unrecognised wait unit: " + Settings.WaitUnit);
+                    error("BuildWaitCommandError:UnrecognisedWaitUnit", "%s", "Unrecognised wait unit: " + Settings.WaitUnit);
             end
 
             %Round to 3dp, stop it getting silly
@@ -258,7 +258,7 @@ classdef CommandEncoder < handle
                 instStringNameList = "-NONE-";
             end
 
-            error("GetInstrumentFromNameError:NotFound", "Could not find instrument of Name " + instName + ". Added Instruments: " + instStringNameList);
+            error("GetInstrumentFromNameError:NotFound", "%s", "Could not find instrument of Name " + instName + ". Added Instruments: " + instStringNameList);
         end
 
         function [writeFile, path] = ParseDataFileCommand(this, str)
@@ -268,7 +268,7 @@ classdef CommandEncoder < handle
             indicesOfDelims = strfind(str, ":");
 
             if isempty(indicesOfDelims)
-                error("Data File Command String Does not contain expected : Delimiter, Cannot Parse: " + string(str));
+                error("ParseDataFileCommandError:MissingDelimiter", "%s", "Data File Command String Does not contain expected : Delimiter, Cannot Parse: " + string(str));
             end
 
             indexOfFirstDelim = indicesOfDelims(1);
@@ -332,7 +332,7 @@ classdef CommandEncoder < handle
                 case("hr")
                     waitVal_Sec = val * 3600;
                 otherwise
-                    error("Unrecognised wait unit: " + Settings.WaitUnit);
+                    error("ParseWaitCommandError:UnrecognisedWaitUnit", "%s", "Unrecognised wait unit: " + Settings.WaitUnit);
             end
 
         end

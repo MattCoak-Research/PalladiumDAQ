@@ -30,6 +30,15 @@ classdef StubControl < Palladium.Core.InstrumentControlBase
             this.LastHeaders = headers;
             this.Log("UpdateData:" + this.GetName());
         end
+
+        %% Test access to protected InstrumentControlBase members
+        function SetInstrumentForTest(this, instrument)
+            this.Instrument = instrument;
+        end
+
+        function dataWriter = InitialiseDataWriterForTest(this, fileNameSuffix, varargin)
+            dataWriter = this.InitialiseDataWriter(fileNameSuffix, varargin{:});
+        end
     end
 
     methods (Access = private)

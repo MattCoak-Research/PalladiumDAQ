@@ -106,7 +106,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                         " command set, but its Language setting is " + string(this.Language) + ". Set Language to " + string(hardwareLanguage) + ...
                         ", or change the command set on the instrument (MENU > System > Settings > Command Set, or send *LANG " + ...
                         string(this.Language) + ") and reboot it.";
-                    error(msg);
+                    error("Keithley2450:LanguageMismatch", "%s", msg);
                 end
             end
 
@@ -132,7 +132,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                 case(this.LanguageType("TSP"))
                     this.WriteCommand("eventlog.clear()");
                 otherwise
-                    error("Unsupported language type " + string(this.Language));
+                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
             end
         end
 
@@ -177,7 +177,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                             case(this.SourceType("Current"))
                                 compValue = this.QueryDouble("SOUR:CURR:VLIM?");
                             otherwise
-                                error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                                error("Keithley2450:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
                         end
                     case(this.LanguageType("TSP"))
                         switch(this.SourceMode)
@@ -186,10 +186,10 @@ classdef Keithley2450 < Palladium.Core.Instrument
                             case(this.SourceType("Current"))
                                 compValue = this.QueryDouble("print(smu.source.vlimit.level)"); 
                             otherwise
-                                error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                                error("Keithley2450:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
                         end
                     otherwise
-                        error("Unsupported language type " + string(this.Language));
+                        error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
                 end
             end
 
@@ -199,7 +199,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                 case(this.SourceType("Current"))
                     str = " mV";
                 otherwise
-                    error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                    error("Keithley2450:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
             end
 
             %Multiply by 1000, millivolts or mA is easier to read. Round to 6
@@ -223,7 +223,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                 case(this.LanguageType("TSP"))
                     errorCount = this.QueryDouble("print(eventlog.getcount(eventlog.SEV_ERROR))");
                 otherwise
-                    error("Unsupported language type " + string(this.Language));
+                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
             end
         end
 
@@ -255,7 +255,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                         code = str2double(fields(1));
                         message = fields(min(2, end));
                     otherwise
-                        error("Unsupported language type " + string(this.Language));
+                        error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
                 end
 
                 %Code 0 means the log is empty (nothing left to read)
@@ -285,7 +285,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                      end
 
                 otherwise
-                    error("Unsupported language type " + string(this.Language));
+                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
             end
         end
 
@@ -301,7 +301,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                             Headers = [this.Name + " - Resistance_Ohms", this.Name + " - Voltage_V", this.Name + " - Compliance Limited"];
                             Units = ["Ohms", "V", ""];
                         otherwise
-                            error("Invalid type");
+                            error("Keithley2450:InvalidSourceType", "Invalid type");
                     end
                 case(this.MeasType("Current"))
                     Headers = [this.Name + " - Current_A", this.Name + " - Voltage_V", this.Name + " - Compliance Limited"];
@@ -318,10 +318,10 @@ classdef Keithley2450 < Palladium.Core.Instrument
                             Headers = [this.Name + " - Power_W", this.Name + " - Voltage_V", this.Name + " - Compliance Limited"];
                             Units = ["W", "V", ""];
                         otherwise
-                            error("Invalid type");
+                            error("Keithley2450:InvalidSourceType", "Invalid type");
                     end
                 otherwise
-                    error("Mode must be Resistance, Voltage, Current or Power, this was " + string(this.MeasMode));
+                    error("Keithley2450:InvalidMeasureMode", "%s", "Mode must be Resistance, Voltage, Current or Power, this was " + string(this.MeasMode));
             end
 
             
@@ -339,7 +339,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
             elseif strcmp(result, "SCPI")
                 lang = this.LanguageType("SCPI");
             else
-                error("Unsupported instrument language: " + result);
+                error("Keithley2450:UnsupportedInstrumentLanguage", "%s", "Unsupported instrument language: " + result);
             end
         end
 
@@ -367,7 +367,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                     elseif startsWith(funcStr, "RES")
                         this.MeasFunction = "RES";
                     else
-                        error("Unsupported measurement function: " + result);
+                        error("Keithley2450:UnsupportedMeasurementFunction", "%s", "Unsupported measurement function: " + result);
                     end
 
                     %Resistance function is always in Ohms, only voltage and
@@ -381,7 +381,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                 case(this.LanguageType("TSP"))
                     result = strtrim(string(this.QueryString("print(smu.measure.func)")));
                     if ~any(strcmp(result, ["smu.FUNC_DC_CURRENT", "smu.FUNC_DC_VOLTAGE", "smu.FUNC_RESISTANCE"]))
-                        error("Unsupported measurement function: " + result);
+                        error("Keithley2450:UnsupportedMeasurementFunction", "%s", "Unsupported measurement function: " + result);
                     end
 
                     %Returns e.g. smu.UNIT_OHM - strip the prefix to match
@@ -389,7 +389,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                     unitStr = strtrim(string(this.QueryString("print(smu.measure.unit)")));
                     unitStr = upper(erase(unitStr, "smu.UNIT_"));
                 otherwise
-                    error("Unsupported language type " + string(this.Language));
+                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
             end
 
             switch(unitStr)
@@ -402,7 +402,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                 case("WATT")
                     measMode = this.MeasType("Power");
                 otherwise
-                    error("Unsupported measurement unit: " + unitStr);
+                    error("Keithley2450:UnsupportedMeasurementUnit", "%s", "Unsupported measurement unit: " + unitStr);
             end
         end
 
@@ -421,7 +421,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                     case(this.LanguageType("TSP"))
                         nplc = this.QueryDouble("print(smu.measure.nplc)");
                     otherwise
-                        error("Unsupported language type " + string(this.Language));
+                        error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
                 end
             end
 
@@ -450,7 +450,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                     str = "A";
                     limits = [-1, 1]; %Need to check what these physical limits actually are and improve this
                 otherwise
-                    error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                    error("Keithley2450:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
             end
 
             hdrs = this.GetHeaders();
@@ -471,7 +471,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                         case(this.LanguageType("TSP"))
                             srcLevel = this.QueryDouble("print(smu.source.getattribute(smu.FUNC_DC_VOLTAGE, smu.ATTR_SRC_LEVEL))");
                         otherwise
-                            error("Unsupported language type " + string(this.Language));
+                            error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
                     end
                 case(this.SourceType("Current"))
                     switch(this.Language)
@@ -480,10 +480,10 @@ classdef Keithley2450 < Palladium.Core.Instrument
                         case(this.LanguageType("TSP"))
                             srcLevel = this.QueryDouble("print(smu.source.getattribute(smu.FUNC_DC_CURRENT, smu.ATTR_SRC_LEVEL))");
                         otherwise
-                            error("Unsupported language type " + string(this.Language));
+                            error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
                     end
                 otherwise
-                    error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                    error("Keithley2450:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
             end
         end
 
@@ -502,7 +502,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                     elseif strcmp(result, "VOLT")
                         srcMode = this.SourceType("Voltage");
                     else
-                        error("Unsupported source mode: " + result);
+                        error("Keithley2450:UnsupportedSourceMode", "%s", "Unsupported source mode: " + result);
                     end
 
                 case(this.LanguageType("TSP"))
@@ -513,10 +513,10 @@ classdef Keithley2450 < Palladium.Core.Instrument
                     elseif strcmp(result, "smu.FUNC_DC_VOLTAGE")
                         srcMode = this.SourceType("Voltage");
                     else
-                        error("Unsupported source mode: " + result);
+                        error("Keithley2450:UnsupportedSourceMode", "%s", "Unsupported source mode: " + result);
                     end
                 otherwise
-                    error("Unsupported language type " + string(this.Language));
+                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
             end
         end
 
@@ -539,7 +539,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                 case(this.LanguageType("TSP"))
                     ovpSetting = strtrim(string(this.QueryString("print(smu.source.getattribute(smu.FUNC_DC_VOLTAGE, smu.ATTR_SRC_PROTECT_LEVEL))")));
                 otherwise
-                    error("Unsupported language type " + string(this.Language));
+                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
             end
 
             if contains(ovpSetting, "NONE")
@@ -547,7 +547,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
             else
                 ovp_V = str2double(regexp(ovpSetting, "\d+", "match", "once"));
                 if isnan(ovp_V)
-                    error("Unexpected overvoltage protection setting: " + ovpSetting);
+                    error("Keithley2450:UnexpectedOVPSetting", "%s", "Unexpected overvoltage protection setting: " + ovpSetting);
                 end
             end
         end
@@ -570,7 +570,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                         case(this.SourceType("Current"))
                             compValue = this.QueryDouble("SOUR:CURR:VLIM:TRIP?");
                         otherwise
-                            error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                            error("Keithley2450:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
                     end
                     complianceLimited = logical(compValue);
                 case(this.LanguageType("TSP"))
@@ -580,7 +580,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                         case(this.SourceType("Current"))
                             result = this.QueryString("print(smu.source.vlimit.tripped)");
                         otherwise
-                            error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                            error("Keithley2450:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
                     end
 
                     %Hardware returns the enum name smu.ON / smu.OFF (the
@@ -591,10 +591,10 @@ classdef Keithley2450 < Palladium.Core.Instrument
                     elseif any(strcmp(result, ["smu.OFF", "0"]))
                         complianceLimited = false;
                     else
-                        error("Unexpected compliance tripped response: " + result);
+                        error("Keithley2450:UnexpectedComplianceResponse", "%s", "Unexpected compliance tripped response: " + result);
                     end
                 otherwise
-                    error("Unsupported language type " + string(this.Language));
+                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
             end
         end
 
@@ -614,7 +614,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                     result = strtrim(string(this.QueryString("print(smu.interlock.tripped)")));
                     tf = any(result == ["smu.ON", "1"]);
                 otherwise
-                    error("Unsupported language type " + string(this.Language));
+                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
             end
         end
 
@@ -666,7 +666,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                     %entry is at endindex - n stops increasing once it wraps
                     data = this.QueryString("local r = smu.measure.read() print(r, defbuffer1.sourcevalues[defbuffer1.endindex], defbuffer1.sourcestatuses[defbuffer1.endindex], eventlog.getcount(eventlog.SEV_ERROR))");
                 otherwise
-                    error("Unsupported language type " + string(this.Language));
+                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
             end
 
             parts = strsplit(strtrim(string(data)), {',', ';', sprintf('\t')});
@@ -688,12 +688,12 @@ classdef Keithley2450 < Palladium.Core.Instrument
             %status from the previous reading in the buffer - so reject it
             %rather than record stale values
             if isscalar(parts) || parts(1) == "nil"
-                error("Measurement failed - instrument returned no reading (e.g. output off in Resistance or 4-wire mode). See the instrument error reported in the warning above.");
+                error("Keithley2450:NoMeasurementReading", "Measurement failed - instrument returned no reading (e.g. output off in Resistance or 4-wire mode). See the instrument error reported in the warning above.");
             end
 
             values = str2double(parts(1:end-1));
             if numel(values) ~= 3 || any(isnan(values))
-                error("Unexpected measurement response: " + data);
+                error("Keithley2450:UnexpectedMeasurementResponse", "%s", "Unexpected measurement response: " + data);
             end
 
             %The instrument returns 9.9e37 for an overrange reading (fixed
@@ -719,7 +719,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                 case(this.LanguageType("TSP"))
                     this.WriteCommand("reset(true)");
                 otherwise
-                    error("Unsupported language type " + string(this.Language));
+                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
             end
         end
 
@@ -735,7 +735,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                 case(this.LanguageType("TSP"))
                     this.WriteCommand("abort");
                 otherwise
-                    error("Unsupported language type " + string(this.Language));
+                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
             end
         end
 
@@ -771,7 +771,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                         this.WriteCommand("smu.source.output = smu.OFF");
                     end
                 otherwise
-                    error("Unsupported language type " + string(this.Language));
+                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
             end
 
             %Set the output level
@@ -783,12 +783,12 @@ classdef Keithley2450 < Palladium.Core.Instrument
                         case(this.SourceType("Current"))
                             this.WriteCommand("SOUR:CURR:LEV " + num2str(level));
                         otherwise
-                            error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                            error("Keithley2450:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
                     end
                 case(this.LanguageType("TSP"))
                     this.WriteCommand("smu.source.level = " + num2str(level));
                 otherwise
-                    error("Unsupported language type " + string(this.Language));
+                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
             end
         end
 
@@ -804,13 +804,13 @@ classdef Keithley2450 < Palladium.Core.Instrument
 
             switch(this.Language)
                 case(this.LanguageType("SCPI"))
-                    assert(~isempty(regexp(ovpSetting, "^(PROT\d+|NONE)$", "once")), "Invalid SCPI overvoltage protection setting: " + ovpSetting);
+                    assert(~isempty(regexp(ovpSetting, "^(PROT\d+|NONE)$", "once")), "Keithley2450:InvalidOVPSetting", "%s", "Invalid SCPI overvoltage protection setting: " + ovpSetting);
                     this.WriteCommand("SOUR:VOLT:PROT " + ovpSetting);
                 case(this.LanguageType("TSP"))
-                    assert(~isempty(regexp(ovpSetting, "^smu\.PROTECT_(\d+V|NONE)$", "once")), "Invalid TSP overvoltage protection setting: " + ovpSetting);
+                    assert(~isempty(regexp(ovpSetting, "^smu\.PROTECT_(\d+V|NONE)$", "once")), "Keithley2450:InvalidOVPSetting", "%s", "Invalid TSP overvoltage protection setting: " + ovpSetting);
                     this.WriteCommand("smu.source.setattribute(smu.FUNC_DC_VOLTAGE, smu.ATTR_SRC_PROTECT_LEVEL, " + ovpSetting + ")");
                 otherwise
-                    error("Unsupported language type " + string(this.Language));
+                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
             end
         end
 
@@ -823,7 +823,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
                 case(this.LanguageType("TSP"))
                     this.WriteCommand("smu.source.output = smu.OFF");
                 otherwise
-                    error("Unsupported language type " + string(this.Language));
+                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
             end
         end
 

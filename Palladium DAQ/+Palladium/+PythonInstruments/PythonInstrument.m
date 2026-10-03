@@ -64,18 +64,18 @@ classdef PythonInstrument < Palladium.Core.Instrument
         function set.Name(this, value)
             % Name setter: accept string or char, convert to Python str and set on PyInstr
             if isempty(this.PyInstr)
-                error("Python Instrument assignment empty, cannot set Name until PyInstr is assigned");
+                error("SetNameError:PyInstrEmpty", "Python Instrument assignment empty, cannot set Name until PyInstr is assigned");
             end
             % Validate input
             if ~(ischar(value) || isstring(value)) || (isstring(value) && numel(value)~=1)
-                error("Name must be a scalar char vector or a scalar string.");
+                error("SetNameError:InvalidType", "Name must be a scalar char vector or a scalar string.");
             end
             % Convert to char then to Python str
             try
                 pyStr = py.str(char(value));
                 this.PyInstr.Name = pyStr;
             catch ex
-                error("Failed to set PyInstr.Name: %s", ex.message);
+                error("SetNameError:PythonSetFailed", "Failed to set PyInstr.Name: %s", ex.message);
             end
         end
         
@@ -96,17 +96,17 @@ classdef PythonInstrument < Palladium.Core.Instrument
         function set.FullName(this, value)
             % FullName setter: accept string or char, convert to Python str and set on PyInstr
             if isempty(this.PyInstr)
-                error("Python Instrument assignment empty, cannot set FullName until PyInstr is assigned");
+                error("SetFullNameError:PyInstrEmpty", "Python Instrument assignment empty, cannot set FullName until PyInstr is assigned");
             end
             % Validate input
             if ~(ischar(value) || isstring(value)) || (isstring(value) && numel(value)~=1)
-                error("FullName must be a scalar char vector or a scalar string.");
+                error("SetFullNameError:InvalidType", "FullName must be a scalar char vector or a scalar string.");
             end
             try
                 pyStr = py.str(char(value));
                 this.PyInstr.FullName = pyStr;
             catch ex
-                error("Failed to set PyInstr.FullName: %s", ex.message);
+                error("SetFullNameError:PythonSetFailed", "Failed to set PyInstr.FullName: %s", ex.message);
             end
         end
     end
@@ -115,7 +115,7 @@ classdef PythonInstrument < Palladium.Core.Instrument
     methods(Access = public)
 
         function metadataStruct = CollectMetaData(this) 
-            assert(~isempty(this.PyInstr), "Python Instrument assignment empty, cannot call CollectMetadata until it is assigned");
+            assert(~isempty(this.PyInstr), "CollectMetaDataError:PyInstrEmpty", "Python Instrument assignment empty, cannot call CollectMetadata until it is assigned");
             pyStruct = this.PyInstr.collect_metadata();
             
             %Return if this result is null
@@ -134,7 +134,7 @@ classdef PythonInstrument < Palladium.Core.Instrument
 
         function Close(this)
             if isempty(this.PyInstr)
-                warning("Python Instrument assignment empty, cannot call Close until it is assigned");
+                warning("CloseWarning:PyInstrEmpty", "Python Instrument assignment empty, cannot call Close until it is assigned");
                 return;
             end
 
@@ -143,7 +143,7 @@ classdef PythonInstrument < Palladium.Core.Instrument
         end
 
         function Connect(this)
-            assert(~isempty(this.PyInstr), "Python Instrument assignment empty, cannot call Connect until it is assigned");
+            assert(~isempty(this.PyInstr), "ConnectError:PyInstrEmpty", "Python Instrument assignment empty, cannot call Connect until it is assigned");
 
             % Handle Debug locally (no Python connect call)
             switch(this.Connection_Type)
@@ -171,7 +171,7 @@ classdef PythonInstrument < Palladium.Core.Instrument
                 case(Palladium.Enums.ConnectionType.Serial)
                     this.PyInstr.connectSerial(py.str(char(this.Serial_Address)));
                 otherwise
-                    error("Unsupported connection type: " + this.Connection_Type + ". ConnectionType can be tcpip, gpib, serial, usb, or visa.");
+                    error("ConnectError:UnsupportedConnectionType", "%s", "Unsupported connection type: " + this.Connection_Type + ". ConnectionType can be tcpip, gpib, serial, usb, or visa.");
             end
 
             % Inform Python side of simulation state (false for real connections)
@@ -183,7 +183,7 @@ classdef PythonInstrument < Palladium.Core.Instrument
             % Call the Python GetHeaders() -> (headers, units)
 
             if isempty(this.PyInstr)
-                error("PyInstr reference is empty");
+                error("GetHeadersError:PyInstrEmpty", "PyInstr reference is empty");
             end
 
             % pyOut is the Python return, e.g. (['Value1','Value2'], ['arb','K'])
@@ -194,7 +194,7 @@ classdef PythonInstrument < Palladium.Core.Instrument
                 firstPy  = pyOut{1};
                 secondPy = pyOut{2};
             else
-                error("Unexpected return type from Python GetHeaders");
+                error("GetHeadersError:UnexpectedReturnType", "Unexpected return type from Python GetHeaders");
             end
 
             % Helper to convert a Python sequence to a MATLAB string array

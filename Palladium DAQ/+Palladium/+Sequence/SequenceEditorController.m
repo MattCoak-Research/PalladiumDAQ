@@ -98,7 +98,7 @@ classdef SequenceEditorController < handle
             namespaceClassPath = "Palladium.Sequence.Views." + viewFileName;
 
             %Check that this file exists in the expected folder
-            assert(exist(fullViewCodeFilePath + ".m", "file") || exist(fullViewCodeFilePath + ".mlapp", "file"), "View file " + fullViewCodeFilePath + " not found");
+            assert(exist(fullViewCodeFilePath + ".m", "file") || exist(fullViewCodeFilePath + ".mlapp", "file"), "CreateViewError:ViewFileNotFound", "%s", "View file " + fullViewCodeFilePath + " not found");
 
             %Create an instance of the required class (empty constructor)
             fnHandle = str2func(namespaceClassPath);
@@ -153,7 +153,7 @@ classdef SequenceEditorController < handle
                 instStringNameList = "-NONE-";
             end
 
-            error("GetInstrumentFromNameError:NotFound", "Could not find instrument of Name " + instName + ". Added Instruments: " + instStringNameList);
+            error("GetInstrumentFromNameError:NotFound", "%s", "Could not find instrument of Name " + instName + ". Added Instruments: " + instStringNameList);
         end
 
         function FileSelected(this, ~, eventArgs)

@@ -31,7 +31,7 @@ classdef Palladium < handle
 
         %Build version number - semantic versioning used of form
         %major.minor.build, each of these are integers.
-        BuildVersionNo = 2;
+        BuildVersionNo = 3;
 
         %Author information
         AuthorString = "M.J. Coak, University of Birmingham";
@@ -166,7 +166,7 @@ classdef Palladium < handle
                 Settings.ConfigFilePath = Palladium.Utilities.PathUtils.CleanPath(Settings.ConfigFilePath);
                 
                 %Check the file exists
-                assert(isfile(Settings.ConfigFilePath), "Could not find override Config file at " + string(Settings.ConfigFilePath));
+                assert(isfile(Settings.ConfigFilePath), "PalladiumError:ConfigFileNotFound", "%s", "Could not find override Config file at " + string(Settings.ConfigFilePath));
             end
 
             %Initialise the Controller
@@ -531,7 +531,7 @@ classdef Palladium < handle
             %not in a compiled exe version, where paths are not the same
             %deal
             if ~isdeployed
-                assert(exist(fullViewCodeFilePath + ".m", "file") || exist(fullViewCodeFilePath + ".mlapp", "file"), "View file " + fullViewCodeFilePath + " not found");
+                assert(exist(fullViewCodeFilePath + ".m", "file") || exist(fullViewCodeFilePath + ".mlapp", "file"), "CreateViewError:ViewFileNotFound", "%s", "View file " + fullViewCodeFilePath + " not found");
             end
 
             %Create an instance of the required class (empty constructor)
@@ -555,8 +555,8 @@ classdef Palladium < handle
                 presetPath = fullfile(presetsDir, presetName) + ".json";
 
                 %Error checking
-                assert(exist(presetsDir,"dir") == 7, "Presets directory " + string(presetsDir) + " not found");
-                assert(exist(presetPath,"file") == 2, "Preset file " + string(presetPath) + " not found");
+                assert(exist(presetsDir,"dir") == 7, "LoadPresetError:PresetsDirNotFound", "%s", "Presets directory " + string(presetsDir) + " not found");
+                assert(exist(presetPath,"file") == 2, "LoadPresetError:PresetFileNotFound", "%s", "Preset file " + string(presetPath) + " not found");
 
                 %Load the present in and apply all the settings
                 Palladium.Utilities.PluginLoading.ApplyPresetFromJson(this.Controller, this.View, presetPath);

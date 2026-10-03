@@ -54,7 +54,7 @@ classdef DataWriter < handle
 
                 %Error checking
                 if isempty(endLineIdx)
-                    warning("Could not find end-of-metadata string in file");   %Don't throw full error and prevent file writing entirely
+                    warning("InsertMetadataLinesWarning:MetadataMarkerNotFound", "Could not find end-of-metadata string in file");   %Don't throw full error and prevent file writing entirely
                 else
                     %Check how many lines to insert
                     linesToInsert = length(stringLinesArray);
@@ -83,9 +83,9 @@ classdef DataWriter < handle
                 fclose(fid);
 
             catch err
-                warning("Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying...");
+                warning("InsertMetadataLinesWarning:WriteFailed", "%s", "Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying...");
                 errMess = string(err.message);
-                warning(errMess);
+                warning("InsertMetadataLinesWarning:WriteErrorMessage", "%s", errMess);
                 Palladium.Logging.Logger.Log("Info", "Writing of file to " + this.FileWriteDetails.FilePath + " failed." + " Error message: " + errMess);
             end
         end
@@ -104,7 +104,7 @@ classdef DataWriter < handle
                     end
                 end
 
-                %Add '-Fig' to the filename, and then any needed 00x
+                %Add '-Fig' to the filename, and then any needed -0000x
                 %numbers to prevent file overwriting if multiple figures
                 %were saved on this same filename
                 fileNameWithoutExtension = Palladium.Utilities.PathUtils.GetIncrementedFileName(fullfile(string(directory), string(fileNameWithoutExtension)) + "-Fig.fig");
@@ -113,7 +113,7 @@ classdef DataWriter < handle
                 saveas(figure, fullfile(directory, fileNameWithoutExtension + ".fig"));
                 saveas(figure, fullfile(directory, fileNameWithoutExtension + ".png"));
             catch e
-                error("Error saving figure in DataWriter" + string(e.message));
+                error("SaveFigureError:SaveFailed", "%s", "Error saving figure in DataWriter" + string(e.message));
             end
         end
 
@@ -124,13 +124,16 @@ classdef DataWriter < handle
                     case("Increment File No.")
                         newFileName = Palladium.Utilities.PathUtils.GetIncrementedFileName(fullfile(string(this.FileWriteDetails.Directory), string(newFileName)) + string(this.FileWriteDetails.FileExtension));
                     case("Overwrite File")
-                        if(exist(newFileName, 'file') == 2)  %If file exists already
-                            delete(newFileName);    %delete the existing file, then carry on as if it neever existed!
-                        end
+                        %No action needed: an existing file is replaced when
+                        %WriteHeaders opens it for writing. This must NOT
+                        %delete anything - ValidateFilePath runs whenever the
+                        %file settings are edited in the GUI, and before the
+                        %instruments have connected, not just when
+                        %measurements actually start
                     case("Append To File")
                         %No action needed
                     otherwise
-                        error("Unsupported file write option: " + string(this.FileWriteDetails.WriteMode));
+                        error("ValidateFilePathError:UnsupportedWriteMode", "%s", "Unsupported file write option: " + string(this.FileWriteDetails.WriteMode));
                 end
             end
 
@@ -187,9 +190,9 @@ classdef DataWriter < handle
                     writematrix(data, this.FileWriteDetails.FilePath, 'WriteMode', 'append', 'delimiter', '\t');
                     return;
                 catch err
-                    warning("Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying...");
+                    warning("WriteDataWarning:WriteFailed", "%s", "Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying...");
                     errMess = string(err.message);
-                    warning(errMess);
+                    warning("WriteDataWarning:WriteErrorMessage", "%s", errMess);
                     Palladium.Logging.Logger.Log("Info", "Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying..." + " Error message: " + errMess);
                 end
             end
@@ -208,9 +211,9 @@ classdef DataWriter < handle
                     writematrix(data, this.FileWriteDetails.FilePath, 'WriteMode', 'append', 'delimiter', '\t');
                     return;
                 catch err
-                    warning("Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying...");
+                    warning("WriteLineWarning:WriteFailed", "%s", "Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying...");
                     errMess = string(err.message);
-                    warning(errMess);
+                    warning("WriteLineWarning:WriteErrorMessage", "%s", errMess);
                     Palladium.Logging.Logger.Log("Info", "Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying..." + " Error message: " + errMess);
                 end
             end
@@ -238,7 +241,7 @@ classdef DataWriter < handle
                 f = flds{i};
                 prop = strct.(f);
 
-                propValAsStr = string(prop);
+                propValAsStr = Palladium.DataWriting.DataWriter.FormatMetadataValue(prop);
 
                 if isempty(propValAsStr)
                     propValAsStr = "[]";
@@ -264,21 +267,21 @@ classdef DataWriter < handle
 
             %Error checking
             if isempty(dataRow)
-                warning("Data row empty in BuildMetadataLineStringFromHeaderValuePair, cannot log to file");
+                warning("BuildMetadataLineStringFromHeaderValuePairWarning:EmptyDataRow", "Data row empty in BuildMetadataLineStringFromHeaderValuePair, cannot log to file");
                 return;
             end
             if isempty(headerRow)
-                warning("Data row empty in BuildMetadataLineStringFromHeaderValuePair, cannot log to file");
+                warning("BuildMetadataLineStringFromHeaderValuePairWarning:EmptyDataRow", "Data row empty in BuildMetadataLineStringFromHeaderValuePair, cannot log to file");
                 return;
             end
-            assert(length(dataRow) == length(headerRow), "Header and data row length not equal");
+            assert(length(dataRow) == length(headerRow), "BuildMetadataLineStringFromHeaderValuePairError:LengthMismatch", "Header and data row length not equal");
 
             %Unpack each property/field into a string, append it
             for i = 1 : length(headerRow)
                 h = headerRow{i};
                 prop = dataRow(i);
 
-                stringLine = stringLine + string(h) + " = " + string(prop);
+                stringLine = stringLine + string(h) + " = " + Palladium.DataWriting.DataWriter.FormatMetadataValue(prop);
 
                 %Add a seperator if this is not the last property
                 if i ~= length(headerRow)
@@ -286,6 +289,52 @@ classdef DataWriter < handle
                 end
             end
         end
+    end
+
+    %% Methods (Static, Private)
+    methods (Static, Access = private)
+
+        function str = FormatMetadataValue(value)
+            %Convert a value to text for a metadata line. Floating point
+            %numbers are written with as many digits as it takes to read
+            %back as exactly the same number (string() would keep only 5
+            %significant digits, and turns NaN into a missing string,
+            %which would blank the whole line). Everything else is
+            %converted by string(), as before.
+            if isfloat(value) && isreal(value) && ~isempty(value)
+                str = strings(1, numel(value));
+                for k = 1 : numel(value)
+                    str(k) = Palladium.DataWriting.DataWriter.FormatFloatingPointNumber(value(k));
+                end
+            else
+                str = string(value);
+            end
+        end
+
+        function str = FormatFloatingPointNumber(x)
+            %The shortest text that reads back as exactly x, trying 15 to 17
+            %significant digits (6 to 9 for single precision)
+            if ~isfinite(x)
+                str = string(sprintf("%g", x));    %NaN, Inf or -Inf
+                return;
+            end
+
+            if isa(x, "single")
+                digitCounts = 6 : 9;
+            else
+                digitCounts = 15 : 17;
+            end
+
+            for digits = digitCounts
+                candidate = sprintf("%.*g", digits, x);
+                if cast(str2double(candidate), class(x)) == x
+                    break;
+                end
+            end
+
+            str = string(candidate);
+        end
+
     end
 end
 

@@ -1,0 +1,5 @@
+# Everything the tests write goes in this folder, and is removed again when they
+# finish. Nothing else in the repository is created or deleted by running tests.
+# Only this file is tracked, so the folder always exists.
+*
+!.gitignore

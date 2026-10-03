@@ -8,7 +8,7 @@ classdef PluginLoading
             % Apply preset described in JSON file to palladium and gui objects.
 
             if ~isfile(jsonFilePath)
-                error('Preset file not found: %s', jsonFilePath);
+                error('ApplyPresetFromJsonError:FileNotFound', 'Preset file not found: %s', jsonFilePath);
             end
 
             txt = fileread(jsonFilePath);
@@ -19,7 +19,7 @@ classdef PluginLoading
                 try
                     controller.TimingLoopController.SetUpdateTime(data.UpdateTime);
                 catch
-                    warning('Failed to set UpdateTime from preset.');
+                    warning('ApplyPresetFromJsonWarning:UpdateTimeFailed', 'Failed to set UpdateTime from preset.');
                 end
             end
 
@@ -37,7 +37,7 @@ classdef PluginLoading
 
                     %Validate
                     if ~isfield(instSpec, 'Type')
-                        warning('Instrument entry %d missing Type. Skipping.', ii); continue;
+                        warning('ApplyPresetFromJsonWarning:MissingInstrumentType', 'Instrument entry %d missing Type. Skipping.', ii); continue;
                     end
 
                     %Grab the Name first, as we need to set that before any
@@ -52,7 +52,7 @@ classdef PluginLoading
 
                     %Warn and break if that has come back empty
                     if isempty(instr)
-                        warning("Instrument instantiation failed: " + string(instSpec.Type));
+                        warning("ApplyPresetFromJsonWarning:InstrumentCreationFailed", "%s", "Instrument instantiation failed: " + string(instSpec.Type));
                         continue;
                     end
 
@@ -107,7 +107,7 @@ classdef PluginLoading
                                 elseif isstruct(ctrlSpec)
                                     % Expect field 'Name' (control option name) and optional ControlName/TabName
                                     if ~isfield(ctrlSpec, 'Name')
-                                        warning('Control entry %d for instrument %s missing Name. Skipping.', ci, instSpec.Type);
+                                        warning('ApplyPresetFromJsonWarning:MissingControlName', 'Control entry %d for instrument %s missing Name. Skipping.', ci, instSpec.Type);
                                         continue;
                                     end
                                     settings = struct();
@@ -126,10 +126,10 @@ classdef PluginLoading
                                         controller.InstrumentController.AddInstrumentControlFromName(instr, string(ctrlSpec.Name), gui);
                                     end
                                 else
-                                    warning('Unknown control specification type for instrument %s. Skipping.', instSpec.Type);
+                                    warning('ApplyPresetFromJsonWarning:UnknownControlType', 'Unknown control specification type for instrument %s. Skipping.', instSpec.Type);
                                 end
                             catch ex
-                                warning('Failed to add control for instrument %s: %s', instSpec.Type, ex.message);
+                                warning('ApplyPresetFromJsonWarning:ControlAddFailed', 'Failed to add control for instrument %s: %s', instSpec.Type, ex.message);
                             end
                         end
                     end
@@ -272,7 +272,7 @@ classdef PluginLoading
 
                                     %Make sure we don't have more than 4 axes
                                     if kk > 4
-                                        warning("More than 4 defined y axis options not supported");
+                                        warning("applyPlotSettingsWarning:TooManyYAxes", "More than 4 defined y axis options not supported");
                                         break;
                                     end
 
@@ -309,14 +309,14 @@ classdef PluginLoading
 
             %First, check that this is actually a real namespace that
             %exists on the path
-            assert(Palladium.Utilities.PluginLoading.CheckNamespaceExists(namespaceName), "CheckClassExistsInNameSpace:NoSuchNamespace", "Namespace " + string(namespaceName) + " not found. Is it added to the Path?");
+            assert(Palladium.Utilities.PluginLoading.CheckNamespaceExists(namespaceName), "CheckClassExistsInNameSpace:NoSuchNamespace", "%s", "Namespace " + string(namespaceName) + " not found. Is it added to the Path?");
 
             %Get the metadata of the given namespace from its name
             metaData = matlab.metadata.Namespace.fromName(namespaceName);
 
             %Check for an empty namespace (valid, but containing no classes)
             if isempty(metaData.ClassList)
-                error("CheckClassExistsInNameSpace:EmptyNamespace", "No classes found in Namespace " + string(namespaceName));
+                error("CheckClassExistsInNameSpace:EmptyNamespace", "%s", "No classes found in Namespace " + string(namespaceName));
             end
 
             %Pull out the class names, will be e.g.
@@ -530,7 +530,7 @@ classdef PluginLoading
             classData = namespaceClasses(namespaceString);
 
             if isempty(classData)
-                warning("Namespace " + namespaceString + " is empty, no classes found. Not on the path?");
+                warning("LoadClassNamesInNamespaceWarning:EmptyNamespace", "%s", "Namespace " + namespaceString + " is empty, no classes found. Not on the path?");
                 classNames = [];
                 return;
             end
@@ -705,7 +705,7 @@ classdef PluginLoading
                 out.Column = length(g.ColumnWidth);
 
                 if isempty(pp)
-                    warning("Empty plotter holder");
+                    warning("buildPlotSpecsWarning:EmptyPlotterHolder", "Empty plotter holder");
                     return;
                 end
 

@@ -108,7 +108,7 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
                     this.Plotter.Layout.Row = 2;
                     this.Plotter.Layout.Column = 4;
                 otherwise
-                    error("Unsupported Plotter type in ScanController");
+                    error("ScanController:UnsupportedPlotterType", "Unsupported Plotter type in ScanController");
             end
 
         end               
@@ -224,7 +224,19 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             this.Running = true;
             this.TimeElapsed_s = 0;
             this.timerVal = tic();
-            this.OnScanRun();
+
+            try
+                this.OnScanRun();
+            catch err
+                %A scan that could not be set up (eg it has no file name to
+                %save to) must not carry on as if it were running
+                try
+                    this.ScanAbort([], []);
+                catch
+                    this.Running = false;   %Whatever else fails, make sure of this
+                end
+                rethrow(err);
+            end
         end
 
         function RemoveControl(this, ~)
@@ -266,7 +278,7 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
         function CreateDataFile(this, writeToFile)
             %Create or reset the data writer class
             fileNameSuffix = this.ControlDetailsStruct.SweepDetails.FileName;
-            this.DataWriter = this.InitialiseDataWriter(fileNameSuffix);
+            this.DataWriter = this.InitialiseDataWriter(fileNameSuffix, WriteToFile=writeToFile);
 
             %Built in functions in base class will write the data row of all instruments/diagnostics at the start
             %of the sweep, for things like temperature, time

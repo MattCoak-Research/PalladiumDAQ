@@ -90,9 +90,9 @@ classdef InstrumentController < handle
 
             try
                 %Make sure the instrName is valid, and other error checking
-                assert(isstring(instrStringToAdd), "Instrument name must be a string");
-                assert(~isempty(this.ListOfAvailableInstrumentClassNameStrings), "List of loaded instrument classes to select from is empty - file paths messed up?");
-                assert(any(contains(this.ListOfAvailableInstrumentClassNameStrings, instrStringToAdd, "IgnoreCase", false)), string(instrStringToAdd) + " not found in list of avaliable Instruments");
+                assert(isstring(instrStringToAdd), "AddInstrumentError:InvalidInstrumentName", "Instrument name must be a string");
+                assert(~isempty(this.ListOfAvailableInstrumentClassNameStrings), "AddInstrumentError:NoInstrumentClasses", "List of loaded instrument classes to select from is empty - file paths messed up?");
+                assert(any(contains(this.ListOfAvailableInstrumentClassNameStrings, instrStringToAdd, "IgnoreCase", false)), "AddInstrumentError:InstrumentNotAvailable", "%s", string(instrStringToAdd) + " not found in list of avaliable Instruments");
 
                 %Make an instance of the selected datasource class
                 if ~isempty(this.PythonInstrumentController.AvaialableInstrNames) && any(ismember(this.PythonInstrumentController.AvaialableInstrNames, instrStringToAdd))
@@ -108,11 +108,11 @@ classdef InstrumentController < handle
                     %unable to
                     instRef = Palladium.Utilities.PluginLoading.InstantiateClass(this.InstrumentsNamespace, instrStringToAdd);   
                 else
-                    error("InstrumentCreation:NotFoundInNamespace", "Could not find Instrument " + string(instrStringToAdd) + " in built in or user namespace or Python library. This could indicate that the class file of this Instrument contains an error and MATLAB cannot compile it (missing END statement?).");
+                    error("InstrumentCreation:NotFoundInNamespace", "%s", "Could not find Instrument " + string(instrStringToAdd) + " in built in or user namespace or Python library. This could indicate that the class file of this Instrument contains an error and MATLAB cannot compile it (missing END statement?).");
                 end
 
                 if isempty(instRef)
-                    error("Instrument creation failed: " + string(instrStringToAdd));
+                    error("AddInstrumentError:CreationFailed", "%s", "Instrument creation failed: " + string(instrStringToAdd));
                 end
 
                 %Set the instrument name if that optional parameter was
@@ -158,7 +158,7 @@ classdef InstrumentController < handle
                         safeName = genvarname(instRef.Name);
                         assignin("base", safeName, instRef);
                     catch err
-                        warning("Failed to assign Instrument " + instRef.Name + " into the workspace. Message: " + err.message);
+                        warning("AddInstrumentWarning:WorkspaceAssignFailed", "%s", "Failed to assign Instrument " + instRef.Name + " into the workspace. Message: " + err.message);
                     end
                 end
 
@@ -412,7 +412,7 @@ classdef InstrumentController < handle
                 instStringNameList = "-NONE-";
             end
 
-            error("GetInstrumentFromNameError:NotFound", "Could not find instrument of Name " + instName + ". Added Instruments: " + instStringNameList);
+            error("GetInstrumentFromNameError:NotFound", "%s", "Could not find instrument of Name " + instName + ". Added Instruments: " + instStringNameList);
         end
 
         function instRefs = GetInstruments(this)
@@ -436,7 +436,7 @@ classdef InstrumentController < handle
 
             %Verify that those headers are valid - no duplicates
             [duplicateHeaderValues, duplicateHeaderValuesString] = Palladium.Utilities.Verification.CheckForDuplicatesInHeadersArray(headers);
-            assert(isempty(duplicateHeaderValues), "Some variable names appear twice, this is not allowed. Duplicate variables: " + duplicateHeaderValuesString);
+            assert(isempty(duplicateHeaderValues), "InitialiseHeadersError:DuplicateHeaders", "%s", "Some variable names appear twice, this is not allowed. Duplicate variables: " + duplicateHeaderValuesString);
 
         end
 
@@ -497,7 +497,7 @@ classdef InstrumentController < handle
             %Error on any duplicates
             [duplicates, combinedString] = Palladium.Utilities.Verification.CheckForDuplicatesInCellArrayOfStrings(classNames);
             if ~isempty(duplicates)
-                error("LoadInstrumentClass:DuplicatesError", "Error loading Instrument Classes - found duplicate names. Is an Instrument in the User Files Instrument folder named the same as one of the built in classes? \n\n Duplicates found: " + string(combinedString));
+                error("LoadInstrumentClass:DuplicatesError", "%s", "Error loading Instrument Classes - found duplicate names. Is an Instrument in the User Files Instrument folder named the same as one of the built in classes? " + newline + newline + " Duplicates found: " + string(combinedString));
             end
 
             %Load Python Instrument classes too
@@ -510,7 +510,7 @@ classdef InstrumentController < handle
                 %Error on any duplicates
                 [duplicates, combinedString] = Palladium.Utilities.Verification.CheckForDuplicatesInCellArrayOfStrings(classNames);
                 if ~isempty(duplicates)
-                    error("LoadInstrumentClass:DuplicatesError", "Error loading Instrument Classes - found duplicate names. Is an Instrument in the User Files Instrument folder named the same as one of the built in classes? \n\n Duplicates found: " + string(combinedString));
+                    error("LoadInstrumentClass:DuplicatesError", "%s", "Error loading Instrument Classes - found duplicate names. Is an Instrument in the User Files Instrument folder named the same as one of the built in classes? " + newline + newline + " Duplicates found: " + string(combinedString));
                 end
             end
 
@@ -570,8 +570,8 @@ classdef InstrumentController < handle
             objsList = instrRef.GetRegisteredControlObjectsFromName(controlClassName);
 
             %Error checking
-            assert(~isempty(objsList), "Could not find control to remove on Instrument " + instrRef.Name);
-            assert(isscalar(objsList), "Expected to find exactly 1 InstrumentControl..");
+            assert(~isempty(objsList), "RemoveInstrumentControlError:ControlNotFound", "%s", "Could not find control to remove on Instrument " + instrRef.Name);
+            assert(isscalar(objsList), "RemoveInstrumentControlError:ControlNotUnique", "Expected to find exactly 1 InstrumentControl..");
             controlClass = objsList(1);
 
             %De-register the control class with the instrument

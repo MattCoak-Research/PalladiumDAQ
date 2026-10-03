@@ -99,7 +99,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
                     waitTime = tc * 16;
 
                 otherwise
-                    error('Unsupported filter order');
+                    error("MFLI_AllowDemodToSettle_Error:UnsupportedFilterOrder", 'Unsupported filter order');
             end
 
             pause(waitTime);
@@ -120,7 +120,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             elseif channelIdx == 1
                 this.SetInt(['/currins/' num2str(siginIndex) '/autorange'], 1); % turn on
             else
-                error("AutoRange can only be turned on for Signal Input 1 and Current Input 1")
+                error("MFLI_AutoRangeInput_Error:InvalidInputChannel", "AutoRange can only be turned on for Signal Input 1 and Current Input 1")
             end
         end
 
@@ -204,7 +204,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             %Make sure DeviceID is a string, and do some error
             %checking/verification
             this.DeviceID = string(this.DeviceID);
-            assert(strcmp(extractBefore(this.DeviceID,4), "DEV"), "MFLI_Connect_Error:InvalidDeviceID", "Invalid Device ID:\n" + string(this.DeviceID) + "\nin MFLI connect. Device ID must start with ""DEV"" - form is DEV123, as a string");
+            assert(strcmp(extractBefore(this.DeviceID,4), "DEV"), "MFLI_Connect_Error:InvalidDeviceID", "%s", "Invalid Device ID:" + newline + string(this.DeviceID) + newline + "in MFLI connect. Device ID must start with ""DEV"" - form is DEV123, as a string");
 
             switch(this.Connection_Type)
                 case(Palladium.Enums.ConnectionType.Debug)
@@ -225,7 +225,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
                     this.DeviceHandle = this.ZIConnect(this.DeviceID, '1GbE'); %Don't tell it USB, keep it 1GbE instead - we actually connect to the dataserver on LocalHost (to allow connecting multiple instruments) - so USB errors out, even if the device is connected to the dataserver by USB. Let's hide the user from this, stop them panicking that USB is not a supported option
 
                 otherwise
-                    error("Unsupported connection type: " + this.ConnectionType);
+                    error("MFLI_Connect_Error:UnsupportedConnectionType", "%s", "Unsupported connection type: " + this.ConnectionType);
             end
 
         end
@@ -320,7 +320,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
                 findlevel = ziDAQ('getInt', DAQHandle, 'findlevel');
                 if toc(t0) > timeout
                     ziDAQ('finish', DAQHandle);
-                    error('Data Acquisition Module didn''t find a trigger level after %.3f seconds.\n', timeout)
+                    error("MFLI_DAQ_Execute_Both_Error:TriggerLevelNotFound", 'Data Acquisition Module didn''t find a trigger level after %.3f seconds.\n', timeout)
                 end
             end
 
@@ -574,7 +574,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             elseif channelIdx == 1
                 this.SetDouble(['/currins/' num2str(siginIndex) '/float'], 0); % turn off
             else
-                error("Float can only be turned on for Signal Input 1 and Current Input 1")
+                error("MFLI_DisableFloat_Error:InvalidInputChannel", "Float can only be turned on for Signal Input 1 and Current Input 1")
             end
         end
 
@@ -701,7 +701,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             elseif channelIdx == 1
                 this.SetDouble(['/currins/' num2str(siginIndex) '/float'], 1); % turn on
             else
-                error("Float can only be turned on for Signal Input 1 and Current Input 1")
+                error("MFLI_EnableFloat_Error:InvalidInputChannel", "Float can only be turned on for Signal Input 1 and Current Input 1")
             end
         end
 
@@ -922,7 +922,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
                     Units = ["A", "Deg", supplyOutUnits, "Hz"];
 
                 otherwise
-                    error("Mode must be Voltage, or Current, this was " + string(this.Mode));
+                    error("MFLI_GetHeaders_Error:InvalidMode", "%s", "Mode must be Voltage, or Current, this was " + string(this.Mode));
             end
 
             %Add on a resistance calculation too, if we have a current
@@ -965,7 +965,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             elseif channelIdx == 1
                 input_range = this.GetDouble(['/currins/' num2str(siginIndex) '/range']);
             else
-                error("Range can only be adjusted for Signal Input 1 and Current Input 1")
+                error("MFLI_GetRangeInput_Error:InvalidInputChannel", "Range can only be adjusted for Signal Input 1 and Current Input 1")
             end
         end
 
@@ -999,7 +999,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             elseif channelIdx == 1
                 scaling = this.GetDouble(['/currins/' num2str(siginIndex) '/scaling']);
             else
-                error("Scaling can only be adjusted for Signal Input 1 and Current Input 1")
+                error("MFLI_GetScaling_Error:InvalidInputChannel", "Scaling can only be adjusted for Signal Input 1 and Current Input 1")
             end
         end
 
@@ -1120,9 +1120,9 @@ classdef ZI_MFLI < Palladium.Core.Instrument
 
             filePath = fullfile(presetsDir, fileName);
 
-            assert(isfolder(presetsDir), ['Directory to save instrument preset not found at ' presetsDir]);
+            assert(isfolder(presetsDir), "MFLI_LoadDefaultPresetSettings_Error:PresetsFolderNotFound", "%s", ['Directory to save instrument preset not found at ' presetsDir]);
 
-            assert(exist(filePath, 'file'), ['Presets file not found at ' filePath]);
+            assert(exist(filePath, 'file'), "MFLI_LoadDefaultPresetSettings_Error:PresetsFileNotFound", "%s", ['Presets file not found at ' filePath]);
 
             % load the default settings
             ziLoadSettings(this.DeviceID, filePath);
@@ -1149,7 +1149,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
                     [R, theta] = this.GetAmplitudePhase(demodIndex);
                     dataRow = [R, theta, output, frequency];
                 otherwise
-                    error("Measurement mode not currently supported");
+                    error("MFLI_Measure_Error:UnsupportedMeasurementMode", "Measurement mode not currently supported");
             end
 
 
@@ -1181,7 +1181,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
 
             filePath = fullfile(presetsDir, fileName);
 
-            assert(isfolder(presetsDir), ['Directory to save instrument preset not found at ' presetsDir]);
+            assert(isfolder(presetsDir), "MFLI_SaveDefaultPresetSettings_Error:PresetsFolderNotFound", "%s", ['Directory to save instrument preset not found at ' presetsDir]);
 
             % save the default settings
             ziSaveSettings(this.DeviceID, filePath);
@@ -1351,7 +1351,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             amplitude = this.Scope_GetScopeTimeData('Max'); %in V or A already as input value
 
             if range < amplitude %+ offset
-                error("Signal Input Overload - analog input amplifier overloaded. " + ...
+                error("MFLI_SetRangeInput_Error:InputOverload", "%s", "Signal Input Overload - analog input amplifier overloaded. " + ...
                     "Input a different range or use AutoRangeInput function." + ...
                     " Note: Range or amplitude may be automatically adjusted")
             else
@@ -1360,7 +1360,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
                 elseif channelIdx == 1
                     this.SetDouble(['/currins/' num2str(siginIndex) '/range'], range);
                 else
-                    error("Range can only be adjusted for Signal Input 1 and Current Input 1")
+                    error("MFLI_SetRangeInput_Error:InvalidInputChannel", "Range can only be adjusted for Signal Input 1 and Current Input 1")
                 end
             end
         end
@@ -1385,7 +1385,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             offset = this.GetSignalOutDCOffset;
 
             if range < round(amplitude,3) + offset
-                error("Signal Output Overloaded - Signal clipping occurs and the output signal quality is degraded. " + ...
+                error("MFLI_SetRangeOutput_Error:OutputOverload", "%s", "Signal Output Overloaded - Signal clipping occurs and the output signal quality is degraded. " + ...
                     "Input a different range or use AutoRangeOutput function." + ...
                     "Note: Range or amplitude may be automatically adjusted")
             else
@@ -1412,7 +1412,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             elseif channelIdx == 1
                 this.SetDouble(['/currins/' num2str(siginIndex) '/scaling'], scale); % scaling factor in A
             else
-                error("Scaling can only be adjusted for Signal Input 1 and Current Input 1")
+                error("MFLI_SetScaling_Error:InvalidInputChannel", "Scaling can only be adjusted for Signal Input 1 and Current Input 1")
             end
         end
 
@@ -1656,7 +1656,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
                     sigoutIndex = 0;
                     gridnode = ['sigouts/' num2str(sigoutIndex) '/offset'];
                 otherwise
-                    error(['Invalid Sweep Parameter for function. ' ...
+                    error("MFLI_Sweep_InitialiseSweep_Error:InvalidSweptParameter", "%s", ['Invalid Sweep Parameter for function. ' ...
                         'SweptParameter: Frequency, AuxOutput1, OutputOffset'])
             end
 
@@ -1695,7 +1695,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
                 case("Reverse")
                     ziDAQ('set', sweepHandle, 'sweep/scan', 3); % sequential sweep - values change incrementally from small to large
                 otherwise 
-                    error("Unsupported sweep direction " + string(SweepParams.SweepMode));
+                    error("MFLI_Sweep_InitialiseSweep_Error:UnsupportedSweepDirection", "%s", "Unsupported sweep direction " + string(SweepParams.SweepMode));
             end
 
             ziDAQ('set', sweepHandle, 'sweep/settling/time', settle_time);
@@ -2083,7 +2083,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             elseif(45e6 < sample_rate)
                 int = 1;
             else
-                error('Out of frequency range')
+                error("MFLI_Scope_SetScopeFreqMax_Error:FrequencyOutOfRange", 'Out of frequency range')
             end
 
             this.SetInt('/scopes/0/time', int);
@@ -2112,7 +2112,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             elseif(strcmp(channelName, 'Aux4'))
                 channelIdx = 3;
             else
-                error(['Invalid channelName in ZI_MFLI ConvertAuxChannelNameToChannelIndex. ChannelName can be Aux1, Aux2, Aux3, Aux4, was ' num2str(channelName)]);
+                error("MFLI_ConvertAuxChannelNameToChannelIndex_Error:InvalidChannelName", "%s", ['Invalid channelName in ZI_MFLI ConvertAuxChannelNameToChannelIndex. ChannelName can be Aux1, Aux2, Aux3, Aux4, was ' num2str(channelName)]);
             end
         end
 
@@ -2122,7 +2122,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             if(strcmp(channelName, 'SignalOutput1'))
                 channelIdx = 0;
             else
-                error(['Invalid channelName in ZI_MFLI ConvertChannelNameToChannelIndex. ChannelName can be SignalOutput1, was ' num2str(channelName)]);
+                error("MFLI_ConvertChannelNameToChannelIndex_Error:InvalidChannelName", "%s", ['Invalid channelName in ZI_MFLI ConvertChannelNameToChannelIndex. ChannelName can be SignalOutput1, was ' num2str(channelName)]);
             end
         end
 
@@ -2152,7 +2152,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             elseif(strcmp(channelName, 'AuxIn2'))
                 channelIdx = 9;
             else
-                error(['Invalid channelName in ZI_MFLI ConvertInputChannelNameToChannelIndex, was ' num2str(channelName)]);
+                error("MFLI_ConvertInputChannelNameToChannelIndex_Error:InvalidChannelName", "%s", ['Invalid channelName in ZI_MFLI ConvertInputChannelNameToChannelIndex, was ' num2str(channelName)]);
             end
         end
 
@@ -2182,7 +2182,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             elseif channelIdx == 9
                 channelName = 'AuxIn2';
             else
-                error('Invalid channel index in ZI_MFLI ConvertInputChannelIndexToChannelName');
+                error("MFLI_ConvertInputChannelIndexToChannelName_Error:InvalidChannelIndex", 'Invalid channel index in ZI_MFLI ConvertInputChannelIndexToChannelName');
             end
         end
 
@@ -2227,7 +2227,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
                     unit = "A";
                     name = "Current";
                 otherwise
-                    error("Connected current source option " + this.ConnectedCurrentSource + " not implemented in MFLI");
+                    error("MFLI_GetSuppliedVoltageOrCurrentAndUnits_Error:UnsupportedCurrentSource", "%s", "Connected current source option " + this.ConnectedCurrentSource + " not implemented in MFLI");
             end
         end
 
@@ -2289,7 +2289,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
                 path = 'sample_theta_avg' ;
 
             else
-                error('Invalid DemodSignal name - can be X, Y, R or Theta')
+                error("MFLI_DemodPath_Time_Error:InvalidDemodSignal", 'Invalid DemodSignal name - can be X, Y, R or Theta')
             end
 
         end
@@ -2337,7 +2337,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
                 demod_path_us = strrep(demod_path,'.','_');
                 path = 'sample_xiy_fft_abs' ;
             else
-                error('Invalid DemodSignal name - can be X, Y, R or Theta')
+                error("MFLI_DemodPath_FFT_Error:InvalidDemodSignal", 'Invalid DemodSignal name - can be X, Y, R or Theta')
             end
         end
     end
@@ -2384,7 +2384,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
                 case 8
                     FO = 0.3008;
                 otherwise
-                    error('Error: Order (%d) must be between 1 and 8!\n', order);
+                    error("MFLI_ConvertBWtoTC_Error:InvalidFilterOrder", 'Error: Order (%d) must be between 1 and 8!\n', order);
             end
             % equation to give time constant from bandwidth frequency
             TC_convert = FO / (2*pi*BW);
@@ -2429,7 +2429,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
                 case 8
                     FO = 0.3008;
                 otherwise
-                    error('Error: Order (%d) must be between 1 and 8!\n', order);
+                    error("MFLI_ConvertTCtoBW_Error:InvalidFilterOrder", 'Error: Order (%d) must be between 1 and 8!\n', order);
             end
 
             % equation to give bandwidth frequency from time constant
@@ -2480,7 +2480,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             props = ziDAQ('discoveryGet', device);
 
             %Check the device is there and discoverable
-            assert(props.discoverable, "The specified device " + string(device_serial) + " is not discoverable from the API. Please ensure the device is powered-on and visible using the LabOne User Interface or ziControl.");
+            assert(props.discoverable, "MFLI_ZI_HandleConnect_Error:DeviceNotDiscoverable", "%s", "The specified device " + string(device_serial) + " is not discoverable from the API. Please ensure the device is powered-on and visible using the LabOne User Interface or ziControl.");
 
             % The maximum API level supported by the device class, e.g., MF.
             apilevel_device = props.apilevel;

@@ -182,7 +182,7 @@ classdef TimingLoopController < handle
             this.Controller.Log("Info", "Initialisation aborted", "Red", "Initialisation aborted");
 
             %Build out full string to print
-            msg = msg + "\n\nInitialisation has been aborted.";
+            msg = msg + newline + newline + "Initialisation has been aborted.";
 
             this.Controller.HandleWarning(msg, title);
 
@@ -265,7 +265,7 @@ classdef TimingLoopController < handle
                         args = Palladium.Events.ValueChangedEventData(elapsedTimeSinceLastTick_s);
                         notify(this, "UpdateTimeChanged", args);
                     catch e
-                        warning("Measurement time update failed: " + string(e.message));
+                        warning("UpdateWarning:TimeUpdateFailed", "%s", "Measurement time update failed: " + string(e.message));
                     end
                 otherwise
                     %Do nothing if not Running

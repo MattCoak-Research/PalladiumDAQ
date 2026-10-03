@@ -10,6 +10,8 @@ classdef test_PathUtils < matlab.unittest.TestCase
         SearchPathDir;
         TestDirToCreate = "Directory that does not exist yet";
         ApplicationDir;
+        TempDir;    %Fresh empty folder for each test, inside Testing Data Files
+        WriteDir;   %"Test Folder 2" inside TempDir, where tests that copy or create files do so
     end
 
     %% Methods (TestClassSetup)
@@ -24,6 +26,11 @@ classdef test_PathUtils < matlab.unittest.TestCase
             [testCase.ApplicationDir, ~, ~] = fileparts(applicationPath);
         end
 
+        function HelpersPathSetup(testCase)
+            %Test helpers, which keep everything the tests write inside Testing Data Files
+            testCase.applyFixture(matlab.unittest.fixtures.PathFixture(fullfile(fileparts(mfilename("fullpath")), "..", "..", "Helpers")));
+        end
+
         function PathSetup(testCase)% Shared setup for the entire test class
             % Add folder to the Path temporarily
             %Because we're using this fixture tooling, it will get
@@ -36,19 +43,14 @@ classdef test_PathUtils < matlab.unittest.TestCase
 
     end
 
-    %% Methods (TestClassTeardown)
-    methods (TestClassTeardown)
+    %% Methods (TestMethodSetup)
+    methods (TestMethodSetup)
 
-        function TeardownFiles(testCase)
-            % Remove contents of folder created during test - we copy stuff
-            % into it
-            path = fullfile(testCase.TestDir2, "*");
-            delete(path);
-
-            dirToRemove = fullfile(testCase.TestingDir, testCase.TestDirToCreate);
-            if exist(dirToRemove, "dir") == 7
-                rmdir(dirToRemove);
-            end
+        function CreateTemporaryFolder(testCase)
+            fixture = testCase.applyFixture(TestHelpers.DataFolderFixture);
+            testCase.TempDir = string(fixture.Folder);
+            testCase.WriteDir = fullfile(testCase.TempDir, "Test Folder 2");
+            mkdir(testCase.WriteDir);
         end
 
     end
@@ -69,8 +71,9 @@ classdef test_PathUtils < matlab.unittest.TestCase
         %% CopyFiles
         function test_CopyFiles(testCase)
             fileToCopy = "CopyTestFile.dat";
-            Palladium.Utilities.PathUtils.CopyFiles(fileToCopy, testCase.TestDir1, testCase.TestDir2, Overwrite= true);
-            testCase.verifyEqual(exist(fullfile(testCase.TestDir1, fileToCopy), "file"), 2);
+            Palladium.Utilities.PathUtils.CopyFiles(fileToCopy, testCase.TestDir1, testCase.WriteDir, Overwrite= true);
+            testCase.verifyEqual(exist(fullfile(testCase.TestDir1, fileToCopy), "file"), 2, "Original must still be there");
+            testCase.verifyEqual(exist(fullfile(testCase.WriteDir, fileToCopy), "file"), 2, "Copy must have been made");
         end
 
         %% EnsureDirectoryExists
@@ -83,7 +86,7 @@ classdef test_PathUtils < matlab.unittest.TestCase
         end
 
         function test_EnsureDirectoryExists_DirectoryNeedsToBeCreated(testCase)
-            testDir = fullfile(testCase.TestingDir, testCase.TestDirToCreate);
+            testDir = fullfile(testCase.TempDir, testCase.TestDirToCreate);
 
             newDirCreated = Palladium.Utilities.PathUtils.EnsureDirectoryExists(testDir);
             testCase.verifyTrue(newDirCreated);
@@ -126,8 +129,8 @@ classdef test_PathUtils < matlab.unittest.TestCase
 
         %% GetIncrementedFileName
         function test_GetIncrementedFileName(testCase)
-            baseFileName = fullfile(testCase.ApplicationDir, testCase.TestDir2, "myfile-001.txt"); 
-            expectedFileName = "myfile-002";
+            baseFileName = fullfile(testCase.WriteDir, "myfile-00001.txt"); 
+            expectedFileName = "myfile-00002";
 
             % Create the file to simulate existing file
             fid = fopen(baseFileName, 'w');
@@ -142,15 +145,15 @@ classdef test_PathUtils < matlab.unittest.TestCase
 
             % write that file
             try
-                fid = fopen(fullfile(testCase.ApplicationDir, testCase.TestDir2, newFileName + ".txt"), 'w');
+                fid = fopen(fullfile(testCase.WriteDir, newFileName + ".txt"), 'w');
                 fclose(fid);
             catch
                 testCase.verifyFail('Writing of incremented file name failed.');
             end
 
             %Run a second time, without the numbers appended
-            baseFileName = fullfile(testCase.ApplicationDir, testCase.TestDir2, "myfile.txt"); 
-            expectedFileName = "myfile-003";
+            baseFileName = fullfile(testCase.WriteDir, "myfile.txt"); 
+            expectedFileName = "myfile-00003";
 
             try
                 newFileName = Palladium.Utilities.PathUtils.GetIncrementedFileName(baseFileName);
@@ -161,9 +164,192 @@ classdef test_PathUtils < matlab.unittest.TestCase
         end
 
         function test_GetIncrementedFileName_ExtensionMissing(testCase)
-            baseFileName = fullfile(testCase.ApplicationDir, testCase.TestDir2, "myfileWithNoExt");
+            baseFileName = fullfile(testCase.WriteDir, "myfileWithNoExt");
             expectedErrorID = "GetIncrementFileNameError:MissingExtension";
             testCase.verifyError(@() Palladium.Utilities.PathUtils.GetIncrementedFileName(baseFileName), expectedErrorID);
+        end
+
+        function test_GetIncrementedFileName_NameWithoutCounterGetsFirstCounterTest(testCase)
+            testCase.verifyEqual(testCase.incremented("run"), "run-00001");
+        end
+
+        function test_GetIncrementedFileName_FreeCounterNameIsUsedAsTypedTest(testCase)
+            testCase.verifyEqual(testCase.incremented("run-00007"), "run-00007");
+        end
+
+        function test_GetIncrementedFileName_ExistingCounterIsIncrementedTest(testCase)
+            testCase.touch("run-00007");
+
+            testCase.verifyEqual(testCase.incremented("run-00007"), "run-00008");
+        end
+
+        function test_GetIncrementedFileName_SkipsAllExistingCountersTest(testCase)
+            testCase.touch(["run-00001", "run-00002", "run-00003", "run-00005"]);
+
+            testCase.verifyEqual(testCase.incremented("run"), "run-00004");
+            testCase.verifyEqual(testCase.incremented("run-00001"), "run-00004");
+        end
+
+        function test_GetIncrementedFileName_KeepsFiveDigitsWithLeadingZerosTest(testCase)
+            testCase.touch(["run-00009", "run-00099", "run-09999"]);
+
+            testCase.verifyEqual(testCase.incremented("run-00009"), "run-00010");
+            testCase.verifyEqual(testCase.incremented("run-00099"), "run-00100");
+            testCase.verifyEqual(testCase.incremented("run-09999"), "run-10000");
+        end
+
+        function test_GetIncrementedFileName_OnlyFilesWithTheSameExtensionCountTest(testCase)
+            testCase.touch("run-00001", Extension=".csv");
+
+            testCase.verifyEqual(testCase.incremented("run", Extension=".txt"), "run-00001");
+            testCase.verifyEqual(testCase.incremented("run", Extension=".csv"), "run-00002");
+        end
+
+        function test_GetIncrementedFileName_ResultIsAStringTest(testCase)
+            testCase.verifyClass(testCase.incremented("run"), "string");
+        end
+
+        %% GetIncrementedFileName - names that end in numbers are not counters
+        function test_GetIncrementedFileName_NameEndingInNumberIsNotIncrementedTest(testCase)
+            %The number is part of the name, whether or not that file exists
+            testCase.verifyEqual(testCase.incremented("run_Temperature297"), "run_Temperature297-00001");
+
+            testCase.touch("run_Temperature297");
+            testCase.verifyEqual(testCase.incremented("run_Temperature297"), "run_Temperature297-00001");
+
+            testCase.touch("run_Temperature297-00001");
+            testCase.verifyEqual(testCase.incremented("run_Temperature297"), "run_Temperature297-00002");
+        end
+
+        function test_GetIncrementedFileName_DatesAndYearsInTheNameAreNotCountersTest(testCase)
+            names = ["sample 02-Aug-2026", "2026-08-02", "20260802", "data-2026", "data-20260802", "v-1", "x-12", "run-001", "run-0001"];
+            for name = names
+                testCase.touch(name);
+
+                testCase.verifyEqual(testCase.incremented(name), name + "-00001", name);
+            end
+        end
+
+        function test_GetIncrementedFileName_TextThatLooksNumericToStr2doubleIsNotACounterTest(testCase)
+            %These used to be read as numbers (1e5, Inf, +12 ...), and
+            %"xInf" hung forever once the file existed
+            names = ["x1e5", "xInf", "x+12", "x 12", "x1.5", "x12i", "xNaN"];
+            for name = names
+                testCase.touch(name);
+
+                testCase.verifyEqual(testCase.incremented(name), name + "-00001", name);
+            end
+        end
+
+        function test_GetIncrementedFileName_OnlyTheCounterIsIncrementedWhenNameAlsoHasNumbersTest(testCase)
+            testCase.touch("T297-00001");
+
+            testCase.verifyEqual(testCase.incremented("T297-00001"), "T297-00002");
+        end
+
+        function test_GetIncrementedFileName_CounterMustBeAtTheEndOfTheNameTest(testCase)
+            testCase.verifyEqual(testCase.incremented("run-00001 final"), "run-00001 final-00001");
+        end
+
+        %% GetIncrementedFileName - other names
+        function test_GetIncrementedFileName_ShortNamesTest(testCase)
+            %Regression: names under 3 characters used to error
+            for name = ["a", "ab", "12", "7"]
+                testCase.verifyEqual(testCase.incremented(name), name + "-00001", name);
+            end
+        end
+
+        function test_GetIncrementedFileName_EmptyNameTest(testCase)
+            testCase.verifyEqual(testCase.incremented(""), "-00001");
+        end
+
+        function test_GetIncrementedFileName_SpacesAndPunctuationAreKeptTest(testCase)
+            testCase.touch("my file (a)-00001");
+
+            testCase.verifyEqual(testCase.incremented("my file (a)-00001"), "my file (a)-00002");
+            testCase.verifyEqual(testCase.incremented("my file (a)"), "my file (a)-00002");
+        end
+
+        function test_GetIncrementedFileName_DotsInTheNameAreNotTreatedAsAnExtensionTest(testCase)
+            testCase.verifyEqual(testCase.incremented("run.v2"), "run.v2-00001");
+        end
+
+        function test_GetIncrementedFileName_NamesOfMatlabFunctionsAreNotAffectedTest(testCase)
+            %exist() would find run.m and mean.m on the MATLAB path
+            testCase.verifyEqual(testCase.incremented("run"), "run-00001");
+            testCase.verifyEqual(testCase.incremented("mean"), "mean-00001");
+        end
+
+        function test_GetIncrementedFileName_OtherFilesInTheFolderAreIgnoredTest(testCase)
+            testCase.touch(["other", "other-00001", "run-00002"]);
+
+            testCase.verifyEqual(testCase.incremented("run"), "run-00001");
+        end
+
+        function test_GetIncrementedFileName_FolderNameWithNumbersIsNotTouchedTest(testCase)
+            folder = fullfile(testCase.TempDir, "data-00001 folder");
+            mkdir(folder);
+            fclose(fopen(fullfile(folder, "run-00001.dat"), "w"));
+
+            newName = Palladium.Utilities.PathUtils.GetIncrementedFileName(fullfile(folder, "run.dat"));
+
+            testCase.verifyEqual(newName, "run-00002");
+        end
+
+        function test_GetIncrementedFileName_RelativePathTest(testCase)
+            testCase.applyFixture(matlab.unittest.fixtures.CurrentFolderFixture(testCase.TempDir));
+            testCase.touch("run-00001");
+
+            newName = Palladium.Utilities.PathUtils.GetIncrementedFileName("run.dat");
+
+            testCase.verifyEqual(newName, "run-00002");
+        end
+
+        %% GetIncrementedFileName - past 99999
+        function test_GetIncrementedFileName_CounterGrowsToSixDigitsAfter99999Test(testCase)
+            testCase.touch("run-99999");
+
+            testCase.verifyEqual(testCase.incremented("run-99999"), "run-100000");
+        end
+
+        function test_GetIncrementedFileName_StartsNewCounterAfterASixDigitOneTest(testCase)
+            %"run-100000" is not a counter (6 digits), so it is a name
+            testCase.touch("run-100000");
+
+            testCase.verifyEqual(testCase.incremented("run-100000"), "run-100000-00001");
+        end
+
+        function test_GetIncrementedFileName_SixDigitNumberFreeStillGetsACounterTest(testCase)
+            testCase.verifyEqual(testCase.incremented("run-100000"), "run-100000-00001");
+        end
+
+        function test_GetIncrementedFileName_RepeatedlyFeedingBackTheResultNeverRepeatsANameTest(testCase)
+            %What the file name box in the GUI does: the name returned is
+            %put back in the box and used for the next file. Runs through
+            %the overflow from 5 to 6 digits
+            name = "run-99998";
+            names = strings(1, 8);
+            for i = 1 : numel(names)
+                name = testCase.incremented(name);
+                testCase.touch(name);
+                names(i) = name;
+            end
+
+            testCase.verifyEqual(names, ["run-99998" "run-99999" "run-100000" "run-100000-00001" "run-100000-00002" "run-100000-00003" "run-100000-00004" "run-100000-00005"]);
+            testCase.verifyEqual(numel(unique(names)), numel(names));
+        end
+
+        function test_GetIncrementedFileName_NeverReturnsAnExistingFileTest(testCase)
+            %Whatever is in the folder, the result must be a free name
+            rng(1);
+            names = ["run", "run-00001", "run-00002", "run-00003", "run-00010", "run-99999", "run-100000", "x-12", "a", "run-100000-00001"];
+            testCase.touch(names(randperm(numel(names), 6)));
+
+            for name = names
+                result = testCase.incremented(name);
+
+                testCase.verifyFalse(isfile(fullfile(testCase.TempDir, result + ".dat")), name + " -> " + result);
+            end
         end
 
         %% GetPathOfFolderOnSearchPath
@@ -282,6 +468,36 @@ classdef test_PathUtils < matlab.unittest.TestCase
             expectedNewFileName = "listOfBears";
             actualNewFileName = Palladium.Utilities.PathUtils.StripExtension(fileName);
             testCase.verifyEqual(actualNewFileName, expectedNewFileName);
+        end
+
+    end
+
+    %% Methods (Private)
+    methods (Access = private)
+
+        function newName = incremented(testCase, name, Settings)
+            %GetIncrementedFileName for a file of this name in the
+            %temporary folder
+            arguments
+                testCase;
+                name (1,1) string;
+                Settings.Extension (1,1) string = ".dat";
+            end
+
+            newName = Palladium.Utilities.PathUtils.GetIncrementedFileName(fullfile(testCase.TempDir, name + Settings.Extension));
+        end
+
+        function touch(testCase, names, Settings)
+            %Create empty files in the temporary folder
+            arguments
+                testCase;
+                names (1,:) string;
+                Settings.Extension (1,1) string = ".dat";
+            end
+
+            for name = names
+                fclose(fopen(fullfile(testCase.TempDir, name + Settings.Extension), "w"));
+            end
         end
 
     end

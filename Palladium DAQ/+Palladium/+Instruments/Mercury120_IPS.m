@@ -185,7 +185,7 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
                 while length(statusString) ~= 15
                     %Empty the buffer with a read
                     this.QueryString("X");
-                    warning("Status string of unexpected length read on IPS120, retrying: " + string(statusString));
+                    warning("Mercury120_IPSWarning:UnexpectedStatusLength", "%s", "Status string of unexpected length read on IPS120, retrying: " + string(statusString));
                     pause(0.1);
                     statusString = char(deblank(this.QueryString("X")));
                 end
@@ -205,7 +205,7 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
                 case('8')
                     status.SystemStatus = "Fault";
                 otherwise
-                    error("Error parsing IPS status - " + "System status string " + string(systemStatusString) + " not recognised." + "Total status string: " + string(statusString));
+                    error("Mercury120_IPS:UnrecognisedSystemStatus", "%s", "Error parsing IPS status - " + "System status string " + string(systemStatusString) + " not recognised." + "Total status string: " + string(statusString));
             end
 
             %Supply status
@@ -222,7 +222,7 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
                 case('8')
                     status.SupplyStatus = "Outside Positive Current Limit";
                 otherwise
-                    error("Error parsing IPS status - " + "Supply status string " + string(supplyStatusString) + " not recognised." + "Total status string: " + string(statusString));
+                    error("Mercury120_IPS:UnrecognisedSupplyStatus", "%s", "Error parsing IPS status - " + "Supply status string " + string(supplyStatusString) + " not recognised." + "Total status string: " + string(statusString));
             end
 
             %Activity status
@@ -237,7 +237,7 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
                 case('4')
                     status.ActivityStatus = "Clamped";
                 otherwise
-                    error("Error parsing IPS status - " + "Activity status string " + string(activityStatusString) + " not recognised." + "Total status string: " + string(statusString));
+                    error("Mercury120_IPS:UnrecognisedActivityStatus", "%s", "Error parsing IPS status - " + "Activity status string " + string(activityStatusString) + " not recognised." + "Total status string: " + string(statusString));
             end
 
             %Command status
@@ -260,7 +260,7 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
                 case('7')
                     status.CommandStatus = "Auto Run-Down";
                 otherwise
-                    error("Error parsing IPS status - " + "Command status string " + string(commandStatusString) + " not recognised." + "Total status string: " + string(statusString));
+                    error("Mercury120_IPS:UnrecognisedCommandStatus", "%s", "Error parsing IPS status - " + "Command status string " + string(commandStatusString) + " not recognised." + "Total status string: " + string(statusString));
             end
 
             %Switch Heater status
@@ -277,7 +277,7 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
                 case('8')
                     status.SwitchHeaterStatus = "No Switch Fitted";
                 otherwise
-                    error("Error parsing IPS status - " + "Switch status string " + string(switchStatusString) + " not recognised." + "Total status string: " + string(statusString));
+                    error("Mercury120_IPS:UnrecognisedSwitchStatus", "%s", "Error parsing IPS status - " + "Switch status string " + string(switchStatusString) + " not recognised." + "Total status string: " + string(statusString));
             end
 
             %DisplayAndSpeed status
@@ -292,7 +292,7 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
                 case('5')
                     status.DisplayAndSpeedStatus = "Tesla - Slow Sweep";
                 otherwise
-                    error("Error parsing IPS status - " + "DisplayAndSpeed status string " + string(displayAndSpeedStatusString) + " not recognised." + "Total status string: " + string(statusString));
+                    error("Mercury120_IPS:UnrecognisedDisplayAndSpeedStatus", "%s", "Error parsing IPS status - " + "DisplayAndSpeed status string " + string(displayAndSpeedStatusString) + " not recognised." + "Total status string: " + string(statusString));
             end
 
             %Sweep status
@@ -307,7 +307,7 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
                 case('3')
                     status.SweepStatus = "Sweeping and Sweep Limiting"; %Output changing
                 otherwise
-                    error("Error parsing IPS status - " + "Sweep status string " + string(sweepStatusString) + " not recognised." + "Total status string: " + string(statusString));
+                    error("Mercury120_IPS:UnrecognisedSweepStatus", "%s", "Error parsing IPS status - " + "Sweep status string " + string(sweepStatusString) + " not recognised." + "Total status string: " + string(statusString));
             end
 
             %Polarity status
@@ -330,7 +330,7 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
                 case('7')
                     status.PolarityStatus = "Mag Neg - Comm Neg";
                 otherwise
-                    error("Error parsing IPS status - " + "Polarity status string " + string(polarityStatusString) + " not recognised." + "Total status string: " + string(statusString));
+                    error("Mercury120_IPS:UnrecognisedPolarityStatus", "%s", "Error parsing IPS status - " + "Polarity status string " + string(polarityStatusString) + " not recognised." + "Total status string: " + string(statusString));
             end
         end
 
@@ -423,7 +423,7 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
             achievedRate = this.GetFieldRampRate();
 
             %Error if these do not match
-            assert(achievedRate == fieldRampRate_Tmin, "Failed to set magnet ramp rate on " + this.Name + ". Requested " + num2str(fieldRampRate_Tmin) + " T/min, achieved " + num2str(achievedRate) + " T/min.");
+            assert(achievedRate == fieldRampRate_Tmin, "Mercury120_IPS:RampRateNotSet", "%s", "Failed to set magnet ramp rate on " + this.Name + ". Requested " + num2str(fieldRampRate_Tmin) + " T/min, achieved " + num2str(achievedRate) + " T/min.");
 
         end
 
@@ -491,7 +491,7 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
             achievedSetPt = this.GetSetPointCurrent();
 
             %Error if these do not match
-            assert(achievedSetPt == current_A, "Failed to set magnet set point on " + this.Name + ". Requested " + num2str(current_A) + " A, achieved " + num2str(achievedSetPt) + " A.");
+            assert(achievedSetPt == current_A, "Mercury120_IPS:SetPointNotSet", "%s", "Failed to set magnet set point on " + this.Name + ". Requested " + num2str(current_A) + " A, achieved " + num2str(achievedSetPt) + " A.");
         end
 
         function SetTargetField(this, field_T)
@@ -513,7 +513,7 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
             achievedSetPt = this.GetSetPointField();
 
             %Error if these do not match
-            assert(achievedSetPt == field_T, "Failed to set magnet set point on " + this.Name + ". Requested " + num2str(field_T) + " T, achieved " + num2str(achievedSetPt) + " T.");
+            assert(achievedSetPt == field_T, "Mercury120_IPS:SetPointNotSet", "%s", "Failed to set magnet set point on " + this.Name + ". Requested " + num2str(field_T) + " T, achieved " + num2str(achievedSetPt) + " T.");
         end
 
         function SweepComplete(this)

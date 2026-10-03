@@ -46,7 +46,7 @@ classdef TestInstrument < Palladium.Core.Instrument
 
             if this.FirstRun
                 this.FirstRun = false;
-                error("test error that only runs once");
+                error("TestInstrument:TestError", "test error that only runs once");
             end
 
             if(this.SimulationMode)

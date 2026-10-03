@@ -113,7 +113,7 @@ classdef SR830_Lockin < Palladium.Core.Instrument
                     unit = "A";
                     name = "Current";
                 otherwise
-                    error("Connected current source option " + this.ConnectedCurrentSource + " not implemented in SR830 code file");
+                    error("SR830_Lockin:UnsupportedCurrentSource", "%s", "Connected current source option " + this.ConnectedCurrentSource + " not implemented in SR830 code file");
             end
         end
 
@@ -291,7 +291,7 @@ classdef SR830_Lockin < Palladium.Core.Instrument
                 case 26
                     range = 1;
                 otherwise
-                    error("SR830 range index Not supported. Value: " + string(level));
+                    error("SR830_Lockin:UnsupportedRangeIndex", "%s", "SR830 range index Not supported. Value: " + string(level));
             end
         end
     end

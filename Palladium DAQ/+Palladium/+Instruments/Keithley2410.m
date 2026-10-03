@@ -91,7 +91,7 @@ classdef Keithley2410 < Palladium.Core.Instrument
                     case(this.SourceType("Current"))
                         compValue = this.QueryDouble("SENS:VOLT:PROT:LEV?");
                     otherwise
-                        error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                        error("Keithley2410:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
                 end
 
             end
@@ -102,7 +102,7 @@ classdef Keithley2410 < Palladium.Core.Instrument
                 case(this.SourceType("Current"))
                     str = " mV";
                 otherwise
-                    error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                    error("Keithley2410:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
             end
 
             %Multiply by 1000, millivolts or mA is easier to read
@@ -119,7 +119,7 @@ classdef Keithley2410 < Palladium.Core.Instrument
                     sourceStr = "Source Current (A)";
                     unitsstr = "A";
                 otherwise
-                    error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                    error("Keithley2410:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
             end
 
             switch(this.MeasMode)
@@ -133,7 +133,7 @@ classdef Keithley2410 < Palladium.Core.Instrument
                     Headers = [this.Name + " - Voltage (V)", this.Name + " - Current (A)", this.Name + " - " + sourceStr, this.Name + " - Compliance Limited"];
                     Units = ["V", "A", unitsstr, ""];
                 otherwise
-                    error("Mode must be Resistance, Voltage, or Current, this was " + string(this.MeasMode));
+                    error("Keithley2410:InvalidMeasureMode", "%s", "Mode must be Resistance, Voltage, or Current, this was " + string(this.MeasMode));
             end
         end
 
@@ -162,7 +162,7 @@ classdef Keithley2410 < Palladium.Core.Instrument
                     case(this.MeasType("Current"))
                         nplc = this.QueryDouble("SENS:CURR:DC:NPLC?");
                     otherwise
-                        error("Mode must be Resistance, Voltage, or Current, this was " + this.MeasMode);
+                        error("Keithley2410:InvalidMeasureMode", "%s", "Mode must be Resistance, Voltage, or Current, this was " + this.MeasMode);
                 end
             end
 
@@ -182,7 +182,7 @@ classdef Keithley2410 < Palladium.Core.Instrument
                 case("CURR")
                     sourceMode = this.SourceType("Current");
                 otherwise
-                    error("Source mode must be VOLT or CURR, received " + string(result) + " when querying instrument");
+                    error("Keithley2410:InvalidInstrumentSourceMode", "%s", "Source mode must be VOLT or CURR, received " + string(result) + " when querying instrument");
             end
         end
 
@@ -203,7 +203,7 @@ classdef Keithley2410 < Palladium.Core.Instrument
                 case(this.SourceType("Current"))
                     srcLevel = this.QueryDouble("SOUR:CURR:LEV:AMPL?");
                 otherwise
-                    error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                    error("Keithley2410:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
             end
         end
 
@@ -218,7 +218,7 @@ classdef Keithley2410 < Palladium.Core.Instrument
                     str = "A";
                     limits = [-1, 1]; %Need to check what these physical limits actually are and improve this
                 otherwise
-                    error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                    error("Keithley2410:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
             end
 
             hdrs = this.GetHeaders();
@@ -242,7 +242,7 @@ classdef Keithley2410 < Palladium.Core.Instrument
                     case(this.SourceType("Current"))
                         compValue = this.QueryDouble("SENS:VOLT:PROT:TRIP?");
                     otherwise
-                        error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                        error("Keithley2410:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
                 end
             end
 
@@ -258,7 +258,7 @@ classdef Keithley2410 < Palladium.Core.Instrument
             if(this.OffsetComp)
                 %Error if not in Ohms mode
                 if(this.MeasMode ~= this.MeasType("Resistance"))
-                    error("OffsetComp only functions in Resistance Mode");
+                    error("Keithley2410:OffsetCompNotResistanceMode", "OffsetComp only functions in Resistance Mode");
                 end
 
 
@@ -290,7 +290,7 @@ classdef Keithley2410 < Palladium.Core.Instrument
                     %Assign data to output data row
                     dataRow = [voltage, current, sourceLvl, complianceLimited];
                 otherwise
-                    error("Mode must be Resistance, Voltage, or Current, this was " + this.MeasMode);
+                    error("Keithley2410:InvalidMeasureMode", "%s", "Mode must be Resistance, Voltage, or Current, this was " + this.MeasMode);
             end
         end
 
@@ -342,7 +342,7 @@ classdef Keithley2410 < Palladium.Core.Instrument
                 case(this.SourceType("Current"))
                     this.WriteCommand("SOUR:CURR:LEV " + num2str(level));
                 otherwise
-                    error("Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                    error("Keithley2410:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
             end
 
         end
@@ -382,13 +382,13 @@ classdef Keithley2410 < Palladium.Core.Instrument
                     current = str2double(splitData{2});
                     resistance = NaN;
                 otherwise
-                    error("Mode must be Resistance, Voltage, or Current, this was " + string(this.MeasMode));
+                    error("Keithley2410:InvalidMeasureMode", "%s", "Mode must be Resistance, Voltage, or Current, this was " + string(this.MeasMode));
             end
         end
 
         function VerifyConnectionSettings(this)
             instsrcMode = this.GetSourceMode();
-            assert(instsrcMode == this.SourceMode, "Source Mode set in Palladium does not match that set in the Hardware");
+            assert(instsrcMode == this.SourceMode, "Keithley2410:SourceModeMismatch", "Source Mode set in Palladium does not match that set in the Hardware");
         end
         
     end

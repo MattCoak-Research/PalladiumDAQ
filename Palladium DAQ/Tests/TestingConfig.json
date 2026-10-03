@@ -1,8 +1,8 @@
 {
     "LogSettings": {
-        "LogFileDirectory": "../Palladium DAQ/Tests/Palladium DAQ - Testing/Logs",
+        "LogFileDirectory": "Tests/Testing Data Files/Logs",
         "LogFileFileName": "<DATE>_Log.txt",
-        "LogFileDirectoryIsRelativePath": false,
+        "LogFileDirectoryIsRelativePath": true,
         "CommandWindowMessageLevel": "Debug",
         "PrintStackTraceInCommandWindow": false,
         "GUIMessageLevel": "Debug",
@@ -11,8 +11,8 @@
     },
     "PathSettings": {
         "DefaultFileName": "<DATE>_Filenametest",
-        "DefaultDirectory": "../Palladium DAQ/Tests/Palladium DAQ - Testing",
-        "DefaultSequenceDirectory": "../Palladium DAQ/Tests/Palladium DAQ - Testing",
+        "DefaultDirectory": "Tests/Testing Data Files/Data",
+        "DefaultSequenceDirectory": "Tests/Testing Data Files/Sequences",
         "DataDirectoryIsRelativePath": true,
         "SequenceDirectoryIsRelativePath": true,
         "DataFileExtension": ".dat",
@@ -20,7 +20,7 @@
         "SaveFile": true,
         "FileWriteMode": "Increment File No.",
         "DefaultDescription": "",
-        "UserFilesDirectory": "../Palladium DAQ/Tests/Testing User Files",
+        "UserFilesDirectory": "Tests/Testing User Files",
         "UserFilesDirectoryIsRelativePath": true
     },
     "WindowSettings": {

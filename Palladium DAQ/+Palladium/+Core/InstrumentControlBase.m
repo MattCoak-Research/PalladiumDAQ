@@ -124,7 +124,7 @@ classdef InstrumentControlBase < Palladium.Core.Entity
                     this.EventListeners(i) = [];
                 end
             catch err
-                error("Error unsubscribing Instrument Control from event listeners: " + string(err.message));
+                error("UnsubscribeFromEventsError:UnsubscribeFailed", "%s", "Error unsubscribing Instrument Control from event listeners: " + string(err.message));
             end
         end
 
@@ -157,11 +157,11 @@ classdef InstrumentControlBase < Palladium.Core.Entity
             %a sweep started before the first measurement tick
             stringLine = "";
             if isempty(dataRow)
-                warning("Data row empty in " + this.Instrument.FullName + ", cannot log to file");
+                warning("CreateDataRowHeaderStringWarning:EmptyDataRow", "%s", "Data row empty in " + this.Instrument.FullName + ", cannot log to file");
                 return;
             end
             if isempty(hdrsRow)
-                warning("Headers row empty in "  + this.Instrument.FullName + ", cannot log to file");
+                warning("CreateDataRowHeaderStringWarning:EmptyHeadersRow", "%s", "Headers row empty in "  + this.Instrument.FullName + ", cannot log to file");
                 return;
             end
 
@@ -188,17 +188,17 @@ classdef InstrumentControlBase < Palladium.Core.Entity
 
             %Error checking
             if isempty(dataRow)
-                warning("Data row empty in " + this.Instrument.FullName + ", cannot GetParameterValueFromLastMeasurementRow");
+                warning("GetParameterValueFromLastMeasurementRowWarning:EmptyDataRow", "%s", "Data row empty in " + this.Instrument.FullName + ", cannot GetParameterValueFromLastMeasurementRow");
                 return;
             end
             if isempty(hdrsRow)
-                warning("Data row empty in "  + this.Instrument.FullName + ", cannot GetParameterValueFromLastMeasurementRow");
+                warning("GetParameterValueFromLastMeasurementRowWarning:EmptyDataRow", "%s", "Data row empty in "  + this.Instrument.FullName + ", cannot GetParameterValueFromLastMeasurementRow");
                 return;
             end
 
             %Check the provided Parameter Name is indeed one of the headers
             if ~any(contains(hdrsRow, parameterName))
-                warning("Could not find parameter " + parameterName + " in the measurement headers file (InstrumentControlBase.GetParameterValueFromLastMeasurementRow).");
+                warning("GetParameterValueFromLastMeasurementRowWarning:ParameterNotFound", "%s", "Could not find parameter " + parameterName + " in the measurement headers file (InstrumentControlBase.GetParameterValueFromLastMeasurementRow).");
                 return;
             end
 
@@ -208,7 +208,28 @@ classdef InstrumentControlBase < Palladium.Core.Entity
             stringVal = num2str(dat, Settings.Format);
         end
 
-        function dataWriter = InitialiseDataWriter(this, fileNameSuffix)
+        function dataWriter = InitialiseDataWriter(this, fileNameSuffix, Settings)
+            %Create the DataWriter for a sweep/scan file, named after the
+            %programme's overall data file with fileNameSuffix added.
+            %Pass WriteToFile=false if the file isn't going to be saved,
+            %in which case nothing is written and an empty suffix is OK
+            arguments
+                this;
+                fileNameSuffix;
+                Settings.WriteToFile (1,1) logical = true;
+            end
+
+            %An empty suffix would give the sweep file the same name as the
+            %main data file, which is being written to at the same time -
+            %the two would overwrite each other's data or fight over
+            %permission to write to it
+            if Settings.WriteToFile
+                %Empty, blank, [] and empty string arrays all count as no name
+                hasFileName = ~isempty(fileNameSuffix) && all(strlength(strtrim(string(fileNameSuffix))) > 0);
+                assert(hasFileName, "InitialiseDataWriterError:EmptyFileNameSuffix", ...
+                    "The sweep file name is empty, so it would be saved with the same name as the main data file. Enter a sweep file name, or switch off saving the sweep file.");
+            end
+
             fileWriteDetails = this.Instrument.FileWriteDetails;
             fileWriteDetails.FileName = string(fileWriteDetails.FileName) + fileNameSuffix;
             fileWriteDetails.WriteMode = 'Increment File No.';
@@ -219,14 +240,6 @@ classdef InstrumentControlBase < Palladium.Core.Entity
             %given as part of it's file name. Replaces . characeters with a
             %chosen replacement too
             fileWriteDetails.FileName = this.ProcessFileName(fileWriteDetails.FileName);
-
-            %Handle the case of the file name ending in a number - this
-            %will get auto-incremented as it will think it is the -001
-            %added to files.. we want to avoid that, just add a space
-            c = char(fileWriteDetails.FileName);
-            if ~isnan(str2double(c(end)))%is the last character something we can convert to a number successfully?
-                fileWriteDetails.FileName = fileWriteDetails.FileName + "-";
-            end
 
             dataWriter = Palladium.DataWriting.DataWriter(fileWriteDetails);
         end
@@ -343,7 +356,7 @@ classdef InstrumentControlBase < Palladium.Core.Entity
             end
 
             delims = char(this.FileNamePropertyDelimiters);
-            assert(length(delims) == 2, "Delimeters string must be of 2 characters length");
+            assert(length(delims) == 2, "ProcessFileNameError:InvalidDelimiters", "Delimeters string must be of 2 characters length");
 
             %This little snippet pulls out all text delimited by the
             %selected delimters (by Default [ ]) and returns a string array
@@ -372,7 +385,7 @@ classdef InstrumentControlBase < Palladium.Core.Entity
                 elseif length(splitSegs) == 2
                     format = strtrim(splitSegs(2));
                 else
-                    error("Incorrect string format, epxect something like " + "Sample Temperature(K),%6f2" + " or " + "Sample Temperature(K)");
+                    error("ProcessFileNameError:IncorrectStringFormat", "%s", "Incorrect string format, epxect something like " + "Sample Temperature(K),%6f2" + " or " + "Sample Temperature(K)");
                 end
 
                 newSeg = this.GetParameterValueFromLastMeasurementRow(strtrim(splitSegs(1)), "Format", format);

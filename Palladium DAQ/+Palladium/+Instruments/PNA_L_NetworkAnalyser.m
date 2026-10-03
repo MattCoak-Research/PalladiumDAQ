@@ -345,7 +345,7 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
                 case("Log")
                     this.WriteCommand("SENS:SWE:TYPE LOG");
                 otherwise
-                    error("Sweep type " + string(type) + " not supported");
+                    error("PNA_L_NetworkAnalyser:UnsupportedSweepType", "%s", "Sweep type " + string(type) + " not supported");
             end
         end
 

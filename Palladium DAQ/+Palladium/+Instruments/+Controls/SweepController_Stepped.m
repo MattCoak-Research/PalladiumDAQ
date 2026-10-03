@@ -59,7 +59,7 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
 
             %Check for an empty sweep being entered
             if(isempty(extremalPoints) || length(extremalPoints) < 2)
-                warning("Empty sweep");
+                warning("SweepController_SteppedWarning:EmptySweep", "Empty sweep");
                 sweepDetails = [];
                 return;
             end
@@ -142,7 +142,7 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
                     this.Plotter.Layout.Row = 2;
                     this.Plotter.Layout.Column = 4;
                 otherwise
-                    error("Unsupported Plotter type in SweepController_Stepped");
+                    error("SweepController_Stepped:UnsupportedPlotterType", "Unsupported Plotter type in SweepController_Stepped");
             end
 
         end
@@ -192,7 +192,7 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
                     [~,idx] = ismember(this.ExtraDataColHeaders(i), headers);
 
                     if isempty(idx)
-                        error("Invalid header in sweep");
+                        error("SweepController_Stepped:InvalidHeader", "Invalid header in sweep");
                     end
 
                     dataRowToWrite = [dataRowToWrite, dataRow(idx)]; %#ok<AGROW>
@@ -339,7 +339,7 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
         function CreateDataFile(this, writeToFile)
             %Create or reset the data writer class
             fileNameSuffix = this.ControlDetailsStruct.SweepDetails.FileName;
-            this.DataWriter = this.InitialiseDataWriter(fileNameSuffix);
+            this.DataWriter = this.InitialiseDataWriter(fileNameSuffix, WriteToFile=writeToFile);
 
             %Built in functions in base class will write the data row of all instruments/diagnostics at the start
             %of the sweep, for things like temperature, time

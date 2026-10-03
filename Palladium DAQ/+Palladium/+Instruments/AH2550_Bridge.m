@@ -32,7 +32,7 @@ classdef AH2550_Bridge < Palladium.Core.Instrument
                 case(this.LossUnitsType("kOhm"))
                     unitStr = " kOhm";
                 otherwise
-                    error('Unsupported Loss Units');
+                    error("AH2550_Bridge:UnsupportedLossUnits", 'Unsupported Loss Units');
             end
         end
     end
