@@ -166,9 +166,10 @@ opts.SupportedPlatforms.Win64 = true;
 opts.SupportedPlatforms.Mac = true;
 opts.SupportedPlatforms.Glnxa64 = true;
 opts.SupportedPlatforms.MatlabOnline = true;
-%TODO - ToolboxGettingStartedGuide used to be a Getting Started.mlx. It
-%must be a .m or .mlx file, so it can't point at the DocMaker index.html
-%directly - the docs are reachable via the Help browser (Docs/info.xml)
+%Getting Started guide, shown from the Add-Ons manager. It is a plain-text
+%live script (it must be .m or .mlx, not html) that links to the DocMaker
+%docs' Docs/index.html
+opts.ToolboxGettingStartedGuide = fullfile(opts.ToolboxFolder, "Docs", "GettingStarted.m");
 opts.ToolboxVersion = string(verStruct.VersionString);
 
 %Ship the generated documentation, but not its Markdown source
