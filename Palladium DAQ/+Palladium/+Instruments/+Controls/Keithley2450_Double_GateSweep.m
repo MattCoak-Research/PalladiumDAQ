@@ -15,6 +15,20 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
     %point. Both must be set to the TSP command set. 
 
 
+    %% Properties (Constant, Public)
+    properties (Constant)
+        %The digital trigger is one-way - the Gate never waits for the
+        %Main instrument to finish its reading. With PulseWidth_s = 0 the
+        %idle gap between pulses can be shorter than a reading, the Main
+        %instrument misses pulses and its loop never finishes. Found on
+        %hardware (two 2450s, NPLC 0.01): 0 fails, 1 ms and above works
+        MinPulseWidth_s = 1e-3;
+
+        %How often Run() checks, while waiting for the timing loops, whether
+        %they have finished or Abort has been pressed
+        PollInterval_s = 0.05;
+    end
+
     %% Properties (Public) - Sweep Parameters
     properties (Access = public)
         Baseline_V       (1,1) double = 0;              %V, applied by the Gate instrument between pulses
@@ -38,20 +52,6 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
         AutoZero (1,1) logical = false;                                         %false: both instruments autozero once at the start of the sweep, not before every reading - about 35% faster per point (6.0 -> 3.9 ms on hardware, no change in noise). true: autozero every reading (instrument default), guards against drift in very long sweeps
         SourceReadback (1,1) logical = true;                                    %true: record each point's MEASURED source value (shows the real value when in compliance). false: record the programmed level - saves ~0.9 ms per point
         FileSettings = struct("SaveSweepFile", true, "FileName", "SweepFileName");
-    end
-
-    %% Properties (Constant)
-    properties (Constant)
-        %The digital trigger is one-way - the Gate never waits for the
-        %Main instrument to finish its reading. With PulseWidth_s = 0 the
-        %idle gap between pulses can be shorter than a reading, the Main
-        %instrument misses pulses and its loop never finishes. Found on
-        %hardware (two 2450s, NPLC 0.01): 0 fails, 1 ms and above works
-        MinPulseWidth_s = 1e-3;
-
-        %How often Run() checks, while waiting for the timing loops, whether
-        %they have finished or Abort has been pressed
-        PollInterval_s = 0.05;
     end
 
     %% Properties (Public, Protected Set) - Results of the last Run()

@@ -2,16 +2,16 @@ classdef Keithley2450 < Palladium.Core.Instrument
     %Instrument implementation for Keithley 2450 source meter. Most likely
     %works for a 2470 too, but is not tested.
 
+    %% Properties (Constant, Public)
+    properties(Constant)
+        ABORT_PAUSE_S = 0.05;       %s, wait after sending abort, and after a device clear, before the next step of AbortScript. Tested on two 2450s (fw 1.7.12b/1.7.16a) with hung TSP scripts: even 0 s worked reliably, this leaves a margin
+    end
+
     %% Properties (Public)
     properties(Access = public)
         FullName = "Keithley 2450 Src Meter";       %Full name, just for displaying on GUI
     end
     
-    %% Properties (Constant)
-    properties(Constant)
-        ABORT_PAUSE_S = 0.05;       %s, wait after sending abort, and after a device clear, before the next step of AbortScript. Tested on two 2450s (fw 1.7.12b/1.7.16a) with hung TSP scripts: even 0 s worked reliably, this leaves a margin
-    end
-
     %% Properties (Public, Set Observable)
     % These properties will appear in the Instrument Settings GUI and are editable there
     properties(Access = public, SetObservable)

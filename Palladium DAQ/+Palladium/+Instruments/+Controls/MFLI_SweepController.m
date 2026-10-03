@@ -4,7 +4,7 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
     %collection and independent logging of sweeps on a Zurich Instruments
     %MFLI
 
-    %% Properties (Public, Private Set)
+    %% Properties (Public, Protected Set)
     properties (GetAccess = public, SetAccess = protected)
         Running = false;
         TimeElapsed_s = 0;

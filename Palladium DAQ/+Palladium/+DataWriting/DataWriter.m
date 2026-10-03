@@ -22,7 +22,7 @@ classdef DataWriter < handle
         end
     end
 
-    %% Public Methods
+    %% Methods (Public)
     methods (Access = public)
         function ConstructPath(this)
             this.FileWriteDetails.FilePath = fullfile(string(this.FileWriteDetails.Directory), string(this.FileWriteDetails.FileName) + string(this.FileWriteDetails.FileExtension));

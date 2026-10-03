@@ -22,7 +22,7 @@ classdef InstrumentControlBase < Palladium.Core.Entity
         EventListeners;
     end
 
-    %% Methods (Abstract)
+    %% Methods (Abstract, Public)
     methods (Abstract)
         CreateInstrumentControlGUI(this, controller, tab, instrRef);
         RemoveControl(this, instrRef);

@@ -266,12 +266,6 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
 
     end
 
-    %% Methods (Static, Public)
-    methods (Static, Access = public)
-
-
-    end
-
     %% Methods (Private)
     methods (Access = private)
 
@@ -324,6 +318,12 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
         function WriteScanData(this, data)
             this.DataWriter.WriteData(data);
         end
+
+    end
+
+    %% Methods (Static, Public)
+    methods (Static, Access = public)
+
 
     end
 end

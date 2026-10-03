@@ -8,6 +8,10 @@ plan("doc").Outputs = [fullfile(docfolder,"**","*.html"), ... % output HTML
     fullfile(docfolder,"resources"), ... % stylesheets and scripts
     fullfile(docfolder,"*.xml"), ... % index files
     fullfile(docfolder,"helpsearch-v*")]; % search database folder 
+plan("doc").Dependencies = "apidoc";
+
+plan("apidoc").Inputs = [fullfile("Palladium DAQ", "+Palladium"), fullfile("Tools", "GenerateApiReference.m")];
+plan("apidoc").Outputs = fullfile(docfolder, "reference");
 
 plan("package").Dependencies = ["test", "doc"];
 plan("deploy").Dependencies = "package";
@@ -40,20 +44,85 @@ EnsureDocMaker();
 
 %DocMaker (pre-0.8) copies its stylesheets/scripts from its read-only
 %add-on install folder, and the copies keep the read-only attribute - so
-%the next build can't overwrite them. Make any existing ones writable first
+%the next build can't overwrite them. Make any existing ones writable, then
+%clear the folder so stale files (e.g. from a different Theme) don't linger
 res = fullfile(doc, "resources");
 if isfolder(res)
-    if ispc
-        fileattrib(res, "+w", "", "s");
-    else
-        fileattrib(res, "+w", "a", "s");
-    end
+    MakeWritable(res);
+    rmdir(res, "s");
 end
 
-md =fullfile(doc,"**","*.md"); % Markdown documents
-html = docconvert(md); % convert to HTML
-docrun(html) % run code and insert output
+%Convert one document at a time, so that a GitHub timeout only retries
+%that document (see ConvertWithRetry)
+mdFiles = dir(fullfile(doc,"**","*.md")); % Markdown documents
+html = strings(1, 0);
+for i = 1 : numel(mdFiles)
+    html(i) = ConvertWithRetry(fullfile(mdFiles(i).folder, mdFiles(i).name), doc);
+end
+docrun(html(~contains(html, filesep + "reference" + filesep))) % run code and insert output - not in the generated API reference
 docindex(doc) % index
+end
+
+function html = ConvertWithRetry(md, root)
+%Convert one Markdown document to HTML. DocMaker converts via GitHub's
+%Markdown API, which sometimes times out (HTTP 502/503/504) - retry a few
+%times before failing the build
+maxAttempts = 3;
+for attempt = 1 : maxAttempts
+    %Each docconvert call re-copies DocMaker's read-only stylesheets (see
+    %docTask), so make any existing copies writable first
+    if isfolder(fullfile(root, "resources"))
+        MakeWritable(fullfile(root, "resources"));
+    end
+
+    try
+        html = docconvert(md, Theme="light", Root=root); % light theme suits the Help browser
+        return
+    catch err
+        isServerError = contains(err.message, "HTTP/1.1 50" + ["2", "3", "4"]);
+        if ~isServerError || attempt == maxAttempts
+            rethrow(err);
+        end
+        fprintf(1, "GitHub could not convert %s (%s) - retrying\n", md, extractBefore(err.message + "]", "]") + "]");
+        pause(5 * attempt);
+    end
+end
+end
+
+function MakeWritable(folder)
+%Clear the read-only attribute on a folder and everything in it
+if ispc
+    fileattrib(folder, "+w", "", "s");
+else
+    fileattrib(folder, "+w", "a", "s");
+end
+end
+
+function apidocTask(c)
+% Generate the API reference Markdown pages (Docs/reference) from the help
+% comments in the code. The doc task then converts them to HTML.
+
+%Prototype - a few representative classes, plus every class in the
+%namespaces listed
+classNames = ["Palladium.Core.Instrument", ...
+    "Palladium.Instruments.Keithley2000", ...
+    "Palladium.Instruments.Lakeshore331", ...
+    "Palladium.Utilities.PathUtils", ...
+    NamespaceClasses("Palladium.Enums")];
+
+outputFolder = c.Task.Outputs.Path;
+if isfolder(outputFolder)
+    rmdir(outputFolder, "s"); %Clear out pages for classes no longer documented
+end
+
+addpath(fullfile(c.Plan.RootFolder, "Tools"));
+GenerateApiReference(classNames, outputFolder);
+end
+
+function names = NamespaceClasses(namespace)
+%Names of all the classes in a namespace (not including nested namespaces)
+ns = matlab.metadata.Namespace.fromName(namespace);
+names = string({ns.ClassList.Name});
 end
 
 function EnsureDocMaker()
@@ -97,12 +166,14 @@ opts.SupportedPlatforms.Win64 = true;
 opts.SupportedPlatforms.Mac = true;
 opts.SupportedPlatforms.Glnxa64 = true;
 opts.SupportedPlatforms.MatlabOnline = true;
-%TODO - look at this now we moved to DocMaker -
-%this used to be a Getting Started.mlx that was included in source control
-%- need to add "Included Files" in Toolbox packages
-%opts.ToolboxGettingStartedGuide = fullfile(projectRoot, "Palladium DAQ",
-%"Docs", "index.html");
+%TODO - ToolboxGettingStartedGuide used to be a Getting Started.mlx. It
+%must be a .m or .mlx file, so it can't point at the DocMaker index.html
+%directly - the docs are reachable via the Help browser (Docs/info.xml)
 opts.ToolboxVersion = string(verStruct.VersionString);
+
+%Ship the generated documentation, but not its Markdown source
+docFiles = startsWith(opts.ToolboxFiles, fullfile(opts.ToolboxFolder, "Docs"));
+opts.ToolboxFiles(docFiles & endsWith(opts.ToolboxFiles, ".md")) = [];
 
 %Build the .mltbx toolbox installation file
 matlab.addons.toolbox.packageToolbox(opts);

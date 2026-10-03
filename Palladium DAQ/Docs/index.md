@@ -8,3 +8,5 @@ text goes here
 4+3;
 ```
 
+
+See the [API reference](reference/index.md) for the classes and their methods.

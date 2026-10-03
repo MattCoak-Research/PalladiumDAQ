@@ -23,7 +23,7 @@ classdef SweepController < Palladium.Core.InstrumentControlBase
         TotalPoints;
     end
 
-    %% Methods (Abstract)
+    %% Methods (Abstract, Public)
     methods (Abstract, Access = public)
         sweepDetails = Calculate(this, sweepDetailsIn);
         valueToSet = Update(this);

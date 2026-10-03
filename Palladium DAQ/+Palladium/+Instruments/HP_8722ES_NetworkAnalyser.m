@@ -25,7 +25,7 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
 
     %% Constructor
     methods
-        function this = PNA_L_NetworkAnalyser()
+        function this = HP_8722ES_NetworkAnalyser()
             %Specify communication options and settings
             this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "Serial", "USB", "VISA"]);
             this.GPIB_Address = 16;      %Default Address
@@ -141,7 +141,7 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
             end
 
             % numOfPoints = query(visaObj, 'SENS:SWE:POIN?','%s\n','%d');
-           % numOfPoints = this.QueryDouble("SENS:SWE:POIN?");
+            % numOfPoints = this.QueryDouble("SENS:SWE:POIN?");
             numOfPoints = this.QueryDouble("sing; poin?"); % number of points in measurement
         end
 

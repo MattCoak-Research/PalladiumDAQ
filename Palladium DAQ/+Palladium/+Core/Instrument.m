@@ -1,6 +1,7 @@
 classdef(Abstract) Instrument < Palladium.Core.Entity
-    %Instrument - Abstract base class all instrument implementations must
-    %inherit from.
+    %Instrument - Abstract base class that every instrument driver inherits from.
+    %Drivers must define `FullName`, `Name` and `Connection_Type`, and implement
+    %`GetHeaders` and `Measure`; connecting, simulation and metadata support come from here.
 
     %% Properties (Abstract, Constant, Public)
     properties(Abstract, Constant, Access = public)
@@ -13,14 +14,6 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
         Connection_Type;   %Type of connection to use to communicate with the instrument. Value will be a member of the ConnectionType Enum
     end
 
-    %% Properties (Public, SetObservable)
-    properties(Access = public, SetObservable)
-        GPIB_Address    (1,1) {mustBeInteger, mustBeBetween(GPIB_Address, 0, 30)} = 0;
-        IP_Address      {mustBeTextScalar}  = '192.0.0.0.0';
-        Serial_Address  {mustBeTextScalar} = 'COM12';
-        VISA_Address    {mustBeTextScalar} = "VISA_ADDRESS";
-    end
-
     %% Properties (Public)
     properties(Access = public) %Properties that will not get detected by the GUI and have buttons added for them
         LastFullDataRow = [];           %Each tick, the Controller will store the complete DataRow in each Instrument here. This is used when Instruments write their own data files, for things like independent sweeps
@@ -28,7 +21,22 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
         FileWriteDetails = [];
     end
 
-    %% Properties (Protected)
+    %% Properties (Public, Set Observable)
+    properties(Access = public, SetObservable)
+        %GPIB primary address of the instrument (0-30), set on its front panel. Used (and shown in the GUI) when Connection_Type is GPIB; the interface board is ConnectionSettings.GPIB_BoardIndex.
+        GPIB_Address    (1,1) {mustBeInteger, mustBeBetween(GPIB_Address, 0, 30)} = 0;
+
+        %IP address or hostname of the instrument, e.g. '192.168.1.10'. Used (and shown in the GUI) when Connection_Type is Ethernet; the TCP port is ConnectionSettings.Port.
+        IP_Address      {mustBeTextScalar}  = '192.0.0.0.0';
+
+        %Serial port name, e.g. 'COM3' on Windows or '/dev/ttyUSB0' on Linux. Used (and shown in the GUI) when Connection_Type is Serial; baud rate etc. are in ConnectionSettings.SerialSettings.
+        Serial_Address  {mustBeTextScalar} = 'COM12';
+
+        %VISA resource name, e.g. "USB0::0x05E6::0x2450::04412345::INSTR" or "TCPIP0::192.168.1.10::inst0::INSTR". Used (and shown in the GUI) when Connection_Type is VISA or USB.
+        VISA_Address    {mustBeTextScalar} = "VISA_ADDRESS";
+    end
+
+    %% Properties (Public, Protected Set)
     properties(GetAccess = public, SetAccess = protected)
         SimulationMode = false;         %Set to true if testing code while not actually connected to a physical instrument - dummy data will be generated. Set via constructor of instance classes only.
     end
@@ -391,7 +399,7 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
         end
 
         function SetNewSweepStepValue(this, value) %#ok<INUSD>
-            warning("SetNewSweepStepValueWarning:NotOverridden", "An override method for SetNewSweepStepValue has not been defined for this Instrument. A SweepController_Stepped is probably trying to tell this Instrument to go to the next step in its sweep but the Instrument doesn't have a function written to tell it how. Look at the Keithley2000 class for an example");
+            warning("SetNewSweepStepValueWarning:NotOverridden", "An override method for SetNewSweepStepValue has not been defined for this Instrument. A SweepController_Stepped is probably trying to tell this Instrument to go to the next step in its sweep but the Instrument doesn't have a function written to tell it how. Look at the Keithley2410 class for an example");
         end
 
         function SetRampingToTarget(this, target, rate, settings) %#ok<INUSD>
