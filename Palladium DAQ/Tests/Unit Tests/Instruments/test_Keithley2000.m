@@ -1,4 +1,4 @@
-classdef testKeithley2000 < matlab.unittest.TestCase
+classdef test_Keithley2000 < matlab.unittest.TestCase
     properties
         instrument
         currentRNG
@@ -73,7 +73,15 @@ classdef testKeithley2000 < matlab.unittest.TestCase
 
             dataRow = testCase.instrument.Measure();
             testCase.verifySize(dataRow, [1, 2]);
-            testCase.verifyEqual(dataRow, [17.0417022004703, 0], "AbsTol", 1e-10);
+
+            %Simulated reading is random, scattered about 17 with a
+            %standard deviation of 0.1 (see Keithley2000.Measure), so check
+            %it falls within 6 standard deviations rather than for an exact
+            %value. GenerateSimulatedData clamps to 5 standard deviations,
+            %so this can never fail by chance. Second column is the source
+            %level, which defaults to 0
+            testCase.verifyEqual(dataRow(1), 17, "AbsTol", 6 * 0.1);
+            testCase.verifyEqual(dataRow(2), 0);
         end
     end
 end

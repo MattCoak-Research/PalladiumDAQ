@@ -1,10 +1,10 @@
-classdef testDataReader < matlab.unittest.TestCase
+classdef test_DataReader < matlab.unittest.TestCase
     properties
         reader;
-        FileName = fullfile('data', 'DataReaderTest.dat');
-        NoMetaMarkerFile = fullfile('data', 'DataReaderNoMetaMarker.dat');
-        NoHeaderStringFile = fullfile('data', 'DataReaderNoHeaderString.dat');
-        HeaderStringSpaceFile = fullfile('data', 'DataReaderHeaderStringSpace.dat')
+        FileName = fullfile('..', 'data', 'DataReaderTest.dat');
+        NoMetaMarkerFile = fullfile('..', 'data', 'DataReaderNoMetaMarker.dat');
+        NoHeaderStringFile = fullfile('..', 'data', 'DataReaderNoHeaderString.dat');
+        HeaderStringSpaceFile = fullfile('..', 'data', 'DataReaderHeaderStringSpace.dat')
         expectedMetadata = ["<<< Palladium DAQ data file 3.0 >>>", "", "" "<Instrument Settings and Metadata>"];
         expectedColNames = ["Time (mins)"	"Channel A Temperature (K)"	"Channel B Temperature (K)"	"Ls331_1 Heater Power (W)"];
         expectedDataArray = [29545432.2083213	100.814723686393	100.905791937076	0.452857203366604;

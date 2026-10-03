@@ -1289,20 +1289,46 @@
                                 <Info/>
                             </DIR_SIGNIFIER>
                         </File>
-                    </File>
-                    <File Location="testDataReader.m">
-                        <Info>
-                            <Category UUID="FileClassCategory">
-                                <Label UUID="test"/>
-                            </Category>
-                        </Info>
-                    </File>
-                    <File Location="testKeithley2000.m">
-                        <Info>
-                            <Category UUID="FileClassCategory">
-                                <Label UUID="test"/>
-                            </Category>
-                        </Info>
+                        <File Location="Instrument Testing">
+                            <Info/>
+                            <DIR_SIGNIFIER Location="1">
+                                <Info/>
+                            </DIR_SIGNIFIER>
+                            <File Location="+InstrumentTestingInstruments">
+                                <Info/>
+                                <DIR_SIGNIFIER Location="1">
+                                    <Info/>
+                                </DIR_SIGNIFIER>
+                                <File Location="CallRecorder.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                                <File Location="FakeDeviceHandle.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                                <File Location="StubControl.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                                <File Location="StubInstrument.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                            </File>
+                        </File>
                     </File>
                     <File Location="Utilities">
                         <Info/>
@@ -1365,6 +1391,45 @@
                             <Info/>
                         </DIR_SIGNIFIER>
                         <File Location="test_CommandEncoder.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                    </File>
+                    <File Location="Core">
+                        <Info/>
+                        <DIR_SIGNIFIER Location="1">
+                            <Info/>
+                        </DIR_SIGNIFIER>
+                        <File Location="test_Instrument.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                    </File>
+                    <File Location="DataWriting">
+                        <Info/>
+                        <DIR_SIGNIFIER Location="1">
+                            <Info/>
+                        </DIR_SIGNIFIER>
+                        <File Location="test_DataReader.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                    </File>
+                    <File Location="Instruments">
+                        <Info/>
+                        <DIR_SIGNIFIER Location="1">
+                            <Info/>
+                        </DIR_SIGNIFIER>
+                        <File Location="test_Keithley2000.m">
                             <Info>
                                 <Category UUID="FileClassCategory">
                                     <Label UUID="test"/>
@@ -1441,9 +1506,6 @@
                     <Info/>
                 </File>
             </File>
-            <File Location="toolbox.ignore">
-                <Info/>
-            </File>
             <File Location="Instrument Drivers">
                 <Info/>
                 <DIR_SIGNIFIER Location="1">
@@ -1504,6 +1566,9 @@
                     </File>
                 </File>
             </File>
+            <File Location="package.ignore">
+                <Info/>
+            </File>
         </File>
         <File Location="README.md">
             <Info/>
@@ -1549,6 +1614,15 @@
         </Reference>
         <Reference Location="1fc9fa05-d04a-477e-ba3d-5079a211b0f4">
             <Info Ref="Palladium DAQ/Docs" Type="Relative"/>
+        </Reference>
+        <Reference Location="206b5c59-ebca-4990-be57-63302ead1502">
+            <Info Ref="Palladium DAQ/Tests/Unit Tests/Core" Type="Relative"/>
+        </Reference>
+        <Reference Location="2a049c6d-b751-4a46-a576-a7b6263ba93a">
+            <Info Ref="Palladium DAQ/Tests/Unit Tests/DataWriting" Type="Relative"/>
+        </Reference>
+        <Reference Location="1b69e87b-60c9-41de-86a5-96e9d773e655">
+            <Info Ref="Palladium DAQ/Tests/Unit Tests/Instruments" Type="Relative"/>
         </Reference>
     </ProjectPath>
     <Files Location="MLTestManagerTestSuites">
