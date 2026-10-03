@@ -159,7 +159,7 @@ classdef MercuryITC < Palladium.Core.Instrument
             end
 
             if this.SimulationMode
-                value = 273 + rand()*1;
+                value = this.GenerateSimulatedData(1, Baseline=273, Variance=0.1);
                 return;
             end
 
@@ -360,7 +360,7 @@ classdef MercuryITC < Palladium.Core.Instrument
             for i = 1:length(this.DeviceCatalogue)
                 if this.SimulationMode
                     %Dummy value
-                    dataRow(i) = 273 + rand();
+                    dataRow(i) = this.GenerateSimulatedData(1, Baseline=273, Variance=0.1);
                     continue;
                 end
 

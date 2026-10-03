@@ -297,9 +297,9 @@ classdef Keithley2410 < Palladium.Core.Instrument
         function [voltage, current, resistance] = MeasureSingleShotData(this)
             if(this.SimulationMode)
                 %Dummy values
-                resistance = 10 + 0.1*rand();
-                current = 5 + 0.01*rand();
-                voltage =1 + 0.01*rand;
+                resistance = this.GenerateSimulatedData(1, Baseline=10, Variance=0.1);
+                current = this.GenerateSimulatedData(1, Baseline=5, Variance=0.01);
+                voltage = this.GenerateSimulatedData(1, Baseline=1, Variance=0.01);
                 return;                
             end
 

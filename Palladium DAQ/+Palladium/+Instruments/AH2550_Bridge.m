@@ -74,8 +74,8 @@ classdef AH2550_Bridge < Palladium.Core.Instrument
 
             if(this.SimulationMode)
                 %Just generate some dummy random numbers
-                capacitance = rand() * 4e-1 + 3.1e2;
-                loss = rand() * 1e-3;
+                capacitance = this.GenerateSimulatedData(1, Baseline=0.4, Variance=0.001); 
+                loss = this.GenerateSimulatedData(1, Baseline=1e-3, Variance=1e-5);
                 voltage = 0.1;
                 dataRow = [capacitance, loss, voltage];
             else

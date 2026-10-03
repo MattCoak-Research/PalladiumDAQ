@@ -119,7 +119,7 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
                     try
                         this.DeviceHandle = [];
                     catch e
-                        error("Error disconnecting from " + this.Name, e);
+                        error("CloseError:DisconnectFailed", "%s", "Error disconnecting from " + this.Name + ": " + e.message);
                     end
             end
         end
@@ -159,40 +159,93 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
                 case(Palladium.Enums.ConnectionType.Serial)
                     this.ConnectSerial();
                 otherwise
-                    error("Unsupported connection type: " + this.Connection_Type + ". ConnectionType can be tcpip, gpib, serial, usb, or visa.");
+                    error("ConnectError:UnsupportedConnectionType", "%s", "Unsupported connection type: " + this.Connection_Type + ". ConnectionType can be tcpip, gpib, serial, usb, or visa.");
             end
         end
 
-        function datArray = GenerateSimulatedData(this, numRows, numCols, Settings)
+        function datArray = GenerateSimulatedData(~, numRows, numCols, Settings)
+            %GENERATESIMULATEDDATA - Create synthetic data with optional row or column grouping
+            %
+            % Input arguments:
+            %   numRows  - number of simulated rows
+            %   numCols  - number of simulated columns
+            %   Settings - struct controlling baseline, transpose, and variance
+            %
+            % Output arguments:
+            %   datArray - generated numeric array. Values are normally
+            %   distributed about Baseline with standard deviation
+            %   Variance, but clamped to within MaxStdDeviations (5)
+            %   standard deviations of Baseline, so the output is
+            %   strictly bounded however many values are generated.
             arguments
-                this;
+                ~;
                 numRows (1,1) {mustBeInteger};
                 numCols (1,1) {mustBeInteger} = 1;
+                Settings.Baseline (:,1) double = nan; %Default = nan - (nx1) double, make n be the number of rows/cols. Random baseline value will be generated for each column/row if not set. Set a value to have all rows/columns scatter around this mean value if a single value is given, set for each row/col if an array is passed in.
                 Settings.Transpose (1,1) logical = false; % By default, columns are created with random but cohesive numbers. Tranpose=true switches to having rows be the simulated 'data column' instead
+                Settings.Variance (:,1) double = nan; %Default = nan - (nx1) double, make n be the number of rows/cols. Random variance value will be generated for each column/row if not set. Set a value to have all rows/columns scatter by this set value instead if a single value is given, set for each row/col if an array is passed in.
             end
 
             %Pre-initialise array
             datArray = nan(numRows, numCols);
 
+            %Outliers beyond this many standard deviations are clamped, so
+            %extremely rare large randn draws can't give wild values
+            MaxStdDeviations = 5;
+
+            %Choose whether to fill row-wise or column-wise
             if Settings.Transpose
                 for i = 1 : numRows
                     seed = rand*100;
                     exp = round(rand*10 - 6);
 
-                    baseline = seed*10^exp;
-                    var = rand*5*10^exp;
+                    if isnan(Settings.Baseline)
+                        baseline = seed*10^exp;
+                    elseif isscalar(Settings.Baseline)
+                        baseline = Settings.Baseline;
+                    else
+                        assert(length(Settings.Baseline) == numRows, "GenerateSimulatedDataError:BaselineLengthMismatch", "Baseline must match number of rows (GenerateSimulatedData)");
+                        baseline = Settings.Baseline(i);
+                    end
 
-                    datArray(i, :) = rand(1, numCols) * var + baseline;
+                    if isnan(Settings.Variance)
+                        var = rand*5*10^exp;
+                    elseif isscalar(Settings.Variance)
+                        var = Settings.Variance;
+                    else
+                        assert(length(Settings.Variance) == numRows, "GenerateSimulatedDataError:VarianceLengthMismatch", "Variance must match number of rows (GenerateSimulatedData)");
+                        var = Settings.Variance(i);
+                    end
+
+                    deviations = max(min(randn(1, numCols), MaxStdDeviations), -MaxStdDeviations);
+                    datArray(i, :) = deviations * var + baseline;
                 end
             else
                 for i = 1 : numCols
                     seed = rand*100;
                     exp = round(rand*10 - 6);
 
-                    baseline = seed*10^exp;
-                    var = rand*5*10^exp;
+                    if isnan(Settings.Baseline)
+                        baseline = seed*10^exp;
+                    elseif isscalar(Settings.Baseline)
 
-                    datArray(:, i) = rand(numRows, 1) * var + baseline;
+                        baseline = Settings.Baseline;
+                    else
+                        assert(length(Settings.Baseline) == numCols, "GenerateSimulatedDataError:BaselineLengthMismatch", "Baseline must match number of columns (GenerateSimulatedData)");
+                        baseline = Settings.Baseline(i);
+                    end
+
+                    if isnan(Settings.Variance)
+                        var = rand*5*10^exp;
+                    elseif isscalar(Settings.Variance)
+                        var = Settings.Variance;
+                    else
+                        assert(length(Settings.Variance) == numCols, "GenerateSimulatedDataError:VarianceLengthMismatch", "Variance must match number of columns (GenerateSimulatedData)");
+                        var = Settings.Variance(i);
+                    end
+
+                    deviations = max(min(randn(numRows, 1), MaxStdDeviations), -MaxStdDeviations);
+                    datArray(:, i) = deviations * var + baseline;
                 end
             end
 
@@ -207,7 +260,6 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
 
             controlDetailsStructs = this.GetAvailableControlOptions();
 
-            controlDetailsStruct = [];
             listOfPotentialNames = "";
 
             for i = 1 : length(controlDetailsStructs)
@@ -223,7 +275,7 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
                 end
             end
 
-            error("Could not find Control Detail Struct with name " + string(controlName) + ". Supported options: " + listOfPotentialNames);
+            error("GetControlOptionError:NotFound", "%s", "Could not find Control Detail Struct with name " + string(controlName) + ". Supported options: " + listOfPotentialNames);
         end
 
         function names = GetRegisteredControlNames(this)
@@ -269,7 +321,7 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             catch err
 
                 success = false;
-                msg = "Could not connect to Instrument:\n" + this.FullName + " - " + this.Name + "\n" + "Connection type " + string(this.Connection_Type) + "\n\nError message: " + err.message;
+                msg = "Could not connect to Instrument:" + newline + this.FullName + " - " + this.Name + newline + "Connection type " + string(this.Connection_Type) + newline + newline + "Error message: " + err.message;
                 return;
             end
 
@@ -298,7 +350,7 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             else
                 %Quickly check to make sure we are (in theory at least)
                 %connected before sending command - warn if not
-                assert(~isempty(this.DeviceHandle), "Device Handle is empty - device is not connected yet when sending Query command (" + this.FullName + ")");
+                assert(~isempty(this.DeviceHandle), "QueryDoubleError:NotConnected", "%s", "Device Handle is empty - device is not connected yet when sending Query command (" + this.FullName + ")");
 
                 %Send query
                 val = str2double(query(this.DeviceHandle, command));
@@ -316,7 +368,7 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             else
                 %Quickly check to make sure we are (in theory at least)
                 %connected before sending command - warn if not
-                assert(~isempty(this.DeviceHandle), "Device Handle is empty - device is not connected yet when sending Query command (" + this.FullName + ")");
+                assert(~isempty(this.DeviceHandle), "QueryStringError:NotConnected", "%s", "Device Handle is empty - device is not connected yet when sending Query command (" + this.FullName + ")");
 
                 %Send query
                 val = query(this.DeviceHandle, command);
@@ -332,14 +384,14 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             else
                 %Quickly check to make sure we are (in theory at least)
                 %connected before sending command - warn if not
-                assert(~isempty(this.DeviceHandle), "Device Handle is empty - device is not connected yet when sending Query command (" + this.FullName + ")");
+                assert(~isempty(this.DeviceHandle), "ReadStringError:NotConnected", "%s", "Device Handle is empty - device is not connected yet when reading from the instrument (" + this.FullName + ")");
 
                 data= fscanf(this.DeviceHandle);
             end
         end
 
         function SetNewSweepStepValue(this, value) %#ok<INUSD>
-            warning("An override method for SetNewSweepStepValue has not been defined for this Instrument. A SweepController_Stepped is probably trying to tell this Instrument to go to the next step in its sweep but the Instrument doesn't have a function written to tell it how. Look at the Keithley2000 class for an example");
+            warning("SetNewSweepStepValueWarning:NotOverridden", "An override method for SetNewSweepStepValue has not been defined for this Instrument. A SweepController_Stepped is probably trying to tell this Instrument to go to the next step in its sweep but the Instrument doesn't have a function written to tell it how. Look at the Keithley2000 class for an example");
         end
 
         function SetRampingToTarget(this, target, rate, settings) %#ok<INUSD>
@@ -373,9 +425,11 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
                 case(Palladium.Enums.ConnectionType.Serial)
                     propertiesToIgnore = {"GPIB_Address", "IP_Address", "VISA_Address"};
                 case(Palladium.Enums.ConnectionType.USB)
-                    propertiesToIgnore = {"GPIB_Address", "IP_Address", "Serial_Address", "VISA_Address"};
+                    %USB connects through VISA (see ConnectUSB), so it uses
+                    %the VISA address
+                    propertiesToIgnore = {"GPIB_Address", "IP_Address", "Serial_Address"};
                 otherwise
-                    error("Unsupported connection type: " + this.Connection_Type + ". ConnectionType can be tcpip, gpib, serial, or visa.");
+                    error("ShowPropertyError:UnsupportedConnectionType", "%s", "Unsupported connection type: " + this.Connection_Type + ". ConnectionType can be tcpip, gpib, serial, usb, or visa.");
             end
 
             for i = 1 : length(propertiesToIgnore)
@@ -407,7 +461,7 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             if(this.SimulationMode); return; end
             %Quickly check to make sure we are (in theory at least)
             %connected before sending command - warn if not
-            assert(~isempty(this.DeviceHandle), "Device Handle is empty - device is not connected yet when sending Query command (" + this.FullName + ")");
+            assert(~isempty(this.DeviceHandle), "WriteCommandError:NotConnected", "%s", "Device Handle is empty - device is not connected yet when sending a command (" + this.FullName + ")");
 
             %Send command
             fprintf(this.DeviceHandle, command);
@@ -448,7 +502,7 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             end
 
             %Error checking
-            assert(isstruct(result), "Return value of CollectMetadata is not Struct on Instrument " + this.Name);
+            assert(isstruct(result), "GrabMetadataStringError:MetadataNotStruct", "%s", "Return value of CollectMetadata is not Struct on Instrument " + this.Name);
 
             %Otherwise turn the struct into a human readable one-line
             %string...
@@ -462,7 +516,7 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             %Check we didn't already register a control of this name to
             %avoid duplication
             if ~isempty(this.GetRegisteredControlObjectsFromName(name))
-                error("A Control object of name " + name + " has already been added to Instrument " + this.Name);
+                error("RegisterControlObjectError:DuplicateName", "%s", "A Control object of name " + name + " has already been added to Instrument " + this.Name);
             end
 
             %Add to the list of tracked things
@@ -587,7 +641,7 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
                 for i = 1 : length(catNamesStrArray)
                     catNam = catNam + catNamesStrArray(i) + " ";
                 end
-                error("Error in converting string to categorical in Instrument. Given value: " + inputStr + " was not found in the input category names: " + catNam);
+                error("ConvertToCategoricalError:ValueNotInCategories", "%s", "Error in converting string to categorical in Instrument. Given value: " + inputStr + " was not found in the input category names: " + catNam);
             end
         end
 

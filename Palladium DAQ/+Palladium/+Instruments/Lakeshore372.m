@@ -105,7 +105,7 @@ classdef Lakeshore372 < Palladium.Core.Instrument
         function [htrLevel, htrEnabled] = GetHeaterLevel(this)
             if this.SimulationMode
                 %Dummy values for testing
-                htrLevel = 60 + rand();
+                htrLevel = this.GenerateSimulateValues(1, Baseline=60, Variance=7);
                 htrEnabled = true;
                 return;
             end
@@ -199,7 +199,7 @@ classdef Lakeshore372 < Palladium.Core.Instrument
 
         function res = GetResistance(this)
             if this.SimulationMode
-                res = 1024.6 + 0.05*rand();
+                res = this.GenerateSimulatedData(1, Baseline=1024.6, Variance=0.05);
             else
                 res = this.QueryDouble("RDGR?1");
             end
@@ -212,7 +212,7 @@ classdef Lakeshore372 < Palladium.Core.Instrument
 
         function temp = GetTemperature(this)
             if this.SimulationMode
-                temp = 24.6 + 0.05*rand();
+                temp = this.GenerateSimulatedData(1, Baseline=25, Variance=0.001);
             else
                 temp = this.QueryDouble("RDGK?1");
             end

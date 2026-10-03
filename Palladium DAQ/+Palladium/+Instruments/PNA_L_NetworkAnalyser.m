@@ -180,7 +180,7 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
         function data = FetchData(this)
             % Only call this after verifying data ar ready to be read
             if this.SimulationMode
-                data = randn([this.GetNumPoints, 2]);
+                data = this.GenerateSimulatedData(this.GetNumPoints, 2, Baseline=[10000, 1], Variance=[1000, 0.04]);
                 return;
             end
 

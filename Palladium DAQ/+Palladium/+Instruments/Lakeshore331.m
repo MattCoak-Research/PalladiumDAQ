@@ -135,7 +135,7 @@ classdef Lakeshore331 < Palladium.Core.Instrument
 
             if(this.SimulationMode)
                 %Dummy values
-                htrLevel = 60 + rand()*3;
+                htrLevel = this.GenerateSimulatedData(1, Baseline=60, Variance=3);
                 htrEnabled = true;
                 return;
             end

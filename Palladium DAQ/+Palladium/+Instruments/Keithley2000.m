@@ -107,7 +107,7 @@ classdef Keithley2000 < Palladium.Core.Instrument
             %Get measurement values
             if(this.SimulationMode)
                 %Dummy values if simulating instrument
-                data = 17 + rand()*0.1;
+                data = this.GenerateSimulatedData(1, Baseline=17, Variance=0.1);
             else
                 %Query the source meter for latest measurement
                 data = this.QueryDouble("MEAS?");

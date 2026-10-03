@@ -766,7 +766,7 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             data.Time_2450 = mainCols(3, :);
 
             %Gate (pulse) instrument - gateBuffer
-            if this.Instrument.SimulationMode
+            if this.SecondInstrument.SimulationMode
                 gateCols = this.SecondInstrument.GenerateSimulatedData(3, numMeasurements, Transpose=true);
             else
                 gateStr = this.SecondInstrument.QueryString("printbuffer(1, " + nStr + ", gateBuffer.readings, gateBuffer.sourcevalues, gateBuffer.relativetimestamps)");

@@ -125,7 +125,7 @@ classdef Lakeshore350 < Palladium.Core.Instrument
 
             if(this.SimulationMode)
                 %Dummy values
-                htrLevel = 60 + rand()*3;
+                htrLevel = this.GenerateSimulatedData(1, Baseline=60, Variance=3);
                 htrEnabled = true;
                 return;
             end
@@ -240,7 +240,7 @@ classdef Lakeshore350 < Palladium.Core.Instrument
 
             if this.SimulationMode
                 %Dummy values
-                res = 160 + rand()*3;
+                res = this.GenerateSimulateValues(1, Baseline=164, Variance=0.01);
                 return;
             end
 
@@ -299,7 +299,7 @@ classdef Lakeshore350 < Palladium.Core.Instrument
 
             if this.SimulationMode
                 %Dummy values
-                temp = 273 + rand()*1;
+                temp = this.GenerateSimulateValues(1, Baseline=273, Variance=0.03);
                 return;
             end
 

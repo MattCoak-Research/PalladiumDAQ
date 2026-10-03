@@ -33,8 +33,8 @@ classdef Keysight4248A_LCR_Meter < Palladium.Core.Instrument
         function [param1, param2, bias] = FetchMeasurement(this)
             if (this.SimulationMode)
                 %Dummy values if simulating instrument
-                param1 = 17 + rand()*0.1;
-                param2 = 1.563e-6 + rand()*0.1e-6;
+                param1 = this.GenerateSimulatedData(1, Baseline=17, Variance=0.1);
+                param2 = this.GenerateSimulatedData(1, Baseline=2e-6, Variance=1e-8);
                 bias = 0;
                 return;
             end

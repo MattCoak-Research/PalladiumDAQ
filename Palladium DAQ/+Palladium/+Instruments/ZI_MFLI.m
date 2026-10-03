@@ -300,9 +300,9 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             end
 
             if(this.SimulationMode)
-                daqData_time.Time = linspace(0, 5, 2^16); %rand([2^16,1]);
-                daqData_time.Amplitude = rand([2^16, 1]);
-                daqData_freq.Amplitude = rand([2^16/2 + 1, 1]);
+                daqData_time.Time = linspace(0, 5, 2^16);
+                daqData_time.Amplitude = this.GenerateSimulatedData(2^16, Baseline=1e-4, Variance=3e-6);
+                daqData_freq.Amplitude = this.GenerateSimulatedData(2^16/2 + 1, Baseline=1e-4, Variance=3e-6);
                 daqData_freq.bandwidth = 100;
                 return
             end
@@ -421,7 +421,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
 
             if(this.SimulationMode)
                 daqData_time.Time = linspace(0, 5, 2^16); %rand([2^16,1]);
-                daqData_time.Amplitude = rand([2^16, 1]);
+                daqData_time.Amplitude = this.GenerateSimulatedData(2^16, Baseline=1e-4, Variance=3e-6);
                 return
             end
 
@@ -1090,7 +1090,8 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             end
 
             if(this.SimulationMode)
-                X = rand(1)*100e-8; Y = rand(1)*10e-9;
+                X = this.GenerateSimulatedData(1, Baseline=1e-6, Variance=2e-8);
+                Y = this.GenerateSimulatedData(1, Baseline=1e-8, Variance=3e-10);
                 return;
             end
 
@@ -1526,10 +1527,10 @@ classdef ZI_MFLI < Palladium.Core.Instrument
                 % access that without a real instrument
                 SweepData.SweepValues = linspace(100, 1000, 100)';
 
-                SweepData.Amplitude = rand([100, 1])*1e-5+3e-5;
-                SweepData.X = rand([100, 1])*1e-5+2e-5;
-                SweepData.Y = rand([100, 1])*0.14e-5+0.2e-5;
-                SweepData.Phase = rand([100, 1])*360; % in degrees
+                SweepData.Amplitude = this.GenerateSimulatedData(100, Baseline=1e-5, Variance=3e-6);
+                SweepData.X = this.GenerateSimulatedData(100, Baseline=1e-5, Variance=3e-6);
+                SweepData.Y = this.GenerateSimulatedData(100, Baseline=1e-6, Variance=8e-7);
+                SweepData.Phase = this.GenerateSimulatedData(100, Baseline=60, Variance=5); % in degrees
 
                 %Run a random (but reasonably small)  number of times.
                 %Doing anything fancier than everything here would mean
@@ -1781,7 +1782,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
 
             if(this.SimulationMode)
                 data.Frequency = linspace(0, 400e3, 2048);
-                data.Amplitude = rand([2048,1])*1e-5;
+                data.Amplitude = this.GenerateSimulatedData(2048, Baseline=1e-5, Variance=3e-6);
                 return;
             end
 

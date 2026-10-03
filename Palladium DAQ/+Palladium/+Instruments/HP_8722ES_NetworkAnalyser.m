@@ -86,7 +86,7 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
             % COUNT is the number of values read and MESSAGE tells us if the read
             % operation was unsuccessful for some reason.
             if this.SimulationMode
-                data = randn([this.GetNumPoints, 2]);
+                data = this.GenerateSimulatedData(this.GetNumPoints, 2, Baseline=[1000, 1e-3], Variance=[100, 1e-4]);
                 return;
             end
 
@@ -108,7 +108,7 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
         function data = FetchData(this)
             % Only call this after verifying data ar ready to be read
             if this.SimulationMode
-                data = randn([this.GetNumPoints, 2]);
+                data = this.GenerateSimulatedData(this.GetNumPoints, 2, Baseline=[1000, 1e-3], Variance=[100, 1e-4]);
                 return;
             end
 

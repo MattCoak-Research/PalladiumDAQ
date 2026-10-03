@@ -36,7 +36,7 @@ classdef Agilent_53220A_FreqCounter < Palladium.Core.Instrument
         function [dataRow] = Measure(this)
             if(this.SimulationMode)
                 %Dummy values
-                freq_Hz = 17e6 + rand * 0.1e6;
+                freq_Hz = this.GenerateSimulatedData(1, Baseline=17e6, Variance=0.1e6);
             else
                 %Define some values
                 expectedFreq = 20e6;

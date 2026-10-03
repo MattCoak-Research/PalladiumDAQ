@@ -645,7 +645,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
             if(this.SimulationMode)
                 %Return dummy values if in simulation mode
                 sourceLevel = this.GetSourceLevel();
-                value = rand(1)*1e-7 + 2e-6;
+                value = this.GenerateSimulatedData(1, Baseline=1e-5, Variance=1e-7);
                 dataRow = [value sourceLevel, 0];
                 return;
             end
