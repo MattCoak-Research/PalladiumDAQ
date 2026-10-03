@@ -29,8 +29,12 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
     end
 
     %% Properties (Protected)
-    properties(Access = protected)
+    properties(GetAccess = public, SetAccess = protected)
         SimulationMode = false;         %Set to true if testing code while not actually connected to a physical instrument - dummy data will be generated. Set via constructor of instance classes only.
+    end
+
+    %% Properties (Protected)
+    properties(Access = protected)
         DeviceHandle = [];              %Reference to the instrument connection/session, set when calling Connect()
         SettingsToApply = [];           %Either null, or a struct of all the settings to apply in the next Measure command (keep these calls synchronous, they come originally from events)
         SimulatedData = [];             %Empty placeholder where an Instrument can define struct properties like SimulatedData.SourceLevel for testing things like SweepControl
@@ -273,7 +277,7 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             msg = "";
 
             this.OnInitialised();
-        end      
+        end
 
         function str = PrintIdentifier(this)
             %PRINTIDENTIFIER - just prints some information about this
@@ -408,7 +412,7 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             %Send command
             fprintf(this.DeviceHandle, command);
         end
-        
+
     end
 
     %% Methods (Public, Sealed)
@@ -422,7 +426,7 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
 
             this.AllowedConnectionTypes = connectionTypes;
         end
-        
+
         function [controlDetailsStructs] = GetAvailableControlOptions(this)
             controlDetailsStructs = this.ControlDetailsStructs;
         end
