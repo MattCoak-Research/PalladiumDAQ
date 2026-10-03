@@ -37,5 +37,8 @@ resources/*
 *.cpyth
 
 #Documentation output - docs will be generated in the buildfile. Just track the markdown .md files
-Palladium DAQ/Docs/*.xml
-Palladium DAQ/Docs/*.html
+Palladium DAQ/Docs/**/*.xml
+Palladium DAQ/Docs/**/*.html
+Palladium DAQ/Docs/resources/
+#Generated API reference Markdown - built by the apidoc task from the code's help comments
+Palladium DAQ/Docs/reference/

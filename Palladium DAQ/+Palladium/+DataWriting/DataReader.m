@@ -76,7 +76,7 @@ classdef DataReader < handle
 
     end
 
-    %% Methods (Static)
+    %% Methods (Static, Public)
     methods (Access = public, Static)
 
         function [dataArray] = ReadDataArray(filePath, numHeaderLines)

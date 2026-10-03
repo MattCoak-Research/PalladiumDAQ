@@ -50,6 +50,19 @@ classdef test_GUIUtils < matlab.unittest.TestCase
             testCase.verifyEqual(actualPropertyList, expectedPropertyList);
         end
 
+        function test_ComputePropertyList_WithAccessListProperty(testCase)
+            % Keithley2000.MeasMode has SetAccess given as a list of classes
+            % (a cell array, not a char vector) - it must be left out of the
+            % GUI rather than erroring, for either setting of exposeSubClassProperties
+            instrument = Palladium.Instruments.Keithley2000();
+
+            for exposeSubClassProperties = [true, false]
+                actualPropertyList = Palladium.Utilities.GUIUtils.ComputePropertyList(instrument, exposeSubClassProperties);
+                testCase.verifyFalse(any(actualPropertyList == "MeasMode"));
+                testCase.verifyTrue(any(actualPropertyList == "Name"));
+            end
+        end
+
         %% IsPropertyValidToUse
         function test_IsPropertyValidToUse_WithValidName(testCase)
             propName = 'validPropertyName';

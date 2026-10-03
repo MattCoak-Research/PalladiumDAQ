@@ -585,7 +585,7 @@ classdef PluginLoading
                     for p = 1:numel(meta.PropertyList)
                         prop = meta.PropertyList(p);
                         % Only include public, non-dependent properties that are set-observable
-                        if prop.GetAccess == "public" && ~prop.Dependent && prop.SetObservable
+                        if isequal(prop.GetAccess, 'public') && ~prop.Dependent && prop.SetObservable
                             pname = prop.Name;
                             try
                                 val = instr.(pname);

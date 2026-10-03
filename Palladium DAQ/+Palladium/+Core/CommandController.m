@@ -23,16 +23,9 @@ classdef CommandController < handle
         DebugMode = false;
     end
 
-    %% Properties (Dependent)
+    %% Properties (Dependent, Public)
     properties (Dependent)
         Busy;
-    end
-
-    %% Get and Set Accessors
-    methods
-        function val = get.Busy(this)
-            val = ~isempty(this.CommandCurrentlyExecuting);
-        end
     end
 
     %% Properties (Private)
@@ -46,6 +39,13 @@ classdef CommandController < handle
     events
         CommandsFinished;
         DataFileCommandRun;
+    end
+
+    %% Get and Set Accessors
+    methods
+        function val = get.Busy(this)
+            val = ~isempty(this.CommandCurrentlyExecuting);
+        end
     end
 
     %% Constructor
