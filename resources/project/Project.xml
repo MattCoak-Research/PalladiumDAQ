@@ -1334,6 +1334,20 @@
                                         </Category>
                                     </Info>
                                 </File>
+                                <File Location="StubSweepController.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                                <File Location="TestableScanController.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
                             </File>
                         </File>
                     </File>
@@ -1690,6 +1704,9 @@
         </Reference>
         <Reference Location="6d840884-73ff-4591-80d0-195795e9eb1f">
             <Info Ref="Palladium DAQ/Tests/Unit Tests/Instruments/Controls" Type="Relative"/>
+        </Reference>
+        <Reference Location="9fb8b4d9-ca5a-461e-8f7e-c726052d43de">
+            <Info Ref="Palladium DAQ/Tests/Unit Tests/data/Instrument Testing" Type="Relative"/>
         </Reference>
     </ProjectPath>
     <Files Location="MLTestManagerTestSuites">
