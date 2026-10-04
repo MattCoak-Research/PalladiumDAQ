@@ -44,9 +44,9 @@ end
 
 function names = driverNames()
 %Class names of the driver files in +Palladium/+Instruments, and the
-%template, as a cell array for the TestParameter, leaving out the test-only
-%driver
-excluded = "TestInstrument";    %Deliberately errors on its first Measure, for other tests
+%template, as a cell array for the TestParameter, leaving out the
+%prototyping instrument
+excluded = "TestInstrument";    %Scratch instrument for prototyping new features (not shipped) - its Measure currently errors on the first call
 
 files = dir(fullfile(sourceRoot(), "+Palladium", "+Instruments", "*.m"));
 names = erase(string({files.name}), ".m");

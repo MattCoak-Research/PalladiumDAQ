@@ -100,7 +100,7 @@ The documentation's screenshots of the GUI are taken by a script, so that they c
 * Keyboard focus is moved to the window itself before each capture, so no text field shows a focus border - otherwise which field has focus varies from run to run.
 * A file is only rewritten if the image has changed, so retaking unchanged screenshots doesn't show up in git. Scenes with plots of simulated data allow a small tolerance, since the data differs slightly from run to run.
 
-The scenes run with a screenshot-only config, writing everything to the git-ignored `Tools/DocScreenshots/work` folder, and set the visible folder fields to neutral values such as `C:\Data`, so a developer's own folders never appear in the docs. `TestInstrument` is hidden from the Instruments list.
+The scenes run with a screenshot-only config, writing everything to the git-ignored `Tools/DocScreenshots/work` folder, and set the visible folder fields to neutral values such as `C:\Data`, so a developer's own folders never appear in the docs. `TestInstrument`, a scratch instrument for prototyping that isn't shipped, is hidden from the Instruments list.
 
 **The screenshots task needs a display, so it is run by hand, not on GitHub Actions:**
 
@@ -114,7 +114,7 @@ To add a screenshot, add a scene function to `TakeDocScreenshots.m` and its name
 
 ### package - the toolbox
 
-`packageTask` builds `Release/Toolbox/PalladiumDAQ.mltbx` from the MATLAB Project's file list, with the version from `Palladium.ver()`. It sets the Getting Started guide to `Docs/GettingStarted.m`, and leaves `DocsSrc` (and any stray Markdown) out, so the toolbox ships only the generated documentation. It also leaves out `TestInstrument.m`, an instrument used only for testing Palladium DAQ itself.
+`packageTask` builds `Release/Toolbox/PalladiumDAQ.mltbx` from the MATLAB Project's file list, with the version from `Palladium.ver()`. It sets the Getting Started guide to `Docs/GettingStarted.m`, and leaves `DocsSrc` (and any stray Markdown) out, so the toolbox ships only the generated documentation. It also leaves out `TestInstrument.m`, a scratch instrument for prototyping new features, which is not shipped.
 
 ## Standalone application
 

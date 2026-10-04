@@ -38,7 +38,7 @@ classdef test_GUIUtils < matlab.unittest.TestCase
         end
 
         function test_ComputePropertyList_WithInstrument(testCase)
-            instrument = GUIUtilsTestingInstruments.TestInstrument();
+            instrument = GUIUtilsTestingInstruments.PropertyListTestInstrument();
             exposeSubClassProperties = true;
             expectedPropertyList = [...
                 "Name";...

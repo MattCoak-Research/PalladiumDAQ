@@ -407,8 +407,8 @@ opts.ToolboxFiles(startsWith(opts.ToolboxFiles, fullfile(opts.ToolboxFolder, "Do
 docFiles = startsWith(opts.ToolboxFiles, fullfile(opts.ToolboxFolder, "Docs"));
 opts.ToolboxFiles(docFiles & endsWith(opts.ToolboxFiles, ".md")) = []; %Any left by a failed doc build
 
-%TestInstrument is for testing Palladium itself, not for users (it is left
-%out of the standalone application too - see AssembleBuildOptions)
+%TestInstrument is a scratch instrument for prototyping, not shipped (it is
+%left out of the standalone application too - see AssembleBuildOptions)
 opts.ToolboxFiles(endsWith(opts.ToolboxFiles, fullfile("+Palladium", "+Instruments", "TestInstrument.m"))) = [];
 
 %Build the .mltbx toolbox installation file
@@ -593,6 +593,7 @@ additionalFiles = GetAdditionalFilesFromFolders([...,...
     fullfile("Palladium DAQ", "+Palladium", "+Sequence", "+Views"),...
     fullfile("Palladium DAQ", "+Palladium", "+Views")]);
 
+%Leave out TestInstrument, a scratch instrument for prototyping, not shipped
 additionalFiles = RemoveAdditionalFiles(additionalFiles, [...
     fullfile("Palladium DAQ", "+Palladium", "+Instruments", "TestInstrument.m")...
     ]);

@@ -230,8 +230,8 @@ end
 end
 
 function HideTestInstrument(app)
-%TestInstrument is for testing Palladium itself - leave it out of the
-%documentation
+%TestInstrument is a scratch instrument for prototyping, not shipped - leave
+%it out of the documentation
 list = Internals(app.InstrumentBrowserPanel).InstrumentsListBox;
 keep = ~strcmp(list.Items, "TestInstrument");
 if ~isempty(list.ItemsData)
