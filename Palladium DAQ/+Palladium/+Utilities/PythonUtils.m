@@ -222,37 +222,6 @@ classdef PythonUtils
             instance = module.(nameAfterNamespaces)();
         end
 
-        function [classObjs] = InstantiatePythonModulesInPackageFolder(parentFolder, packageName, Settings)
-            %Create instances of all python modules (classes) in a folder (package).
-            %Scans a folder contained in the parentFolder (path), imports each .py file as
-            %packageName.<modname>, creates an instance of that class (empty constructor required)
-            %and returns a cell array of imported module objects and their names.
-            %parentFolder will be added to the Python path if not already on it.
-            arguments
-                parentFolder {mustBeTextScalar};
-                packageName {mustBeTextScalar};
-                Settings.ModulesToExclude = [];
-            end
-
-            [names, outp] = Palladium.Utilities.PythonUtils.ImportPythonModulesInPackageFolder(parentFolder, packageName);
-
-            classObjs = {};
-
-            for i = 1 : length(outp)
-                mod = outp{i};
-                name = names(i);
-
-                s = strsplit(name, '.');
-                nameAfterNamespaces = s(end);
-
-                if ~isempty(Settings.ModulesToExclude) && ismember(Settings.ModulesToExclude, nameAfterNamespaces)
-                    continue;
-                end
-
-                instance = mod.(nameAfterNamespaces)();
-            end
-        end
-
         function out = PyToMatlab(pyObj)
             % Convert simple py types (from json.loads) to MATLAB using char/double/cell/struct
             % pyObj here is typically a py.dict/list/str/numbers.
