@@ -1,6 +1,6 @@
 classdef Palladium < handle
     % PALLADIUM Entry point and overall container class of a Palladium DAQ instance - adds a
-    % Controller and a View (usually the Palladium_DefaultGUI GUI, but can be
+    % Controller and a View (usually the PalladiumDAQ_DefaultGUI GUI, but can be
     % a command-line-only implementation or any other user-defined one if
     % desired)
     %
@@ -11,8 +11,9 @@ classdef Palladium < handle
     % To launch with no View, pass the View optional command as empty, ie
     % Palladium(View=[]);
     %
-    % To launch with a Preset, enter the name of a file in the Presets
-    % folder as the Preset argument, ie Palladium(Preset="Example");
+    % To launch with a Preset, give the name of a .json Preset file in the
+    % Presets folder of your user files folder (without the .json) as the
+    % Preset argument, ie Palladium(Preset="Example");
 
     %% Properties (Constant, Private)
     properties (Constant, Access = private)
@@ -36,9 +37,6 @@ classdef Palladium < handle
         %Author information
         AuthorString = "M.J. Coak, University of Birmingham";
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-        %Path to directory of built-in Preset files
-        PresetsDirectory = filesep + "+PalladiumPresets";    
     end
 
     %% Properties (Private)
@@ -57,23 +55,25 @@ classdef Palladium < handle
             % View and ConfigFilePath arguments have built-in defaults, will
             % not normally need to be overridden.
             %
-            % Preset is an optional functionality - entering the name of a file in the Presets
-            % directory will apply that Preset after programme
-            % initialisation. This means executing the code in that Preset
-            % (basically a script) file to eg set a data directory, add a 2nd
-            % plotting Window, add an Instrument and configure it. The idea
-            % is that a Preset corresponds to a physical setup in the lab
-            % that would be tedious to have to input and configure every time
-            % the programme is launched - and thse are intended to be created and edited
-            % by the User. See help on Presets and the Example.json file in the Presets folder
-            % for help on creating Presets.
+            % Preset is optional. A Preset is a .json file describing a
+            % setup to apply once the programme has started: the Instruments
+            % to add, with their settings and Instrument Controls, the
+            % update time, and plotting tabs and windows with their default
+            % axes. The idea is that a Preset corresponds to a physical
+            % setup in the lab that would be tedious to configure by hand
+            % every time the programme is launched. Presets live in the
+            % Presets folder of the user files folder, which starts with an
+            % Example.json. Create one by setting the programme up by hand
+            % and choosing Save Preset (in the GUI's Settings window), or by
+            % copying and editing a .json file in any text editor. See
+            % "Presets and Config.json" in the documentation.
             %
             % Input arguments (optional, see arguments block):
             %  - ConfigFilePath (string or empty/null []. Default is []) - Default is blank ([]) - enter a filepath instead to override default Config json file loading and pass in the path for another settings file to be loaded from
             %  - DebugMode (logical. Default is false) - set to true to
             %  throw full errors on all Instrument error messages. This is
             %  for use when debugging issues or testing in development.
-            %  - Preset (string or []. Default is []) - Optionally, enter the name of a Preset script in the +PalladiumPresets folder, like "Example"
+            %  - Preset (string or []. Default is []) - Optionally, the name of a .json Preset file in the user files folder's Presets folder, without the .json, like "Example"
             %  - View (string or []. Default is "PalladiumDAQ_DefaultGUI") -
             %  Enter blank ([]) to run a 'headless' Palladium with no GUI
             %  attached. Give the name of an App Designer app in the +Views folder
@@ -150,10 +150,7 @@ classdef Palladium < handle
 
             %Apply a preset, if specified in the optional arguments
             if ~isempty(Settings.Preset)
-                presetFn = this.LoadPreset(Settings.Preset);
-                if ~isempty(presetFn)   %ie did it load succesfully
-                    this.ApplyPreset(presetFn, view);
-                end
+                this.LoadPreset(Settings.Preset);
             end
 
             %Tell the controller we have finished loading everything and
@@ -515,13 +512,11 @@ classdef Palladium < handle
             view = fnHandle();
         end
 
-        function presetFn = LoadPreset(this, presetName)
-            %Presets are .json files, with lists of instruments to add
-            %(with their properties to set) and programme-level settings as
-            %well as GUI preferences like graph windows to show. Load a
-            %Preset from the User Presets directory and parse it, applying
-            %all the listed functions
-            presetFn = [];
+        function LoadPreset(this, presetName)
+            %Load a .json Preset from the user Presets folder and apply it.
+            %Presets list instruments to add (with their properties to set)
+            %and programme-level settings, as well as GUI preferences like
+            %graph windows to show
             %Display a status message in the logger
             this.Controller.ShowStatus('Yellow', 'Loading Preset');
 
