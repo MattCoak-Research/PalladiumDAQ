@@ -106,7 +106,7 @@ classdef Lakeshore370 < Palladium.Core.Instrument
         function [htrLevel, htrEnabled] = GetHeaterLevel(this)
             if this.SimulationMode
                 %Dummy values for testing
-                htrLevel = this.GenerateSimulateValues(1, Baseline=60, Variance=10);
+                htrLevel = this.GenerateSimulatedData(1, Baseline=60, Variance=10);
                 htrEnabled = true;
                 return;
             end

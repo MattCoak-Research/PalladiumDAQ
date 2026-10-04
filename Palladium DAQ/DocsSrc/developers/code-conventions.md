@@ -143,4 +143,4 @@ end
 
 * **Constructors must work with no arguments and no hardware attached.** They only set defaults (addresses, categoricals, supported connection types, Instrument Controls); connecting happens later in `Connect()`. The API reference build constructs every instrument to read these defaults.
 * **Categorical properties** get a converter in the `Categoricals` block and a default set in the constructor, as in the skeleton above.
-* **Start from** `+Palladium/+Instruments/TemplateInstrumentClass.m`, which follows this layout.
+* **Start from** `ExamplesAndTemplates/Instruments/TemplateInstrumentClass.m`, which follows this layout. Palladium DAQ copies it into each user files folder's `+Palladium/+Instruments` folder, where it becomes a driver in the `Palladium.Instruments` namespace.

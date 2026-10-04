@@ -240,7 +240,7 @@ classdef Lakeshore350 < Palladium.Core.Instrument
 
             if this.SimulationMode
                 %Dummy values
-                res = this.GenerateSimulateValues(1, Baseline=164, Variance=0.01);
+                res = this.GenerateSimulatedData(1, Baseline=164, Variance=0.01);
                 return;
             end
 
@@ -299,7 +299,7 @@ classdef Lakeshore350 < Palladium.Core.Instrument
 
             if this.SimulationMode
                 %Dummy values
-                temp = this.GenerateSimulateValues(1, Baseline=273, Variance=0.03);
+                temp = this.GenerateSimulatedData(1, Baseline=273, Variance=0.03);
                 return;
             end
 
