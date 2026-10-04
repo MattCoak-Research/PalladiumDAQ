@@ -1,11 +1,17 @@
 classdef test_InstrumentControls < matlab.unittest.TestCase
     %TEST_INSTRUMENTCONTROLS Tests adding and removing an Instrument Control with Palladium's scripting methods (AddInstrumentControl, RemoveInstrumentControl)
+    %For both kinds of Sweep Control: stepped (Keithley 2410) and ramped
+    %(Mercury IPS).
 
     %% Properties
     properties
         ConfigPath;     %Test config, relative to the Palladium.m folder
         Programme;      %The Palladium instance under test, with its GUI
-        Instrument;     %A simulated Keithley 2410, which offers a "Sweep Control"
+    end
+
+    %% Properties (TestParameter)
+    properties (TestParameter)
+        InstrumentType = {"Keithley2410", "MercuryIPS"};     %Offer a "Sweep Control": SweepController_Stepped and SweepController_Ramp
     end
 
     %% Methods (TestClassSetup)
@@ -26,17 +32,18 @@ classdef test_InstrumentControls < matlab.unittest.TestCase
             pd = Palladium(ConfigFilePath=testCase.ConfigPath);
             testCase.addTeardown(@() pd.Close());
             testCase.Programme = pd;
-            testCase.Instrument = pd.AddInstrument("Keithley2410", ConnectionType="Debug");
         end
     end
 
     %% Methods (Test)
     methods (Test)
-        function AddThenRemoveByName(testCase)
+        function AddThenRemoveByName(testCase, InstrumentType)
             %RemoveInstrumentControl removes the control and its tab (it
-            %used to call itself with the wrong arguments, and always error)
+            %used to call itself with the wrong arguments, and always error;
+            %and the ramp control's RemoveControl set a property no
+            %instrument has)
             pd = testCase.Programme;
-            instr = testCase.Instrument;
+            instr = pd.AddInstrument(InstrumentType, ConnectionType="Debug");
             tabTitle = instr.Name + " - Sweep Control";
 
             pd.AddInstrumentControl(instr, "Sweep Control");
@@ -48,10 +55,10 @@ classdef test_InstrumentControls < matlab.unittest.TestCase
             testCase.verifyFalse(testCase.hasTab(tabTitle));
         end
 
-        function AddAgainAfterRemoving(testCase)
+        function AddAgainAfterRemoving(testCase, InstrumentType)
             %After removing it, the same control can be added again
             pd = testCase.Programme;
-            instr = testCase.Instrument;
+            instr = pd.AddInstrument(InstrumentType, ConnectionType="Debug");
 
             pd.AddInstrumentControl(instr, "Sweep Control");
             pd.RemoveInstrumentControl(instr, "Sweep Control");

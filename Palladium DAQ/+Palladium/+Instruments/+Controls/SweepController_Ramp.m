@@ -171,11 +171,7 @@ classdef SweepController_Ramp < Palladium.Instruments.Controls.SweepController
             this.GUIView.SetStartingValues(limits(1), (limits(1)+limits(2))/2, limits(2));
         end
 
-        function RemoveControl(this, instrRef)
-            %Clean up references to this in the Lakeshore Instrument Class
-            %so it doesn't think we have a heater control
-            instrRef.SweepController = [];
-
+        function RemoveControl(this, ~)
             %Delete GUI objects
             delete(this.GUIView);
             this.GUIView = [];
