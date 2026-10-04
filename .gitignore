@@ -44,3 +44,15 @@ Palladium DAQ/Docs/*
 Palladium DAQ/DocsSrc/reference/
 #Scratch output of the documentation screenshot tool (buildtool screenshots)
 Tools/DocScreenshots/work/
+#buildtool's cache for incremental builds
+.buildtool/
+#Build output: toolbox, standalone application and installers (buildtool package, deploy)
+Release/
+#Personal config of a source checkout - created by the Config Entry window on first run
+/Palladium DAQ/Config.json
+#User files folder the tests point the programme at - the programme creates and maintains it
+/Palladium DAQ/Tests/Testing User Files/
+#Local Claude Code settings, previews and worktrees
+.claude/
+#Paint.NET source of splash.png
+splash.pdn
