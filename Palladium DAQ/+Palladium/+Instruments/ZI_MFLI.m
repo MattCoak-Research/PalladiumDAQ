@@ -2251,7 +2251,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
 
     end
 
-    %% Methods(Private)
+    %% Methods (Private)
     methods (Access = private)
         function [demod_path, demod_path_us, path] = DemodPath_Time(this, DemodSignal, demodIndex)
             % DemodPath_Time(DemodSignal, demodIndex) - get the path for the demodulated signal in the Time Domain

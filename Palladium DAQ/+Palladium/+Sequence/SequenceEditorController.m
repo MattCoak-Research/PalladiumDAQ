@@ -2,7 +2,7 @@ classdef SequenceEditorController < handle
     %SEQUENCEEDITORCONTROLLER - logic class that acts as the Model for the
     %Sequence Editor application
 
-    %% Properties (Constant, private)
+    %% Properties (Constant, Private)
     properties(Constant, Access=private)
         SequenceFileHeader = "Palladium Sequence File, Version [1.0]";
     end

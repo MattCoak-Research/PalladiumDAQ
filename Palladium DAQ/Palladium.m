@@ -14,7 +14,7 @@ classdef Palladium < handle
     % To launch with a Preset, enter the name of a file in the Presets
     % folder as the Preset argument, ie Palladium(Preset="Example");
 
-    %% Properties(Constant, Private)
+    %% Properties (Constant, Private)
     properties (Constant, Access = private)
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         % Palladium Version Information
@@ -47,30 +47,6 @@ classdef Palladium < handle
         View = [];  %An optional GUI attached to the Palladium instance, with buttons and graphs etc. Not actually required to run the Programme
     end
 
-    %% Methods (Static, Public)
-    methods (Access = public, Static, Sealed)
-
-        function verStruct = ver()
-            % VER - Return Palladium version information struct, from private
-            % const properties in the Palladium class definition. Those
-            % properties are the single definition of what version the
-            % current build is - toolbox, help etc versions will draw from
-            % these.
-            % Static method - evoke with Palladium.ver from any context.
-            %
-            % Output arguments:
-            % verStruct - struct with fields: VersionString (string), FullversionString (string), Major (integer),
-            %             Minor (integer), Build (integer), and AuthorString (string) fields
-            verStruct.VersionString = sprintf('%d.%d.%d', Palladium.MajorVersionNo, Palladium.MinorVersionNo, Palladium.BuildVersionNo);
-            verStruct.FullVersionString = sprintf('Palladium DAQ Version %d.%d.%d', Palladium.MajorVersionNo, Palladium.MinorVersionNo, Palladium.BuildVersionNo);
-            verStruct.Major = Palladium.MajorVersionNo;
-            verStruct.Minor = Palladium.MinorVersionNo;
-            verStruct.Build = Palladium.BuildVersionNo;
-            verStruct.AuthorString = Palladium.AuthorString;
-        end
-
-    end
-
 
     %% Constructor
     methods
@@ -100,7 +76,7 @@ classdef Palladium < handle
             %  - Preset (string or []. Default is []) - Optionally, enter the name of a Preset script in the +PalladiumPresets folder, like "Example"
             %  - View (string or []. Default is "PalladiumDAQ_DefaultGUI") -
             %  Enter blank ([]) to run a 'headless' Palladium with no GUI
-            %  attached. Give the name of a .mlapp file in the +Views folder
+            %  attached. Give the name of an App Designer app in the +Views folder
             %  to use that GUI/View instead of the default.
             arguments
                 Settings.ConfigFilePath = [];
@@ -118,7 +94,7 @@ classdef Palladium < handle
 
             %Check that new enough Matlab version is installed, toolboxes
             %are there.. etc etc. Will throw error if not
-            Palladium.Utilities.Verification.ValidateInstall(MatlabVersion="R2026a", ToolboxNames = {"Instrument Control Toolbox"});
+            Palladium.Utilities.Verification.ValidateInstall(MatlabVersion="R2026b", ToolboxNames = {"Instrument Control Toolbox"});
 
             %Set application paths for loading of child classes later - make
             %all paths relative to this, the filepath of the Palladium.m file
@@ -570,6 +546,30 @@ classdef Palladium < handle
             catch err
                 this.Controller.HandleError("Error loading Preset", err);
             end
+        end
+
+    end
+
+    %% Methods (Static, Public, Sealed)
+    methods (Access = public, Static, Sealed)
+
+        function verStruct = ver()
+            % VER - Return Palladium version information struct, from private
+            % const properties in the Palladium class definition. Those
+            % properties are the single definition of what version the
+            % current build is - toolbox, help etc versions will draw from
+            % these.
+            % Static method - evoke with Palladium.ver from any context.
+            %
+            % Output arguments:
+            % verStruct - struct with fields: VersionString (string), FullversionString (string), Major (integer),
+            %             Minor (integer), Build (integer), and AuthorString (string) fields
+            verStruct.VersionString = sprintf('%d.%d.%d', Palladium.MajorVersionNo, Palladium.MinorVersionNo, Palladium.BuildVersionNo);
+            verStruct.FullVersionString = sprintf('Palladium DAQ Version %d.%d.%d', Palladium.MajorVersionNo, Palladium.MinorVersionNo, Palladium.BuildVersionNo);
+            verStruct.Major = Palladium.MajorVersionNo;
+            verStruct.Minor = Palladium.MinorVersionNo;
+            verStruct.Build = Palladium.BuildVersionNo;
+            verStruct.AuthorString = Palladium.AuthorString;
         end
 
     end

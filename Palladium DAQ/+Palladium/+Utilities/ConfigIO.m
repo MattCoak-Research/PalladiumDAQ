@@ -4,8 +4,10 @@ classdef ConfigIO < handle
 
     %% Properties (Constant, Public)
     properties(Constant, Access = public)
-        ConfigDirectoryName = "";   %Just have the config files in the root directory - will work with standalone deployed code as well as open source
+        ConfigDirectoryName = "";               %Folder of the config file in a source checkout, relative to the application folder (the source root)
         ConfigFileName = "Config.json";
+        UserConfigFolderName = "Palladium DAQ"; %Folder of the config file in the user's application settings folder, for installed copies
+        ProjectFileName = "PalladiumDAQ.prj";   %MATLAB Project file, found only in a source checkout, in the folder above the source root
     end
 
     %% Properties (Public)
@@ -34,7 +36,19 @@ classdef ConfigIO < handle
                 Settings.ApplicationDir;   
             end
 
-            configPath = fullfile(Settings.ApplicationDir, this.ConfigDirectory, this.ConfigFileName);
+            %Path of the default config file. In a source checkout (with the
+            %MATLAB Project) it is in the source root, as it always was. An
+            %installed copy - toolbox or compiled application - can't keep it
+            %in its installation folder: the compiled application's (e.g. in
+            %Program Files) can't be written to, and the toolbox's is replaced
+            %by each update. So it goes in the user's application settings
+            %folder (see PathUtils.GetAppDataDirectory)
+
+            if this.IsSourceCheckout(Settings.ApplicationDir)
+                configPath = this.GetLegacyConfigPath(Settings.ApplicationDir);
+            else
+                configPath = fullfile(Palladium.Utilities.PathUtils.GetAppDataDirectory(), this.UserConfigFolderName, this.ConfigFileName);
+            end
         end
 
         function con = LoadConfig(this, Settings)
@@ -47,7 +61,8 @@ classdef ConfigIO < handle
             try
                 %Load the default path if no override given
                 if isempty(Settings.ConfigFilePath)
-                    configPath = fullfile(Settings.ApplicationDir, this.ConfigDirectory, this.ConfigFileName);
+                    configPath = this.GetConfigPath(ApplicationDir=Settings.ApplicationDir);
+                    this.CopyLegacyConfig(configPath, Settings.ApplicationDir);
                 else
                     configPath = Settings.ConfigFilePath;
                 end
@@ -77,9 +92,15 @@ classdef ConfigIO < handle
                 %is mainly for if the software updates and there is an old
                 %config file on disk that doesn't have a newly added field.
                 %If so, add that in and re-save the config to upgrade it.
-                [con, changesDetected] = this.VerifyConfigStruct(con);
+                [con, changesDetected, fieldsRemoved] = this.VerifyConfigStruct(con);
                 if changesDetected
-                    warndlg("Missing lines or obseleted properties found in Config file. Corrupted file or config version needs updating. Adding default values and saving new version of file.", "Config file verification");
+                    if fieldsRemoved
+                        warndlg("Missing lines or obseleted properties found in Config file. Corrupted file or config version needs updating. Adding default values and saving new version of file.", "Config file verification");
+                    else
+                        %Only new settings added (e.g. after an update) - routine,
+                        %so just say so in the command window
+                        disp("[INFO] - Added new settings to the Config file at " + Palladium.Utilities.PathUtils.CleanPath(configPath) + ", with default values");
+                    end
                     this.SaveConfig(con, ConfigFilePath=configPath);
                 end
             catch e
@@ -112,6 +133,32 @@ classdef ConfigIO < handle
             end
         end
 
+        function SetConfigValue(this, sectionName, settingName, value, Settings)
+            %Change one setting in a config file, leaving the rest of the file as it is
+            arguments
+                this;
+                sectionName {mustBeTextScalar};     %Section of the config, e.g. "WarningSettings"
+                settingName {mustBeTextScalar};     %Setting in that section, e.g. "SuppressPythonSetupWarning"
+                value;                              %New value of the setting
+                Settings.ApplicationDir = [];       %Application folder, to find the default config file
+                Settings.ConfigFilePath = [];       %Path of the config file to change, instead of the default one
+            end
+
+            if isempty(Settings.ConfigFilePath)
+                configPath = this.GetConfigPath(ApplicationDir=Settings.ApplicationDir);
+            else
+                configPath = Settings.ConfigFilePath;
+            end
+
+            try
+                con = readstruct(configPath);
+                con.(sectionName).(settingName) = value;
+            catch e
+                error("SetConfigValueError:SetFailed", "%s", "Error setting " + string(sectionName) + "." + string(settingName) + " in Config file " + string(configPath) + ": " + e.message);
+            end
+            this.SaveConfig(con, ConfigFilePath=configPath);
+        end
+
         function SaveDefaultConfig(this, configPath)
             try
                 s = this.GenerateDefaultConfigStruct();
@@ -126,6 +173,33 @@ classdef ConfigIO < handle
     %% Methods (Private)
     methods(Access = {?Palladium.Utilities.ConfigIO, ?matlab.unittest.TestCase})    %Permission is Private, but also allow unit tests to see it
 
+        function CopyLegacyConfig(this, configPath, applicationDir)
+            %Before the move to the user's settings folder, installed copies
+            %kept their config file in the installation folder. If there is
+            %one there, and none in the new place yet, carry it over (copied:
+            %the installation folder may not be writable, to delete it)
+            legacyPath = this.GetLegacyConfigPath(applicationDir);
+            if isfile(configPath) || ~isfile(legacyPath) || strcmp(Palladium.Utilities.PathUtils.CleanPath(legacyPath), Palladium.Utilities.PathUtils.CleanPath(configPath))
+                return
+            end
+            Palladium.Utilities.PathUtils.EnsureDirectoryExists(fileparts(configPath));
+            copyfile(legacyPath, configPath);
+            disp("[INFO] - Copied Config file from " + Palladium.Utilities.PathUtils.CleanPath(legacyPath) + " to " + Palladium.Utilities.PathUtils.CleanPath(configPath));
+        end
+
+        function legacyPath = GetLegacyConfigPath(this, applicationDir)
+            %Config file path in the application folder - used by a source
+            %checkout, and by installed copies before they used the user's
+            %settings folder
+            legacyPath = fullfile(applicationDir, this.ConfigDirectory, this.ConfigFileName);
+        end
+
+        function isSource = IsSourceCheckout(this, applicationDir)
+            %True if running from a source checkout (with the MATLAB Project),
+            %rather than an installed toolbox or compiled application
+            isSource = ~isdeployed && isfile(fullfile(fileparts(applicationDir), this.ProjectFileName));
+        end
+
         function ConfigEntryComplete(this, ~, eventData)
             settingsStruct = eventData.Value;
             this.EnteredSettingsStruct = settingsStruct;
@@ -134,16 +208,13 @@ classdef ConfigIO < handle
         function s = GenerateDefaultConfigStruct(~)
 
             %% ------- Edit default config values / add new ones here ----
-            userDir = Palladium.Utilities.PathUtils.GetUserDirectory();
+            %By default everything goes in a Palladium DAQ folder in the
+            %user's Documents folder (on Windows, Mac and Linux)
+            rootDir = fullfile(Palladium.Utilities.PathUtils.GetDocumentsDirectory(), "Palladium DAQ");
 
             s.LogSettings.LogFileFileName = "<DATE>_Log.txt";
-            if isdeployed
-                s.LogSettings.LogFileDirectory = fullfile(userDir, "Logs");
-                s.LogSettings.LogFileDirectoryIsRelativePath = false;
-            else
-                s.LogSettings.LogFileDirectory = ".." + filesep + "Palladium DAQ - Testing" + filesep + "Logs";
-                s.LogSettings.LogFileDirectoryIsRelativePath = true;
-            end
+            s.LogSettings.LogFileDirectory = fullfile(rootDir, "Logs");
+            s.LogSettings.LogFileDirectoryIsRelativePath = false;
 
             s.LogSettings.CommandWindowMessageLevel = "Debug";
             s.LogSettings.PrintStackTraceInCommandWindow = false;
@@ -151,20 +222,13 @@ classdef ConfigIO < handle
             s.LogSettings.LogFileMessageLevel = "Debug";
             s.LogSettings.ErrorOnAllInstrumentErrors = false;
  
-            s.PathSettings.UserFilesDirectory = userDir;
+            s.PathSettings.UserFilesDirectory = rootDir;
             s.PathSettings.UserFilesDirectoryIsRelativePath = false;
             s.PathSettings.DefaultFileName = "<DATE>_Filename";
-            if isdeployed
-                s.PathSettings.DefaultDirectory = fullfile(userDir, "Data");
-                s.PathSettings.DefaultSequenceDirectory = fullfile(userDir, "Sequences");
-                s.PathSettings.DataDirectoryIsRelativePath = false;
-                s.PathSettings.SequenceDirectoryIsRelativePath = false;
-            else
-                s.PathSettings.DefaultDirectory = ".." + filesep + "Palladium DAQ - Testing";
-                s.PathSettings.DefaultSequenceDirectory = ".." + filesep + "Palladium DAQ - Testing";
-                s.PathSettings.DataDirectoryIsRelativePath = true;
-                s.PathSettings.SequenceDirectoryIsRelativePath = true;
-            end
+            s.PathSettings.DefaultDirectory = fullfile(rootDir, "Data");
+            s.PathSettings.DefaultSequenceDirectory = fullfile(rootDir, "Sequences");
+            s.PathSettings.DataDirectoryIsRelativePath = false;
+            s.PathSettings.SequenceDirectoryIsRelativePath = false;
 
             s.PathSettings.DataFileExtension = ".dat";
             s.PathSettings.SequenceFileExtension = ".seq";
@@ -183,6 +247,10 @@ classdef ConfigIO < handle
             s.PlotterSettings.MarkerSize = 6;
             s.PlotterSettings.Markers = ["o", "o", "+", "*"];
             s.PlotterSettings.ShowLegends = true;
+
+            s.PythonSettings.PythonExecutable = "";     %Python to use for Python instruments. Blank: the one bundled with the standalone application, or else the one MATLAB finds (see pyenv)
+
+            s.WarningSettings.SuppressPythonSetupWarning = false;   %True to stop warning at startup that Python instruments are unavailable
             % ------------------------------------------------------------
         end
 
@@ -268,7 +336,10 @@ classdef ConfigIO < handle
             end
         end
 
-        function [con, changesDetected] = VerifyConfigStruct(this, con)
+        function [con, changesDetected, fieldsRemoved] = VerifyConfigStruct(this, con)
+            %Add any settings missing from a loaded config, with default values, and remove any no longer used.
+            %changesDetected is true if anything was added or removed,
+            %fieldsRemoved if anything was removed
             changesDetected = false;
 
             df = this.GenerateDefaultConfigStruct();
@@ -278,7 +349,7 @@ classdef ConfigIO < handle
             %the config struct that appear in the default reference one,
             %and remove any that are not found in the ref (and therefore
             %must be obseleted)
-            [changesDetected, con] = Palladium.Utilities.ConfigIO.AdjustStructsToMatch(con, df, changesDetected);
+            [changesDetected, con, fieldsRemoved] = Palladium.Utilities.ConfigIO.AdjustStructsToMatch(con, df, changesDetected);
 
             %Grab these again, as they may have changed above (but should
             %now match)
@@ -302,7 +373,8 @@ classdef ConfigIO < handle
                     end
                 end
                 % - Check for obseleted or new fields
-                [changesDetected, newStrct] = Palladium.Utilities.ConfigIO.AdjustStructsToMatch(con.(cfName), df.(cfName), changesDetected);
+                [changesDetected, newStrct, removed] = Palladium.Utilities.ConfigIO.AdjustStructsToMatch(con.(cfName), df.(cfName), changesDetected);
+                fieldsRemoved = fieldsRemoved || removed;
                 con.(cfName) = newStrct;
             end
 
@@ -313,8 +385,9 @@ classdef ConfigIO < handle
     %% Methods (Static, Private)
     methods (Static, Access = private)
 
-        function [changesDetected, configStruct] = AdjustStructsToMatch(configStruct, defaultStructToCompareTo, changesDetectedAlready)
+        function [changesDetected, configStruct, fieldsRemoved] = AdjustStructsToMatch(configStruct, defaultStructToCompareTo, changesDetectedAlready)
             changesDetected = changesDetectedAlready;
+            fieldsRemoved = false;
 
             conFlds = fields(configStruct);
             dfFlds = fields(defaultStructToCompareTo);
@@ -340,6 +413,7 @@ classdef ConfigIO < handle
             %Remove obselete fields
             if ~isempty(difference)
                 changesDetected = true;
+                fieldsRemoved = true;
 
                 for i = 1 : length(difference)
                     fieldToRemove = difference{i};

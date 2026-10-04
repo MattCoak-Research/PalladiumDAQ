@@ -47,6 +47,11 @@ classdef Controller < handle
         PlottingController;
         SequenceEditorController;
 
+        ConfigFilePath = "";        %Path of the config file in use
+        PythonSettings;             %PythonSettings section of the config
+        PythonSetupStatus = [];     %Result of setting up Python (see PythonUtils.CheckPythonSetup), set in Initialise
+        WarningSettings;            %WarningSettings section of the config
+
         DebugMode = false; %Set to true (in Palladium entry point as optional arg) to rethrow all handled errors and hence have a stack trace to follow in the command window - for debugging/testing purposes 
         DefaultDataDir;
 
@@ -335,7 +340,7 @@ classdef Controller < handle
             %Initialise the Controller, loading and applying settings etc
             try
                 %Load settings from .json config files in the Settings directory
-                [logSettings, this.PathSettings, this.WindowSettings, this.PlottingController.PlotterSettings] = this.LoadSettings(ConfigFilePath=Settings.ConfigFilePath);
+                [logSettings, this.PathSettings, this.WindowSettings, this.PlottingController.PlotterSettings, this.PythonSettings, this.WarningSettings] = this.LoadSettings(ConfigFilePath=Settings.ConfigFilePath);
             catch e
                 %Note that we don't pass this in to any nice error handling
                 %because we haven't set that up yet
@@ -418,11 +423,27 @@ classdef Controller < handle
                 args = Palladium.Events.SettingsChangedEventData(this.PathSettings, this.WindowSettings);
                 notify(this, "SettingsApplied", args);
 
-                %Set up Python Instrument loading
+                %Set up Python Instrument loading. Python is optional: if it
+                %can't be used, carry on without Python instruments, and warn
+                %the user once Palladium DAQ has loaded (see OnLoaded)
                 this.Log("Debug", "Initialising Python Instrument Classes", "Yellow", "Initialising Instruments...");
-                this.InstrumentController.PythonInstrumentController = Palladium.PythonInstruments.PythonInstrumentController(this.PythonInstrumentNamespace, this.ApplicationDir);
-                this.InstrumentController.PythonInstrumentController.LoadInstrumentClasses(this.UserPythonInstrumentsDir);
-                this.Log("Debug", "Python Instrument Classes initialised", "Green", "Instruments intialised");
+                this.PythonSetupStatus = this.SetUpPython();
+                if ismember(this.PythonSetupStatus.Status, ["OK", "PackagesMissing"])
+                    this.InstrumentController.PythonInstrumentController = Palladium.PythonInstruments.PythonInstrumentController(this.PythonInstrumentNamespace, this.ApplicationDir);
+                    this.InstrumentController.PythonInstrumentController.LoadInstrumentClasses(this.UserPythonInstrumentsDir);
+                    this.Log("Debug", "Python Instrument Classes initialised (Python " + this.PythonSetupStatus.Version + ", " + this.PythonSetupStatus.Executable + ")", "Green", "Instruments intialised");
+                end
+                if this.PythonSetupStatus.Status ~= "OK"
+                    [title, ~] = Palladium.Utilities.PythonUtils.SetupHelpMessage(this.PythonSetupStatus);
+                    logText = title + " (" + this.PythonSetupStatus.Status + "). Python: " + this.PythonSetupStatus.Executable;
+                    if ~isempty(this.PythonSetupStatus.MissingPackages)
+                        logText = logText + ". Missing packages: " + join(this.PythonSetupStatus.MissingPackages, ", ");
+                    end
+                    if this.PythonSetupStatus.ErrorMessage ~= ""
+                        logText = logText + ". " + this.PythonSetupStatus.ErrorMessage;
+                    end
+                    this.Log("Warning", logText, "Yellow", title);
+                end
 
                 %Load standard Instrument Classes (do this after Python
                 %ones, as it grabs those internally and adds them to the
@@ -653,6 +674,10 @@ classdef Controller < handle
             catch err
                 this.HandleError("Error unlocking input in Controller.OnLoaded", err);
             end
+
+            %Now the main window is showing, warn about any problem setting
+            %up Python
+            this.ShowPythonSetupWarning();
         end
 
         function OnMeasurementsStopped(this)
@@ -666,6 +691,25 @@ classdef Controller < handle
                 DataViewer("DefaultDir", defaultDataPath, "FileExtensions", extensions);
             catch err
                 this.HandleError("Error opening DataViewer", err);
+            end
+        end
+
+        function OpenHelp(this)
+            %Open the documentation's contents page: in the system browser
+            %from the compiled app, in MATLAB's web browser otherwise
+            try
+                %Docs is next to Palladium.m in the toolbox, and next to
+                %PalladiumDAQ.exe in an installed app (the installer puts it there)
+                indexPath = fullfile(this.ApplicationDir, "Docs", "index.html");
+                assert(isfile(indexPath), "Controller:DocsNotFound", "Documentation not found at %s", indexPath);
+                url = "file:///" + replace(replace(indexPath, "\", "/"), " ", "%20");
+                if isdeployed
+                    status = web(url, "-browser"); %#ok<NASGU>
+                else
+                    status = web(url); %#ok<NASGU>
+                end
+            catch err
+                this.HandleError("Error opening the documentation", err);
             end
         end
 
@@ -997,7 +1041,7 @@ classdef Controller < handle
             end
         end
 
-        function [logSettings, pathSettings, windowSettings, plotterSettings] = LoadSettings(this, Settings)
+        function [logSettings, pathSettings, windowSettings, plotterSettings, pythonSettings, warningSettings] = LoadSettings(this, Settings)
             arguments
                 this;
                 Settings.ConfigFilePath = [];                  % Default is blank ([]) - enter a filepath instead to override default Config json file loading and pass in the path for another settings file to be loaded from
@@ -1007,11 +1051,20 @@ classdef Controller < handle
             configIO = Palladium.Utilities.ConfigIO();
             settingsStruct = configIO.LoadConfig(ApplicationDir=this.ApplicationDir, ConfigFilePath=Settings.ConfigFilePath);
 
+            %Remember which config file is in use, to save settings to it later
+            if isempty(Settings.ConfigFilePath)
+                this.ConfigFilePath = configIO.GetConfigPath(ApplicationDir=this.ApplicationDir);
+            else
+                this.ConfigFilePath = string(Settings.ConfigFilePath);
+            end
+
             %Parse the entries neatly into the PathSettings struct property
             logSettings = settingsStruct.LogSettings;
             pathSettings = settingsStruct.PathSettings;
             windowSettings = settingsStruct.WindowSettings;
             plotterSettings = settingsStruct.PlotterSettings;
+            pythonSettings = settingsStruct.PythonSettings;
+            warningSettings = settingsStruct.WarningSettings;
 
             %Handle the case of the user directory being inadvertently
             %in there twice - Physics\Matlab\Palladium DAQ - User Files\Palladium DAQ - User Files
@@ -1023,8 +1076,8 @@ classdef Controller < handle
                 %Strip off the trailing (duplicate) directory
                 pathSettings.UserFilesDirectory = pth;
 
-                %Write the tidied up paths back to file
-                this.SaveSettings(logSettings, pathSettings, windowSettings, plotterSettings, ConfigFilePath=Settings.ConfigFilePath);
+                %Write the tidied up path back to file
+                configIO.SetConfigValue("PathSettings", "UserFilesDirectory", pth, ConfigFilePath=this.ConfigFilePath);
             end
 
 
@@ -1097,6 +1150,22 @@ classdef Controller < handle
             end
         end
 
+        function PythonSetupWarningClosed(this, evt)
+            %Remember in the config file if the user chose not to see the
+            %Python setup warning again
+            if evt.SelectedOption ~= "Don't show this again"
+                return
+            end
+            try
+                this.WarningSettings.SuppressPythonSetupWarning = true;
+                configIO = Palladium.Utilities.ConfigIO();
+                configIO.SetConfigValue("WarningSettings", "SuppressPythonSetupWarning", true, ConfigFilePath=this.ConfigFilePath);
+                this.Log("Info", "Python setup warning turned off (WarningSettings.SuppressPythonSetupWarning in " + this.ConfigFilePath + ")", "Green", "Python setup warning turned off");
+            catch err
+                this.HandleError("Error saving the Python setup warning setting", err);
+            end
+        end
+
         function SavePlot(this, eventData)
             try
                 %Save the figure and a png to file using the existing
@@ -1110,37 +1179,55 @@ classdef Controller < handle
             end
         end
 
-        function SaveSettings(this, logSettings, pathSettings, windowSettings, plotterSettings, Settings)
-            arguments
-                this;
-                logSettings;
-                pathSettings;
-                windowSettings;
-                plotterSettings;
-                Settings.ConfigFilePath = [];                  % Default is blank ([]) - enter a filepath instead to override default Config json file loading and pass in the path for another settings file to be loaded from
+        function status = SetUpPython(this)
+            %Choose the Python to use, and check it can be used for Python
+            %instruments. In order of preference: PythonSettings.PythonExecutable
+            %from the config, the Python bundled with the standalone
+            %application (installed in its application folder), or the one
+            %MATLAB finds itself (see pyenv)
+            executable = string(this.PythonSettings.PythonExecutable);
+            if isempty(executable) || executable == ""
+                bundledPython = fullfile(this.ApplicationDir, "Python", "python.exe");
+                if isdeployed && isfile(bundledPython)
+                    executable = bundledPython;
+                else
+                    executable = "";
+                end
             end
 
-            %Load the settings file into struct
-            configIO = Palladium.Utilities.ConfigIO();
-
-            %Parse the entries neatly into the PathSettings struct property
-            settingsStruct.LogSettings = logSettings;
-            settingsStruct.PathSettings = pathSettings;
-            settingsStruct.WindowSettings = windowSettings;
-            settingsStruct.PlotterSettings = plotterSettings;
-
-            
-            %Save
-            if isempty(Settings.ConfigFilePath)
-                configPath = configIO.GetConfigPath("ApplicationDir", this.ApplicationDir);
-                configIO.SaveConfig(settingsStruct, ConfigFilePath = configPath);
-            else
-                configIO.SaveConfig(settingsStruct, ConfigFilePath = Settings.ConfigPath);
+            if executable ~= ""
+                [success, message] = Palladium.Utilities.PythonUtils.UsePythonExecutable(executable);
+                if ~success
+                    status = Palladium.Utilities.PythonUtils.MakeSetupStatus("LoadFailed", Executable=executable, ErrorMessage=message);
+                    return
+                end
             end
 
+            status = Palladium.Utilities.PythonUtils.CheckPythonSetup();
+        end
+
+        function ShowPythonSetupWarning(this)
+            %Show a dialog explaining any problem setting up Python, and how
+            %to fix it - unless Python is fine, the user has turned this
+            %warning off, or there is no GUI to show it in. Doesn't wait for
+            %the dialog to close
+            if isempty(this.PythonSetupStatus) || this.PythonSetupStatus.Status == "OK" || this.WarningSettings.SuppressPythonSetupWarning
+                return
+            end
+
+            try
+                uifg = this.UIFigureHandle;
+                if ~matlab.ui.internal.isUIFigure(uifg)
+                    return
+                end
+                [title, msg] = Palladium.Utilities.PythonUtils.SetupHelpMessage(this.PythonSetupStatus, ConfigFilePath=this.ConfigFilePath);
+                uiconfirm(uifg, msg, title, "Options", ["OK", "Don't show this again"], "DefaultOption", 1, "CancelOption", 1, ...
+                    "Icon", "warning", "Interpreter", "html", "CloseFcn", @(~, evt) this.PythonSetupWarningClosed(evt));
+            catch err
+                this.HandleError("Error showing the Python setup warning", err);
+            end
         end
 
     end
 
 end
-

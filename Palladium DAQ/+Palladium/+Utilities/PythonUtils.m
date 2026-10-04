@@ -1,6 +1,12 @@
 classdef PythonUtils
-    %GUIUTILS Static methods for helping with GUI creation and functions,
-    %mainly the automatic GUI for adjusting object properties
+    %PYTHONUTILS Static methods for setting up and using Python, for Python instruments
+
+    %% Properties (Constant, Public)
+    properties (Constant, Access = public)
+        RequiredPackages = ["pyvisa", "pyserial"];  %Python packages that Python instruments need (pip names)
+        RequiredModules = ["pyvisa", "serial"];     %Module names that those packages are imported as, in the same order
+        SupportedVersions = "3.10 to 3.14";         %Python versions supported by MATLAB R2026b - update with the minimum MATLAB release
+    end
 
     %% Methods (Static, Public)
     methods (Static, Access = public)
@@ -23,6 +29,49 @@ classdef PythonUtils
             %Add to python search path inside MATLAB
             pyrun("import sys");
             pyrun("sys.path.append(r""" + directoryPath + """)");
+        end
+
+        function status = CheckPythonSetup()
+            %CheckPythonSetup - Check whether Python instruments can be used: that MATLAB can load Python, and that it has the required packages.
+            %Loads Python, if it isn't loaded already.
+            %
+            %Outputs:
+            %   status - struct with fields:
+            %       Status - "OK", "NotFound" (no Python found), "LoadFailed"
+            %           (found, but MATLAB couldn't load it) or "PackagesMissing"
+            %       Version, Executable - the Python MATLAB uses ("" if none)
+            %       MissingPackages - pip names of any missing required packages
+            %       ErrorMessage - why Python couldn't be used ("" if it could)
+
+            env = pyenv;
+            status = Palladium.Utilities.PythonUtils.MakeSetupStatus("OK", Version=env.Version, Executable=env.Executable);
+
+            if status.Version == ""
+                status.Status = "NotFound";
+                return
+            end
+
+            %Try to load Python - this fails for an unsupported version
+            try
+                pyrun("import sys");
+            catch err
+                status.Status = "LoadFailed";
+                status.ErrorMessage = string(err.message);
+                return
+            end
+
+            %Look for each package, without importing it
+            pkgs = Palladium.Utilities.PythonUtils.RequiredPackages;
+            mods = Palladium.Utilities.PythonUtils.RequiredModules;
+            for i = 1 : numel(pkgs)
+                found = pyrun("import importlib.util; found = importlib.util.find_spec(name) is not None", "found", name=mods(i));
+                if ~logical(found)
+                    status.MissingPackages(end+1) = pkgs(i);
+                end
+            end
+            if ~isempty(status.MissingPackages)
+                status.Status = "PackagesMissing";
+            end
         end
 
         function out = ConvertPyStrFields(in)
@@ -252,6 +301,97 @@ classdef PythonUtils
                 end
             end
 
+        end
+
+        function status = MakeSetupStatus(statusName, Settings)
+            %MakeSetupStatus - Make a Python setup status struct, as returned by CheckPythonSetup.
+            arguments
+                statusName {mustBeTextScalar};              %"OK", "NotFound", "LoadFailed" or "PackagesMissing"
+                Settings.Version = "";                      %Python version
+                Settings.Executable = "";                   %Path of the Python executable
+                Settings.MissingPackages = strings(1, 0);   %pip names of missing packages
+                Settings.ErrorMessage = "";                 %Why Python couldn't be used
+            end
+
+            status = struct("Status", string(statusName), "Version", string(Settings.Version), ...
+                "Executable", string(Settings.Executable), "MissingPackages", string(Settings.MissingPackages), ...
+                "ErrorMessage", string(Settings.ErrorMessage));
+        end
+
+        function [title, message] = SetupHelpMessage(status, Settings)
+            %SetupHelpMessage - Title and HTML message for a dialog explaining a Python setup problem, and how to fix it.
+            arguments
+                status struct;                          %As returned by CheckPythonSetup
+                Settings.ConfigFilePath = "";           %Config file in use, to say where to set PythonSettings.PythonExecutable
+            end
+
+            esc = @(t) replace(replace(replace(string(t), "&", "&amp;"), "<", "&lt;"), ">", "&gt;");
+            link = @(url, text) "<a href=""" + url + """>" + text + "</a>";
+            pkgList = join(Palladium.Utilities.PythonUtils.RequiredPackages, " ");
+
+            title = "Python instruments are unavailable";
+            switch status.Status
+                case "NotFound"
+                    intro = "<p>Palladium DAQ couldn't find a Python installation, so instruments written in Python can't be used.";
+                case "LoadFailed"
+                    intro = "<p>Palladium DAQ couldn't load the Python at <b>" + esc(status.Executable) + "</b>, so instruments written in Python can't be used. The error was: <i>" + esc(status.ErrorMessage) + "</i>";
+                case "PackagesMissing"
+                    title = "Python packages missing";
+                    missing = join(status.MissingPackages, " ");
+                    message = "<p>Python instruments that connect by GPIB, VISA, USB or serial need the package(s) <b>" + esc(missing) + "</b>, which the Python that Palladium DAQ uses (<b>" + esc(status.Executable) + "</b>) doesn't have. " ...
+                        + "Ethernet and simulated (Debug) instruments work without them. To install them, run this in a command prompt, then restart Palladium DAQ:</p>" ...
+                        + "<p><code>""" + esc(status.Executable) + """ -m pip install " + esc(missing) + "</code></p>" ...
+                        + "<p>More help: <b>Python instruments</b> in Palladium DAQ's Help.</p>";
+                    return
+                otherwise
+                    title = "";
+                    message = "";
+                    return
+            end
+
+            message = intro + " Everything else works normally - you only need Python if you use Python instruments.</p>" ...
+                + "<p><b>To set Python up:</b></p><ol>" ...
+                + "<li>Install Python " + Palladium.Utilities.PythonUtils.SupportedVersions + " (the versions this MATLAB release supports) from " + link("https://www.python.org/downloads/", "python.org") ...
+                + ". On Windows, tick <b>Add python.exe to PATH</b> in the installer. (" + link("https://www.mathworks.com/support/requirements/python-compatibility.html", "Python versions supported by each MATLAB release") + ")</li>" ...
+                + "<li>Install the packages Palladium DAQ needs, in a command prompt: <code>python -m pip install " + pkgList + "</code> (use <code>python3</code> on Mac and Linux)</li>" ...
+                + "<li>For GPIB and VISA instruments, pyvisa also needs a VISA library: NI-VISA, or the pure-Python pyvisa-py (<code>python -m pip install pyvisa-py</code>). " + link("https://pyvisa.readthedocs.io/en/latest/introduction/getting.html", "How pyvisa finds a VISA library") + "</li>" ...
+                + "<li>Restart Palladium DAQ.</li></ol>";
+            if string(Settings.ConfigFilePath) ~= ""
+                message = message + "<p>To use a particular Python, set <code>PythonSettings.PythonExecutable</code> in " + esc(Settings.ConfigFilePath) + " to its python executable.</p>";
+            end
+            message = message + "<p>More help: " + link("https://www.mathworks.com/help/matlab/matlab_external/install-supported-python-implementation.html", "Configure your system to use Python") ...
+                + ", and <b>Python instruments</b> in Palladium DAQ's Help.</p>";
+        end
+
+        function [success, message] = UsePythonExecutable(executable)
+            %UsePythonExecutable - Make MATLAB use the given Python executable, if it isn't using it already.
+            %Python can only be changed before it is loaded in a MATLAB
+            %session, so this fails if a different Python is already loaded.
+            %
+            %Outputs:
+            %   success - true if MATLAB now uses that Python
+            %   message - why not, if it doesn't ("" if it does)
+            arguments
+                executable {mustBeTextScalar};  %Path of the Python executable, e.g. python.exe
+            end
+
+            success = true;
+            message = "";
+            env = pyenv;
+            if strcmpi(string(env.Executable), string(executable))
+                return
+            end
+            if string(env.Status) == "Loaded"
+                success = false;
+                message = "Python " + string(env.Version) + " (" + string(env.Executable) + ") is already loaded in this MATLAB session, so " + string(executable) + " can't be used. Restart MATLAB to use it.";
+                return
+            end
+            try
+                pyenv(Version=executable);
+            catch err
+                success = false;
+                message = "Could not use the Python at " + string(executable) + ": " + string(err.message);
+            end
         end
 
         function [isInstalled, verNo, subVerNo] = VerifyPythonInstall(Settings)

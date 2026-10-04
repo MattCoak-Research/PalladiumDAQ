@@ -5,45 +5,31 @@ classdef PythonInstrument < Palladium.Core.Instrument
     %contains a reference to a Python class object that does all the actual
     %logic.
 
-    %% Properties (Public, Dependent)
+    %% Properties (Public)
+    properties
+        PyInstr = [];   
+    end
+
+    %% Properties (Dependent, Public)
     properties (Access=public, Dependent)
         FullName;
     end
 
-    %% Properties (Public, Dependent, SetObservable)
+    %% Properties (Dependent, Public, Set Observable)
     properties (Access=public, Dependent, SetObservable)
         Name;
     end
 
-    %% Properties (Public, SetObservable)
+    %% Properties (Public, Set Observable)
     properties (Access=public, SetObservable)
         Connection_Type = Palladium.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
-    end
-
-    %% Properties (Public)
-    properties
-        PyInstr = [];   
     end
 
     %% Properties (Private)
     properties(Access=private)
     end
 
-    %% Constructor
-    methods
-        function this = PythonInstrument(pyInstr)
-            this@Palladium.Core.Instrument();
-
-            %Specify communication options and settings
-            this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "Serial", "USB", "VISA"]);
-            this.GPIB_Address = 22;      %Default Address
-            this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];
-
-            this.PyInstr = pyInstr;
-        end
-    end
-
-    %% Accessors
+    %% Get and Set Accessors
     methods
 
         function name = get.Name(this)
@@ -108,6 +94,20 @@ classdef PythonInstrument < Palladium.Core.Instrument
             catch ex
                 error("SetFullNameError:PythonSetFailed", "Failed to set PyInstr.FullName: %s", ex.message);
             end
+        end
+    end
+
+    %% Constructor
+    methods
+        function this = PythonInstrument(pyInstr)
+            this@Palladium.Core.Instrument();
+
+            %Specify communication options and settings
+            this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "Serial", "USB", "VISA"]);
+            this.GPIB_Address = 22;      %Default Address
+            this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];
+
+            this.PyInstr = pyInstr;
         end
     end
 

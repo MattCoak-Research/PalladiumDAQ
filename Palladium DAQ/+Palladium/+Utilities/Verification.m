@@ -74,7 +74,7 @@ classdef Verification
 
         function ValidateInstall(Settings)
             arguments
-                Settings.MatlabVersion = "R2025b";
+                Settings.MatlabVersion = "R2026b";
                 Settings.ToolboxNames = {"Instrument Control Toolbox"};
             end
 

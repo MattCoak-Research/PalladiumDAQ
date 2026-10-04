@@ -88,6 +88,52 @@ classdef test_ConfigIO < matlab.unittest.TestCase
             testCase.verifyEqual(loadedConfig.PathSettings.DefaultDirectory, "Tests/Testing Data Files/Data");
         end
 
+        %% GetConfigPath
+        function test_GetConfigPath_SourceCheckout(testCase)
+            % In a source checkout (MATLAB Project in the folder above the source root), the config file is in the source root
+            sourceRoot = fileparts(fileparts(fileparts(testCase.ApplicationDir)));   %Tests/Unit Tests/Utilities -> source root
+            configPath = testCase.ConfigIOInstance.GetConfigPath(ApplicationDir=sourceRoot);
+            testCase.verifyEqual(configPath, fullfile(sourceRoot, "Config.json"));
+        end
+
+        function test_GetConfigPath_Installed(testCase)
+            % Without the MATLAB Project (an installed toolbox or application), the config file is in the user's settings folder
+            configPath = testCase.ConfigIOInstance.GetConfigPath(ApplicationDir=testCase.TestingDir);
+            expectedPath = fullfile(Palladium.Utilities.PathUtils.GetAppDataDirectory(), "Palladium DAQ", "Config.json");
+            testCase.verifyEqual(configPath, expectedPath);
+        end
+
+        %% CopyLegacyConfig (private)
+        function test_CopyLegacyConfig_CopiesOldConfig(testCase)
+            % A config file in the application folder is copied to the new place, if there is none there yet
+            appDir = testCase.TestConfigDir;
+            testCase.ConfigIOInstance.SaveDefaultConfig(fullfile(appDir, "Config.json"));
+            newPath = fullfile(testCase.TestConfigDir_2, "Config.json");
+
+            testCase.ConfigIOInstance.CopyLegacyConfig(newPath, appDir);
+            testCase.verifyTrue(isfile(newPath));
+            testCase.verifyEqual(fileread(newPath), fileread(fullfile(appDir, "Config.json")));
+        end
+
+        function test_CopyLegacyConfig_KeepsExistingConfig(testCase)
+            % An existing config file in the new place is not overwritten
+            appDir = testCase.TestConfigDir;
+            testCase.ConfigIOInstance.SaveDefaultConfig(fullfile(appDir, "Config.json"));
+            newPath = fullfile(testCase.TestConfigDir_2, "Config.json");
+            mkdir(testCase.TestConfigDir_2);
+            writelines("existing", newPath);
+
+            testCase.ConfigIOInstance.CopyLegacyConfig(newPath, appDir);
+            testCase.verifyEqual(strtrim(string(fileread(newPath))), "existing");
+        end
+
+        function test_CopyLegacyConfig_NoOldConfig(testCase)
+            % Nothing is created if there is no config file in the application folder
+            newPath = fullfile(testCase.TestConfigDir_2, "Config.json");
+            testCase.ConfigIOInstance.CopyLegacyConfig(newPath, testCase.TestConfigDir);
+            testCase.verifyFalse(isfile(newPath));
+        end
+
         %% SaveConfig
         function test_SaveConfig_CreatesDirectory(testCase)
             % Test that SaveConfig creates the directory if it does not exist
@@ -103,6 +149,27 @@ classdef test_ConfigIO < matlab.unittest.TestCase
 
             % Verify that the config file exists
             testCase.verifyTrue(exist(testFile, "file")==2);
+        end
+
+        %% SetConfigValue
+        function test_SetConfigValue(testCase)
+            % Test that SetConfigValue changes one setting, and leaves the rest of the file as it was
+            testFile = fullfile(testCase.TestConfigDir, "SetConfigValueTest.json");
+            testCase.ConfigIOInstance.SaveDefaultConfig(testFile);
+            before = readstruct(testFile);
+
+            testCase.ConfigIOInstance.SetConfigValue("WarningSettings", "SuppressPythonSetupWarning", true, ConfigFilePath=testFile);
+
+            after = readstruct(testFile);
+            testCase.verifyTrue(after.WarningSettings.SuppressPythonSetupWarning);
+            after.WarningSettings.SuppressPythonSetupWarning = before.WarningSettings.SuppressPythonSetupWarning;
+            testCase.verifyEqual(after, before);
+        end
+
+        function test_SetConfigValue_MissingFile(testCase)
+            % Test that SetConfigValue errors for a config file that doesn't exist
+            testFile = fullfile(testCase.TestConfigDir_2, "Missing.json");
+            testCase.verifyError(@() testCase.ConfigIOInstance.SetConfigValue("WarningSettings", "SuppressPythonSetupWarning", true, ConfigFilePath=testFile), "SetConfigValueError:SetFailed");
         end
 
         %% SaveDefaultConfig
@@ -139,9 +206,10 @@ classdef test_ConfigIO < matlab.unittest.TestCase
             %Verify that a warning is shown for a deprecated field being removed
             %Note this actually stops the warning being printed in the console, which
             %is nice - it means when we see a warning while testing it is unexpected
-            [verifiedConfig, changesDetected] = testCase.verifyWarning(@() testCase.ConfigIOInstance.VerifyConfigStruct(modifiedConfig), expectedWarningID);
+            [verifiedConfig, changesDetected, fieldsRemoved] = testCase.verifyWarning(@() testCase.ConfigIOInstance.VerifyConfigStruct(modifiedConfig), expectedWarningID);
   
             testCase.verifyTrue(changesDetected);
+            testCase.verifyFalse(fieldsRemoved);    %Only added - LoadConfig then doesn't show a dialog
             testCase.verifyTrue(isfield(verifiedConfig, "PathSettings"));
             testCase.verifyTrue(isfield(verifiedConfig.LogSettings, logSettingsFields{1}));
         end
@@ -156,9 +224,10 @@ classdef test_ConfigIO < matlab.unittest.TestCase
             %Verify that a warning is shown for a deprecated field being removed
             %Note this actually stops the warning being printed in the console, which
             %is nice - it means when we see a warning while testing it is unexpected
-            [verifiedConfig, changesDetected] = testCase.verifyWarning(@() testCase.ConfigIOInstance.VerifyConfigStruct(modifiedConfig), expectedWarningID);
+            [verifiedConfig, changesDetected, fieldsRemoved] = testCase.verifyWarning(@() testCase.ConfigIOInstance.VerifyConfigStruct(modifiedConfig), expectedWarningID);
   
             testCase.verifyTrue(changesDetected);
+            testCase.verifyTrue(fieldsRemoved);
             testCase.verifyTrue(isfield(verifiedConfig, "LogSettings"));
             testCase.verifyFalse(isfield(verifiedConfig, "NewField"));
             testCase.verifyFalse(isfield(verifiedConfig.LogSettings, "NonsenseField"));

@@ -27,7 +27,7 @@ classdef GUIUtils
                     % the proeprties we label to trigger events when they
                     % change - use that to indicate proeprties that should
                     % appear in the GUI too.
-                    if( prop.SetAccess == "public" && ~prop.Hidden && prop.SetObservable)
+                    if( isequal(prop.SetAccess, 'public') && ~prop.Hidden && prop.SetObservable)
                         if Palladium.Utilities.GUIUtils.IsPropertyValidToUse(prop.Name)
                             propertyList(end+1, 1) = prop.Name; %#ok<AGROW>
                         end
@@ -48,7 +48,7 @@ classdef GUIUtils
                     % the proeprties we label to trigger events when they
                     % change - use that to indicate proeprties that should
                     % appear in the GUI too.
-                    if( prop.SetAccess == "public" && prop.DefiningClass.Name == objectClass && ~prop.Hidden && prop.SetObservable)
+                    if( isequal(prop.SetAccess, 'public') && prop.DefiningClass.Name == objectClass && ~prop.Hidden && prop.SetObservable)
                         if Palladium.Utilities.GUIUtils.IsPropertyValidToUse(prop.Name)
                             propertyList(end+1, 1) = prop.Name; %#ok<AGROW>
                         end

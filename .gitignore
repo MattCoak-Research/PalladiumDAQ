@@ -36,6 +36,23 @@ resources/*
 *.pyc
 *.cpyth
 
-#Documentation output - docs will be generated in the buildfile. Just track the markdown .md files
-Palladium DAQ/Docs/*.xml
-Palladium DAQ/Docs/*.html
+#Documentation output - Docs is built entirely by the buildfile (doc and gettingStarted
+#tasks) from the Markdown sources in DocsSrc. Track only the .gitkeep that keeps the folder
+Palladium DAQ/Docs/*
+!Palladium DAQ/Docs/.gitkeep
+#Generated API reference Markdown - built by the apidoc task from the code's help comments
+Palladium DAQ/DocsSrc/reference/
+#Scratch output of the documentation screenshot tool (buildtool screenshots)
+Tools/DocScreenshots/work/
+#buildtool's cache for incremental builds
+.buildtool/
+#Build output: toolbox, standalone application and installers (buildtool package, deploy)
+Release/
+#Personal config of a source checkout - created by the Config Entry window on first run
+/Palladium DAQ/Config.json
+#User files folder the tests point the programme at - the programme creates and maintains it
+/Palladium DAQ/Tests/Testing User Files/
+#Local Claude Code settings, previews and worktrees
+.claude/
+#Paint.NET source of splash.png
+splash.pdn

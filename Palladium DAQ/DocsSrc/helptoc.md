@@ -1,0 +1,15 @@
+# Palladium DAQ
+
+* [Palladium DAQ](index.md)
+    * [Getting started](quick-start.md)
+    * [Installation](installation.md)
+    * [GUI tour](gui-tour.md)
+    * [Presets and Config.json](presets-and-config.md)
+    * [Sequences](sequences.md)
+    * [Data files](data-files.md)
+    * [Writing an instrument driver](writing-instruments.md)
+    * [Python instruments](python-instruments.md)
+    * [API reference](reference/index.md)
+    * [Developers](developers/index.md)
+        * [Build pipeline](developers/build-pipeline.md)
+        * [Code and comment conventions](developers/code-conventions.md)
