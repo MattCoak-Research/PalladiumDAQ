@@ -64,7 +64,19 @@ Launch Palladium DAQ from the shortcut the installer creates.
 
 The installation includes this documentation. Open it with the **Help** button in Palladium DAQ, or open `Docs\index.html` in the `application` folder of the installation (by default `C:\Program Files\Palladium DAQ\application`) in a web browser.
 
-The standalone application cannot load instrument drivers or presets written as MATLAB code after it is built, and does not include this documentation.
+The standalone application cannot load instrument drivers or presets written as MATLAB code after it is built.
+
+### Updating
+
+To update to a new version:
+
+1. Close Palladium DAQ.
+2. Uninstall the old version: in Windows **Settings**, go to **Apps** > **Installed apps**, find **Palladium DAQ**, and choose **Uninstall**.
+3. Run the new version's installer.
+
+Uninstall first rather than installing over the old version. The installer doesn't replace files that are in use, such as a running Palladium DAQ, and doesn't remove files that the new version no longer has - either can leave a mix of old and new files.
+
+Your data, logs, sequences and user files (in `Documents\Palladium DAQ`) and your settings (`Config.json`, see [Presets and Config.json](presets-and-config.md)) are not in the installation folder, so they are kept.
 
 ## The user files folder
 

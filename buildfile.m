@@ -486,7 +486,8 @@ packageOpts.Version = verString;
 packageOpts.Verbose = true;
 packageOpts.Summary = "Laboratory instrument control, data acquisition and live plotting.";
 packageOpts.Description = "Palladium Data Acquisition - an open source platform for laboratory instrument control, data acquisition logging and graphing. See https://github.com/MattCoak-Research/PalladiumDAQ for details.";
-packageOpts.InstallationNotes = "The documentation is installed with the application: open it with the Help button in Palladium DAQ, or open Docs\index.html in the installation's application folder.";
+packageOpts.InstallationNotes = "Updating from an earlier version? Close Palladium DAQ and uninstall the old version first (Settings > Apps > Installed apps), then run this installer. Your data and settings are kept. " ...
+    + "The documentation is installed with the application: open it with the Help button in Palladium DAQ, or open Docs\index.html in the installation's application folder.";
 
 %Files the application reads from disk at run time, rather than from its
 %compiled archive, installed next to the executable in application/:
