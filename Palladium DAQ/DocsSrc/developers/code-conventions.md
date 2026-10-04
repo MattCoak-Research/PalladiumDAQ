@@ -1,6 +1,6 @@
 # Code and comment conventions
 
-Palladium classes follow a consistent layout, and the [API reference](reference/index.md) is generated from their help comments. Following these conventions keeps the code easy to navigate and makes the reference pages read well. They apply to all classes, and to instrument drivers in particular.
+Palladium classes follow a consistent layout, and the [API reference](../reference/index.md) is generated from their help comments. Following these conventions keeps the code easy to navigate and makes the reference pages read well. They apply to all classes, and to instrument drivers in particular.
 
 ## Class layout
 

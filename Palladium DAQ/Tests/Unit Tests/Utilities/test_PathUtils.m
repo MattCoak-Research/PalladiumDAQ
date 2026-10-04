@@ -364,13 +364,16 @@ classdef test_PathUtils < matlab.unittest.TestCase
             testCase.verifyEqual(actualPath, expectedPath);
         end
 
-        %% GetUserDirectory
-        function test_GetUserDirectory(testCase)
+        %% GetDocumentsDirectory
+        function test_GetDocumentsDirectory(testCase)
             %Note this, by design, gives different results on different
-            %platforms. Just check that it returns some directory which
-            %exists
-            actualPath = Palladium.Utilities.PathUtils.GetUserDirectory();
-            testCase.verifyEqual(exist(actualPath, "dir"), 7);
+            %platforms. Just check that it returns an absolute path to a
+            %folder which exists
+            actualPath = Palladium.Utilities.PathUtils.GetDocumentsDirectory();
+            testCase.verifyClass(actualPath, "string");
+            testCase.verifyTrue(isfolder(actualPath));
+            isAbsolute = startsWith(actualPath, ["/", "\"]) || ~isempty(regexp(actualPath, "^[A-Za-z]:", "once"));
+            testCase.verifyTrue(isAbsolute);
         end
 
         %% IsDirectoryValid

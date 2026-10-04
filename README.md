@@ -37,8 +37,8 @@ This is a modular framework for laboratory data acquisition. A library of Instru
 
 ## System Requirements
 PalladiumDAQ can be installed as a Toolbox inside a MATLAB environment (allows more customisation) or, on machines with no MATLAB licence, as a standalone programme.
- - To run PalladiumDAQ Toolbox Version, MATLAB version 2026a is required, with the Instrument Control Toolbox installed.
- - To run PalladiumDAQ Standalone Version, the MATLAB Runtime (2026a Update 4) is required. This is bundled with some installers (see Installation & Downloads sections) or can be downloaded from [Mathworks Downloads](https://uk.mathworks.com/products/compiler/matlab-runtime.html) (no MATLAB licence required).
+ - To run PalladiumDAQ Toolbox Version, MATLAB R2026b or later is required, with the Instrument Control Toolbox installed.
+ - To run PalladiumDAQ Standalone Version, the MATLAB Runtime (R2026b) is required. This is bundled with some installers (see Installation & Downloads sections) or can be downloaded from [Mathworks Downloads](https://uk.mathworks.com/products/compiler/matlab-runtime.html) (no MATLAB licence required).
 
 ## Download
 Latest release download:

@@ -1,4 +1,9 @@
 function plan = buildfile
+%BUILDFILE - Build plan for Palladium DAQ: code check, tests, documentation,
+%toolbox packaging and standalone deployment. Run with buildtool <task>.
+%How each step works is documented in Palladium DAQ/DocsSrc/developers/build-pipeline.md -
+%update that page whenever this file (or Tools/, or the CI workflow) changes.
+
 plan = buildplan(localfunctions);
 plan("test").Dependencies = "check";
 
@@ -26,6 +31,13 @@ plan("gettingStarted").Inputs = [fullfile(docsrc, "GettingStarted.md"), ...
     "splash.png", ...
     fullfile("Palladium DAQ", "+Palladium", "+Components", "Graphics")];
 plan("gettingStarted").Outputs = fullfile(docfolder, "GettingStarted.m");
+
+%Screenshots of the GUI for the docs - run by hand (it needs a display), not
+%part of doc or package, so not run on CI. The images are committed to git
+plan("screenshots").Inputs = [GuiSourceFolders(), ...
+    fullfile("Tools", "DocScreenshots", "TakeDocScreenshots.m"), ...
+    fullfile("Tools", "DocScreenshots", "CaptureScreenshot.m")];
+plan("screenshots").Outputs = fullfile(docsrc, "images", "gui");
 
 plan("package").Dependencies = ["test", "doc"];
 plan("deploy").Dependencies = "package";
@@ -67,18 +79,24 @@ EnsureDocMaker();
 %the gettingStarted task) and the .gitkeep that keeps the folder in git
 ClearFolder(out, ["GettingStarted.m", ".gitkeep"]);
 
-%Copy in the Markdown sources, keeping their folder structure.
-%GettingStarted.md is not a DocMaker page - see gettingStartedTask
-mdFiles = dir(fullfile(src, "**", "*.md"));
-mdFiles(strcmp({mdFiles.name}, "GettingStarted.md")) = [];
-mdCopies = strings(1, numel(mdFiles));
-for i = 1 : numel(mdFiles)
-    destFolder = fullfile(out, extractAfter(string(mdFiles(i).folder), strlength(src)));
+WarnIfScreenshotsStale(fullfile(src, "images", "gui"));
+
+%Copy in the sources - Markdown pages and the images they use - keeping
+%their folder structure. GettingStarted.md is not a DocMaker page (see
+%gettingStartedTask), and the screenshots' fingerprint file isn't needed
+srcFiles = dir(fullfile(src, "**", "*.*"));
+srcFiles([srcFiles.isdir] | strcmp({srcFiles.name}, "GettingStarted.md") | endsWith({srcFiles.name}, ".sha256")) = [];
+mdCopies = strings(1, 0);
+for i = 1 : numel(srcFiles)
+    destFolder = fullfile(out, extractAfter(string(srcFiles(i).folder), strlength(src)));
     if ~isfolder(destFolder)
         mkdir(destFolder);
     end
-    mdCopies(i) = fullfile(destFolder, mdFiles(i).name);
-    copyfile(fullfile(mdFiles(i).folder, mdFiles(i).name), mdCopies(i));
+    dest = fullfile(destFolder, srcFiles(i).name);
+    copyfile(fullfile(srcFiles(i).folder, srcFiles(i).name), dest);
+    if endsWith(dest, ".md")
+        mdCopies(end+1) = dest; %#ok<AGROW>
+    end
 end
 
 %Convert one document at a time, so that a GitHub timeout only retries
@@ -150,6 +168,67 @@ if ispc
     fileattrib(folder, "+w", "", "s");
 else
     fileattrib(folder, "+w", "a", "s");
+end
+end
+
+function screenshotsTask(c)
+% Take the GUI screenshots used in the docs (DocsSrc/images/gui), with
+% Tools/DocScreenshots. Needs a display - run it by hand when the GUI
+% changes, then review and commit the changed images
+addpath(fullfile(c.Plan.RootFolder, "Tools", "DocScreenshots"));
+outputFolder = c.Task.Outputs.Path;
+TakeDocScreenshots(outputFolder);
+writelines(GuiSourcesHash(), fullfile(outputFolder, "gui-sources.sha256"));
+end
+
+function folders = GuiSourceFolders()
+%Folders holding the GUI's code and layout (App Designer files)
+folders = [fullfile("Palladium DAQ", "+Palladium", "+Views"), ...
+    fullfile("Palladium DAQ", "+Palladium", "+Components"), ...
+    fullfile("Palladium DAQ", "+Palladium", "+Sequence", "+Views"), ...
+    fullfile("Palladium DAQ", "+Palladium", "+Instruments", "+Controls"), ...
+    fullfile("Palladium DAQ", "DataViewer.mlapp")];
+end
+
+function hash = GuiSourcesHash()
+%SHA-256 fingerprint of the GUI source files, ignoring line endings (which
+%git may change on checkout)
+files = strings(0);
+for folder = GuiSourceFolders()
+    if isfile(folder)
+        files(end+1) = folder; %#ok<AGROW>
+    else
+        listing = [dir(fullfile(folder, "*.m")); dir(fullfile(folder, "*.mlapp"))];
+        files = [files, string(fullfile({listing.folder}, {listing.name}))]; %#ok<AGROW>
+    end
+end
+digest = java.security.MessageDigest.getInstance("SHA-256");
+for file = sort(files)
+    fid = fopen(file, "r");
+    bytes = fread(fid, Inf, "*uint8");
+    fclose(fid);
+    if endsWith(file, ".m")
+        bytes(bytes == 13) = []; %Drop CRs
+    end
+    digest.update(typecast(bytes, "int8"));
+end
+hash = string(sprintf("%02x", typecast(digest.digest(), "uint8")));
+end
+
+function WarnIfScreenshotsStale(imagesFolder)
+%Warn (but don't fail) if the GUI has changed since the screenshots were
+%taken - they can only be retaken on a computer with a display
+hashFile = fullfile(imagesFolder, "gui-sources.sha256");
+if ~isfile(hashFile)
+    return
+end
+try
+    if strtrim(string(fileread(hashFile))) ~= GuiSourcesHash()
+        warning("BuildFile:ScreenshotsStale", "%s", "The GUI has changed since the documentation's screenshots were taken. " + ...
+            "Run ""buildtool screenshots"" on a computer with a display, then review and commit the changed images.");
+    end
+catch err
+    fprintf(1, "Could not check whether the screenshots are up to date: %s\n", err.message);
 end
 end
 
@@ -243,6 +322,10 @@ opts.ToolboxVersion = string(verStruct.VersionString);
 opts.ToolboxFiles(startsWith(opts.ToolboxFiles, fullfile(opts.ToolboxFolder, "DocsSrc"))) = [];
 docFiles = startsWith(opts.ToolboxFiles, fullfile(opts.ToolboxFolder, "Docs"));
 opts.ToolboxFiles(docFiles & endsWith(opts.ToolboxFiles, ".md")) = []; %Any left by a failed doc build
+
+%TestInstrument is for testing Palladium itself, not for users (it is left
+%out of the standalone application too - see AssembleBuildOptions)
+opts.ToolboxFiles(endsWith(opts.ToolboxFiles, fullfile("+Palladium", "+Instruments", "TestInstrument.m"))) = [];
 
 %Build the .mltbx toolbox installation file
 matlab.addons.toolbox.packageToolbox(opts);

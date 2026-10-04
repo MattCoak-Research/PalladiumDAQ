@@ -94,7 +94,7 @@ classdef Palladium < handle
 
             %Check that new enough Matlab version is installed, toolboxes
             %are there.. etc etc. Will throw error if not
-            Palladium.Utilities.Verification.ValidateInstall(MatlabVersion="R2026a", ToolboxNames = {"Instrument Control Toolbox"});
+            Palladium.Utilities.Verification.ValidateInstall(MatlabVersion="R2026b", ToolboxNames = {"Instrument Control Toolbox"});
 
             %Set application paths for loading of child classes later - make
             %all paths relative to this, the filepath of the Palladium.m file

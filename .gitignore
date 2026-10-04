@@ -42,3 +42,5 @@ Palladium DAQ/Docs/*
 !Palladium DAQ/Docs/.gitkeep
 #Generated API reference Markdown - built by the apidoc task from the code's help comments
 Palladium DAQ/DocsSrc/reference/
+#Scratch output of the documentation screenshot tool (buildtool screenshots)
+Tools/DocScreenshots/work/

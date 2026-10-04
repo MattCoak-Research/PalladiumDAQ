@@ -231,21 +231,42 @@ classdef PathUtils
             dirPath = string(dirPathCell{1});
         end
 
-        function userDirectoryPath = GetUserDirectory()
-          % GETUSERDIRECTORY - Return current user's home directory as
-          % string, on all platforms
-          %
-          % Output arguments:
-          % userDirectoryPath - user's home directory path (string)
-          if ispc
-              % Use Windows registry to get the "Personal" folder path
-              userDirectoryPath = string(winqueryreg('HKEY_CURRENT_USER',...
-                  ['Software\Microsoft\Windows\CurrentVersion\' ...
-                  'Explorer\Shell Folders'],'Personal'));
-          else
-              % Fallback: use Java system property for non-Windows platforms
-              userDirectoryPath = string(java.lang.System.getProperty('user.home'));
-          end
+        function documentsPath = GetDocumentsDirectory()
+            %GetDocumentsDirectory - Return the current user's Documents folder, on Windows, Mac and Linux.
+            %Falls back to the user's home folder if there is no Documents
+            %folder.
+            %
+            %Outputs:
+            %   documentsPath - absolute path of the folder (string)
+
+            documentsPath = "";
+            if ispc
+                %The registry gives the actual Documents folder, which may
+                %have been moved (e.g. redirected into OneDrive)
+                try
+                    documentsPath = string(winqueryreg('HKEY_CURRENT_USER', ...
+                        'Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders', 'Personal'));
+                catch
+                end
+                home = string(getenv("USERPROFILE"));
+            else
+                home = string(getenv("HOME"));
+                if isunix && ~ismac
+                    %Linux desktops may localise or move the Documents folder -
+                    %xdg-user-dir reports it, where installed
+                    [status, result] = system("xdg-user-dir DOCUMENTS");
+                    if status == 0
+                        documentsPath = strtrim(string(result));
+                    end
+                end
+            end
+
+            if documentsPath == "" || ~isfolder(documentsPath)
+                documentsPath = fullfile(home, "Documents");
+            end
+            if ~isfolder(documentsPath)
+                documentsPath = home;
+            end
         end
 
         function valid = IsDirectoryValid(directory)

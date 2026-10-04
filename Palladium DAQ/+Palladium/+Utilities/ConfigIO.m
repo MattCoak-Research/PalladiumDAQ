@@ -134,16 +134,13 @@ classdef ConfigIO < handle
         function s = GenerateDefaultConfigStruct(~)
 
             %% ------- Edit default config values / add new ones here ----
-            userDir = Palladium.Utilities.PathUtils.GetUserDirectory();
+            %By default everything goes in a Palladium DAQ folder in the
+            %user's Documents folder (on Windows, Mac and Linux)
+            rootDir = fullfile(Palladium.Utilities.PathUtils.GetDocumentsDirectory(), "Palladium DAQ");
 
             s.LogSettings.LogFileFileName = "<DATE>_Log.txt";
-            if isdeployed
-                s.LogSettings.LogFileDirectory = fullfile(userDir, "Logs");
-                s.LogSettings.LogFileDirectoryIsRelativePath = false;
-            else
-                s.LogSettings.LogFileDirectory = ".." + filesep + "Palladium DAQ - Testing" + filesep + "Logs";
-                s.LogSettings.LogFileDirectoryIsRelativePath = true;
-            end
+            s.LogSettings.LogFileDirectory = fullfile(rootDir, "Logs");
+            s.LogSettings.LogFileDirectoryIsRelativePath = false;
 
             s.LogSettings.CommandWindowMessageLevel = "Debug";
             s.LogSettings.PrintStackTraceInCommandWindow = false;
@@ -151,20 +148,13 @@ classdef ConfigIO < handle
             s.LogSettings.LogFileMessageLevel = "Debug";
             s.LogSettings.ErrorOnAllInstrumentErrors = false;
  
-            s.PathSettings.UserFilesDirectory = userDir;
+            s.PathSettings.UserFilesDirectory = rootDir;
             s.PathSettings.UserFilesDirectoryIsRelativePath = false;
             s.PathSettings.DefaultFileName = "<DATE>_Filename";
-            if isdeployed
-                s.PathSettings.DefaultDirectory = fullfile(userDir, "Data");
-                s.PathSettings.DefaultSequenceDirectory = fullfile(userDir, "Sequences");
-                s.PathSettings.DataDirectoryIsRelativePath = false;
-                s.PathSettings.SequenceDirectoryIsRelativePath = false;
-            else
-                s.PathSettings.DefaultDirectory = ".." + filesep + "Palladium DAQ - Testing";
-                s.PathSettings.DefaultSequenceDirectory = ".." + filesep + "Palladium DAQ - Testing";
-                s.PathSettings.DataDirectoryIsRelativePath = true;
-                s.PathSettings.SequenceDirectoryIsRelativePath = true;
-            end
+            s.PathSettings.DefaultDirectory = fullfile(rootDir, "Data");
+            s.PathSettings.DefaultSequenceDirectory = fullfile(rootDir, "Sequences");
+            s.PathSettings.DataDirectoryIsRelativePath = false;
+            s.PathSettings.SequenceDirectoryIsRelativePath = false;
 
             s.PathSettings.DataFileExtension = ".dat";
             s.PathSettings.SequenceFileExtension = ".seq";
