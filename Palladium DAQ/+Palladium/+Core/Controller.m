@@ -388,34 +388,36 @@ classdef Controller < handle
                 %Now make sure that folder exists and create it if not
                 this.EnsureUserFilesDirExists(this.UserFilesDir);
 
+                %Copy starter files into the user files folders, if they
+                %aren't there yet. In the installed standalone application
+                %these are installed next to the executable, in the
+                %application folder (see deployTask in buildfile.m)
+
+                %The template for new instrument drivers - not in the
+                %standalone application, which can't load MATLAB drivers
+                %written after it is built
                 if ~isdeployed
-                    %Copy example/template Instrument class files into that
-                    %folder if they don't yet exist
-                    classesToCopy = "TemplateInstrumentClass.m";
-                    Palladium.Utilities.PathUtils.CopyFiles(classesToCopy,...
-                        fullfile(this.ApplicationDir, "ExamplesAndTemplates", "Instruments"), this.UserInstrumentsDir,...
-                        Overwrite=false);
+                    this.CopyStarterFile("TemplateInstrumentClass.m", fullfile(this.ApplicationDir, "ExamplesAndTemplates", "Instruments"), this.UserInstrumentsDir);
+                end
 
-                    %Copy example/template Preset class files into that
-                    %folder if they don't yet exist
-                    classesToCopy = "Example.json";
-                    Palladium.Utilities.PathUtils.CopyFiles(classesToCopy,...
-                        fullfile(this.ApplicationDir, "ExamplesAndTemplates", "Presets"), this.UserPresetsDir,...
-                        Overwrite=false);
+                %The example Preset
+                this.CopyStarterFile("Example.json", fullfile(this.ApplicationDir, "ExamplesAndTemplates", "Presets"), this.UserPresetsDir);
 
-                    %Copy Instrument Drivers class files into User Instrument
-                    %Drivers folder if they don't yet exist. At the moment this
-                    %is just the QDInterface dll which almost certainly needs
-                    %to sit in a folder alongside the QDInstrument dll file
-                    %that the user will have to install themselves.
-                    classesToCopy = "QDInterface.dll";
-                    Palladium.Utilities.PathUtils.CopyFiles(classesToCopy,...
-                        fullfile(this.ApplicationDir, "Instrument Drivers", "Quantum Design", "PPMS Communication"),...
-                        fullfile(this.UserInstrumentDriversDir, "Quantum Design", "PPMS Communication"),...
-                        Overwrite=false);
+                %The QDInterface dll for the PPMS, which needs to sit in a
+                %folder alongside the QDInstrument dll file that the user
+                %will have to install themselves
+                this.CopyStarterFile("QDInterface.dll", fullfile(this.ApplicationDir, "Instrument Drivers", "Quantum Design", "PPMS Communication"),...
+                    fullfile(this.UserInstrumentDriversDir, "Quantum Design", "PPMS Communication"));
 
-                    %Retrieve iconPath to pass to a GUI
-                    this.WindowSettings.PalladiumIconPath = fullfile(this.ApplicationDir, "+Palladium", "+Components", "Graphics", "PalladiumDAQIcon.png");
+                %Icon for the GUI's windows - in the Graphics folder of the
+                %installed application, or in the source
+                if isdeployed
+                    iconPath = fullfile(this.ApplicationDir, "Graphics", "PalladiumDAQIcon.png");
+                else
+                    iconPath = fullfile(this.ApplicationDir, "+Palladium", "+Components", "Graphics", "PalladiumDAQIcon.png");
+                end
+                if isfile(iconPath)
+                    this.WindowSettings.PalladiumIconPath = iconPath;
                 else
                     this.WindowSettings.PalladiumIconPath = [];
                 end
@@ -995,6 +997,24 @@ classdef Controller < handle
             end
         end
 
+        function CopyStarterFile(this, fileName, sourceDir, destDir)
+            %Copy a starter file (an example or template) into a user files folder, unless it is already there.
+            %If the source file is missing - e.g. an installation that
+            %doesn't include it - or there is no destination folder, log a
+            %warning and carry on
+
+            if isempty(destDir) || strlength(string(destDir)) == 0
+                this.Log("Warning", "Could not copy " + fileName + " to the user files folder: no destination folder", "Yellow", "Starter file not copied: " + fileName);
+                return;
+            end
+            if ~isfile(fullfile(sourceDir, fileName))
+                this.Log("Warning", "Could not copy " + fileName + " to the user files folder: not found in " + sourceDir, "Yellow", "Starter file not found: " + fileName);
+                return;
+            end
+            Palladium.Utilities.PathUtils.EnsureDirectoryExists(destDir);
+            Palladium.Utilities.PathUtils.CopyFiles(fileName, sourceDir, destDir, Overwrite=false);
+        end
+
         function EnsureUserFilesDirExists(this, pathToDir)
             % ENSUREUSERFILESDIREXISTS - Ensure a user files directory
             % exists, along with its subfolders, and add to the path
@@ -1012,20 +1032,23 @@ classdef Controller < handle
             end
 
 
-            %Set up the User Instrument Directory
-            if ~isdeployed      %.m Instruments and Presets only make sense if not deployed as exe
+            %Set up the User Instrument Directory - .m instrument drivers
+            %only make sense if not deployed as an exe, which can't load
+            %MATLAB code written after it is built
+            if ~isdeployed
                 this.UserInstrumentsDir = fullfile(pathToDir, this.UserFolderName, this.UserInstrumentFolderName);
                 newDirCreated = Palladium.Utilities.PathUtils.EnsureDirectoryExists(this.UserInstrumentsDir);
                 if newDirCreated
                     this.Log("Info", "User directory at " + string(this.UserInstrumentsDir) + " not found - creating new empty directory", "Green", "Creating User Directories");
                 end
+            end
 
-                %Set up the Presets Directory
-                this.UserPresetsDir = fullfile(pathToDir, this.UserFolderName, this.UserPresetFolderName);
-                newDirCreated = Palladium.Utilities.PathUtils.EnsureDirectoryExists(this.UserPresetsDir);
-                if newDirCreated
-                    this.Log("Info", "User directory at " + string(this.UserPresetsDir) + " not found - creating new empty directory", "Green", "Creating User Directories");
-                end
+            %Set up the Presets Directory - Presets are .json files, so work
+            %in the deployed exe too
+            this.UserPresetsDir = fullfile(pathToDir, this.UserFolderName, this.UserPresetFolderName);
+            newDirCreated = Palladium.Utilities.PathUtils.EnsureDirectoryExists(this.UserPresetsDir);
+            if newDirCreated
+                this.Log("Info", "User directory at " + string(this.UserPresetsDir) + " not found - creating new empty directory", "Green", "Creating User Directories");
             end
 
             %Set up the Instrument Drivers directory
