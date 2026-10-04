@@ -19,6 +19,9 @@ classdef test_CommandEncoder < matlab.unittest.TestCase
             import matlab.unittest.constraints.ContainsSubstring
             f = testCase.applyFixture(PathFixture(testCase.TestingDir, IncludeSubfolders=true));
             testCase.verifyThat(path,ContainsSubstring(f.Folders(1)));
+
+            %Test helpers, for TestHelpers.RecordingInstrument
+            testCase.applyFixture(PathFixture(fullfile(fileparts(mfilename("fullpath")), "..", "..", "Helpers")));
         end
 
     end
@@ -38,6 +41,61 @@ classdef test_CommandEncoder < matlab.unittest.TestCase
 
             testCase.verifyEqual(w.Wait_seconds, w2.Wait_seconds);
             testCase.verifyEqual(w.WaitDisplayUnit, w2.WaitDisplayUnit);
+        end
+
+        %% [WAIT] commands
+        function test_Wait_Parsing(testCase)
+            %Any amount of space, units in any case, and 0 allowed
+            ce = Palladium.Sequence.CommandEncoder();
+            cases = {"[WAIT] 30 sec", 30, "sec"; "[WAIT]    2    MIN", 120, "min"; "[WAIT] 1.5 Hr", 5400, "hr"; "[WAIT] 0 sec", 0, "sec"};
+            for i = 1 : size(cases, 1)
+                com = ce.StringToCommand(cases{i, 1});
+                testCase.verifyEqual(com.Wait_seconds, cases{i, 2}, cases{i, 1});
+                testCase.verifyEqual(com.WaitDisplayUnit, cases{i, 3}, cases{i, 1});
+            end
+        end
+
+        function test_Wait_InvalidErrors(testCase)
+            %Clear errors (this used to crash on an unknown unit)
+            ce = Palladium.Sequence.CommandEncoder();
+            testCase.verifyError(@() ce.StringToCommand("[WAIT] 30 weeks"), "ParseWaitCommandError:UnrecognisedWaitUnit");
+            testCase.verifyError(@() ce.StringToCommand("[WAIT] 30"), "ParseWaitCommandError:InvalidFormat");
+            testCase.verifyError(@() ce.StringToCommand("[WAIT] soon sec"), "ParseWaitCommandError:InvalidNumber");
+        end
+
+        function test_Wait_ZeroFromEditorForm(testCase)
+            %The Sequence Editor's Wait form allows 0
+            details = struct("Type", "WAIT", "WaitValue", 0, "WaitUnits", "sec");
+            com = Palladium.Sequence.CommandEncoder().BuildCommandFromEventDetails(details);
+            testCase.verifyEqual(com.Wait_seconds, 0);
+        end
+
+        %% [INSTR] commands
+        function test_Instr_ColonInArguments(testCase)
+            %Only the first : splits the instrument name from the command
+            instr = TestHelpers.RecordingInstrument();
+            com = Palladium.Sequence.CommandEncoder().StringToCommand("[INSTR] Recorder : Record(""C:\Data\run.dat"", ""12:30"")", {instr});
+            testCase.verifyEqual(com.Instrument, instr);
+            testCase.verifyEqual(string(com.CommandString), "Record(""C:\Data\run.dat"", ""12:30"")");
+            testCase.verifyEmpty(com.ControlName);
+        end
+
+        function test_Instr_UnknownInstrumentListsAddedOnes(testCase)
+            %The error names the instruments that are added (this used to crash)
+            instr = TestHelpers.RecordingInstrument();
+            ce = Palladium.Sequence.CommandEncoder();
+            try
+                ce.StringToCommand("[INSTR] Missing_1 : Record()", {instr});
+                testCase.verifyFail("Expected an error for an instrument that isn't added");
+            catch err
+                testCase.verifyEqual(err.identifier, 'GetInstrumentFromNameError:NotFound');
+                testCase.verifySubstring(err.message, "Added Instruments: Recorder");
+            end
+        end
+
+        function test_Instr_MissingColonErrors(testCase)
+            ce = Palladium.Sequence.CommandEncoder();
+            testCase.verifyError(@() ce.StringToCommand("[INSTR] Recorder Record()", {TestHelpers.RecordingInstrument()}), "ParseInstrumentCommandError:MissingDelimiter");
         end
 
         %% [DATAFILE] commands

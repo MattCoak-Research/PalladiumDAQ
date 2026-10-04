@@ -1455,6 +1455,13 @@
                                 </Category>
                             </Info>
                         </File>
+                        <File Location="test_CommandController.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
                     </File>
                     <File Location="DataWriting">
                         <Info/>
@@ -1603,6 +1610,13 @@
                             </Info>
                         </File>
                         <File Location="ProgrammeOutputFixture.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="design"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="RecordingInstrument.m">
                             <Info>
                                 <Category UUID="FileClassCategory">
                                     <Label UUID="design"/>

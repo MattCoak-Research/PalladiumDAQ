@@ -26,7 +26,7 @@ Each command line starts with its type in square brackets:
 
 | Command | Example | What it does |
 | --- | --- | --- |
-| `[WAIT]` | `[WAIT] 30 sec` | Waits for a time, given in `sec`, `min` or `hr` |
+| `[WAIT]` | `[WAIT] 30 sec` | Waits for a time, given in `sec`, `min` or `hr` (in any case). A wait of 0 finishes at the next measurement tick |
 | `[INSTR]` | `[INSTR] K2000_1 : PrintIdentifier()` | Calls a method of an instrument, by the instrument's Name |
 | `[INSTR]` (control) | `[INSTR] K2410_SrcMtr_1.Sweep Control : SweepRun()` | Calls a method of one of an instrument's Instrument Controls |
 | `[DATAFILE]` | `[DATAFILE] 1 : C:\Data\Run2.dat` | Starts writing to a new data file |
@@ -70,7 +70,15 @@ Whenever writing starts, the new file begins with the usual [header](data-files.
 
 ### Instrument commands
 
-An instrument command names the instrument by its **Name**, shown in its Instrument Settings. When an instrument is added it is named from its default name plus a number, such as `K2000_1` for the first Keithley 2000 or `K2410_SrcMtr_1` for a Keithley 2410, unless you rename it. The instrument must already be added when the sequence runs. The method can be any public method of the instrument - right-click the Command field to see them. Arguments can be numbers, `true` or `false`, or text (written without quotes). Spaces are removed from commands, so text arguments cannot contain spaces.
+An instrument command names the instrument by its **Name**, shown in its Instrument Settings. When an instrument is added it is named from its default name plus a number, such as `K2000_1` for the first Keithley 2000 or `K2410_SrcMtr_1` for a Keithley 2410, unless you rename it. The instrument must already be added when the sequence runs. The method can be any public method of the instrument - right-click the Command field to see them.
+
+Arguments go in brackets after the method name, separated by commas. The brackets can be left out for a method with no arguments. Each argument can be:
+
+* A number, such as `10` or `-2.5e-3`
+* `true` or `false`
+* Text. Put text in quotes - `"Sample A, run 2"` or `'C:\Data\Sample1'` - if it contains commas or colons, or if it should stay as text rather than being read as a number or `true`/`false` (`"10"`). Quoted text is passed exactly as written, without the quotes. Text without quotes is also allowed: spaces at its ends are removed, but spaces inside it are kept
+
+For example: `[INSTR] K2410_SrcMtr_1 : SetSourceLevel(1e-6, true)` (a source current of 1e-6 A, with the output on), or `[INSTR] MyInstr_1 : SetLabel("Sample A, run 2")`.
 
 ## How a sequence runs
 

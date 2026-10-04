@@ -257,7 +257,7 @@ classdef CommandEncoder < handle
             %If we got here, none of the instruments matched
             instStringNameList = "";
             for i = 1 : length(instrumentsList)
-                instStringNameList = instStringNameList + instrumentsList.Name;
+                instStringNameList = instStringNameList + instrumentsList{i}.Name;
                 if i ~= length(instrumentsList)
                     instStringNameList = instStringNameList + ", ";
                 end
@@ -307,10 +307,13 @@ classdef CommandEncoder < handle
             %or
             %Keithley2410_1 : PrintIdentifier(foo)
 
-            %Split on the : to seperate target (first) and command (second)
-            ss = strsplit(str, ":");
-            targ = string(ss{1});
-            command = string(strtrim(ss{2}));
+            %Split at the first : to separate target (first) and command
+            %(second). Only the first - the command's arguments may contain
+            %colons, e.g. a path like C:\Data
+            str = string(str);
+            assert(contains(str, ":"), "ParseInstrumentCommandError:MissingDelimiter", "%s", "Instrument command must be <Instrument Name> : <Method(arguments)>, but was given: " + str);
+            targ = extractBefore(str, ":");
+            command = strtrim(extractAfter(str, ":"));
 
             ss2 = strsplit(targ, ".");
 
@@ -331,23 +334,24 @@ classdef CommandEncoder < handle
            seqFilePath = str;
         end
 
-        function [waitVal_Sec, waitUnit] = ParseWaitCommand(this, str)
+        function [waitVal_Sec, waitUnit] = ParseWaitCommand(~, str)
+            %Parse the text after [WAIT]: a number and a unit, sec, min or
+            %hr (in any case), separated by any amount of space, e.g.
+            %"30 sec". Returns the wait in seconds, and the unit in lower case
+            parts = split(strtrim(string(str)));
+            assert(numel(parts) == 2, "ParseWaitCommandError:InvalidFormat", "%s", "Wait command must be a number and a unit (sec, min or hr), e.g. 30 sec, but was given: " + string(str));
 
-            ss = strsplit(str, " ");
-            val = str2double(ss{1});
-            waitUnit = ss{2};
+            val = str2double(parts(1));
+            assert(~isnan(val), "ParseWaitCommandError:InvalidNumber", "%s", "Wait time is not a number: " + parts(1));
 
-            switch(waitUnit)
-                case("sec")
-                    waitVal_Sec = val;
-                case("min")
-                    waitVal_Sec = val * 60;
-                case("hr")
-                    waitVal_Sec = val * 3600;
+            waitUnit = lower(parts(2));
+            switch waitUnit
+                case "sec";     waitVal_Sec = val;
+                case "min";     waitVal_Sec = val * 60;
+                case "hr";      waitVal_Sec = val * 3600;
                 otherwise
-                    error("ParseWaitCommandError:UnrecognisedWaitUnit", "%s", "Unrecognised wait unit: " + Settings.WaitUnit);
+                    error("ParseWaitCommandError:UnrecognisedWaitUnit", "%s", "Unrecognised wait unit: " + parts(2) + " (use sec, min or hr)");
             end
-
         end
 
     end

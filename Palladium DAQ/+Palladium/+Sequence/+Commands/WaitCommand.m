@@ -16,7 +16,7 @@ classdef WaitCommand < Palladium.Sequence.Commands.Command
     methods
         function this = WaitCommand(wait_Seconds, Settings)
             arguments
-                wait_Seconds (1,1) double {mustBePositive};
+                wait_Seconds (1,1) double {mustBeNonnegative};     %Wait time in seconds. 0 finishes at the next measurement tick
                 Settings.FunctionOnComplete = [];
                 Settings.WaitDisplayUnits;
             end
