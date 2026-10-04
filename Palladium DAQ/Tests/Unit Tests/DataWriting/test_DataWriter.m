@@ -752,6 +752,44 @@ classdef test_DataWriter < matlab.unittest.TestCase
             end
         end
 
+
+        %% Write to File switched off (SaveFile = false)
+        function test_SaveFileOff_WriteHeadersCreatesNoFileTest(testCase)
+            writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("acq", SaveFile=false));
+
+            writer.WriteHeaders("a", MetadataLines="m");
+
+            testCase.verifyFalse(isfile(writer.FileWriteDetails.FilePath));
+        end
+
+        function test_SaveFileOff_WriteLineAndWriteDataCreateNoFileTest(testCase)
+            writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("acq", SaveFile=false));
+
+            writer.WriteLine([1 2]);
+            writer.WriteData([3 4; 5 6]);
+
+            testCase.verifyFalse(isfile(writer.FileWriteDetails.FilePath));
+        end
+
+        function test_SaveFileOff_WriteLineLeavesExistingFileUnchangedTest(testCase)
+            existing = testCase.writerWithData("acq");
+            before = testCase.fileLines(existing);
+            writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("acq", SaveFile=false));
+
+            writer.WriteLine([7 8]);
+
+            testCase.verifyEqual(testCase.fileLines(existing), before);
+        end
+
+        function test_SaveFileOff_InsertMetadataLinesLeavesExistingFileUnchangedTest(testCase)
+            existing = testCase.writerWithData("acq");
+            before = testCase.fileLines(existing);
+            writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("acq", SaveFile=false));
+
+            writer.InsertMetadataLines("inserted");
+
+            testCase.verifyEqual(testCase.fileLines(existing), before);
+        end
     end
 
     %% Methods (Private)

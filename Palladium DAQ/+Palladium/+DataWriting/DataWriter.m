@@ -39,6 +39,11 @@ classdef DataWriter < handle
                 stringLinesArray {mustBeText};
             end
 
+            %Nothing to write if saving is switched off (Write to File unticked)
+            if ~this.FileWriteDetails.SaveFile
+                return;
+            end
+
             try
                 %This is the way to insert a line (??) - open the file,
                 %turn to a string array, then write those one by one, with
@@ -148,6 +153,11 @@ classdef DataWriter < handle
                 Settings.MetadataLines = [];
             end
 
+            %Nothing to write if saving is switched off (Write to File unticked)
+            if ~this.FileWriteDetails.SaveFile
+                return;
+            end
+
             %If the file exists and AppendToFile is true, we do not need to
             %write headers, return
             if ((exist(this.FileWriteDetails.FilePath, 'file') == 2) && strcmp(this.FileWriteDetails.WriteMode, 'Append To File'))
@@ -182,6 +192,12 @@ classdef DataWriter < handle
         function WriteData(this, data)
             %Write multiple lines of data in a matrix all in one go
             %Right now this is actually identical to WriteLine...
+
+            %Nothing to write if saving is switched off (Write to File unticked)
+            if ~this.FileWriteDetails.SaveFile
+                return;
+            end
+
             numRetries = 3; %Have seen in testing that (due to copying across of files?) we can get 'Permission denied' errors on the data file. These are infrequent. If we get them, just pause a short time, try writing again, and return if we fail after this many attempts
             errMess = [];
 
@@ -203,6 +219,11 @@ classdef DataWriter < handle
         end
 
         function WriteLine(this, data)
+            %Nothing to write if saving is switched off (Write to File unticked)
+            if ~this.FileWriteDetails.SaveFile
+                return;
+            end
+
             numRetries = 3; %Have seen in testing that (due to copying across of files?) we can get 'Permission denied' errors on the data file. These are infrequent. If we get them, just pause a short time, try writing again, and return if we fail after this many attempts
             errMess = [];
 
