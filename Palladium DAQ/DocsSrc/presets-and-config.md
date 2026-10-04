@@ -145,3 +145,17 @@ The appearance of the plots. Each plot shows up to four series, styled in order:
 | `LineStyles` | The series' line styles, e.g. `"-"`, or `"None"` for markers only |
 | `MarkerSize`, `LineWidth`, `FontSize` | Sizes |
 | `ShowLegends` | Whether to show legends (only on the largest plots) |
+
+### PythonSettings
+
+| Setting | Meaning |
+| --- | --- |
+| `PythonExecutable` | The Python to use for [Python instruments](python-instruments.md), as the full path of its executable. Blank (the default) to use the Python bundled with the standalone application on Windows, or else the one MATLAB finds |
+
+### WarningSettings
+
+Warnings that can be turned off:
+
+| Setting | Meaning |
+| --- | --- |
+| `SuppressPythonSetupWarning` | `true` to stop the warning at startup when Python instruments can't be used - set by **Don't show this again** in the warning (see [Python instruments](python-instruments.md)) |

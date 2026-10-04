@@ -1,11 +1,26 @@
 # Instrument.py
 from abc import ABC, abstractmethod
 from typing import Optional, Any
-import time
+import importlib
 import random
 import socket
-import pyvisa
-import serial
+import sys
+import time
+
+# pyvisa and pyserial are imported only by the connect methods that use them
+# (see _require_package), so that instruments using other connections - or
+# none, in simulation mode - work without them installed
+
+
+def _require_package(module_name: str, pip_name: str, purpose: str):
+    """Import and return an optional package, or raise an error saying how to install it."""
+    try:
+        return importlib.import_module(module_name)
+    except ImportError as e:
+        raise RuntimeError(
+            f"{purpose} needs the Python package '{pip_name}', which isn't installed in the Python "
+            f"Palladium DAQ uses ({sys.executable}). Install it with: \"{sys.executable}\" -m pip install {pip_name}"
+        ) from e
 
 
 class Instrument(ABC):
@@ -98,6 +113,7 @@ class Instrument(ABC):
 
     def connectGPIB(self, board_index, gpib_address, timeout):
         """Called from MATLAB with (int32(boardIndex), int32(address), double(timeout))."""
+        pyvisa = _require_package("pyvisa", "pyvisa", "A GPIB connection")
         rm = pyvisa.ResourceManager()
         try:
             board = int(board_index)
@@ -142,6 +158,7 @@ class Instrument(ABC):
 
     def connectVISA(self, visa_address):
         """Called from MATLAB with (py.str(visaAddress))."""
+        pyvisa = _require_package("pyvisa", "pyvisa", "A VISA connection")
         rm = pyvisa.ResourceManager()
         resource = str(visa_address)
         try:
@@ -176,6 +193,7 @@ class Instrument(ABC):
 
     def connectSerial(self, port):
         """Called from MATLAB with (py.str(port))."""
+        serial = _require_package("serial", "pyserial", "A serial connection")
         port_str = str(port)
         cs = getattr(self, "ConnectionSettings", {})
         # support both dict-style or object-style ConnectionSettings

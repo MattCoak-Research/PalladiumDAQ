@@ -92,9 +92,15 @@ classdef ConfigIO < handle
                 %is mainly for if the software updates and there is an old
                 %config file on disk that doesn't have a newly added field.
                 %If so, add that in and re-save the config to upgrade it.
-                [con, changesDetected] = this.VerifyConfigStruct(con);
+                [con, changesDetected, fieldsRemoved] = this.VerifyConfigStruct(con);
                 if changesDetected
-                    warndlg("Missing lines or obseleted properties found in Config file. Corrupted file or config version needs updating. Adding default values and saving new version of file.", "Config file verification");
+                    if fieldsRemoved
+                        warndlg("Missing lines or obseleted properties found in Config file. Corrupted file or config version needs updating. Adding default values and saving new version of file.", "Config file verification");
+                    else
+                        %Only new settings added (e.g. after an update) - routine,
+                        %so just say so in the command window
+                        disp("[INFO] - Added new settings to the Config file at " + Palladium.Utilities.PathUtils.CleanPath(configPath) + ", with default values");
+                    end
                     this.SaveConfig(con, ConfigFilePath=configPath);
                 end
             catch e
@@ -125,6 +131,32 @@ classdef ConfigIO < handle
             catch e
                 error("SaveConfigError:SaveFailed", "%s", "Error saving Config file in ConfigIO: " + e.message);
             end
+        end
+
+        function SetConfigValue(this, sectionName, settingName, value, Settings)
+            %Change one setting in a config file, leaving the rest of the file as it is
+            arguments
+                this;
+                sectionName {mustBeTextScalar};     %Section of the config, e.g. "WarningSettings"
+                settingName {mustBeTextScalar};     %Setting in that section, e.g. "SuppressPythonSetupWarning"
+                value;                              %New value of the setting
+                Settings.ApplicationDir = [];       %Application folder, to find the default config file
+                Settings.ConfigFilePath = [];       %Path of the config file to change, instead of the default one
+            end
+
+            if isempty(Settings.ConfigFilePath)
+                configPath = this.GetConfigPath(ApplicationDir=Settings.ApplicationDir);
+            else
+                configPath = Settings.ConfigFilePath;
+            end
+
+            try
+                con = readstruct(configPath);
+                con.(sectionName).(settingName) = value;
+            catch e
+                error("SetConfigValueError:SetFailed", "%s", "Error setting " + string(sectionName) + "." + string(settingName) + " in Config file " + string(configPath) + ": " + e.message);
+            end
+            this.SaveConfig(con, ConfigFilePath=configPath);
         end
 
         function SaveDefaultConfig(this, configPath)
@@ -215,6 +247,10 @@ classdef ConfigIO < handle
             s.PlotterSettings.MarkerSize = 6;
             s.PlotterSettings.Markers = ["o", "o", "+", "*"];
             s.PlotterSettings.ShowLegends = true;
+
+            s.PythonSettings.PythonExecutable = "";     %Python to use for Python instruments. Blank: the one bundled with the standalone application, or else the one MATLAB finds (see pyenv)
+
+            s.WarningSettings.SuppressPythonSetupWarning = false;   %True to stop warning at startup that Python instruments are unavailable
             % ------------------------------------------------------------
         end
 
@@ -300,7 +336,10 @@ classdef ConfigIO < handle
             end
         end
 
-        function [con, changesDetected] = VerifyConfigStruct(this, con)
+        function [con, changesDetected, fieldsRemoved] = VerifyConfigStruct(this, con)
+            %Add any settings missing from a loaded config, with default values, and remove any no longer used.
+            %changesDetected is true if anything was added or removed,
+            %fieldsRemoved if anything was removed
             changesDetected = false;
 
             df = this.GenerateDefaultConfigStruct();
@@ -310,7 +349,7 @@ classdef ConfigIO < handle
             %the config struct that appear in the default reference one,
             %and remove any that are not found in the ref (and therefore
             %must be obseleted)
-            [changesDetected, con] = Palladium.Utilities.ConfigIO.AdjustStructsToMatch(con, df, changesDetected);
+            [changesDetected, con, fieldsRemoved] = Palladium.Utilities.ConfigIO.AdjustStructsToMatch(con, df, changesDetected);
 
             %Grab these again, as they may have changed above (but should
             %now match)
@@ -334,7 +373,8 @@ classdef ConfigIO < handle
                     end
                 end
                 % - Check for obseleted or new fields
-                [changesDetected, newStrct] = Palladium.Utilities.ConfigIO.AdjustStructsToMatch(con.(cfName), df.(cfName), changesDetected);
+                [changesDetected, newStrct, removed] = Palladium.Utilities.ConfigIO.AdjustStructsToMatch(con.(cfName), df.(cfName), changesDetected);
+                fieldsRemoved = fieldsRemoved || removed;
                 con.(cfName) = newStrct;
             end
 
@@ -345,8 +385,9 @@ classdef ConfigIO < handle
     %% Methods (Static, Private)
     methods (Static, Access = private)
 
-        function [changesDetected, configStruct] = AdjustStructsToMatch(configStruct, defaultStructToCompareTo, changesDetectedAlready)
+        function [changesDetected, configStruct, fieldsRemoved] = AdjustStructsToMatch(configStruct, defaultStructToCompareTo, changesDetectedAlready)
             changesDetected = changesDetectedAlready;
+            fieldsRemoved = false;
 
             conFlds = fields(configStruct);
             dfFlds = fields(defaultStructToCompareTo);
@@ -372,6 +413,7 @@ classdef ConfigIO < handle
             %Remove obselete fields
             if ~isempty(difference)
                 changesDetected = true;
+                fieldsRemoved = true;
 
                 for i = 1 : length(difference)
                     fieldToRemove = difference{i};

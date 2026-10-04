@@ -151,6 +151,27 @@ classdef test_ConfigIO < matlab.unittest.TestCase
             testCase.verifyTrue(exist(testFile, "file")==2);
         end
 
+        %% SetConfigValue
+        function test_SetConfigValue(testCase)
+            % Test that SetConfigValue changes one setting, and leaves the rest of the file as it was
+            testFile = fullfile(testCase.TestConfigDir, "SetConfigValueTest.json");
+            testCase.ConfigIOInstance.SaveDefaultConfig(testFile);
+            before = readstruct(testFile);
+
+            testCase.ConfigIOInstance.SetConfigValue("WarningSettings", "SuppressPythonSetupWarning", true, ConfigFilePath=testFile);
+
+            after = readstruct(testFile);
+            testCase.verifyTrue(after.WarningSettings.SuppressPythonSetupWarning);
+            after.WarningSettings.SuppressPythonSetupWarning = before.WarningSettings.SuppressPythonSetupWarning;
+            testCase.verifyEqual(after, before);
+        end
+
+        function test_SetConfigValue_MissingFile(testCase)
+            % Test that SetConfigValue errors for a config file that doesn't exist
+            testFile = fullfile(testCase.TestConfigDir_2, "Missing.json");
+            testCase.verifyError(@() testCase.ConfigIOInstance.SetConfigValue("WarningSettings", "SuppressPythonSetupWarning", true, ConfigFilePath=testFile), "SetConfigValueError:SetFailed");
+        end
+
         %% SaveDefaultConfig
         function test_SaveDefaultConfig(testCase)
              % Test that SaveConfig creates the directory if it does not exist
@@ -185,9 +206,10 @@ classdef test_ConfigIO < matlab.unittest.TestCase
             %Verify that a warning is shown for a deprecated field being removed
             %Note this actually stops the warning being printed in the console, which
             %is nice - it means when we see a warning while testing it is unexpected
-            [verifiedConfig, changesDetected] = testCase.verifyWarning(@() testCase.ConfigIOInstance.VerifyConfigStruct(modifiedConfig), expectedWarningID);
+            [verifiedConfig, changesDetected, fieldsRemoved] = testCase.verifyWarning(@() testCase.ConfigIOInstance.VerifyConfigStruct(modifiedConfig), expectedWarningID);
   
             testCase.verifyTrue(changesDetected);
+            testCase.verifyFalse(fieldsRemoved);    %Only added - LoadConfig then doesn't show a dialog
             testCase.verifyTrue(isfield(verifiedConfig, "PathSettings"));
             testCase.verifyTrue(isfield(verifiedConfig.LogSettings, logSettingsFields{1}));
         end
@@ -202,9 +224,10 @@ classdef test_ConfigIO < matlab.unittest.TestCase
             %Verify that a warning is shown for a deprecated field being removed
             %Note this actually stops the warning being printed in the console, which
             %is nice - it means when we see a warning while testing it is unexpected
-            [verifiedConfig, changesDetected] = testCase.verifyWarning(@() testCase.ConfigIOInstance.VerifyConfigStruct(modifiedConfig), expectedWarningID);
+            [verifiedConfig, changesDetected, fieldsRemoved] = testCase.verifyWarning(@() testCase.ConfigIOInstance.VerifyConfigStruct(modifiedConfig), expectedWarningID);
   
             testCase.verifyTrue(changesDetected);
+            testCase.verifyTrue(fieldsRemoved);
             testCase.verifyTrue(isfield(verifiedConfig, "LogSettings"));
             testCase.verifyFalse(isfield(verifiedConfig, "NewField"));
             testCase.verifyFalse(isfield(verifiedConfig.LogSettings, "NonsenseField"));

@@ -95,7 +95,7 @@ classdef InstrumentController < handle
                 assert(any(contains(this.ListOfAvailableInstrumentClassNameStrings, instrStringToAdd, "IgnoreCase", false)), "AddInstrumentError:InstrumentNotAvailable", "%s", string(instrStringToAdd) + " not found in list of avaliable Instruments");
 
                 %Make an instance of the selected datasource class
-                if ~isempty(this.PythonInstrumentController.AvaialableInstrNames) && any(ismember(this.PythonInstrumentController.AvaialableInstrNames, instrStringToAdd))
+                if ~isempty(this.PythonInstrumentController) && ~isempty(this.PythonInstrumentController.AvaialableInstrNames) && any(ismember(this.PythonInstrumentController.AvaialableInstrNames, instrStringToAdd))
                     %Create a python-defined instrument if the name is
                     %present in the PythonInstrumentController (ie is in
                     %the PythonInstruments user folder)

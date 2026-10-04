@@ -290,6 +290,71 @@ ns = matlab.metadata.Namespace.fromName(namespace);
 names = string({ns.ClassList.Name});
 end
 
+function pythonDir = PrepareBundledPython(pythonDir)
+%Build the Python bundled with the Windows standalone application in
+%pythonDir: Python's official "embeddable package" (a self-contained Python
+%that needs no installing), plus the packages Python instruments need.
+%Versions are pinned, and the download checked against its published
+%SHA-256, so every build bundles exactly the same Python. To update: pick a
+%Python version supported by the minimum MATLAB release, and take its
+%SHA-256 from python.org (the .spdx.json file next to the download)
+pythonVersion = "3.14.8";
+pythonSha256 = "a93abe456ab01bd96d7a085b3cdb6566b3063f4241360d114142fbdb07f0a310";
+packages = ["pyvisa==1.16.2", "pyvisa-py==0.8.1", "pyserial==3.5", "typing_extensions==4.16.0"]; %With all their dependencies, as installed with --no-deps
+
+%Download, or reuse an earlier download, and check it
+zipName = "python-" + pythonVersion + "-embed-amd64.zip";
+cacheDir = fullfile(tempdir, "PalladiumDAQ build");
+zipPath = fullfile(cacheDir, zipName);
+if ~isfile(zipPath) || FileSha256(zipPath) ~= pythonSha256
+    if ~isfolder(cacheDir)
+        mkdir(cacheDir);
+    end
+    url = "https://www.python.org/ftp/python/" + pythonVersion + "/" + zipName;
+    fprintf(1, "Downloading %s\n", url);
+    websave(zipPath, url);
+end
+assert(FileSha256(zipPath) == pythonSha256, "BuildFile:PythonChecksumMismatch", "%s", ...
+    "The SHA-256 of " + zipPath + " does not match the one expected for Python " + pythonVersion + ". Delete the file and try again.");
+
+%Unpack it, and let Python find the packages in Lib\site-packages - the
+%embeddable package's ._pth file fixes its search path, and doesn't
+%include site-packages by default
+if isfolder(pythonDir)
+    rmdir(pythonDir, "s");
+end
+unzip(zipPath, pythonDir);
+versionParts = split(pythonVersion, ".");
+shortVersion = versionParts(1) + versionParts(2);   %e.g. 314
+writelines(["python" + shortVersion + ".zip", ".", "Lib\site-packages"], fullfile(pythonDir, "python" + shortVersion + "._pth"));
+
+%Install the packages with the build computer's Python (the one MATLAB
+%uses, else python on the PATH). They are pure Python, so this works from
+%any Python version - asking pip for packages for the bundled Python's
+%version and platform
+buildPython = string(pyenv().Executable);
+if buildPython == ""
+    buildPython = "python";
+end
+sitePackages = fullfile(pythonDir, "Lib", "site-packages");
+command = """" + buildPython + """ -m pip install --disable-pip-version-check --no-deps --only-binary=:all:" ...
+    + " --platform win_amd64 --implementation cp --python-version " + versionParts(1) + "." + versionParts(2) ...
+    + " --target """ + sitePackages + """ " + join(packages, " ");
+[status, output] = system(command);
+assert(status == 0, "BuildFile:PipInstallFailed", "%s", "Installing the bundled Python's packages failed:" + newline + string(output));
+fprintf(1, "Bundled Python %s, with %s\n", pythonVersion, join(packages, ", "));
+end
+
+function hash = FileSha256(file)
+%SHA-256 of a file, as a lower-case hex string
+fid = fopen(file, "r");
+bytes = fread(fid, Inf, "*uint8");
+fclose(fid);
+digest = java.security.MessageDigest.getInstance("SHA-256");
+digest.update(typecast(bytes, "int8"));
+hash = string(sprintf("%02x", typecast(digest.digest(), "uint8")));
+end
+
 function EnsureDocMaker()
 %Check the DocMaker add-on (https://github.com/mathworks/docmaker) is
 %available. On GitHub Actions, install the pinned release below; locally,
@@ -430,10 +495,17 @@ packageOpts.InstallationNotes = "The documentation is installed with the applica
 % - PalladiumPythonCore: the Python base class for Python instruments,
 %   which Python imports from that folder. Only the .py files are
 %   copied, leaving out __pycache__ and any MATLAB autosaves
+% - Python (Windows only): a private copy of Python, with the packages
+%   Python instruments need, which the application uses unless the user's
+%   config names another (see Controller.SetUpPython)
 pythonCoreDir = fullfile(exeDir, "PalladiumPythonCore");
 mkdir(pythonCoreDir);
 copyfile(fullfile(projectRoot, "Palladium DAQ", "PalladiumPythonCore", "*.py"), pythonCoreDir);
-packageOpts.AdditionalFiles = cellstr([fullfile(projectRoot, "Palladium DAQ", "Docs"), pythonCoreDir]);
+installFiles = [fullfile(projectRoot, "Palladium DAQ", "Docs"), pythonCoreDir];
+if ispc
+    installFiles(end+1) = PrepareBundledPython(fullfile(exeDir, "Python"));
+end
+packageOpts.AdditionalFiles = cellstr(installFiles);
 
 %Create the installer files
 GenerateInstallers(packageOpts, buildResult);

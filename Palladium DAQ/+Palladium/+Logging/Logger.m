@@ -326,10 +326,30 @@ classdef Logger < handle
                     %Only both doing this for warnings and errors
                     fullMessage = Palladium.Logging.Logger.GetLevelText(level) + message;
                     if(printStackTraceInCommandWindow)
-                        warning(fullmessage, "backtrace", "on", "verbose", "on");
-                    else
-                        fprintf(2, "\n%s\n\n", fullMessage);    %fprintf with red text writes to command window in RED. Message is passed through %s so backslashes (eg file path separators) and % characters are printed literally
+                        %Add where the message was logged from, leaving out
+                        %the Logger's own functions
+                        stack = dbstack("-completenames");
+                        stack = stack(~endsWith({stack.file}, fullfile("+Logging", "Logger.m")));
+                        for i = 1 : numel(stack)
+                            fullMessage = fullMessage + newline + "    In " + stack(i).name + " (line " + stack(i).line + ")";
+                        end
                     end
+
+                    %Write to stderr, which shows in RED in the command
+                    %window. But a compiled app without a console (the
+                    %installed standalone application) shows anything
+                    %written to stderr in a modal "Error" box - fine for
+                    %errors, which may happen before the GUI exists, but not
+                    %for warnings, which are in the log file and status bar
+                    %anyway. So write those to stdout there: discarded by
+                    %that app, and still shown by the console debug build.
+                    %Message is passed through %s so backslashes (eg file
+                    %path separators) and % characters are printed literally
+                    outputStream = 2;
+                    if isdeployed && level == "Warning"
+                        outputStream = 1;
+                    end
+                    fprintf(outputStream, "\n%s\n\n", fullMessage);
                 otherwise
                     error("LogToCommandWindowError:UnsupportedLevel", "%s", "Unsupported level in Logger: " + level);
             end

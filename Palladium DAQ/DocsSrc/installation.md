@@ -11,7 +11,7 @@ Palladium DAQ comes in two forms:
 
 * MATLAB R2026b or later
 * Instrument Control Toolbox
-* Python, only if you want to write [Python instruments](python-instruments.md)
+* Python, only if you want to use [Python instruments](python-instruments.md)
 
 ### Installing
 
