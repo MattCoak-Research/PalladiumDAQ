@@ -30,6 +30,8 @@ Each command line starts with its type in square brackets:
 | `[INSTR]` | `[INSTR] K2000_1 : PrintIdentifier()` | Calls a method of an instrument, by the instrument's Name |
 | `[INSTR]` (control) | `[INSTR] K2410_SrcMtr_1.Sweep Control : SweepRun()` | Calls a method of one of an instrument's Instrument Controls |
 | `[DATAFILE]` | `[DATAFILE] 1 : C:\Data\Run2.dat` | Starts writing to a new data file |
+| `[DATAFILE]` (stop) | `[DATAFILE] 0` | Stops writing data to file - see Data file commands, below |
+| `[DATAFILE]` (resume) | `[DATAFILE] 1` | Starts writing to file again, with the current file name - see Data file commands, below |
 | `[RUN]` | `[RUN] C:\Sequences\Cooldown.seq` | Runs another sequence file at this point |
 
 A complete sequence might look like this:
@@ -47,6 +49,24 @@ Palladium Sequence File, Version [1.0]
 [DATAFILE] 1 : C:\Data\Sample1_20K.dat
 [INSTR] K2410_SrcMtr_1.Sweep Control : SweepRun()
 ```
+
+### Data file commands
+
+`[DATAFILE]` switches writing to file on or off while measurements run - for example to give each stage of a sequence its own data file. It starts with `1` (write to file) or `0` (stop writing), and `true` and `false` also work:
+
+| Command | What it does |
+| --- | --- |
+| `[DATAFILE] 1 : C:\Data\Run2.dat` | Starts writing to a new data file, `C:\Data\Run2.dat` |
+| `[DATAFILE] 0` | Stops writing to file. Measurements carry on, and the plots still update, but no data is saved |
+| `[DATAFILE] 1` | **With no file name: starts writing to file again, using the current file name** (shown in the main window's File Name box) |
+
+The last form is easy to miss: leave the file name out to switch writing back on - after a `[DATAFILE] 0`, or after starting measurements with **Write to File** unticked - without choosing a new name. Leaving the file name empty in the Sequence Editor's Data File command form does the same.
+
+Whenever writing starts, the new file begins with the usual [header](data-files.md), with the instruments' settings at that moment. The **file write mode** set in the main window still applies:
+
+* **Increment File No.** (the default) - a new numbered file is started, such as `Run2-00002.dat`, so earlier data is never overwritten. This includes `[DATAFILE] 1` with no file name, which starts the next numbered file
+* **Append To File** - data is added to the end of the file if it already exists, without a second header
+* **Overwrite File** - an existing file of that name is replaced. Take care: `[DATAFILE] 1` naming the file currently being written, or with no file name, replaces that file
 
 ### Instrument commands
 

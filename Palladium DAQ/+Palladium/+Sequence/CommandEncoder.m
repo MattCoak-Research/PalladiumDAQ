@@ -40,7 +40,13 @@ classdef CommandEncoder < handle
                 case this.Enc_DataFile
                     writeToFile = details.WriteToFile;
                     if writeToFile
-                        filePath = fullfile(details.Directory, details.FileName);
+                        %No file name: no path, so writing resumes with the
+                        %current file name (the folder alone is not a file)
+                        if strlength(strtrim(string(details.FileName))) == 0
+                            filePath = "";
+                        else
+                            filePath = fullfile(details.Directory, details.FileName);
+                        end
                         com = Palladium.Sequence.Commands.DataFileCommand(true, "DataFilePath", filePath);
                     else
                         com = Palladium.Sequence.Commands.DataFileCommand(false);
@@ -167,14 +173,16 @@ classdef CommandEncoder < handle
         function str = BuildDataFileCommand(this, Settings)
             arguments
                 this;
-                Settings.FilePath {mustBeTextScalar} = string.empty;
+                Settings.FilePath {mustBeTextScalar} = "";
                 Settings.WriteToFile (1,1) logical;
             end
 
             %Build the command
             str = "[" + Palladium.Sequence.CommandEncoder.Enc_DataFile + "]" + " " + num2str(Settings.WriteToFile);
             
-            if Settings.WriteToFile
+            %Add the path, if there is one (with none, [DATAFILE] 1 switches
+            %writing back on with the current file name)
+            if Settings.WriteToFile && strlength(string(Settings.FilePath)) > 0
                 str = str + " : " + string(Settings.FilePath);
             end
         end
@@ -261,27 +269,32 @@ classdef CommandEncoder < handle
             error("GetInstrumentFromNameError:NotFound", "%s", "Could not find instrument of Name " + instName + ". Added Instruments: " + instStringNameList);
         end
 
-        function [writeFile, path] = ParseDataFileCommand(this, str)
-            %We want to split off everything after the : token, but 
-            %Paths on windows have another : character in them, after the
-            %drive, so just do first split
-            indicesOfDelims = strfind(str, ":");
-
-            if isempty(indicesOfDelims)
-                error("ParseDataFileCommandError:MissingDelimiter", "%s", "Data File Command String Does not contain expected : Delimiter, Cannot Parse: " + string(str));
+        function [writeFile, path] = ParseDataFileCommand(~, str)
+            %Parse the text after [DATAFILE]: a flag, 1 (write) or 0
+            %(stop writing), then optionally " : " and a file path, e.g.
+            %"1 : C:\Data\Run2.dat", or just "0". Split at the first : only,
+            %as Windows paths have another one after the drive letter. With
+            %0, or with 1 and no path, the path is empty: keep the current
+            %file name, and just switch writing on or off
+            str = string(str);
+            if contains(str, ":")
+                flag = strtrim(extractBefore(str, ":"));
+                path = strtrim(extractAfter(str, ":"));
+            else
+                flag = strtrim(str);
+                path = "";
             end
 
-            indexOfFirstDelim = indicesOfDelims(1);
-            charstr = char(str);
-            ss1 = strtrim(charstr(1:indexOfFirstDelim-1));
-            ss2 = strtrim(charstr(indexOfFirstDelim+1:end));
+            switch lower(flag)
+                case {"1", "true"};     writeFile = true;
+                case {"0", "false"};    writeFile = false;
+                otherwise
+                    error("ParseDataFileCommandError:InvalidFlag", "%s", "Data File command must start with 1 (write to file) or 0 (stop writing), but was given: " + str);
+            end
 
-            writeFile = logical(ss1);
-
-            if writeFile
-                path = string(ss2);
-            else
-                path = string.empty;
+            %A path means nothing when writing is switched off
+            if ~writeFile
+                path = "";
             end
         end
 
