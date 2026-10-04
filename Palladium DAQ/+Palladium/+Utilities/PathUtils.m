@@ -231,6 +231,30 @@ classdef PathUtils
             dirPath = string(dirPathCell{1});
         end
 
+        function appDataPath = GetAppDataDirectory()
+            %GetAppDataDirectory - Return the current user's folder for application settings, on Windows, Mac and Linux.
+            %This is %APPDATA% on Windows, ~/Library/Application Support on
+            %Mac, and $XDG_CONFIG_HOME (by default ~/.config) on Linux. The
+            %folder may not exist yet.
+            %
+            %Outputs:
+            %   appDataPath - absolute path of the folder (string)
+
+            if ispc
+                appDataPath = string(getenv("APPDATA"));
+                if appDataPath == ""
+                    appDataPath = fullfile(string(getenv("USERPROFILE")), "AppData", "Roaming");
+                end
+            elseif ismac
+                appDataPath = fullfile(string(getenv("HOME")), "Library", "Application Support");
+            else
+                appDataPath = string(getenv("XDG_CONFIG_HOME"));
+                if appDataPath == ""
+                    appDataPath = fullfile(string(getenv("HOME")), ".config");
+                end
+            end
+        end
+
         function documentsPath = GetDocumentsDirectory()
             %GetDocumentsDirectory - Return the current user's Documents folder, on Windows, Mac and Linux.
             %Falls back to the user's home folder if there is no Documents

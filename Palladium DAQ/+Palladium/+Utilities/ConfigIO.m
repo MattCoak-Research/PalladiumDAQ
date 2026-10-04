@@ -4,8 +4,10 @@ classdef ConfigIO < handle
 
     %% Properties (Constant, Public)
     properties(Constant, Access = public)
-        ConfigDirectoryName = "";   %Just have the config files in the root directory - will work with standalone deployed code as well as open source
+        ConfigDirectoryName = "";               %Folder of the config file in a source checkout, relative to the application folder (the source root)
         ConfigFileName = "Config.json";
+        UserConfigFolderName = "Palladium DAQ"; %Folder of the config file in the user's application settings folder, for installed copies
+        ProjectFileName = "PalladiumDAQ.prj";   %MATLAB Project file, found only in a source checkout, in the folder above the source root
     end
 
     %% Properties (Public)
@@ -34,7 +36,19 @@ classdef ConfigIO < handle
                 Settings.ApplicationDir;   
             end
 
-            configPath = fullfile(Settings.ApplicationDir, this.ConfigDirectory, this.ConfigFileName);
+            %Path of the default config file. In a source checkout (with the
+            %MATLAB Project) it is in the source root, as it always was. An
+            %installed copy - toolbox or compiled application - can't keep it
+            %in its installation folder: the compiled application's (e.g. in
+            %Program Files) can't be written to, and the toolbox's is replaced
+            %by each update. So it goes in the user's application settings
+            %folder (see PathUtils.GetAppDataDirectory)
+
+            if this.IsSourceCheckout(Settings.ApplicationDir)
+                configPath = this.GetLegacyConfigPath(Settings.ApplicationDir);
+            else
+                configPath = fullfile(Palladium.Utilities.PathUtils.GetAppDataDirectory(), this.UserConfigFolderName, this.ConfigFileName);
+            end
         end
 
         function con = LoadConfig(this, Settings)
@@ -47,7 +61,8 @@ classdef ConfigIO < handle
             try
                 %Load the default path if no override given
                 if isempty(Settings.ConfigFilePath)
-                    configPath = fullfile(Settings.ApplicationDir, this.ConfigDirectory, this.ConfigFileName);
+                    configPath = this.GetConfigPath(ApplicationDir=Settings.ApplicationDir);
+                    this.CopyLegacyConfig(configPath, Settings.ApplicationDir);
                 else
                     configPath = Settings.ConfigFilePath;
                 end
@@ -125,6 +140,33 @@ classdef ConfigIO < handle
 
     %% Methods (Private)
     methods(Access = {?Palladium.Utilities.ConfigIO, ?matlab.unittest.TestCase})    %Permission is Private, but also allow unit tests to see it
+
+        function CopyLegacyConfig(this, configPath, applicationDir)
+            %Before the move to the user's settings folder, installed copies
+            %kept their config file in the installation folder. If there is
+            %one there, and none in the new place yet, carry it over (copied:
+            %the installation folder may not be writable, to delete it)
+            legacyPath = this.GetLegacyConfigPath(applicationDir);
+            if isfile(configPath) || ~isfile(legacyPath) || strcmp(Palladium.Utilities.PathUtils.CleanPath(legacyPath), Palladium.Utilities.PathUtils.CleanPath(configPath))
+                return
+            end
+            Palladium.Utilities.PathUtils.EnsureDirectoryExists(fileparts(configPath));
+            copyfile(legacyPath, configPath);
+            disp("[INFO] - Copied Config file from " + Palladium.Utilities.PathUtils.CleanPath(legacyPath) + " to " + Palladium.Utilities.PathUtils.CleanPath(configPath));
+        end
+
+        function legacyPath = GetLegacyConfigPath(this, applicationDir)
+            %Config file path in the application folder - used by a source
+            %checkout, and by installed copies before they used the user's
+            %settings folder
+            legacyPath = fullfile(applicationDir, this.ConfigDirectory, this.ConfigFileName);
+        end
+
+        function isSource = IsSourceCheckout(this, applicationDir)
+            %True if running from a source checkout (with the MATLAB Project),
+            %rather than an installed toolbox or compiled application
+            isSource = ~isdeployed && isfile(fullfile(fileparts(applicationDir), this.ProjectFileName));
+        end
 
         function ConfigEntryComplete(this, ~, eventData)
             settingsStruct = eventData.Value;

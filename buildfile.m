@@ -107,10 +107,29 @@ for i = 1 : numel(mdCopies)
 end
 docrun(html(~contains(html, filesep + "reference" + filesep))) % run code and insert output - not in the generated API reference
 docindex(out) % index - info.xml, helptoc.xml and search database
+AddContentsLinks(html, out); % after indexing, to keep the links out of the search database
 
 %Remove the Markdown copies
 for i = 1 : numel(mdCopies)
     delete(mdCopies(i));
+end
+end
+
+function AddContentsLinks(html, out)
+%Add a link back to the contents page (index.html) at the top of every other
+%page. MATLAB's Help browser shows a contents sidebar, but a web browser -
+%used for the docs installed with the standalone application - does not
+indexPage = fullfile(out, "index.html");
+for i = 1 : numel(html)
+    if html(i) == indexPage
+        continue
+    end
+    depth = count(extractAfter(html(i), strlength(out) + 1), filesep);
+    href = join([repmat("..", 1, depth), "index.html"], "/");
+    text = fileread(html(i), Encoding="UTF-8");
+    text = replace(text, '<main class="markdown-body">', ...
+        '<main class="markdown-body"><p><a href="' + href + '">&#8592; Palladium DAQ documentation contents</a></p>');
+    writelines(text, html(i), Encoding="UTF-8");
 end
 end
 
@@ -400,6 +419,21 @@ packageOpts.InstallerSplash = "splash.png";
 packageOpts.OutputDir = packageDir;
 packageOpts.Version = verString;
 packageOpts.Verbose = true;
+packageOpts.Summary = "Laboratory instrument control, data acquisition and live plotting.";
+packageOpts.Description = "Palladium Data Acquisition - an open source platform for laboratory instrument control, data acquisition logging and graphing. See https://github.com/MattCoak-Research/PalladiumDAQ for details.";
+packageOpts.InstallationNotes = "The documentation is installed with the application: open it with the Help button in Palladium DAQ, or open Docs\index.html in the installation's application folder.";
+
+%Files the application reads from disk at run time, rather than from its
+%compiled archive, installed next to the executable in application/:
+% - Docs: the HTML documentation (built by the doc task, which package
+%   depends on), opened by Controller.OpenHelp
+% - PalladiumPythonCore: the Python base class for Python instruments,
+%   which Python imports from that folder. Only the .py files are
+%   copied, leaving out __pycache__ and any MATLAB autosaves
+pythonCoreDir = fullfile(exeDir, "PalladiumPythonCore");
+mkdir(pythonCoreDir);
+copyfile(fullfile(projectRoot, "Palladium DAQ", "PalladiumPythonCore", "*.py"), pythonCoreDir);
+packageOpts.AdditionalFiles = cellstr([fullfile(projectRoot, "Palladium DAQ", "Docs"), pythonCoreDir]);
 
 %Create the installer files
 GenerateInstallers(packageOpts, buildResult);

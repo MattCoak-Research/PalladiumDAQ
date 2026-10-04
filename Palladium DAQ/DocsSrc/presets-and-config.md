@@ -83,7 +83,17 @@ The axes in a preset are applied when measurements start, since that is when the
 
 ## Config.json
 
-Config.json is in the Palladium DAQ installation folder. It is created the first time Palladium DAQ runs, from the settings entered in the **Config Entry** window. By default, data, logs, sequences and user files all go in a `Palladium DAQ` folder in your Documents folder. If settings are missing from it - for example after an update adds new ones - they are added with default values, and a message says so. To use a different file, start Palladium DAQ with `Palladium(ConfigFilePath="OtherConfig.json")`.
+Config.json is in a `Palladium DAQ` folder in your user settings folder, so that it can be written to, and is kept when Palladium DAQ is updated:
+
+| System | Location |
+| --- | --- |
+| Windows | `%APPDATA%\Palladium DAQ\Config.json`, usually `C:\Users\<you>\AppData\Roaming\Palladium DAQ\Config.json` |
+| Mac | `~/Library/Application Support/Palladium DAQ/Config.json` |
+| Linux | `~/.config/Palladium DAQ/Config.json` (or in `$XDG_CONFIG_HOME`, if set) |
+
+This is the same for the MATLAB toolbox and the standalone application. When running Palladium DAQ from a copy of its source code (with the MATLAB Project), Config.json is instead in the source folder, next to `Palladium.m`. Earlier versions kept Config.json in the installation folder; if one is there, it is copied to the new place the first time Palladium DAQ runs.
+
+Config.json is created the first time Palladium DAQ runs, from the settings entered in the **Config Entry** window. By default, data, logs, sequences and user files all go in a `Palladium DAQ` folder in your Documents folder. If settings are missing from it - for example after an update adds new ones - they are added with default values, and a message says so. To use a different file, start Palladium DAQ with `Palladium(ConfigFilePath="OtherConfig.json")`.
 
 ### PathSettings
 

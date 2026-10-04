@@ -88,6 +88,52 @@ classdef test_ConfigIO < matlab.unittest.TestCase
             testCase.verifyEqual(loadedConfig.PathSettings.DefaultDirectory, "Tests/Testing Data Files/Data");
         end
 
+        %% GetConfigPath
+        function test_GetConfigPath_SourceCheckout(testCase)
+            % In a source checkout (MATLAB Project in the folder above the source root), the config file is in the source root
+            sourceRoot = fileparts(fileparts(fileparts(testCase.ApplicationDir)));   %Tests/Unit Tests/Utilities -> source root
+            configPath = testCase.ConfigIOInstance.GetConfigPath(ApplicationDir=sourceRoot);
+            testCase.verifyEqual(configPath, fullfile(sourceRoot, "Config.json"));
+        end
+
+        function test_GetConfigPath_Installed(testCase)
+            % Without the MATLAB Project (an installed toolbox or application), the config file is in the user's settings folder
+            configPath = testCase.ConfigIOInstance.GetConfigPath(ApplicationDir=testCase.TestingDir);
+            expectedPath = fullfile(Palladium.Utilities.PathUtils.GetAppDataDirectory(), "Palladium DAQ", "Config.json");
+            testCase.verifyEqual(configPath, expectedPath);
+        end
+
+        %% CopyLegacyConfig (private)
+        function test_CopyLegacyConfig_CopiesOldConfig(testCase)
+            % A config file in the application folder is copied to the new place, if there is none there yet
+            appDir = testCase.TestConfigDir;
+            testCase.ConfigIOInstance.SaveDefaultConfig(fullfile(appDir, "Config.json"));
+            newPath = fullfile(testCase.TestConfigDir_2, "Config.json");
+
+            testCase.ConfigIOInstance.CopyLegacyConfig(newPath, appDir);
+            testCase.verifyTrue(isfile(newPath));
+            testCase.verifyEqual(fileread(newPath), fileread(fullfile(appDir, "Config.json")));
+        end
+
+        function test_CopyLegacyConfig_KeepsExistingConfig(testCase)
+            % An existing config file in the new place is not overwritten
+            appDir = testCase.TestConfigDir;
+            testCase.ConfigIOInstance.SaveDefaultConfig(fullfile(appDir, "Config.json"));
+            newPath = fullfile(testCase.TestConfigDir_2, "Config.json");
+            mkdir(testCase.TestConfigDir_2);
+            writelines("existing", newPath);
+
+            testCase.ConfigIOInstance.CopyLegacyConfig(newPath, appDir);
+            testCase.verifyEqual(strtrim(string(fileread(newPath))), "existing");
+        end
+
+        function test_CopyLegacyConfig_NoOldConfig(testCase)
+            % Nothing is created if there is no config file in the application folder
+            newPath = fullfile(testCase.TestConfigDir_2, "Config.json");
+            testCase.ConfigIOInstance.CopyLegacyConfig(newPath, testCase.TestConfigDir);
+            testCase.verifyFalse(isfile(newPath));
+        end
+
         %% SaveConfig
         function test_SaveConfig_CreatesDirectory(testCase)
             % Test that SaveConfig creates the directory if it does not exist

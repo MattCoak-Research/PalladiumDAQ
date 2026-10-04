@@ -9,6 +9,7 @@ The main window, **Palladium Data Acquisition**, has five parts, numbered in the
 * **🔍 Data Viewer** - opens the [Data Viewer](data-files.md), for browsing and plotting saved data files
 * **📋 Sequence Editor** - opens the [Sequence Editor](sequences.md)
 * **⚙️ Settings** - opens a small window with **Load Preset** and **Save Preset**, to load a [Preset](presets-and-config.md) or save the current setup as one
+* **❔ Help** - opens this documentation, in your web browser in the standalone application
 * **New 📈 Tab** - adds a tab of plots, in a 1x1, 2x1, 1x2 or 2x2 grid
 * **New 📈 Window** - opens a separate window of plots, in the same grids - handy for a second monitor
 * **New Display** - opens a *Big Number* window, showing one value in large type so it can be read across the lab. It is available once measurements have started, and asks which value to show

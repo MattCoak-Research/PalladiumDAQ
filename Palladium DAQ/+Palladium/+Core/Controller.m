@@ -669,6 +669,25 @@ classdef Controller < handle
             end
         end
 
+        function OpenHelp(this)
+            %Open the documentation's contents page: in the system browser
+            %from the compiled app, in MATLAB's web browser otherwise
+            try
+                %Docs is next to Palladium.m in the toolbox, and next to
+                %PalladiumDAQ.exe in an installed app (the installer puts it there)
+                indexPath = fullfile(this.ApplicationDir, "Docs", "index.html");
+                assert(isfile(indexPath), "Controller:DocsNotFound", "Documentation not found at %s", indexPath);
+                url = "file:///" + replace(replace(indexPath, "\", "/"), " ", "%20");
+                if isdeployed
+                    status = web(url, "-browser"); %#ok<NASGU>
+                else
+                    status = web(url); %#ok<NASGU>
+                end
+            catch err
+                this.HandleError("Error opening the documentation", err);
+            end
+        end
+
         function OpenSequenceEditor(this)
             try
                 %Add a View/GUI to the sequence editor (which is secretly
@@ -1135,7 +1154,7 @@ classdef Controller < handle
                 configPath = configIO.GetConfigPath("ApplicationDir", this.ApplicationDir);
                 configIO.SaveConfig(settingsStruct, ConfigFilePath = configPath);
             else
-                configIO.SaveConfig(settingsStruct, ConfigFilePath = Settings.ConfigPath);
+                configIO.SaveConfig(settingsStruct, ConfigFilePath = Settings.ConfigFilePath);
             end
 
         end

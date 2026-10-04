@@ -26,7 +26,7 @@ The toolbox's **Getting Started** guide is in the Add-On Manager (**Home > Add-O
 
 Type `Palladium` in the Command Window.
 
-The first time Palladium DAQ runs, it asks for its basic settings in a **Config Entry** window: the default folders for data files, log files, sequences and your user files, the default data file name, and the window size. By default the folders are all in a `Palladium DAQ` folder in your Documents folder (on Windows, Mac and Linux): `Data`, `Logs` and `Sequences`, with the user files alongside them. Press **Done** to save them as `Config.json` in the installation folder.
+The first time Palladium DAQ runs, it asks for its basic settings in a **Config Entry** window: the default folders for data files, log files, sequences and your user files, the default data file name, and the window size. By default the folders are all in a `Palladium DAQ` folder in your Documents folder (on Windows, Mac and Linux): `Data`, `Logs` and `Sequences`, with the user files alongside them. Press **Done** to save them as [`Config.json`](presets-and-config.md), in your user settings folder.
 
 ![The Config Entry window](images/gui/config-entry.png)
  They can be changed later - see [Presets and Config.json](presets-and-config.md).
@@ -60,7 +60,9 @@ Download an installer from the [GitHub releases page](https://github.com/MattCoa
 | **Runtime Web Installer** | Downloaded during installation |
 | **No Runtime** | Not included - install the matching MATLAB Runtime yourself first, from [MathWorks](https://www.mathworks.com/products/compiler/matlab-runtime.html) |
 
-Launch Palladium DAQ from the shortcut the installer creates. On Windows the installation also includes `PalladiumDAQ_Debug.exe`, which opens a console window showing Palladium DAQ's messages - useful for diagnosing problems.
+Launch Palladium DAQ from the shortcut the installer creates.
+
+The installation includes this documentation. Open it with the **Help** button in Palladium DAQ, or open `Docs\index.html` in the `application` folder of the installation (by default `C:\Program Files\Palladium DAQ\application`) in a web browser.
 
 The standalone application cannot load instrument drivers or presets written as MATLAB code after it is built, and does not include this documentation.
 

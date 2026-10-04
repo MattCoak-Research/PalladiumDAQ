@@ -364,6 +364,16 @@ classdef test_PathUtils < matlab.unittest.TestCase
             testCase.verifyEqual(actualPath, expectedPath);
         end
 
+        %% GetAppDataDirectory
+        function test_GetAppDataDirectory(testCase)
+            %Platform-dependent, and the folder need not exist yet - just
+            %check that it returns an absolute path
+            actualPath = Palladium.Utilities.PathUtils.GetAppDataDirectory();
+            testCase.verifyClass(actualPath, "string");
+            isAbsolute = startsWith(actualPath, ["/", "\"]) || ~isempty(regexp(actualPath, "^[A-Za-z]:", "once"));
+            testCase.verifyTrue(isAbsolute);
+        end
+
         %% GetDocumentsDirectory
         function test_GetDocumentsDirectory(testCase)
             %Note this, by design, gives different results on different
