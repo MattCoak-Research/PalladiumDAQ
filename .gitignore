@@ -42,3 +42,5 @@ Palladium DAQ/Docs/**/*.html
 Palladium DAQ/Docs/resources/
 #Generated API reference Markdown - built by the apidoc task from the code's help comments
 Palladium DAQ/Docs/reference/
+#Generated Getting Started guide - built by the gettingStarted task from Docs/GettingStarted.md
+Palladium DAQ/Docs/GettingStarted.m

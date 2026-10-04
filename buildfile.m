@@ -8,10 +8,19 @@ plan("doc").Outputs = [fullfile(docfolder,"**","*.html"), ... % output HTML
     fullfile(docfolder,"resources"), ... % stylesheets and scripts
     fullfile(docfolder,"*.xml"), ... % index files
     fullfile(docfolder,"helpsearch-v*")]; % search database folder 
-plan("doc").Dependencies = "apidoc";
+plan("doc").Dependencies = ["apidoc", "gettingStarted"];
 
 plan("apidoc").Inputs = [fullfile("Palladium DAQ", "+Palladium"), fullfile("Tools", "GenerateApiReference.m")];
 plan("apidoc").Outputs = fullfile(docfolder, "reference");
+
+%Getting Started guide: built from its Markdown source, with the version from
+%Palladium.m and the images it embeds - so rebuilt when any of those change
+plan("gettingStarted").Inputs = [fullfile(docfolder, "GettingStarted.md"), ...
+    fullfile("Palladium DAQ", "Palladium.m"), ...
+    fullfile("Tools", "BuildGettingStarted.m"), ...
+    "splash.png", ...
+    fullfile("Palladium DAQ", "+Palladium", "+Components", "Graphics")];
+plan("gettingStarted").Outputs = fullfile(docfolder, "GettingStarted.m");
 
 plan("package").Dependencies = ["test", "doc"];
 plan("deploy").Dependencies = "package";
@@ -55,6 +64,8 @@ end
 %Convert one document at a time, so that a GitHub timeout only retries
 %that document (see ConvertWithRetry)
 mdFiles = dir(fullfile(doc,"**","*.md")); % Markdown documents
+mdFiles(strcmp({mdFiles.name}, "GettingStarted.md")) = []; % not a DocMaker page - see gettingStartedTask
+DeleteOrphanedHtml(doc);
 html = strings(1, 0);
 for i = 1 : numel(mdFiles)
     html(i) = ConvertWithRetry(fullfile(mdFiles(i).folder, mdFiles(i).name), doc);
@@ -95,6 +106,31 @@ if ispc
     fileattrib(folder, "+w", "", "s");
 else
     fileattrib(folder, "+w", "a", "s");
+end
+end
+
+function gettingStartedTask(c)
+% Build the toolbox's Getting Started guide, Docs/GettingStarted.m (a
+% plain-text live script), from its Markdown source Docs/GettingStarted.md,
+% with the current version from Palladium.ver. The .m is generated and not
+% under source control, like the HTML docs
+addpath(fullfile(c.Plan.RootFolder, "Tools"));
+mdFile = c.Task.Inputs(1).Path;
+mFile = c.Task.Outputs.Path;
+BuildGettingStarted(mdFile, mFile, Palladium.ver().VersionString);
+fprintf(1, "[+] %s (version %s)\n", mFile, Palladium.ver().VersionString);
+end
+
+function DeleteOrphanedHtml(doc)
+%Delete HTML pages whose Markdown source has been removed, so they are not
+%left behind in the docs (and packaged)
+htmlFiles = dir(fullfile(doc, "**", "*.html"));
+for i = 1 : numel(htmlFiles)
+    [~, name] = fileparts(htmlFiles(i).name);
+    if ~isfile(fullfile(htmlFiles(i).folder, name + ".md"))
+        delete(fullfile(htmlFiles(i).folder, htmlFiles(i).name));
+        fprintf(1, "[-] %s\n", fullfile(htmlFiles(i).folder, htmlFiles(i).name));
+    end
 end
 end
 
