@@ -346,7 +346,7 @@ classdef Palladium < handle
 
             %Pass through to function below - this one is basically a nice
             %wrapper for it
-            this.RemoveInstrumentControl(instrRef, controlDetailsStruct);
+            this.RemoveInstrumentControlFromStruct(instrRef, controlDetailsStruct);
         end
 
         function RemoveInstrumentControlFromStruct(this, instrRef, controlDetailsStruct)
