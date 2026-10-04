@@ -76,7 +76,7 @@ classdef Palladium < handle
             %  - Preset (string or []. Default is []) - Optionally, enter the name of a Preset script in the +PalladiumPresets folder, like "Example"
             %  - View (string or []. Default is "PalladiumDAQ_DefaultGUI") -
             %  Enter blank ([]) to run a 'headless' Palladium with no GUI
-            %  attached. Give the name of a .mlapp file in the +Views folder
+            %  attached. Give the name of an App Designer app in the +Views folder
             %  to use that GUI/View instead of the default.
             arguments
                 Settings.ConfigFilePath = [];

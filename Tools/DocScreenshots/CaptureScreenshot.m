@@ -34,7 +34,10 @@ end
 
 HighlightColour = [0.85 0.33 0.10];    %Orange, as the docs' headings
 
-%Let the window finish drawing, then export its contents
+%Give the window itself keyboard focus, so no text field shows a focus
+%border - which field has focus otherwise varies from run to run. Then let
+%it finish drawing, and export its contents
+focus(fig);
 drawnow;
 pause(1);
 tempFile = string(tempname) + ".png";

@@ -22,7 +22,7 @@ classdef MagnetController < Palladium.Core.InstrumentControlBase
             %tab. 
             grid = uigridlayout(tab, "ColumnWidth", {'fit', '1x'}, "RowHeight", {10, '1x', 10}, 'RowSpacing', 2);
 
-            %Create a .mlapp custom GUI control and add it to the grid
+            %Create the App Designer custom GUI component and add it to the grid
             comp = Palladium.Instruments.Controls.MagnetControlPanel(grid);
             this.GUIView = comp;
             comp.Layout.Row = 2;

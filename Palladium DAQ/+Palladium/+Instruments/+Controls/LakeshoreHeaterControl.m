@@ -23,7 +23,7 @@ classdef LakeshoreHeaterControl < Palladium.Core.InstrumentControlBase
             %tab.
             grid = uigridlayout(tab, "ColumnWidth", {'1x', 'fit', '1x'}, "RowHeight", {10, 'fit', 10, '1x'}, 'RowSpacing', 2);
 
-            %Create a .mlapp custom GUI control and add it to the grid
+            %Create the App Designer custom GUI component and add it to the grid
             comp = Palladium.Instruments.Controls.LakeshoreTempControl(grid);
             this.GUIView = comp;
             comp.Layout.Row = 2;
