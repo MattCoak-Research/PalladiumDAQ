@@ -23,7 +23,9 @@ Python is optional: if there is no usable Python, Palladium DAQ starts without P
 
 ## Writing one
 
-A Python instrument is a class in its own `.py` file, in the `PythonInstruments` folder of your [user files folder](installation.md). The **class name must match the file name** - `MyDMM.py` contains `class MyDMM` - and it inherits from Palladium DAQ's Python `Instrument` base class:
+A Python instrument is a class in its own `.py` file, in the `PythonInstruments` folder of your [user files folder](installation.md). The **class name must match the file name** - `MyDMM.py` contains `class MyDMM` - and it inherits from Palladium DAQ's Python `Instrument` base class.
+
+To start one, copy `TemplatePythonInstrument.py`, which Palladium DAQ puts in that folder, and rename the copy and the class inside it. The template itself is never listed as an instrument. A short example:
 
 ```python
 import random

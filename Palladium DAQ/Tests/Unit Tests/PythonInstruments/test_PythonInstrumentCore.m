@@ -15,14 +15,15 @@ classdef test_PythonInstrumentCore < matlab.unittest.TestCase
             here = fileparts(mfilename("fullpath"));
             sourceRoot = fileparts(fileparts(fileparts(here)));     %Holds PalladiumPythonCore
             fakesDir = fullfile(fileparts(here), "data", "Python Testing");
+            templateDir = fullfile(sourceRoot, "ExamplesAndTemplates", "PythonInstruments");     %The template Python instrument
 
             %Don't let Python write __pycache__ folders into the source or
             %test data folders while these tests run
             oldSetting = pyrun("import sys; old = sys.dont_write_bytecode; sys.dont_write_bytecode = True", "old");
             testCase.addTeardown(@() pyrun("import sys; sys.dont_write_bytecode = setting", setting=oldSetting));
 
-            %Put both folders first on Python's path, for these tests only
-            for folder = [string(sourceRoot), string(fakesDir)]
+            %Put the folders first on Python's path, for these tests only
+            for folder = [string(sourceRoot), string(fakesDir), string(templateDir)]
                 py.sys.path().insert(int32(0), folder);
                 testCase.addTeardown(@() py.sys.path().remove(folder));
             end
@@ -84,6 +85,26 @@ classdef test_PythonInstrumentCore < matlab.unittest.TestCase
 
         function UnsupportedConnectionErrors(testCase)
             testCase.verifyPythonError(@() testCase.Fakes.unsupported_connection(), "RuntimeError", "Unsupported connection type");
+        end
+
+        function TemplateWorksInSimulation(testCase)
+            %The template Python instrument (ExamplesAndTemplates/PythonInstruments):
+            %Measure returns one number per header, and it has the members Palladium uses
+            module = py.importlib.reload(py.importlib.import_module("TemplatePythonInstrument"));
+            instr = module.TemplatePythonInstrument();
+            instr.SimulationMode = true;
+
+            headersAndUnits = cell(instr.GetHeaders());
+            headers = string(cell(headersAndUnits{1}));
+            units = string(cell(headersAndUnits{2}));
+            values = cellfun(@double, cell(py.list(instr.Measure())));
+
+            testCase.verifyNotEmpty(headers);
+            testCase.verifyNumElements(units, numel(headers));
+            testCase.verifyNumElements(values, numel(headers));
+            testCase.verifyNotEqual(string(instr.Name), "");
+            testCase.verifyNotEqual(string(instr.FullName), "");
+            testCase.verifyClass(instr.collect_metadata(), "py.dict");
         end
     end
 

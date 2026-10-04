@@ -86,7 +86,7 @@ When Palladium DAQ first runs, it creates a folder called `Palladium DAQ - User 
 | --- | --- |
 | `Presets` | Your [Presets](presets-and-config.md). An `Example.json` is copied here to start from |
 | `+Palladium\+Instruments` | Your own MATLAB [instrument drivers](writing-instruments.md). A copy of `TemplateInstrumentClass.m` is put here to start from |
-| `PythonInstruments` | Your own [Python instruments](python-instruments.md) |
+| `PythonInstruments` | Your own [Python instruments](python-instruments.md). A copy of `TemplatePythonInstrument.py` is put here to start from |
 | `Instrument Drivers` | Third-party drivers some instruments need, such as the Quantum Design PPMS interface |
 
 Files are only copied in if they are missing, so your own changes are never overwritten. The folder is added to the MATLAB path when Palladium DAQ starts.

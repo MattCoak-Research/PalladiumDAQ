@@ -122,10 +122,10 @@ To add a screenshot, add a scene function to `TakeDocScreenshots.m` and its name
 
 * `Docs` - the built HTML documentation, opened by the Help button
 * `PalladiumPythonCore` - the Python base class for [Python instruments](../python-instruments.md), which Python imports from there. Only its `.py` files are installed: they are copied into `Release/Build/PalladiumPythonCore` first, leaving out `__pycache__` and any MATLAB autosave files
-* `ExamplesAndTemplates/Presets` (`Example.json`) and `Instrument Drivers` (the PPMS's `QDInterface.dll`) - copied into the user files folder on first run, as they are when running in MATLAB (`Controller.Initialise`). The template for new instrument drivers is left out: the standalone application can't load MATLAB drivers written after it is built
+* `ExamplesAndTemplates/Presets` (`Example.json`), `ExamplesAndTemplates/PythonInstruments` (`TemplatePythonInstrument.py`, the template for new Python instruments) and `Instrument Drivers` (the PPMS's `QDInterface.dll`) - copied into the user files folder on first run, as they are when running in MATLAB (`Controller.Initialise`). The template for new MATLAB instrument drivers is left out: the standalone application can't load MATLAB drivers written after it is built. Both templates are kept out of the Instruments list by `InstrumentController.InstrumentClassesToIgnore`
 * `Graphics` - the Palladium icon, which `Controller` passes to the windows as `WindowSettings.PalladiumIconPath`
 
-The presets and icon are copied into `Release/Build` first, so that only those files are installed; `Docs` and `Instrument Drivers` are installed from the source.
+The presets, Python template and icon are copied into `Release/Build` first, so that only those files are installed; `Docs` and `Instrument Drivers` are installed from the source.
 
 On Windows, the installers also include a private copy of Python, installed as `application/Python`, so that [Python instruments](../python-instruments.md) work with nothing to set up. `PrepareBundledPython` builds it in `Release/Build/Python`:
 

@@ -400,6 +400,11 @@ classdef Controller < handle
                     this.CopyStarterFile("TemplateInstrumentClass.m", fullfile(this.ApplicationDir, "ExamplesAndTemplates", "Instruments"), this.UserInstrumentsDir);
                 end
 
+                %The template for new Python instruments - Python
+                %instruments work in the standalone application too
+                this.CopyStarterFile("TemplatePythonInstrument.py", fullfile(this.ApplicationDir, "ExamplesAndTemplates", "PythonInstruments"),...
+                    fullfile(this.UserPythonInstrumentsDir, this.PythonInstrumentNamespace));
+
                 %The example Preset
                 this.CopyStarterFile("Example.json", fullfile(this.ApplicationDir, "ExamplesAndTemplates", "Presets"), this.UserPresetsDir);
 

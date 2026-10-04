@@ -499,10 +499,12 @@ packageOpts.InstallationNotes = "Updating from an earlier version? Close Palladi
 % - Python (Windows only): a private copy of Python, with the packages
 %   Python instruments need, which the application uses unless the user's
 %   config names another (see Controller.SetUpPython)
-% - ExamplesAndTemplates/Presets: Example.json, and Instrument Drivers: the
-%   PPMS interface DLL - both copied into the user files folder on first run
-%   (see Controller.Initialise). The template driver is left out: the
-%   standalone application can't load MATLAB drivers written after it is built
+% - ExamplesAndTemplates/Presets: Example.json, ExamplesAndTemplates/
+%   PythonInstruments: the template Python instrument, and Instrument
+%   Drivers: the PPMS interface DLL - all copied into the user files folder
+%   on first run (see Controller.Initialise). The MATLAB template driver is
+%   left out: the standalone application can't load MATLAB drivers written
+%   after it is built
 % - Graphics: the Palladium icon, for the windows (Controller's
 %   WindowSettings.PalladiumIconPath)
 pythonCoreDir = fullfile(exeDir, "PalladiumPythonCore");
@@ -511,6 +513,9 @@ copyfile(fullfile(projectRoot, "Palladium DAQ", "PalladiumPythonCore", "*.py"), 
 presetsDir = fullfile(exeDir, "ExamplesAndTemplates", "Presets");
 mkdir(presetsDir);
 copyfile(fullfile(projectRoot, "Palladium DAQ", "ExamplesAndTemplates", "Presets", "*.json"), presetsDir);
+pythonTemplatesDir = fullfile(exeDir, "ExamplesAndTemplates", "PythonInstruments");
+mkdir(pythonTemplatesDir);
+copyfile(fullfile(projectRoot, "Palladium DAQ", "ExamplesAndTemplates", "PythonInstruments", "*.py"), pythonTemplatesDir);
 graphicsDir = fullfile(exeDir, "Graphics");
 mkdir(graphicsDir);
 copyfile(fullfile(projectRoot, "Palladium DAQ", "+Palladium", "+Components", "Graphics", "PalladiumDAQIcon.png"), graphicsDir);
