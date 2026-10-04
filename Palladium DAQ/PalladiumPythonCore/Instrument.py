@@ -34,6 +34,10 @@ class Instrument(ABC):
         self._simulation_mode = False
         self.DeviceHandle: Optional[Any] = None
         self.OverrideConnectMethod = False
+        # Line endings added to commands, and expected at the end of replies, on Ethernet
+        # (socket) and serial connections. pyvisa resources use their own settings
+        self.WriteTermination = "\n"
+        self.ReadTermination = "\n"
 
 
     # Abstract properties (read-only)
@@ -79,23 +83,22 @@ class Instrument(ABC):
 
     # Concrete methods (can be used or overridden by subclasses)   
     def read_string(self) -> str:
-        """
-        Read string from the instrument using a MATLAB object proxy.
-        Assumes self.DeviceHandle has an fscanf method.
-        """
-        if getattr(self, "SimulationMode", False):
+        """Read one reply from the instrument, without its line ending ("null" in simulation mode)."""
+        if self.SimulationMode:
             return "null"
 
-        if not hasattr(self, "DeviceHandle") or self.DeviceHandle is None:
-            raise AssertionError(
-                f"Device Handle is empty - device is not connected yet when sending Query command ({getattr(self, 'FullName', '')})"
-            )
-
-            try:
-                resp = self.DeviceHandle.fscanf()
-                return str(resp)
-            except Exception as e:
-                raise RuntimeError(f"Failed to read from DeviceHandle.fscanf: {e}") from e
+        handle = self._connected_handle("Read")
+        try:
+            kind = self._handle_kind(handle)
+            if kind == "visa":
+                reply = handle.read()
+            elif kind == "socket":
+                reply = self._read_socket_line(handle)
+            else:
+                reply = handle.read_until(self.ReadTermination.encode()).decode()
+            return str(reply).strip()
+        except Exception as e:
+            raise RuntimeError(f"Failed to read from {self._describe()}: {e}") from e
 
     def connectTCPIP(self, ip, port):
         """Called from MATLAB with (py.str(ip), int32(port))."""
@@ -220,85 +223,85 @@ class Instrument(ABC):
             raise RuntimeError(f"Serial connection failed ({port_str}): {e}")
 
 
-    def query_double(self, command: str) -> float:
-        """
-        Query the instrument and return a double (float).
-        Mirrors MATLAB Instrument.QueryDouble.
-        """
-        if getattr(self, "SimulationMode", False):
-            return random.random() + 100.0
+    def write_command(self, command: str) -> None:
+        """Send a command to the instrument (nothing is sent in simulation mode)."""
+        if self.SimulationMode:
+            return
 
-        # Ensure we have a device handle
-        if not hasattr(self, "DeviceHandle") or self.DeviceHandle is None:
-            raise AssertionError(f"Device Handle is empty - device is not connected yet when sending Query command ({getattr(self, 'FullName', '')})")
-
-            # Send query using common VISA-like API: device.query(command)
-            # If your device uses a different method name (e.g. read, write_read), adjust accordingly.
-            resp = self.DeviceHandle.query(command)
-
-            # Convert to float, raising ValueError on bad conversion
-            try:
-                return float(resp)
-            except Exception as e:
-                raise ValueError(f"Failed to convert device response to float. Response: {resp}") from e
+        handle = self._connected_handle("Write")
+        try:
+            kind = self._handle_kind(handle)
+            if kind == "visa":
+                handle.write(command)
+            elif kind == "socket":
+                handle.sendall((command + self.WriteTermination).encode())
+            else:
+                handle.write((command + self.WriteTermination).encode())
+        except Exception as e:
+            raise RuntimeError(f"Failed to send command '{command}' to {self._describe()}: {e}") from e
 
     def query_string(self, command: str) -> str:
-        """
-        Send a query string to a MATLAB visadev/serial proxy and return the response.
-        """
-        if getattr(self, "SimulationMode", False):
+        """Send a query and return the reply as text, without its line ending ("null" in simulation mode)."""
+        if self.SimulationMode:
             return "null"
-    
-        if not hasattr(self, "DeviceHandle") or self.DeviceHandle is None:
-            raise AssertionError(f"Device Handle is empty - device is not connected yet when sending Query command ({getattr(self, 'FullName', '')})")
-    
-        try:
-            # MATLAB object proxy: call its query method (forwarded to MATLAB)
-            resp = self.DeviceHandle.query(command)
-            # Ensure Python has a str
-            return str(resp)
-        except Exception as e:
-            raise RuntimeError(f"Failed to query DeviceHandle: {e}") from e
 
+        handle = self._connected_handle("Query")
+        if self._handle_kind(handle) == "visa":
+            try:
+                return str(handle.query(command)).strip()
+            except Exception as e:
+                raise RuntimeError(f"Failed to query '{command}' on {self._describe()}: {e}") from e
+
+        self.write_command(command)
+        return self.read_string()
 
     def query_double(self, command: str) -> float:
-        """
-        Send a query and convert the response to float. Mirrors MATLAB QueryDouble.
-        """
-        if getattr(self, "SimulationMode", False):
-            import random
+        """Send a query and return the reply as a number (a random value near 100 in simulation mode)."""
+        if self.SimulationMode:
             return random.random() + 100.0
-    
-        if not hasattr(self, "DeviceHandle") or self.DeviceHandle is None:
-            raise AssertionError(f"Device Handle is empty - device is not connected yet when sending Query command ({getattr(self, 'FullName', '')})")
-    
+
+        reply = self.query_string(command)
         try:
-            resp = self.DeviceHandle.query(command)
-            # Convert response to float; will raise ValueError if conversion fails
-            return float(resp)
-        except Exception as e:
-            raise RuntimeError(f"Failed to query/convert DeviceHandle response to float. Response: {resp if 'resp' in locals() else None}; Error: {e}") from e
+            return float(reply)
+        except ValueError as e:
+            raise ValueError(f"Reply to '{command}' from {self._describe()} is not a number: '{reply}'") from e
 
+    # Internal helpers for the methods above
+    def _connected_handle(self, action: str):
+        """Return the connection, or raise an error if the instrument isn't connected."""
+        if getattr(self, "DeviceHandle", None) is None:
+            raise AssertionError(f"Device Handle is empty - device is not connected yet when sending {action} command ({self._describe()})")
+        return self.DeviceHandle
 
-    def write_command(self, command: str) -> None:
-        """
-        Send a command string to the instrument using a MATLAB visadev/serial proxy.
-        Assumes self.DeviceHandle is a matlab.object with a fprintf method.
-        """
-        if getattr(self, "SimulationMode", False):
-            return
-    
-        if not hasattr(self, "DeviceHandle") or self.DeviceHandle is None:
-            raise AssertionError(
-                f"Device Handle is empty - device is not connected yet when sending Write command ({getattr(self, 'FullName', '')})"
-            )
-    
+    @staticmethod
+    def _handle_kind(handle) -> str:
+        """The kind of connection: "socket" (Ethernet), "visa" (pyvisa: GPIB, VISA, USB) or "serial".
+        Worked out from the object itself, so that pyvisa and pyserial need not be imported."""
+        if isinstance(handle, socket.socket):
+            return "socket"
+        if hasattr(handle, "query"):
+            return "visa"
+        if hasattr(handle, "read_until"):
+            return "serial"
+        raise TypeError(f"Unsupported connection type: {type(handle).__name__}")
+
+    def _read_socket_line(self, sock) -> str:
+        """Read from a socket up to and including ReadTermination, and return the text before it."""
+        terminator = self.ReadTermination.encode()
+        data = b""
+        while not data.endswith(terminator):
+            chunk = sock.recv(1)
+            if not chunk:
+                break   # connection closed
+            data += chunk
+        return data[: -len(terminator)].decode() if data.endswith(terminator) else data.decode()
+
+    def _describe(self) -> str:
+        """The instrument's full name, for error messages."""
         try:
-            # Call MATLAB object's fprintf method (bridge forwards to MATLAB)
-            self.DeviceHandle.fprintf(command)
-        except Exception as e:
-            raise RuntimeError(f"Failed to send command via DeviceHandle.fprintf: {e}") from e
-
+            return str(self.FullName)
+        except Exception:
+            return type(self).__name__
 
     def collect_metadata(self):
         """Default: no metadata (return None)."""

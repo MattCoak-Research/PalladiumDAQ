@@ -1296,6 +1296,9 @@
                             <File Location="pythontest.py">
                                 <Info/>
                             </File>
+                            <File Location="instrument_core_fakes.py">
+                                <Info/>
+                            </File>
                         </File>
                         <File Location="SequenceAndCommands Testing">
                             <Info/>
@@ -1511,6 +1514,19 @@
                                     </Category>
                                 </Info>
                             </File>
+                        </File>
+                    </File>
+                    <File Location="PythonInstruments">
+                        <Info/>
+                        <DIR_SIGNIFIER Location="1">
+                            <Info/>
+                        </DIR_SIGNIFIER>
+                        <File Location="test_PythonInstrumentCore.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
                         </File>
                     </File>
                 </File>
@@ -1751,6 +1767,9 @@
         </Reference>
         <Reference Location="9fb8b4d9-ca5a-461e-8f7e-c726052d43de">
             <Info Ref="Palladium DAQ/Tests/Unit Tests/data/Instrument Testing" Type="Relative"/>
+        </Reference>
+        <Reference Location="3e54805e-ad85-4fbc-bd9b-6ee39660e187">
+            <Info Ref="Palladium DAQ/Tests/Unit Tests/PythonInstruments" Type="Relative"/>
         </Reference>
     </ProjectPath>
     <Files Location="MLTestManagerTestSuites">
