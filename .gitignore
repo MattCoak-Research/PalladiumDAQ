@@ -36,11 +36,9 @@ resources/*
 *.pyc
 *.cpyth
 
-#Documentation output - docs will be generated in the buildfile. Just track the markdown .md files
-Palladium DAQ/Docs/**/*.xml
-Palladium DAQ/Docs/**/*.html
-Palladium DAQ/Docs/resources/
+#Documentation output - Docs is built entirely by the buildfile (doc and gettingStarted
+#tasks) from the Markdown sources in DocsSrc. Track only the .gitkeep that keeps the folder
+Palladium DAQ/Docs/*
+!Palladium DAQ/Docs/.gitkeep
 #Generated API reference Markdown - built by the apidoc task from the code's help comments
-Palladium DAQ/Docs/reference/
-#Generated Getting Started guide - built by the gettingStarted task from Docs/GettingStarted.md
-Palladium DAQ/Docs/GettingStarted.m
+Palladium DAQ/DocsSrc/reference/

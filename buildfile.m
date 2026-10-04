@@ -2,20 +2,25 @@ function plan = buildfile
 plan = buildplan(localfunctions);
 plan("test").Dependencies = "check";
 
+%Documentation: Markdown sources in DocsSrc are built into Docs, which holds
+%only generated files (HTML, help index, search database, Getting Started
+%guide) and is what ships in the toolbox
+docsrc = fullfile("Palladium DAQ", "DocsSrc");
 docfolder = fullfile("Palladium DAQ", "Docs");
-plan("doc").Inputs = docfolder; 
+plan("doc").Inputs = docsrc;
 plan("doc").Outputs = [fullfile(docfolder,"**","*.html"), ... % output HTML
     fullfile(docfolder,"resources"), ... % stylesheets and scripts
     fullfile(docfolder,"*.xml"), ... % index files
-    fullfile(docfolder,"helpsearch-v*")]; % search database folder 
+    fullfile(docfolder,"helpsearch-v*")]; % search database folder
 plan("doc").Dependencies = ["apidoc", "gettingStarted"];
 
+%API reference Markdown, generated from the code into DocsSrc/reference
 plan("apidoc").Inputs = [fullfile("Palladium DAQ", "+Palladium"), fullfile("Tools", "GenerateApiReference.m")];
-plan("apidoc").Outputs = fullfile(docfolder, "reference");
+plan("apidoc").Outputs = fullfile(docsrc, "reference");
 
 %Getting Started guide: built from its Markdown source, with the version from
 %Palladium.m and the images it embeds - so rebuilt when any of those change
-plan("gettingStarted").Inputs = [fullfile(docfolder, "GettingStarted.md"), ...
+plan("gettingStarted").Inputs = [fullfile(docsrc, "GettingStarted.md"), ...
     fullfile("Palladium DAQ", "Palladium.m"), ...
     fullfile("Tools", "BuildGettingStarted.m"), ...
     "splash.png", ...
@@ -47,31 +52,70 @@ assertSuccess(results);
 end
 
 function docTask(c)
-doc = c.Task.Inputs.Path; % source folder
+% Build the HTML documentation in Docs from the Markdown sources in DocsSrc.
+% DocMaker writes its output next to each .md, and the index and search
+% database next to helptoc.md - so copy the sources into Docs, build them
+% there, then remove the copies, leaving Docs with generated files only
+src = c.Task.Inputs.Path;
+srcInfo = dir(src);
+src = string(srcInfo(1).folder); % absolute path
+out = fullfile(fileparts(src), "Docs");
 
 EnsureDocMaker();
 
-%DocMaker (pre-0.8) copies its stylesheets/scripts from its read-only
-%add-on install folder, and the copies keep the read-only attribute - so
-%the next build can't overwrite them. Make any existing ones writable, then
-%clear the folder so stale files (e.g. from a different Theme) don't linger
-res = fullfile(doc, "resources");
-if isfolder(res)
-    MakeWritable(res);
-    rmdir(res, "s");
+%Start from an empty Docs, keeping only the Getting Started guide (built by
+%the gettingStarted task) and the .gitkeep that keeps the folder in git
+ClearFolder(out, ["GettingStarted.m", ".gitkeep"]);
+
+%Copy in the Markdown sources, keeping their folder structure.
+%GettingStarted.md is not a DocMaker page - see gettingStartedTask
+mdFiles = dir(fullfile(src, "**", "*.md"));
+mdFiles(strcmp({mdFiles.name}, "GettingStarted.md")) = [];
+mdCopies = strings(1, numel(mdFiles));
+for i = 1 : numel(mdFiles)
+    destFolder = fullfile(out, extractAfter(string(mdFiles(i).folder), strlength(src)));
+    if ~isfolder(destFolder)
+        mkdir(destFolder);
+    end
+    mdCopies(i) = fullfile(destFolder, mdFiles(i).name);
+    copyfile(fullfile(mdFiles(i).folder, mdFiles(i).name), mdCopies(i));
 end
 
 %Convert one document at a time, so that a GitHub timeout only retries
 %that document (see ConvertWithRetry)
-mdFiles = dir(fullfile(doc,"**","*.md")); % Markdown documents
-mdFiles(strcmp({mdFiles.name}, "GettingStarted.md")) = []; % not a DocMaker page - see gettingStartedTask
-DeleteOrphanedHtml(doc);
-html = strings(1, 0);
-for i = 1 : numel(mdFiles)
-    html(i) = ConvertWithRetry(fullfile(mdFiles(i).folder, mdFiles(i).name), doc);
+html = strings(1, numel(mdCopies));
+for i = 1 : numel(mdCopies)
+    html(i) = ConvertWithRetry(mdCopies(i), out);
 end
 docrun(html(~contains(html, filesep + "reference" + filesep))) % run code and insert output - not in the generated API reference
-docindex(doc) % index
+docindex(out) % index - info.xml, helptoc.xml and search database
+
+%Remove the Markdown copies
+for i = 1 : numel(mdCopies)
+    delete(mdCopies(i));
+end
+end
+
+function ClearFolder(folder, keep)
+%Delete everything in a folder except the named files (at its top level).
+%Clears the read-only attribute first - DocMaker (pre-0.8) copies its
+%stylesheets and scripts from its read-only add-on install folder, and the
+%copies keep that attribute
+if ~isfolder(folder)
+    mkdir(folder);
+    return
+end
+MakeWritable(folder);
+items = dir(folder);
+items = items(~ismember({items.name}, [".", "..", keep]));
+for i = 1 : numel(items)
+    path = fullfile(items(i).folder, items(i).name);
+    if items(i).isdir
+        rmdir(path, "s");
+    else
+        delete(path);
+    end
+end
 end
 
 function html = ConvertWithRetry(md, root)
@@ -111,7 +155,7 @@ end
 
 function gettingStartedTask(c)
 % Build the toolbox's Getting Started guide, Docs/GettingStarted.m (a
-% plain-text live script), from its Markdown source Docs/GettingStarted.md,
+% plain-text live script), from its Markdown source DocsSrc/GettingStarted.md,
 % with the current version from Palladium.ver. The .m is generated and not
 % under source control, like the HTML docs
 addpath(fullfile(c.Plan.RootFolder, "Tools"));
@@ -121,22 +165,9 @@ BuildGettingStarted(mdFile, mFile, Palladium.ver().VersionString);
 fprintf(1, "[+] %s (version %s)\n", mFile, Palladium.ver().VersionString);
 end
 
-function DeleteOrphanedHtml(doc)
-%Delete HTML pages whose Markdown source has been removed, so they are not
-%left behind in the docs (and packaged)
-htmlFiles = dir(fullfile(doc, "**", "*.html"));
-for i = 1 : numel(htmlFiles)
-    [~, name] = fileparts(htmlFiles(i).name);
-    if ~isfile(fullfile(htmlFiles(i).folder, name + ".md"))
-        delete(fullfile(htmlFiles(i).folder, htmlFiles(i).name));
-        fprintf(1, "[-] %s\n", fullfile(htmlFiles(i).folder, htmlFiles(i).name));
-    end
-end
-end
-
 function apidocTask(c)
-% Generate the API reference Markdown pages (Docs/reference) from the help
-% comments in the code. The doc task then converts them to HTML.
+% Generate the API reference Markdown pages (DocsSrc/reference) from the help
+% comments in the code. The doc task then builds them into Docs/reference.
 
 %Prototype - a few representative classes, plus every class in the
 %namespaces listed
@@ -209,8 +240,9 @@ opts.ToolboxGettingStartedGuide = fullfile(opts.ToolboxFolder, "Docs", "GettingS
 opts.ToolboxVersion = string(verStruct.VersionString);
 
 %Ship the generated documentation, but not its Markdown source
+opts.ToolboxFiles(startsWith(opts.ToolboxFiles, fullfile(opts.ToolboxFolder, "DocsSrc"))) = [];
 docFiles = startsWith(opts.ToolboxFiles, fullfile(opts.ToolboxFolder, "Docs"));
-opts.ToolboxFiles(docFiles & endsWith(opts.ToolboxFiles, ".md")) = [];
+opts.ToolboxFiles(docFiles & endsWith(opts.ToolboxFiles, ".md")) = []; %Any left by a failed doc build
 
 %Build the .mltbx toolbox installation file
 matlab.addons.toolbox.packageToolbox(opts);
