@@ -556,13 +556,6 @@
                                 </Category>
                             </Info>
                         </File>
-                        <File Location="SweepSetupControl.mlapp">
-                            <Info>
-                                <Category UUID="FileClassCategory">
-                                    <Label UUID="design"/>
-                                </Category>
-                            </Info>
-                        </File>
                         <File Location="SweepSetupControl_Ramp.mlapp">
                             <Info>
                                 <Category UUID="FileClassCategory">
