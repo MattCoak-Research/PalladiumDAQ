@@ -48,6 +48,7 @@ classdef Controller < handle
         SequenceEditorController;
 
         ConfigFilePath = "";        %Path of the config file in use
+        HeadersString = "";         %Column header line of the data file, set when measurements start
         PythonSettings;             %PythonSettings section of the config
         PythonSetupStatus = [];     %Result of setting up Python (see PythonUtils.CheckPythonSetup), set in Initialise
         WarningSettings;            %WarningSettings section of the config
@@ -519,6 +520,7 @@ classdef Controller < handle
 
                 %Generate column headers and validate
                 [this.Headers, headersString, this.Units] = this.InstrumentController.InitialiseHeaders();
+                this.HeadersString = headersString;     %Kept for files started mid-run (SetFilePathWhileRunning)
 
                 %Initialise all graphs
                 this.PlottingController.UpdatePlotVariableNames(this.Headers);
@@ -816,37 +818,47 @@ classdef Controller < handle
             %tick
             arguments
                 this;
-                filePath string {mustBeTextScalar};
+                filePath string;    %New data file, or empty to keep the current one
                 saveFileBool (1,1) logical;
             end
 
             try
-                %Pull apart the path into its components
-                [filepath, fileName, fileExtension] = fileparts(filePath);
+                %A new file, if a path is given. With no path (as from
+                %[DATAFILE] 0) keep the current file name and folder, and
+                %just switch saving on or off
+                if ~isempty(filePath) && strlength(filePath) > 0
+                    %Pull apart the path into its components
+                    [filepath, fileName, fileExtension] = fileparts(filePath);
 
-                %Assign the variables
-                this.FileWriteDetails.Directory = Palladium.Utilities.PathUtils.CleanPath(filepath);
-                if ~isempty(fileExtension)
-                    if ~strcmp(string(fileExtension), "")
-                        this.FileWriteDetails.FileExtension = fileExtension;
+                    %Assign the variables
+                    this.FileWriteDetails.Directory = Palladium.Utilities.PathUtils.CleanPath(filepath);
+                    if ~isempty(fileExtension)
+                        if ~strcmp(string(fileExtension), "")
+                            this.FileWriteDetails.FileExtension = fileExtension;
+                        end
                     end
+
+                    %Make sure the filename doesn't have an extra file extension
+                    %included by user by mistake - we will add an extension on
+                    fileNameNoExt = Palladium.Utilities.PathUtils.StripExtension(fileName);
+
+                    %Helpfully replace <DATE> tag with today's actual date
+                    this.FileWriteDetails.FileName = Palladium.Utilities.PathUtils.ReplaceDateTag(fileNameNoExt);
                 end
-
-                %Make sure the filename doesn't have an extra file extension
-                %included by user by mistake - we will add an extension on
-                fileNameNoExt = Palladium.Utilities.PathUtils.StripExtension(fileName);
-
-                %Helpfully replace <DATE> tag with today's actual date
-                fileNameDateRp = Palladium.Utilities.PathUtils.ReplaceDateTag(fileNameNoExt);
-
-                %Set the variable
-                this.FileWriteDetails.FileName = fileNameDateRp;
-                this.FileWriteDetails.SaveFile = saveFileBool;             
+                this.FileWriteDetails.SaveFile = saveFileBool;
 
                 %Refresh the data writer. This will also Update the View
                 this.InitialiseDataWriting();
+
+                %Start the new file with its header, as Start does - with
+                %the instruments' settings now. WriteHeaders does nothing
+                %if saving is switched off, or if appending to a file that
+                %already exists
+                if this.HeadersString ~= ""
+                    this.DataWriter.WriteHeaders(this.HeadersString, "MetadataLines", this.InstrumentController.GetMetadataLines());
+                end
             catch err
-                this.HandleError("Error in SetFilePathsDirectory", err);
+                this.HandleError("Error switching data file", err);
             end
         end
 
