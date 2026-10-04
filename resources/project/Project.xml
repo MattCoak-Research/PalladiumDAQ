@@ -1122,6 +1122,13 @@
                             </Category>
                         </Info>
                     </File>
+                    <File Location="test_PresetSaveLoad.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="test"/>
+                            </Category>
+                        </Info>
+                    </File>
                 </File>
                 <File Location="Unit Tests">
                     <Info/>

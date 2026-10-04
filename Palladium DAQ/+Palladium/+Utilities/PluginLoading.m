@@ -206,7 +206,7 @@ classdef PluginLoading
                             %axes, don't force all 4 in a 2x2 for
                             %example, but make sure not to get an
                             %IndexOutOfRange
-                            if idx <= length(xAx)
+                            if idx <= length(xAx) && strlength(xAx(idx)) > 0
                                 listOfPlotters(idx).SetDefaultXAxis(xAx(idx));
                             end
                         end
@@ -702,21 +702,32 @@ classdef PluginLoading
                 %%Grab the grid layout
                 g = findobj(item, "Type", 'uigridlayout');
                 out.Row = length(g.RowHeight);
-                out.Column = length(g.ColumnWidth);
+                out.Col = length(g.ColumnWidth);
 
                 if isempty(pp)
                     warning("buildPlotSpecsWarning:EmptyPlotterHolder", "Empty plotter holder");
                     return;
                 end
 
+                %One entry per plotter, in the order ApplyPresetFromJson
+                %applies them: along each row of the grid in turn. "" for
+                %a plotter with no x axis, so later plotters keep their
+                %places
+                xAxes = strings(1, out.Row * out.Col);
+                yAxes = repmat({strings(1, 0)}, 1, out.Row * out.Col);
                 for j = 1 : length(pp)
-                    pltr = pp(j);                   
+                    pltr = pp(j);
+                    idx = (pltr.Layout.Row - 1) * out.Col + pltr.Layout.Column;
 
-                    % DefaultXAxis / DefaultYAxes extraction 
+                    % DefaultXAxis / DefaultYAxes extraction
                     [x, y] = pltr.GetDefaultAxes();
-                    out.DefaultXAxis = x;
-                    out.DefaultYAxes = y;
+                    if ~isempty(x)
+                        xAxes(idx) = x;
+                    end
+                    yAxes{idx} = y;
                 end
+                out.DefaultXAxis = xAxes;
+                out.DefaultYAxes = yAxes;
             end
         end
 
