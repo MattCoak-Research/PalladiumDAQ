@@ -616,6 +616,44 @@ classdef test_DataWriter < matlab.unittest.TestCase
             testCase.verifyError(@() writer.SaveFigure(fig, ax, fullfile(testCase.TempDir, "nope"), "myplot"), "SaveFigureError:SaveFailed");
         end
 
+        function test_SaveFigure_ExactFileNameUsesNameAsGivenTest(testCase)
+            %As from a Save As dialog: no -Fig, no number, and a title doesn't replace the name
+            [fig, ax] = testCase.makeFigure();
+            title(ax, "My Plot Title");
+            writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("acq"));
+
+            writer.SaveFigure(fig, ax, testCase.TempDir, "chosen name", ExactFileName=true);
+
+            testCase.verifyTrue(isfile(fullfile(testCase.TempDir, "chosen name.fig")));
+            testCase.verifyTrue(isfile(fullfile(testCase.TempDir, "chosen name.png")));
+            testCase.verifyEqual(numel(dir(fullfile(testCase.TempDir, "*.png"))), 1);
+            testCase.verifyEqual(string(ax.Title.String), "My Plot Title");
+        end
+
+        function test_SaveFigure_ExactFileNameOverwritesExistingFileTest(testCase)
+            %The Save As dialog has already asked about overwriting
+            [fig, ax] = testCase.makeFigure();
+            writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("acq"));
+            pngFile = fullfile(testCase.TempDir, "chosen.png");
+            writelines("old", pngFile);
+
+            writer.SaveFigure(fig, ax, testCase.TempDir, "chosen", ExactFileName=true);
+
+            testCase.verifyGreaterThan(dir(pngFile).bytes, 10);
+            testCase.verifyEqual(numel(dir(fullfile(testCase.TempDir, "chosen*.png"))), 1);
+        end
+
+        function test_SaveFigure_TitlesTheGivenAxesNotCurrentOnesTest(testCase)
+            [fig, ax] = testCase.makeFigure();
+            [~, otherAx] = testCase.makeFigure();   %Made last, so its axes are the current ones
+            writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("acq"));
+
+            writer.SaveFigure(fig, ax, testCase.TempDir, "my_run_name");
+
+            testCase.verifyEqual(string(ax.Title.String), "my run name");
+            testCase.verifyEmpty(otherAx.Title.String);
+        end
+
         %% BuildMetadataLineStringFromStruct
         function test_BuildMetadataLineFromStruct_FormatsFieldsInOrderTest(testCase)
             s = struct("Frequency", 100, "Mode", "AC", "Enabled", true);

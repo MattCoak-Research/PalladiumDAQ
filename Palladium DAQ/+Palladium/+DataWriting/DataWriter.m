@@ -95,13 +95,23 @@ classdef DataWriter < handle
             end
         end
 
-        function SaveFigure(~, figure, ax, directory, fileNameWithoutExtension)
+        function SaveFigure(~, figure, ax, directory, fileNameWithoutExtension, Settings)
+            %Save a figure as both a .fig and a .png in a folder
+            arguments
+                ~;
+                figure;                         %Figure to save
+                ax;                             %Its axes - titled from the file name if untitled
+                directory;                      %Folder to save in
+                fileNameWithoutExtension;       %File name, without extension
+                Settings.ExactFileName (1,1) logical = false;   %True to save with exactly this name (e.g. one chosen in a Save As dialog). False: name after the axes' title if they have one, and add -Fig and a number so nothing is overwritten
+            end
+
             try
                 %Add a title to the plot, if the axes don't already have
                 %one
                 if isempty(ax.Title.String)
-                    title(strrep(fileNameWithoutExtension, '_', ' '));
-                else
+                    title(ax, strrep(fileNameWithoutExtension, '_', ' '));
+                elseif ~Settings.ExactFileName
                     if iscell(ax.Title.String)
                         fileNameWithoutExtension = ax.Title.String{1};
                     else
@@ -112,7 +122,9 @@ classdef DataWriter < handle
                 %Add '-Fig' to the filename, and then any needed -0000x
                 %numbers to prevent file overwriting if multiple figures
                 %were saved on this same filename
-                fileNameWithoutExtension = Palladium.Utilities.PathUtils.GetIncrementedFileName(fullfile(string(directory), string(fileNameWithoutExtension)) + "-Fig.fig");
+                if ~Settings.ExactFileName
+                    fileNameWithoutExtension = Palladium.Utilities.PathUtils.GetIncrementedFileName(fullfile(string(directory), string(fileNameWithoutExtension)) + "-Fig.fig");
+                end
 
                 %Save a .fig and a .png
                 saveas(figure, fullfile(directory, fileNameWithoutExtension + ".fig"));
