@@ -72,7 +72,10 @@ classdef test_StarterFiles < matlab.unittest.TestCase
             code = fileread(fullfile(appDir, "ExamplesAndTemplates", "PythonInstruments", "TemplatePythonInstrument.py"));
             writelines(replace(code, "class TemplatePythonInstrument(", "class MyTemplateCopy("), fullfile(pyDir, "MyTemplateCopy.py"));
 
-            %A config pointing the user files, data, sequences and logs at that folder
+            %A config pointing the user files, data and sequences at that folder.
+            %Logs stay in Testing Data Files/Logs: the Logger is shared, and the
+            %class's own Palladium logs its closing to the newest instance's log
+            %folder, after this folder has gone
             cfg = readstruct(fullfile(appDir, "Tests", "TestingConfig.json"));
             cfg.PathSettings.UserFilesDirectory = fullfile(root, "UserFiles");
             cfg.PathSettings.UserFilesDirectoryIsRelativePath = false;
@@ -80,8 +83,6 @@ classdef test_StarterFiles < matlab.unittest.TestCase
             cfg.PathSettings.DataDirectoryIsRelativePath = false;
             cfg.PathSettings.DefaultSequenceDirectory = fullfile(root, "Sequences");
             cfg.PathSettings.SequenceDirectoryIsRelativePath = false;
-            cfg.LogSettings.LogFileDirectory = fullfile(root, "Logs");
-            cfg.LogSettings.LogFileDirectoryIsRelativePath = false;
             configPath = fullfile(root, "Config.json");
             writestruct(cfg, configPath, FileType="json");
 

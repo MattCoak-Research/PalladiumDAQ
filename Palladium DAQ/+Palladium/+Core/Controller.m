@@ -319,8 +319,12 @@ classdef Controller < handle
                 uifg = this.UIFigureHandle;
                 if matlab.ui.internal.isUIFigure(uifg)
                     %Our view is a UI Figure, show a modal warning box based on
-                    %its handle
-                    uialert(uifg, sprintf(msg), title, "Icon", "warning", "Interpreter", "HTML");
+                    %its handle. The message is plain text - not passed
+                    %through sprintf, which would treat the backslashes in
+                    %Windows paths as escapes (cutting the message short, and
+                    %printing a MATLAB warning, which the standalone app
+                    %shows as a Windows error box)
+                    uialert(uifg, Palladium.Utilities.GUIUtils.MessageToHTML(msg), title, "Icon", "warning", "Interpreter", "HTML");
                 else
                     %Our view is not a ui figure - just show a warning in the
                     %console
@@ -329,6 +333,11 @@ classdef Controller < handle
             catch
                 warning("HandleWarningWarning:Message", "%s", msg);
             end
+        end
+
+        function tf = HasGUIWindow(this)
+            %True if a GUI window is open to show messages and dialog boxes in
+            tf = matlab.ui.internal.isUIFigure(this.UIFigureHandle) && isvalid(this.UIFigureHandle);
         end
 
         function Initialise(this, versionString, Settings)

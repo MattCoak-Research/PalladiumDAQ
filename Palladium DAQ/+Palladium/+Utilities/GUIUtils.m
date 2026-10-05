@@ -115,6 +115,23 @@ classdef GUIUtils
                 str = join(str, " ");
             end
         end
+
+        function html = MessageToHTML(msg)
+            % Turns a plain-text message into HTML for a dialog box with the
+            % HTML interpreter (uialert, uiconfirm). The message stays
+            % readable as plain text in the log and command window:
+            %   - <, > and & are shown as typed (eg "value < 0")
+            %   - text in `backticks` is shown as code (a monospaced font), for file
+            %     names and paths
+            %   - http(s) web addresses become links
+            %   - line breaks are kept
+            % Backslashes are left alone, so Windows paths show correctly.
+            html = string(msg);
+            html = replace(html, ["&", "<", ">"], ["&amp;", "&lt;", "&gt;"]);
+            html = regexprep(html, "`([^`]+)`", "<code>$1</code>");
+            html = regexprep(html, "(https?://[^\s<]*[^\s<.,;:)])", "<a href=""$1"">$1</a>");
+            html = replace(html, [sprintf("\r\n"), newline], "<br>");
+        end
     end
 end
 

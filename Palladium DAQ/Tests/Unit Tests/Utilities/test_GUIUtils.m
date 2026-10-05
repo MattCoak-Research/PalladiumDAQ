@@ -129,6 +129,24 @@ classdef test_GUIUtils < matlab.unittest.TestCase
             testCase.verifyError(@() Palladium.Utilities.GUIUtils.ToScalarString(value), "ToScalarStringError:HighDimensionalArray");
         end
 
+        function test_MessageToHTML_KeepsWindowsPaths(testCase)
+            %Backslashes stay as typed - this message used to be cut off
+            %at the \U, with a MATLAB warning
+            html = Palladium.Utilities.GUIUtils.MessageToHTML("Put it in:" + newline + "`C:\Users\Matt\Documents`");
+            testCase.verifyEqual(html, "Put it in:<br><code>C:\Users\Matt\Documents</code>");
+        end
+
+        function test_MessageToHTML_EscapesHTMLCharacters(testCase)
+            html = Palladium.Utilities.GUIUtils.MessageToHTML("value < 0 & x > 1");
+            testCase.verifyEqual(html, "value &lt; 0 &amp; x &gt; 1");
+        end
+
+        function test_MessageToHTML_MakesLinks(testCase)
+            %Trailing punctuation is not part of the link
+            html = Palladium.Utilities.GUIUtils.MessageToHTML("See https://www.qdusa.com/pharos/.");
+            testCase.verifyEqual(html, "See <a href=""https://www.qdusa.com/pharos/"">https://www.qdusa.com/pharos/</a>.");
+        end
+
     end
 
 end
