@@ -115,6 +115,10 @@ classdef InstrumentController < handle
                     error("AddInstrumentError:CreationFailed", "%s", "Instrument creation failed: " + string(instrStringToAdd));
                 end
 
+                %Tell the instrument where the user's Instrument Drivers
+                %folder is - the compiled app can't put it on the search path
+                instRef.InstrumentDriversDir = string(this.Controller.UserInstrumentDriversDir);
+
                 %Set the instrument name if that optional parameter was
                 %passed in. This is useful when setting up Instruments and
                 %their GUI controls programmatically - we want the name to

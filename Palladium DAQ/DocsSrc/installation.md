@@ -87,6 +87,16 @@ When Palladium DAQ first runs, it creates a folder called `Palladium DAQ - User 
 | `Presets` | Your [Presets](presets-and-config.md). An `Example.json` is copied here to start from |
 | `+Palladium\+Instruments` | Your own MATLAB [instrument drivers](writing-instruments.md). A copy of `TemplateInstrumentClass.m` is put here to start from |
 | `PythonInstruments` | Your own [Python instruments](python-instruments.md). A copy of `TemplatePythonInstrument.py` is put here to start from |
-| `Instrument Drivers` | Third-party drivers some instruments need, such as the Quantum Design PPMS interface |
+| `Instrument Drivers` | Manufacturers' driver files that some instruments need - see Instrument drivers below |
 
-Files are only copied in if they are missing, so your own changes are never overwritten. The folder is added to the MATLAB path when Palladium DAQ starts.
+Files are only copied in if they are missing, so your own changes are never overwritten. When Palladium DAQ runs from MATLAB, the folder is added to the MATLAB path when it starts.
+
+## Instrument drivers
+
+Some instruments need driver files or code from their manufacturer. These have their own licences, so they can't be included with Palladium DAQ, and you have to install them yourself. You only need to do this for the instruments you use.
+
+Each of these instruments has its own setup page, which says what to download and where to put it. The files go in the `Instrument Drivers` folder of the user files folder (above), and work the same way in MATLAB and in the standalone app.
+
+| Instrument | Driver needed | Setup |
+| --- | --- | --- |
+| Quantum Design PPMS | `QDInstrument.dll`, from Quantum Design | [Setting up the PPMS](instrument-drivers/ppms.md) |

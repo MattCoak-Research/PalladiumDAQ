@@ -19,6 +19,7 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
         LastFullDataRow = [];           %Each tick, the Controller will store the complete DataRow in each Instrument here. This is used when Instruments write their own data files, for things like independent sweeps
         FullHeadersRow = [];            %On measurements start, this will get cached with the full array of headers for the whole setup - again, for instrument-driven data writing.
         FileWriteDetails = [];
+        InstrumentDriversDir = "";      %The user files folder's Instrument Drivers folder, set by Palladium when the instrument is added - for drivers that load vendor files (e.g. .NET dlls) from there. Empty if the instrument was made outside Palladium
     end
 
     %% Properties (Public, Set Observable)
