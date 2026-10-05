@@ -711,7 +711,11 @@ classdef Controller < handle
                 %PalladiumDAQ.exe in an installed app (the installer puts it there)
                 indexPath = fullfile(this.ApplicationDir, "Docs", "index.html");
                 assert(isfile(indexPath), "Controller:DocsNotFound", "Documentation not found at %s", indexPath);
-                url = "file:///" + replace(replace(indexPath, "\", "/"), " ", "%20");
+                urlPath = replace(indexPath, "\", "/");
+                if ~startsWith(urlPath, "/")    %Windows C:/..., not Mac/Linux /...
+                    urlPath = "/" + urlPath;
+                end
+                url = "file://" + replace(urlPath, " ", "%20");
                 if isdeployed
                     status = web(url, "-browser"); %#ok<NASGU>
                 else

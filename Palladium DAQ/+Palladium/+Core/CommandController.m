@@ -305,7 +305,7 @@ classdef CommandController < handle
             if isempty(str) || strcmp(str, " ")
                 disp(" ");
             else
-                disp("Seq:: " + string(strrep(str, '\', '\\')));    %Properly escape filepath separators so the string of a path renders properly
+                disp("Seq:: " + string(str));    %disp prints backslashes as they are - no escaping needed
             end
         end
     end

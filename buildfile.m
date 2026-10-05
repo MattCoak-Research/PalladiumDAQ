@@ -416,7 +416,7 @@ matlab.addons.toolbox.packageToolbox(opts);
 end
 
 function deployDebugTask(~)
-projectRoot = ""; %Was full path: "E:\OneDrive\OneDrive - University of Birmingham\Physics\Matlab\Palladium DAQ";
+projectRoot = "";   %The build runs from the repo root
 
 %Define, then clear (ready to write to) output directory
 exeDir = fullfile(projectRoot, "Release", "Debug Build");
@@ -439,7 +439,7 @@ BuildDebugStandalone(buildOpts);
 end
 
 function deployTask(~)
-projectRoot = ""; %Was full path: "E:\OneDrive\OneDrive - University of Birmingham\Physics\Matlab\Palladium DAQ";
+projectRoot = "";   %The build runs from the repo root
 
 %Define, then clear (ready to write to) output directory
 exeDir = fullfile(projectRoot, "Release", "Build");

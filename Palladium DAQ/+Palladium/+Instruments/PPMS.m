@@ -398,7 +398,7 @@ classdef PPMS < Palladium.Core.Instrument
             instrType = 0;
 
             %Add the .NET namespace to the MATLAB search path
-            NET.addAssembly(ppmsCommDir_Full + "\" + dllPath);
+            NET.addAssembly(fullfile(ppmsCommDir_Full, dllPath));
 
             %Create an instance of the Controller object in the dll's
             %namespace

@@ -154,7 +154,7 @@ classdef test_CommandEncoder < matlab.unittest.TestCase
             %name gives no path (resume with the current file name), not the folder
             ce = Palladium.Sequence.CommandEncoder();
             details = struct("Type", "DATAFILE", "Directory", "C:\Data", "FileName", "Run2.dat", "WriteToFile", true);
-            testCase.verifyEqual(ce.BuildCommandFromEventDetails(details).DataFilePath, "C:\Data\Run2.dat");
+            testCase.verifyEqual(ce.BuildCommandFromEventDetails(details).DataFilePath, fullfile("C:\Data", "Run2.dat"));   %Joined with the system's separator - / on Linux
 
             details.FileName = "  ";
             com = ce.BuildCommandFromEventDetails(details);
