@@ -14,3 +14,4 @@
     * [Developers](developers/index.md)
         * [Build pipeline](developers/build-pipeline.md)
         * [Code and comment conventions](developers/code-conventions.md)
+        * [Error handling in the GUI](developers/error-handling.md)

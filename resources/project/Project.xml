@@ -1714,6 +1714,12 @@
                 <DIR_SIGNIFIER Location="1">
                     <Info/>
                 </DIR_SIGNIFIER>
+                <File Location="developers">
+                    <Info/>
+                    <DIR_SIGNIFIER Location="1">
+                        <Info/>
+                    </DIR_SIGNIFIER>
+                </File>
             </File>
             <File Location="ExamplesAndTemplates">
                 <Info/>
