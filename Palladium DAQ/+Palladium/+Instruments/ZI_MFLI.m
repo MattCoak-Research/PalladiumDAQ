@@ -1,49 +1,63 @@
 classdef ZI_MFLI < Palladium.Core.Instrument
-    % ZI_MFLI - Zurich Instruments MFLI medium-frequency lockin, Instrument implementation
-    %The connection code allows multiple MFLI instruments to be connected
-    %at once. Due to how MFLIs run an on-instrument server as well as the
-    %option for PC-hosted more advanced ones (which are anyway more
-    %performant), this complicates install and operation. LabOne must be
-    %fully installed via downloadable exectuable, not just via plug and
-    %play of the instrument, before connecting. This gives the PC hosting -
-    %see the MFLI manual for more information. And then when launching
-    %LabOne in the browser on the PC, select Local Data Servers from the
-    %drop down when browsing connected instruments, before doing anything.
-    %Otherwise opening the instrument in LabOne will lock it into a state
-    %where this code cannot connect, it will keep showing as In Use and
-    %pretty much has to be power cycled to get it to connect again. LabOne
-    %will remember the Local selection between runs, so only need to select
-    %on first use then never change.
-    %LabOne can be running in the browser while this code is active, and
-    %indeed is intended to be used this way - complex settings and control are not
-    %duplicated here.
+    %ZI_MFLI - Instrument driver for the Zurich Instruments MFLI 500 kHz / 5 MHz lock-in amplifier.
+    %Each measurement tick reads the latest sample of demodulator 1, as X and
+    %Y or as amplitude R and phase (set by `MeasurementMode`), plus the
+    %signal output level and the oscillator frequency. With a current
+    %source on the signal output (`ConnectedCurrentSource`), the output is
+    %logged as a current and a resistance column is added. The MFLI Sweep
+    %Control tab runs the instrument's own Sweeper (frequency, amplitude,
+    %Aux Output 1 or output offset), and the public methods give scripts
+    %access to most demodulator, input, output, scope and Data Acquisition
+    %settings.
+    %
+    %The MFLI is not controlled by SCPI: the driver talks to a LabOne Data
+    %Server through Zurich Instruments' LabOne MATLAB API (`ziDAQ`), which
+    %must be installed and on the MATLAB path. The instrument is identified
+    %by `DeviceID` (e.g. "DEV7779"); Ethernet and USB both connect through
+    %the Data Server running on this PC (localhost, port 8004), which
+    %allows several MFLIs to be connected at once.
+    %
+    %Setup notes:
+    %
+    %* Install LabOne fully on the PC from the downloadable installer - not
+    %  only the web interface served by the instrument - so the Data Server
+    %  runs on the PC (see "Running LabOne on a Separate PC" in the MFLI
+    %  manual).
+    %* When first opening LabOne in the browser, select Local Data Servers
+    %  in the device list before opening the instrument. Otherwise the
+    %  instrument's internal Data Server claims it, it shows as In Use and
+    %  usually needs a power cycle before this driver can connect. LabOne
+    %  remembers the choice.
+    %* LabOne can stay open in the browser alongside Palladium, and is the
+    %  place for detailed settings - this driver does not duplicate them.
 
     %% Properties (Public)
     properties(Access = public)
-        FullName = "Zurich Instruments MFLI";                           %Full name, just for displaying on GUI
+        FullName = "Zurich Instruments MFLI";                           %Full name, displayed in the GUI
     end
 
     %% Properties (Public, Set Observable)
     % These properties will appear in the Instrument Settings GUI and are editable there
     properties(Access = public, SetObservable)
-        Name = 'ZI MFLI';
-        Connection_Type = Palladium.Enums.ConnectionType.Ethernet;       %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
-        DeviceID = 'DEV7779';                                           %Instrument hardware address
-        ConnectedCurrentSource;                                         %Do we have a current source connected that will turn voltage out into a current?
-        AmplifierGain = 1;                                              %Gain of any externally-added amplifiers or transformers to take into account.
-        MeasurementMode;                                                %Measuring voltage or current?
+        Name = 'ZI MFLI';                                               %Instrument name, used as the prefix of its data column headers
+        Connection_Type = Palladium.Enums.ConnectionType.Ethernet;      %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
+        DeviceID string = "DEV7779";                                    %LabOne device ID of the instrument, e.g. "DEV7779", as shown in LabOne and on the rear panel
+        ConnectedCurrentSource categorical;                             %Voltage-to-current converter on the signal output, if any - output is then logged as a current, and a resistance column is added
+        AmplifierGain (1,1) double = 1;                                 %Gain of any external amplifier or transformer on the measured signal, used in the resistance calculation
+        MeasurementMode categorical;                                    %What to log from demodulator 1: X and Y, or amplitude R and phase
     end
 
     %% Categoricals
     methods
-        function catOut = CurrentSource(this, inputStr); catOut = this.ConvertToCategorical(inputStr, ["None", "200 uA/V"]); end
-        function catOut = MeasType(this, inputStr); catOut = this.ConvertToCategorical(inputStr, ["Voltage XY", "Voltage RTheta", "Current"]); end
+        function catOut = CurrentSource(this, inputStr);    catOut = this.ConvertToCategorical(inputStr, ["None", "200 uA/V"]); end
+        function catOut = MeasType(this, inputStr);         catOut = this.ConvertToCategorical(inputStr, ["Voltage XY", "Voltage RTheta", "Current"]); end
     end
 
     %% Constructor
     methods
         function this = ZI_MFLI()
-            %Specify communication options and settings
+            %Set the supported connection types, default settings and the Sweep Control tab.
+
             this.DefineSupportedConnectionTypes(["Debug", "Ethernet", "USB"]);
             this.ConnectedCurrentSource = this.CurrentSource("200 uA/V");
             this.MeasurementMode = this.MeasType("Voltage RTheta");
@@ -57,19 +71,29 @@ classdef ZI_MFLI < Palladium.Core.Instrument
     methods (Access = public)
 
         function AddAuxInput(this, sigoutIndex)
-            % AddAuxInput(sigoutIndex) - add Aux Input 1 to Signal Output 1
+            %Add the signal on Aux Input 1 to a signal output (the output's Add switch).
+            %Used to put a DC offset from Aux Output 1, looped back into Aux
+            %Input 1, onto the signal output
+            %
+            %Inputs:
+            %   sigoutIndex - signal output index, 0 for Signal Output 1 (default)
+
             arguments
                 this; sigoutIndex (1,1) double = 0;
             end
             if(this.SimulationMode); return; end
             this.SetInt(['/sigouts/' num2str(sigoutIndex) '/add'], 1); % turned on
         end
-        
+
         function AllowDemodToSettle(this, demodIndex)
-            %AllowDemodToSettle - simply wait a set time, with no commands
-            %sent to instrument, for the demodulator to settle after a
-            %change. This is dependent on filterOrder and TimeConstant. See p297 of MFLI
-            %user manual.
+            %Wait for a demodulator's output to settle to 99% of its final value.
+            %Waits a number of filter time constants that depends on the filter
+            %order (Table 6.2 of the MFLI user manual); sends no commands while
+            %waiting
+            %
+            %Inputs:
+            %   demodIndex - demodulator index, 0 for Demodulator 1 (default)
+
             arguments
                 this ;
                 demodIndex (1,1) double = 0;
@@ -81,23 +105,14 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             %reading to settle to 99% of final value. See p297 of MFLI
             %user manual
             switch(filterOrder)
-                case(1)
-                    waitTime = tc * 4.6;
-                case(2)
-                    waitTime = tc * 6.6;
-                case(3)
-                    waitTime = tc * 8.4;
-                case(4)
-                    waitTime = tc * 10;
-                case(5)
-                    waitTime = tc * 12;
-                case(6)
-                    waitTime = tc * 12;
-                case(7)
-                    waitTime = tc * 15;
-                case(8)
-                    waitTime = tc * 16;
-
+                case(1);    waitTime = tc * 4.6;
+                case(2);    waitTime = tc * 6.6;
+                case(3);    waitTime = tc * 8.4;
+                case(4);    waitTime = tc * 10;
+                case(5);    waitTime = tc * 12;
+                case(6);    waitTime = tc * 12;
+                case(7);    waitTime = tc * 15;
+                case(8);    waitTime = tc * 16;
                 otherwise
                     error("MFLI_AllowDemodToSettle_Error:UnsupportedFilterOrder", 'Unsupported filter order');
             end
@@ -106,7 +121,13 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function AutoRangeInput(this, siginIndex)
-            % AutoRangeInput(siginIndex) - automatically adjust range so instrument not overloaded
+            %Set the input range automatically, to about twice the measured input amplitude.
+            %Applies to whichever of Signal Input 1 or Current Input 1 is the
+            %source of demodulator 1
+            %
+            %Inputs:
+            %   siginIndex - input index, 0 (default) - the MFLI has one of each
+
             arguments
                 this; siginIndex (1,1) double = 0;
             end
@@ -125,8 +146,13 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function AutoRangeOutput(this, sigoutIndex)
-            % AutoRangeOutput(siginIndex) - automatically adjust range so instrument not overloaded
-            % Note: when turned on, need to manually turn off. SetRangeOutput takes this into account.
+            %Turn on automatic range selection for a signal output.
+            %It stays on until turned off; SetRangeOutput turns it off before
+            %setting a range
+            %
+            %Inputs:
+            %   sigoutIndex - signal output index, 0 for Signal Output 1 (default)
+
             arguments
                 this; sigoutIndex (1,1) double = 0;
             end
@@ -135,17 +161,13 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function metadataStruct = CollectMetaData(this)
-            %Does nothing by default - implementations of individual
-            %instruments can override this to give functionality.
-            %Delete this function if no metadata is desired for this
-            %instrument.
-            %If a struct is returned it will be parsed
-            %into a string and that added as a line in the data file
-            %header.
-            %Use this to record instrument settings and metadata like
-            %frequency, voltage, measurement mode, that will not change
-            %during the measurement and therefore don't merit logging each
-            %step
+            %Main demodulator, input and output settings, recorded in the data-file header.
+            %
+            %Outputs:
+            %   metadataStruct - struct of the device ID, demodulator 1 filter
+            %   order and time constant, oscillator 1 frequency, and the Signal
+            %   Input 1 and Signal Output 1 settings, read from LabOne
+
             if(this.SimulationMode)
                 metadataStruct.Placeholder = "Simulated instrument - placeholder metadata";
                 return;
@@ -174,16 +196,18 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function ClearDAQ(~)
-            %Complete reset of the entire ZI data acquisition
-            %drivers, disconnects everything including data
-            %servers. Will do this to any other ZI devices that are
-            %connected
+            %Reset the whole LabOne MATLAB API, disconnecting all Data Servers.
+            %This disconnects every Zurich Instruments device in this MATLAB
+            %session, not only this one
+
             clear ziDAQ;
         end
 
         function Close(this)
-            %This (so far) looks to be common behaviour across all instruments.
-            %Can override this function in implementing class if more behaviour needed.
+            %Leave the device connected to the Data Server, so LabOne and other MFLIs are unaffected.
+            %Disconnecting the device would also close it in the LabOne web
+            %interface, so nothing is sent to the instrument
+
             switch(this.Connection_Type)
                 case(Palladium.Enums.ConnectionType.Debug)
                     %Just print a message
@@ -199,12 +223,15 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function Connect(this)
-            % Function to connect to MFLI instrument.
+            %Open the connection through the LabOne Data Server running on this PC.
+            %Ethernet and USB both connect to the local Data Server (which
+            %reaches the instrument over either), so several MFLIs can be
+            %connected at once. Debug connects to a simulated instrument
 
             %Make sure DeviceID is a string, and do some error
             %checking/verification
             this.DeviceID = string(this.DeviceID);
-            assert(strcmp(extractBefore(this.DeviceID,4), "DEV"), "MFLI_Connect_Error:InvalidDeviceID", "%s", "Invalid Device ID:" + newline + string(this.DeviceID) + newline + "in MFLI connect. Device ID must start with ""DEV"" - form is DEV123, as a string");
+            assert(startsWith(this.DeviceID, "DEV"), "MFLI_Connect_Error:InvalidDeviceID", "%s", "Invalid Device ID:" + newline + string(this.DeviceID) + newline + "in MFLI connect. Device ID must start with ""DEV"" - form is DEV123, as a string");
 
             switch(this.Connection_Type)
                 case(Palladium.Enums.ConnectionType.Debug)
@@ -225,15 +252,23 @@ classdef ZI_MFLI < Palladium.Core.Instrument
                     this.DeviceHandle = this.ZIConnect(this.DeviceID, '1GbE'); %Don't tell it USB, keep it 1GbE instead - we actually connect to the dataserver on LocalHost (to allow connecting multiple instruments) - so USB errors out, even if the device is connected to the dataserver by USB. Let's hide the user from this, stop them panicking that USB is not a supported option
 
                 otherwise
-                    error("MFLI_Connect_Error:UnsupportedConnectionType", "%s", "Unsupported connection type: " + this.ConnectionType);
+                    error("MFLI_Connect_Error:UnsupportedConnectionType", "%s", "Unsupported connection type: " + string(this.Connection_Type));
             end
 
         end
 
         function DAQHandle = DAQ_Initialise_Both(this, DemodSignal, demodIndex)
-            % DAQ_Initialise_Both(DemodSignal, Domain, DAQParams, demodIndex) - initialise a measurement
-            % of the demodulated signal in the time and frequency domain simulaneously using the Data
-            % Acquisition module. Gives data set based on a trigger event.
+            %Set up a Data Acquisition Module recording of a demodulator signal in time and frequency.
+            %Records the time trace and its FFT together, on a trigger from the
+            %demodulator's R. Run it with DAQ_Execute_Both
+            %
+            %Inputs:
+            %   DemodSignal - signal to record: 'X', 'Y', 'R' or 'Phase'
+            %   demodIndex  - demodulator index, 0 for Demodulator 1 (default)
+            %
+            %Outputs:
+            %   DAQHandle - handle of the Data Acquisition Module, empty in simulation
+
             arguments
                 this;
                 DemodSignal  {mustBeText};  % 'X','Y','R','Phase', 'XiY'
@@ -287,11 +322,18 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function [daqData_time, daqData_freq] = DAQ_Execute_Both(this, DemodSignal, DAQHandle, time)
-            % DAQ_Execute_Both(DemodSignal, Domain, DAQHandle, time) - execute a measurement of the demodulated
-            % signal in the time and frequency domain simultaneously using previously set up parameters
-            % by DAQ_Initialise_Both
-            % time - specifies length of data acquisiton
-            % 60s takes long - not necessary to have that much data?
+            %Run a recording set up by DAQ_Initialise_Both and return the time and frequency data.
+            %Finds the trigger level automatically first
+            %
+            %Inputs:
+            %   DemodSignal - signal to record, as given to DAQ_Initialise_Both
+            %   DAQHandle   - handle returned by DAQ_Initialise_Both
+            %   time        - timeout, in s, for finding the trigger level and for the recording (default 3)
+            %
+            %Outputs:
+            %   daqData_time - LabOne data struct, with fields Amplitude and Time (in s) added
+            %   daqData_freq - LabOne data struct, with fields Amplitude and bandwidth (in Hz) added
+
             arguments
                 this;
                 DemodSignal {mustBeText};  % 'X','Y','R','Phase', 'XiY'
@@ -353,16 +395,23 @@ classdef ZI_MFLI < Palladium.Core.Instrument
 
             daqData_time = this.Scope_AssembleData_Time(tmp, demod_path_us_time, path_time, clockbase);
 
-            daqData_freq = this.AssembleData_FFT(tmp, demod_path_us_freq, path_freq);
+            daqData_freq = this.Scope_AssembleData_FFT(tmp, demod_path_us_freq, path_freq);
 
             ziDAQ('set', DAQHandle, 'enable', 0);
 
         end
 
         function DAQHandle = DAQ_Initialise_Time(this, DemodSignal, GridColumns)
-            % DAQ_Initialise_Both(DemodSignal, Domain, DAQParams, demodIndex) - initialise a measurement
-            % of the demodulated signal in the time and frequency domain simulaneously using the Data
-            % Acquisition module. Gives data set based on a trigger event.
+            %Set up a continuous Data Acquisition Module recording of a demodulator signal in time.
+            %Run it with DAQ_Execute_Time
+            %
+            %Inputs:
+            %   DemodSignal - signal to record: 'X', 'Y', 'R', 'Phase', or 'XiY' for X and Y together
+            %   GridColumns - number of samples in the recording (default 2^16)
+            %
+            %Outputs:
+            %   DAQHandle - handle of the Data Acquisition Module, empty in simulation
+
             arguments
                 this;
                 DemodSignal  {mustBeText};  % 'X','Y','R','Phase', 'XiY'
@@ -385,7 +434,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             % create a handle for the dataAcquisitionModule
             DAQHandle = ziDAQ('dataAcquisitionModule');
             % device on which dataAcquisitionModule will be performed
-            ziDAQ('set', DAQHandle, 'dataAcquisitionModule/device', this.DeviceID);
+            ziDAQ('set', DAQHandle, 'dataAcquisitionModule/device', this.DeviceHandle);
 
             % 4 = exact grid mode is chosen - this is most suitable for FFTs
             % the subscribed signal with the highest sampling rate (as sent from the device) defines
@@ -396,6 +445,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             % number of bins =  2^bits
             ziDAQ('set', DAQHandle, 'dataAcquisitionModule/grid/cols', GridColumns);
 
+            % 0 = continuous acquisition (trigger off)
             ziDAQ('set',DAQHandle,'dataAcquisitionModule/type',0);
 
             % subcribe to time node
@@ -408,11 +458,16 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function daqData_time = DAQ_Execute_Time(this, DemodSignal, DAQHandle)
-            % DAQ_Execute_Both(DemodSignal, Domain, DAQHandle, time) - execute a measurement of the demodulated
-            % signal in the time and frequency domain simultaneously using previously set up parameters
-            % by DAQ_Initialise_Both
-            % time - specifies length of data acquisiton
-            % 60s takes long - not necessary to have that much data?
+            %Run a recording set up by DAQ_Initialise_Time and return the time-domain data.
+            %
+            %Inputs:
+            %   DemodSignal - signal to record, as given to DAQ_Initialise_Time
+            %   DAQHandle   - handle returned by DAQ_Initialise_Time
+            %
+            %Outputs:
+            %   daqData_time - LabOne data struct, with fields Amplitude and Time (in s)
+            %                  added. For 'XiY', a 2-element struct array of X then Y
+
             arguments
                 this;
                 DemodSignal {mustBeText};  % 'X','Y','R','Phase', 'XiY'
@@ -461,27 +516,37 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function Disable50ImpedIn(this, siginIndex)
-            % Disable50ImpedIn - switch from low impedance of 50 Ohms to high impedance of 10 MOhms.
-            % Only applied for Signal Input 1.
+            %Set Signal Input 1 to its high (10 MOhm) input impedance.
+            %
+            %Inputs:
+            %   siginIndex - signal input index, 0 for Signal Input 1 (default)
+
             arguments
                 this; siginIndex (1,1) double = 0;
             end
             if(this.SimulationMode); return; end
-            zthis.SetInt(['/sigins/' num2str(siginIndex) '/imp50'], 0); % turn off
+            this.SetInt(['/sigins/' num2str(siginIndex) '/imp50'], 0); % turn off
         end
 
-        function Disable50ImpedOut(this, siginIndex)
-            % Disable50ImpedOut(siginIndex) - disable 50 Ohms load impedance at output.
+        function Disable50ImpedOut(this, sigoutIndex)
+            %Set a signal output's load impedance to high impedance (HiZ), from 50 Ohm.
+            %
+            %Inputs:
+            %   sigoutIndex - signal output index, 0 for Signal Output 1 (default)
+
             arguments
-                this; siginIndex (1,1) double = 0;
+                this; sigoutIndex (1,1) double = 0;
             end
             if(this.SimulationMode); return; end
-            this.SetInt(['/sigouts/' num2str(siginIndex) '/imp50'], 0); % turn off
+            this.SetInt(['/sigouts/' num2str(sigoutIndex) '/imp50'], 0); % turn off
         end
 
         function DisableAmplitude(this, channelName)
-            % DisableAmplitude(channelName) - disable the output amplitude.
-            % channelName - 'SignalOutput1' set as default
+            %Turn off the sine amplitude of a signal output, leaving any DC offset.
+            %
+            %Inputs:
+            %   channelName - 'SignalOutput1' (default; the only signal output)
+
             arguments
                 this; channelName string = 'SignalOutput1'; % set default
             end
@@ -492,7 +557,11 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function DisableAC(this, siginIndex)
-            % DisableAC(siginIndex) - turn off AC coupling. Only for Signal Input 1.
+            %Set Signal Input 1 to DC coupling.
+            %
+            %Inputs:
+            %   siginIndex - signal input index, 0 for Signal Input 1 (default)
+
             arguments
                 this; siginIndex (1,1) double = 0;
             end
@@ -501,9 +570,12 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function DisableAuxOut(this, channelName)
-            % DisableAuxOut(channelName)
-            % Turn off an Aux output port, setting its offset and scale to 0.
-            % channelName - 'Aux1', 'Aux2', 'Aux3' or 'Aux4', as string.
+            %Set an Aux Output to 0 V, by zeroing its offset, scale and pre-offset.
+            %The Aux Outputs have no off state
+            %
+            %Inputs:
+            %   channelName - 'Aux1', 'Aux2', 'Aux3' or 'Aux4'
+
             arguments
                 this;
                 channelName {mustBeText};
@@ -518,9 +590,11 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function DisableDemod(this, demodIndex)
-            % DisableDemod(demodIndex) - disables data transfer of measurement samples from the demodulator
-            % to the host computer.
-            % demodIndex set to default value of 0 - only one demodulator acquires data.
+            %Stop a demodulator streaming samples to the Data Server.
+            %
+            %Inputs:
+            %   demodIndex - demodulator index, 0 for Demodulator 1 (default)
+
             arguments
                 this;
                 demodIndex (1,1) double = 0; % set default to 0 for MFLI - one demodulator for measurement
@@ -531,17 +605,24 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function DisableDiffInput(this, siginIndex)
-            % DisableDifferentialInput - switch from differential to single ended mode.
-            % Only applied for Signal Input 1.
+            %Set Signal Input 1 to single-ended mode.
+            %
+            %Inputs:
+            %   siginIndex - signal input index, 0 for Signal Input 1 (default)
+
             arguments
                 this; siginIndex (1,1) double = 0;
             end
             if(this.SimulationMode); return; end
-            zthis.SetInt(['/sigins/' num2str(siginIndex) '/diff'], 0); % turn on
+            this.SetInt(['/sigins/' num2str(siginIndex) '/diff'], 0); % turn off
         end
 
         function DisableDiffOutput(this, sigoutIndex)
-            % DisableDiffOutput(sigoutIndex) - switch from differential to single ended mode for signal output.
+            %Set a signal output to single-ended mode.
+            %
+            %Inputs:
+            %   sigoutIndex - signal output index, 0 for Signal Output 1 (default)
+
             arguments
                 this; sigoutIndex (1,1) double = 0;
             end
@@ -550,7 +631,8 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function DisableEverything(this)
-            % DisableEverything() - disables all outputs of MFLI
+            %Turn off all the instrument's outputs and streaming, using LabOne's ziDisableEverything.
+
             arguments
                 this;
             end
@@ -559,8 +641,13 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function DisableFloat(this, siginIndex)
-            % DisableFloat(siginIndex) - switch from floating to connected ground.
-            % Function only applies for SignalInput1 and CurrentInput1
+            %Connect the input's ground to instrument ground (floating off).
+            %Applies to whichever of Signal Input 1 or Current Input 1 is the
+            %source of demodulator 1; the setting is shared by both inputs
+            %
+            %Inputs:
+            %   siginIndex - input index, 0 (default)
+
             arguments
                 this; siginIndex (1,1) double = 0;
             end
@@ -579,8 +666,11 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function DisableSignalOut(this, channelName)
-            % DisableSignalOut(channelName) - turn off signal output RF port.
-            % channelName - 'SignalOutput1' set as default
+            %Switch off a signal output.
+            %
+            %Inputs:
+            %   channelName - 'SignalOutput1' (default; the only signal output)
+
             arguments
                 this; channelName string = 'SignalOutput1'; % set default
             end
@@ -591,10 +681,11 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function DisableSincFilter(this, demodIndex)
-            % DisableSincFilter(demodIndex) - turn off Sinc filter.
-            % demodIndex set to default value of 0 - turn off sinc for demodulator that acquires data.
-            % can also set demodIndex to 1 to turn off sinc for second demodulator used as
-            % an external reference demodulator
+            %Turn off a demodulator's sinc filter.
+            %
+            %Inputs:
+            %   demodIndex - demodulator index, 0 for Demodulator 1 (default)
+
             arguments
                 this;
                 demodIndex (1,1) double = 0;
@@ -604,9 +695,12 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function Enable50ImpedIn(this, siginIndex)
-            % Enable50ImpedIn - switch from high impedance of 10 MOhms to low impedance of 50 Ohms.
-            % With 50 Ohms, expect reduction by factor 2 in measured signal if source also has 50 Ohm impedance.
-            % Only applied for Signal Input 1.
+            %Set Signal Input 1 to 50 Ohm input impedance, from 10 MOhm.
+            %With a 50 Ohm source, expect the measured signal to halve
+            %
+            %Inputs:
+            %   siginIndex - signal input index, 0 for Signal Input 1 (default)
+
             arguments
                 this; siginIndex (1,1) double = 0;
             end
@@ -614,24 +708,30 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             this.SetInt(['/sigins/' num2str(siginIndex) '/imp50'], 1); % turn on
         end
 
-        function Enable50ImpedOut(this, siginIndex)
-            % Enable50ImpedOut(siginIndex) - enable 50 Ohms load impedance at output.
-            % Select the load impedance between 50 Ohms and HiZ.
-            % The impedance of the output is always 50 Ohms. For a load impedance of 50 Ohms, the displayed
-            % voltage is half the output voltage to reflect the voltage seen at the load - range values half.
+        function Enable50ImpedOut(this, sigoutIndex)
+            %Set a signal output's load impedance to 50 Ohm, from high impedance.
+            %The output impedance is always 50 Ohm; this tells the instrument the
+            %load is 50 Ohm, so displayed voltages and ranges are halved to
+            %match the voltage at the load
+            %
+            %Inputs:
+            %   sigoutIndex - signal output index, 0 for Signal Output 1 (default)
+
             arguments
                 this;
-                siginIndex (1,1) double = 0;
+                sigoutIndex (1,1) double = 0;
             end
             if(this.SimulationMode); return; end
-            zthis.SetInt(['/sigouts/' num2str(siginIndex) '/imp50'], 1); % turn on
+            this.SetInt(['/sigouts/' num2str(sigoutIndex) '/imp50'], 1); % turn on
         end
 
         function EnableAC(this, siginIndex)
-            % EnableAC(siginIndex) - turn on AC coupling. This inserts a high-pass filter with a cut-off
-            % frequency of 1.6 Hz that can be used to block large DC signal components to prevent input signal
-            % saturation during amplification.
-            % Can only be enabled for Signal Input 1
+            %Set Signal Input 1 to AC coupling, to block large DC components.
+            %Inserts a high-pass filter with a cut-off of about 1.6 Hz
+            %
+            %Inputs:
+            %   siginIndex - signal input index, 0 for Signal Input 1 (default)
+
             arguments
                 this; siginIndex (1,1) double = 0;
             end
@@ -640,8 +740,11 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function EnableAmplitude(this, channelName)
-            % EnableAmplitude(channelName) - enable the output amplitude.
-            % channelName - 'SignalOutput1' set as default
+            %Turn on the sine amplitude of a signal output.
+            %
+            %Inputs:
+            %   channelName - 'SignalOutput1' (default; the only signal output)
+
             arguments
                 this; channelName string = 'SignalOutput1'; % set default
             end
@@ -651,9 +754,11 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function EnableDemod(this, demodIndex)
-            % EnableDemod(demodIndex) - enables data transfer of measurement samples from the demodulator
-            % to the host computer.
-            % demodIndex set to default value of 0 - only one demodulator acquires data.
+            %Start a demodulator streaming samples to the Data Server.
+            %
+            %Inputs:
+            %   demodIndex - demodulator index, 0 for Demodulator 1 (default)
+
             arguments
                 this;
                 demodIndex (1,1) double = 0; % set default to 0 for MFLI - one used for measurement
@@ -664,8 +769,11 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function EnableDiffInput(this, siginIndex)
-            % EnableDifferentialInput -  switch from single ended to differential mode.
-            % Only applied for Signal Input 1.
+            %Set Signal Input 1 to differential mode.
+            %
+            %Inputs:
+            %   siginIndex - signal input index, 0 for Signal Input 1 (default)
+
             arguments
                 this; siginIndex (1,1) double = 0;
             end
@@ -674,8 +782,11 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function EnableDiffOutput(this, sigoutIndex)
-            % EnableDiffOutput(sigoutIndex) - switch from single ended to differential mode for signal output
-            % In differential mode the signal swing is defined between Signal Output +V / -V.
+            %Set a signal output to differential mode, between its +V and -V connectors.
+            %
+            %Inputs:
+            %   sigoutIndex - signal output index, 0 for Signal Output 1 (default)
+
             arguments
                 this; sigoutIndex (1,1) double = 0;
             end
@@ -684,10 +795,15 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function EnableFloat(this, siginIndex)
-            % EnableFloat(siginIndex) - switch from connected to floating ground
-            % Recommended to enable setting only after the signal source has been connected to the Signal Input
-            % in grounded mode.
-            % Function only applies for SignalInput1 and CurrentInput1
+            %Float the input's ground, disconnecting it from instrument ground.
+            %Applies to whichever of Signal Input 1 or Current Input 1 is the
+            %source of demodulator 1; the setting is shared by both inputs. The
+            %manual recommends enabling it only after the source has been
+            %connected with the input grounded
+            %
+            %Inputs:
+            %   siginIndex - input index, 0 (default)
+
             arguments
                 this; siginIndex (1,1) double = 0;
             end
@@ -706,8 +822,11 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function EnableSignalOut(this, channelName)
-            % EnableSignalOut(channelName) - turn on signal output RF port.
-            % channelName - 'SignalOutput1' set as default
+            %Switch on a signal output.
+            %
+            %Inputs:
+            %   channelName - 'SignalOutput1' (default; the only signal output)
+
             arguments
                 this; channelName string = 'SignalOutput1'; % set default
             end
@@ -718,11 +837,13 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function EnableSincFilter(this, demodIndex)
-            % EnableSincFilter(demodIndex) - turn on Sinc filter. Turn on when low-pass filter bandwidth
-            % comparable or larger than demodulation frequency. Use when frequency below 200 Hz.
-            % demodIndex set to default value of 0 - turn on sinc for demodulator that acquires data.
-            % can also set demodIndex to 1 to turn on sinc for second demodulator used as
-            % an external reference demodulator
+            %Turn on a demodulator's sinc filter, for low frequencies (below about 200 Hz).
+            %Use it when the filter bandwidth is comparable to or larger than the
+            %demodulation frequency
+            %
+            %Inputs:
+            %   demodIndex - demodulator index, 0 for Demodulator 1 (default)
+
             arguments
                 this;
                 demodIndex (1,1) double = 0;
@@ -733,9 +854,11 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function Instr_Params = GenerateSettingsSaveStruct(this)
-            % For logging diagnostics at end of scripts - each instrument returns a struct of all its
-            % measurement parameters and settings, that will be dumped into the MeasurementInfo/Metadata
-            % textfile in the Run Folder
+            %Struct of voltage divider and attenuator settings, for a run's metadata file.
+            %Not currently working: the GetVoltageDividerSettingString and
+            %GetAttenuatorSettingString methods it calls are not defined in
+            %this class
+
             if(this.SimulationMode)
                 Instr_Params.Info = 'Simulated Instrument';
                 return;
@@ -745,8 +868,8 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             % GetVoltageDivider.. function defined later
             Instr_Params.VoltageDivider_Aux1 = this.GetVoltageDividerSettingString('Aux1');
             Instr_Params.VoltageDivider_Aux2 = this.GetVoltageDividerSettingString('Aux2');
-            Instr_Params.VoltageDivider_Aux2 = this.GetVoltageDividerSettingString('Aux3');
-            Instr_Params.VoltageDivider_Aux2 = this.GetVoltageDividerSettingString('Aux4');
+            Instr_Params.VoltageDivider_Aux3 = this.GetVoltageDividerSettingString('Aux3');
+            Instr_Params.VoltageDivider_Aux4 = this.GetVoltageDividerSettingString('Aux4');
             Instr_Params.VoltageDivider_SignalOutput1 = this.GetVoltageDividerSettingString('SignalOutput1');
 
             % Save attenuator parameters
@@ -754,12 +877,13 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function zi_Params = GenerateFullSettingsSaveStruct(this)
-            % For logging diagnostics at end of scripts - each instrument returns a struct of all its
-            % measurement parameters and settings, that will be dumped into the MeasurementInfo/Metadata
-            % textfile in the Run Folder. The LI is a bit different to other instruments, in that it
-            % can generate a struct itself with literally everything in it - but it's a mess
-            % and impossible to neatly print to txt. let scripts grab it as a struct and save it directly
-            % to .mat, as well as separately saving the txt of simpler parameters.
+            %Read every setting of the instrument from LabOne, as a nested struct.
+            %Too large to print neatly into a text file - save it to a .mat
+            %file instead
+            %
+            %Outputs:
+            %   zi_Params - LabOne settings struct for this device (e.g. zi_Params.demods(1).order.value)
+
             if(this.SimulationMode)
                 zi_Params.Info = 'Simulated Instrument';
             else
@@ -771,12 +895,16 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function [R, theta] = GetAmplitudePhase(this, demodIndex)
-            % GetAmplitudePhase(demodIndex) - obtain the amplitude and phase of the demodulated signal.
-            % Instrument outputs in Cartesian coordinates X and Y, hence function converts components
-            % X and Y from the last sample recieved from the instrument to R (RMS voltage in Volts) and
-            % theta (in degrees). Function can be used instead of ReadXY then ConvertCartesian.
-            % demodIndex set to default value of 0 - only one demodulator acquires data and sends to computer.
-            % Reccomended to call AllowDemodToSettle before calling this.
+            %Read the latest demodulator sample as amplitude and phase.
+            %Call AllowDemodToSettle first after changing settings
+            %
+            %Inputs:
+            %   demodIndex - demodulator index, 0 for Demodulator 1 (default)
+            %
+            %Outputs:
+            %   R     - amplitude, RMS, in V (or A on the current input)
+            %   theta - phase, in degrees
+
             arguments
                 this;
                 demodIndex (1,1) double = 0;
@@ -790,7 +918,14 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function amp_RMS = GetAmplitudeOutput(this, channelName)
-            % GetAmplitudeOutput(channelName) - get the output amplitude for the single demodulator in units Vrms.
+            %Read the sine amplitude of a signal output, in V RMS (0 if the output is off).
+            %
+            %Inputs:
+            %   channelName - 'SignalOutput1' (default; the only signal output)
+            %
+            %Outputs:
+            %   amp_RMS - output amplitude, in V RMS
+
             arguments
                 this; channelName {mustBeText} = 'SignalOutput1'; % only one signal output, can set as default
             end
@@ -811,8 +946,14 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function aux_voltage = GetAuxOutVoltage(this, channelName)
-            % GetAuxOutVoltage(channelName, value) - Get the constant DC voltage being output by an AuxOut port.
-            % channelName - 'Aux1', 'Aux2', 'Aux3' or 'Aux4', as string.
+            %Read the DC offset of an Aux Output, in V.
+            %
+            %Inputs:
+            %   channelName - 'Aux1', 'Aux2', 'Aux3' or 'Aux4'
+            %
+            %Outputs:
+            %   aux_voltage - the Aux Output's offset, in V
+
             arguments
                 this;
                 channelName {mustBeText};
@@ -827,9 +968,14 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function harm = GetDemodHarm(this, demodIndex)
-            % GetDemodHarm(value, demodIndex) - get integer factor multiplying demodulator's (1 or 2)
-            % reference frequency
-            % demodIndex - can apply to either signal output (index 1) or reference demodulator (index 0)
+            %Read the harmonic a demodulator works at, as a multiple of its oscillator frequency.
+            %
+            %Inputs:
+            %   demodIndex - demodulator index, 0 for Demodulator 1
+            %
+            %Outputs:
+            %   harm - integer harmonic factor
+
             arguments
                 this; demodIndex (1,1) double;
             end
@@ -840,9 +986,14 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function phase_shift = GetDemodPhaseShift(this, demodIndex)
-            % GetDemodPhaseShift(value, demodIndex) - get the phase shift applied to the reference
-            % input of the demodulator
-            % demodIndex-can apply phase shift to either signal output (index 1) or reference demodulator (index 0)
+            %Read the phase shift applied to a demodulator's reference, in degrees.
+            %
+            %Inputs:
+            %   demodIndex - demodulator index, 0 for Demodulator 1
+            %
+            %Outputs:
+            %   phase_shift - phase shift, in degrees
+
             arguments
                 this; demodIndex (1,1) double;
             end
@@ -853,9 +1004,14 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function sample_rate = GetDemodRate(this, demodIndex)
-            % GetDemodRate(rate, demodIndex)- Get the demodulator sampling rate.
-            % Note: rate will automatically adjust to appropriate value near rate inputted.
-            % demodIndex set to default of 0 - only 1 demodulator connected to host computer
+            %Read a demodulator's sample rate - samples sent to the Data Server per second.
+            %
+            %Inputs:
+            %   demodIndex - demodulator index, 0 for Demodulator 1 (default)
+            %
+            %Outputs:
+            %   sample_rate - sample rate, in samples/s
+
             arguments
                 this; demodIndex (1,1) double = 0;
             end
@@ -865,10 +1021,14 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function filter_order = GetFilterOrder(this, demodIndex)
-            % GetFilterOrder(demodIndex) - get low-pass filter roll-off.
-            % demodIndex set to default value of 0 - set order for demodulator that acquires data.
-            % can also set demodIndex to 1 to change filter order for second demodulator used as
-            % an external reference demodulator
+            %Read a demodulator's low-pass filter order, 1 to 8 (6 to 48 dB/octave).
+            %
+            %Inputs:
+            %   demodIndex - demodulator index, 0 for Demodulator 1 (default)
+            %
+            %Outputs:
+            %   filter_order - filter order, 1 to 8
+
             arguments
                 this; demodIndex (1,1) double = 0;
             end
@@ -878,6 +1038,16 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function [Headers, Units] = GetHeaders(this)
+            %Data column headers and units for the values returned by Measure.
+            %Two demodulator columns (X and Y, or R and phase), the output level
+            %and the frequency, plus a resistance column when a current source
+            %is connected
+            %
+            %Outputs:
+            %   Headers - e.g. ["ZI MFLI - Voltage (V)", "ZI MFLI - Phase (Deg)",
+            %             "ZI MFLI - Output Current (A)", "ZI MFLI - Frequency (Hz)",
+            %             "ZI MFLI - Resistance (Ohms)"]
+            %   Units   - matching units, e.g. ["V", "Deg", "A", "Hz", "Ohm"]
 
             %Find out what units the device is supplying (current or
             %voltage)
@@ -922,7 +1092,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
                     Units = ["A", "Deg", supplyOutUnits, "Hz"];
 
                 otherwise
-                    error("MFLI_GetHeaders_Error:InvalidMode", "%s", "Mode must be Voltage, or Current, this was " + string(this.Mode));
+                    error("MFLI_GetHeaders_Error:InvalidMode", "%s", "Mode must be Voltage, or Current, this was " + string(this.MeasurementMode));
             end
 
             %Add on a resistance calculation too, if we have a current
@@ -934,8 +1104,14 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function osc_freq = GetOscFrequency(this, oscIndex)
-            % GetOscFrequency(oscIndex) - get the frequency of the oscillator connected to the demodulator.
-            % oscIndex set to default of 0 - only one oscillator. Can upgrade device to 4 oscillators.
+            %Read an oscillator's frequency, in Hz.
+            %
+            %Inputs:
+            %   oscIndex - oscillator index, 0 for Oscillator 1 (default; more need the MD option)
+            %
+            %Outputs:
+            %   osc_freq - frequency, in Hz
+
             arguments
                 this;
                 oscIndex (1,1) double = 0;
@@ -949,9 +1125,16 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function input_range = GetRangeInput(this, siginIndex)
-            % GetRangeInput(range, siginIndex) - get the gain of the analog input amplifier.
-            % Range in Volts. Only adjusted for 'SignalInput1' and 'CurrentInput1'
-            % siginIndex - default to 0 as only one type of each input
+            %Read the input range of the input feeding demodulator 1, in V or A.
+            %Signal Input 1 or Current Input 1, whichever is demodulator 1's
+            %source
+            %
+            %Inputs:
+            %   siginIndex - input index, 0 (default)
+            %
+            %Outputs:
+            %   input_range - input range, in V (Signal Input) or A (Current Input)
+
             arguments
                 this; siginIndex (1,1) double = 0;
             end
@@ -970,9 +1153,14 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function output_range = GetRangeOutput(this, channelName)
-            % GetRangeOutput(range, channelName) - obtain the maximum output voltage that is generated
-            % by the corresponding Signal Output.
-            % This includes the Signal Amplitudes and Offsets summed up.
+            %Read a signal output's range - the largest amplitude plus offset it can output, in V.
+            %
+            %Inputs:
+            %   channelName - 'SignalOutput1' (default; the only signal output)
+            %
+            %Outputs:
+            %   output_range - output range, in V
+
             arguments
                 this; channelName {mustBeText} = 'SignalOutput1'; % only one signal output, can set as default
             end
@@ -983,9 +1171,16 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function scaling = GetScaling(this, siginIndex)
-            % GetScaling(siginIndex) - get the scaling factor of the input signal
-            % Scaling factor only adjusted for 'SignalInput1' and 'CurrentInput1'
-            % siginIndex - default to 0 as only one type of each input
+            %Read the scale factor applied to the input feeding demodulator 1.
+            %Signal Input 1 or Current Input 1, whichever is demodulator 1's
+            %source
+            %
+            %Inputs:
+            %   siginIndex - input index, 0 (default)
+            %
+            %Outputs:
+            %   scaling - scale factor
+
             arguments
                 this; siginIndex (1,1) double = 0;
             end
@@ -1004,8 +1199,14 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function DCoffset = GetSignalOutDCOffset(this, channelName)
-            % GetSignalOutDCOffset(channelName)
-            % Function to get the DC voltage offset in Volts of the signal output
+            %Read the DC offset of a signal output, in V.
+            %
+            %Inputs:
+            %   channelName - 'SignalOutput1' (default; the only signal output)
+            %
+            %Outputs:
+            %   DCoffset - DC offset, in V
+
             arguments
                 this; channelName {mustBeText} = 'SignalOutput1';
             end
@@ -1017,13 +1218,19 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function enabledBool = GetSignalOutEnabledState(this, channelName)
-            % GetSignalOutEnabledState(channelName) - tquery whether the
-            % Signal Out is actually turned on at the moment
+            %Read whether a signal output is switched on.
+            %
+            %Inputs:
+            %   channelName - 'SignalOutput1' (default; the only signal output)
+            %
+            %Outputs:
+            %   enabledBool - true if the output is on (always true in simulation)
+
             arguments
                 this; channelName string = 'SignalOutput1'; % set default
             end
 
-            if(this.SimulationMode); return; end
+            if(this.SimulationMode); enabledBool = true; return; end
 
             channelIdx = this.ConvertChannelNameToChannelIndex(channelName);
 
@@ -1033,8 +1240,14 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function sourceName = GetSignalSource(this, demodIndex)
-            % GetSignalSource(demodIndex) - get the input signal source for a demodulator.
-            % Function outputs the input source name.
+            %Read which input a demodulator is demodulating, e.g. 'SignalInput1' or 'CurrentInput1'.
+            %
+            %Inputs:
+            %   demodIndex - demodulator index, 0 for Demodulator 1 (default)
+            %
+            %Outputs:
+            %   sourceName - input name, as accepted by SetSignalSource
+
             arguments
                 this;
                 demodIndex (1,1) double = 0;
@@ -1048,9 +1261,14 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function sincf = GetSincFilter(this, demodIndex)
-            % GetSincFilter(demodIndex) - get sinc filter status.
-            % demodIndex set to default value of 0. Can also set demodIndex to 1 to get sinc
-            % status for second demodulator used as an external reference demodulator
+            %Read whether a demodulator's sinc filter is on (1) or off (0).
+            %
+            %Inputs:
+            %   demodIndex - demodulator index, 0 for Demodulator 1 (default)
+            %
+            %Outputs:
+            %   sincf - 1 if the sinc filter is on, 0 if off
+
             arguments
                 this;
                 demodIndex (1,1) double = 0;
@@ -1061,12 +1279,15 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function tc = GetTimeConstant(this, demodIndex)
-            % GetTimeConstant(demodIndex) - get the time constant of the low-pass filter.
-            % demodIndex set to default value of 0 - set time constant for demodulator that acquires data.
-            % can also set demodIndex to 1 to change time constant for second demodulator used as
-            % an external reference demodulator
-            % Note: to get the filter 3 dB bandwidth, time constant obtained must be converted into a bandwidth
-            % for a given order using function ConvertTCintoBW.
+            %Read a demodulator's low-pass filter time constant, in s.
+            %Convert it to a 3 dB bandwidth with ConvertTCtoBW
+            %
+            %Inputs:
+            %   demodIndex - demodulator index, 0 for Demodulator 1 (default)
+            %
+            %Outputs:
+            %   tc - time constant, in s
+
             arguments
                 this; demodIndex (1,1) double = 0;
             end
@@ -1077,13 +1298,16 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function [X, Y] = GetXY(this, demodIndex)
-            % GetXY(demodIndex) - get the Cartesian components of the demodulated signal for the last sample
-            % that the Data Server received from the instrument. Gives a single measurement of X and Y RMS
-            % voltage in Volts.
-            % Device only transfers X and Y to the PC. X,Y,R,Theta obtained from each Aux Output.
-            % demodIndex set to default value of 0 - only one demodulator
-            % acquires data and sends to computer.
-            % Reccomended to call AllowDemodToSettle before calling this.
+            %Read the latest demodulator sample received by the Data Server, as X and Y.
+            %Call AllowDemodToSettle first after changing settings
+            %
+            %Inputs:
+            %   demodIndex - demodulator index, 0 for Demodulator 1 (default)
+            %
+            %Outputs:
+            %   X - in-phase component, RMS, in V (or A on the current input)
+            %   Y - quadrature component, RMS, in V (or A on the current input)
+
             arguments
                 this ;
                 demodIndex (1,1) double = 0;
@@ -1105,9 +1329,13 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function LoadDefaultPresetSettings(this, fileName)
-            % LoadDefaultPresetSettings() - Assumes that you have previously saved a sensible baseline
-            % set of settings for the MFLI as 'BaseSettings'. Loads those in so we are starting from a known
-            % point, nice clean slate. FileName is optional, default behaviour if not included.
+            %Load a baseline settings file, saved by SaveDefaultPresetSettings, into the instrument.
+            %Not currently working: it looks for the file through
+            %QNano.DataWriting.ConfigIO, which is not part of Palladium
+            %
+            %Inputs:
+            %   fileName - settings file name (default 'ZI_MFLI_BaseSettings.xml')
+
             arguments
                 this;
                 fileName = 'ZI_MFLI_BaseSettings.xml'; % automatically inputs required fileName
@@ -1132,7 +1360,15 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function [dataRow] = Measure(this)
-            %Query data on demodulator 0
+            %Read demodulator 1, the output level and the frequency.
+            %The resistance, when a current source is connected, is the
+            %demodulator amplitude (R, or X in Voltage XY mode) divided by
+            %the output current and AmplifierGain. The Current measurement
+            %mode is not supported yet
+            %
+            %Outputs:
+            %   dataRow - values matching GetHeaders
+
             demodIndex = 0;
 
             %Retrieve frequency and voltage out levels
@@ -1164,11 +1400,14 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function SaveDefaultPresetSettings(this, fileName)
-            % SaveDefaultPresetSettings() - Save the current instrument settings, hopefully a sensible
-            % baseline set of settings for the MFLI as 'BaseSettings' or an overridden filename other
-            % than this default. Saves into the Config folder. Can then later load those in so we are starting
-            % from a known point, nice clean slate.
-            % Set baseline settings with all outputs off, amplitude disabled and aux outputs off.
+            %Save the instrument's current settings as a baseline settings file.
+            %Set a sensible baseline first, e.g. with all outputs off. Not
+            %currently working: it saves through QNano.DataWriting.ConfigIO,
+            %which is not part of Palladium
+            %
+            %Inputs:
+            %   fileName - settings file name (default 'ZI_MFLI_BaseSettings.xml')
+
             arguments
                 this;
                 fileName = 'ZI_MFLI_BaseSettings.xml';
@@ -1188,13 +1427,18 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function SetAuxOutVoltage(this, channelName, value)
-            % SetAuxOutVoltage(channelName, value) - set the constant DC voltage to be used as DC Offset.
-            % AuxOutput connected back into AuxInput.
-            % value - DC Offset in Volts
-            % channelName - 'Aux1', 'Aux2', 'Aux3' or 'Aux4', as string.
+            %Set an Aux Output to a constant DC voltage, in V.
+            %Selects Manual output, sets the pre-offset to 0 and the scale to 1,
+            %and sets the offset to the voltage. The Aux Outputs have no off
+            %state - set 0 V instead
+            %
+            %Inputs:
+            %   channelName - 'Aux1', 'Aux2', 'Aux3' or 'Aux4'
+            %   value       - voltage, in V
+
             arguments
-                this; 
-                channelName {mustBeText}; 
+                this;
+                channelName {mustBeText};
                 value (1,1) double;
             end
             if(this.SimulationMode); return; end
@@ -1217,11 +1461,14 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function SetAuxOutVoltage_Scaled(this, channelName, value)
-            % SetAuxOutVoltage(channelName, value) - Set the constant DC
-            % voltage being output by an AuxOut port
-            % Note: this immediately 'Enables' the port - there is no Off state, just set to zero for
-            % these ports.
-            % channelName - 'Aux1', 'Aux2', 'Aux3' or 'Aux4', as string.
+            %Set an Aux Output to a constant DC voltage, in V - currently the same as SetAuxOutVoltage.
+            %No scaling (e.g. for a voltage divider) is applied yet. Prints the
+            %setting in simulation
+            %
+            %Inputs:
+            %   channelName - 'Aux1', 'Aux2', 'Aux3' or 'Aux4'
+            %   value       - voltage, in V
+
             arguments
                 this;
                 channelName {mustBeText};
@@ -1250,10 +1497,12 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function SetDemodHarm(this, value, demodIndex)
-            % SetDemodHarm(value, demodIndex) - multiplies demodulator's (1 or 2) reference frequency
-            % with defined integer factor
-            % value - integer factor
-            % demodIndex - can apply to either signal output (index 1) or reference demodulator (index 0)
+            %Set the harmonic a demodulator works at, as a multiple of its oscillator frequency.
+            %
+            %Inputs:
+            %   value      - integer harmonic factor
+            %   demodIndex - demodulator index, 0 for Demodulator 1
+
             arguments
                 this; value (1,1) double; demodIndex (1,1) double;
             end
@@ -1263,10 +1512,12 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function SetDemodPhaseShift(this, phase, demodIndex)
-            % SetDemodPhaseShift(value, demodIndex) - set the phase shift applied to the reference input
-            % of the demodulator
-            % phase - phase shift in degrees
-            % demodIndex-can apply phase shift to either signal output (index 1) or reference demodulator (index 0)
+            %Set the phase shift applied to a demodulator's reference, in degrees.
+            %
+            %Inputs:
+            %   phase      - phase shift, in degrees
+            %   demodIndex - demodulator index, 0 for Demodulator 1
+
             arguments
                 this; phase (1,1) double; demodIndex (1,1) double;
             end
@@ -1276,11 +1527,14 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function SetDemodRate(this, rate, demodIndex)
-            % SetDemodRate(rate, demodIndex) - defines the demodulator sampling rate, the number of samples
-            % sent to the host computer per second.
-            % rate needs to be about 7-10 higher than bandwidth to give good surpression of alaising.
-            % Note: rate will automatically adjust to appropriate value near rate inputted.
-            % demodIndex set to default of 0 - only 1 demodulator connected to host computer
+            %Set a demodulator's sample rate - samples sent to the Data Server per second.
+            %About 7 to 10 times the filter bandwidth avoids aliasing. The
+            %instrument rounds to the nearest rate it supports
+            %
+            %Inputs:
+            %   rate       - sample rate, in samples/s
+            %   demodIndex - demodulator index, 0 for Demodulator 1 (default)
+
             arguments
                 this;
                 rate;
@@ -1292,9 +1546,13 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function SetDemodTrigger(this, demodIndex)
-            % SetDemodTrigger(demodIndex) - set the demodulator trigger to continuous data acquisition
+            %Set a demodulator to stream data continuously (no trigger).
+            %
+            %Inputs:
+            %   demodIndex - demodulator index, 0 for Demodulator 1 (default)
+
             arguments
-                this; 
+                this;
                 demodIndex (1,1) double = 0;
             end
 
@@ -1302,13 +1560,14 @@ classdef ZI_MFLI < Palladium.Core.Instrument
 
             this.SetInt(['/demods/' num2str(demodIndex) '/trigger'], 0);
         end
-        
+
         function SetFilterOrder(this, order, demodIndex)
-            % SetFilterOrder(order, demodIndex) - set low-pass filter roll-off.
-            % order given by index 1 to 8, corresponding to 6, 12, 18, 24, 30 dB/oct etc.
-            % demodIndex set to default value of 0 - set order for the demodulator that acquires data.
-            % can also set demodIndex to 1 to change filter order for second demodulator used as
-            % an external reference demodulator
+            %Set a demodulator's low-pass filter order, 1 to 8 (6 to 48 dB/octave).
+            %
+            %Inputs:
+            %   order      - filter order, 1 to 8 (roll-off of 6 dB/octave per order)
+            %   demodIndex - demodulator index, 0 for Demodulator 1 (default)
+
             arguments
                 this; order {mustBeInRange(order, 1, 8)};
                 demodIndex (1,1) double = 0;
@@ -1319,10 +1578,12 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function SetOscFrequency(this, oscFreq, oscIndex)
-            % SetOscFrequency(oscFreq, oscIndex) - set the frequency of the oscillator connected to the
-            % demodulator. Provides the reference signal.
-            % oscFreq - the frequency of the oscillator given in Hz.
-            % oscIndex set to default of 0 - only one oscillator. Can upgrade device to 4 oscillators.
+            %Set an oscillator's frequency, in Hz - the reference and output frequency.
+            %
+            %Inputs:
+            %   oscFreq  - frequency, in Hz
+            %   oscIndex - oscillator index, 0 for Oscillator 1 (default; more need the MD option)
+
             arguments
                 this; oscFreq (1,1) double; oscIndex (1,1) double = 0; % default set as 0
             end
@@ -1330,15 +1591,20 @@ classdef ZI_MFLI < Palladium.Core.Instrument
 
             this.SetDouble(['/oscs/' num2str(oscIndex) '/freq'], oscFreq);
         end
-  
+
         function SetRangeInput(this, range, siginIndex)
-            % SetRangeInput(range, siginIndex) - defines the gain of the analog input amplifier.
-            % The range should exceed the incoming signal by a factor two, including the DC offset.
-            % range - instrument selects the next higher range relative to value given.
-            % Range values: 3m,10m,30m,100m,300m,1,3 in Volts for SignalInput1
-            %               1n,10n,100n,1u,10u,100u,1m,10m in Amps for CurrentInput1
-            % Range can only be adjusted for 'SignalInput1' and 'CurrentInput1'
-            % siginIndex - default to 0 as only one type of each input
+            %Set the input range of the input feeding demodulator 1, in V or A.
+            %Signal Input 1 or Current Input 1, whichever is demodulator 1's
+            %source. The range should be about twice the signal, including any
+            %DC offset; the instrument selects the next higher range it has
+            %(3 mV to 3 V for the voltage input, 1 nA to 10 mA for the current
+            %input). First measures the input with the scope, and errors
+            %instead if the range is smaller than the signal
+            %
+            %Inputs:
+            %   range      - input range, in V (Signal Input) or A (Current Input)
+            %   siginIndex - input index, 0 (default)
+
             arguments
                 this; range;
                 siginIndex (1,1) double = 0;
@@ -1366,11 +1632,15 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function SetRangeOutput(this, range, channelName)
-            % SetRangeOutput(range, channelName) - define the maximum output voltage that is generated by the
-            % corresponding Signal Output.
-            % Includes the Signal Amplitudes and Offsets summed up. Need the smallest range possible to optimize
-            % signal quality.
-            % range - 10m, 100m, 1, 10 in Volts
+            %Set a signal output's range - the largest amplitude plus offset it can output, in V.
+            %Use the smallest range that fits, for the best signal quality.
+            %Turns off automatic ranging first, and errors instead if the
+            %present amplitude plus offset would not fit
+            %
+            %Inputs:
+            %   range       - output range, in V: 0.01, 0.1, 1 or 10
+            %   channelName - 'SignalOutput1' (default; the only signal output)
+
             arguments
                 this; range; channelName string = 'SignalOutput1';
             end
@@ -1389,14 +1659,19 @@ classdef ZI_MFLI < Palladium.Core.Instrument
                     "Input a different range or use AutoRangeOutput function." + ...
                     "Note: Range or amplitude may be automatically adjusted")
             else
-                zthis.SetDouble(['/sigouts/' num2str(channelIdx) '/range'], range);
+                this.SetDouble(['/sigouts/' num2str(channelIdx) '/range'], range);
             end
         end
 
         function SetScaling(this, scale, siginIndex)
-            % SetScaling(scale, siginIndex) - apply an arbitary scale factor to the input signal
-            % Can be used to account for gain of external amplifier
-            % Function only applies for SignalInput1 and CurrentInput1 - can only adjust scaling for these inputs
+            %Set a scale factor on the input feeding demodulator 1, e.g. to undo an external amplifier's gain.
+            %Applies to Signal Input 1 or Current Input 1, whichever is
+            %demodulator 1's source
+            %
+            %Inputs:
+            %   scale      - scale factor
+            %   siginIndex - input index, 0 (default)
+
             arguments
                 this; scale;
                 siginIndex (1,1) double = 0;
@@ -1417,11 +1692,12 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function SetSignalOutDCOffset(this, value, channelName)
-            % SetSignalOutDCOffset(channelName, value) - Set the constant DC
-            % voltage being output by a SignalOut port to be voltage 'value' at the device, after taking
-            % voltage dividers installed on this channel into account.
-            % Note: this immediately 'Enables' the port - there is no Off state, just set to zero for these ports. channelName
-            % channelName - 'SignalOutput1' set as default
+            %Set the DC offset added to a signal output, in V.
+            %
+            %Inputs:
+            %   value       - DC offset, in V
+            %   channelName - 'SignalOutput1' (default; the only signal output)
+
             arguments
                 this; value; channelName {mustBeText} = 'SignalOutput1';
             end
@@ -1436,18 +1712,22 @@ classdef ZI_MFLI < Palladium.Core.Instrument
 
             this.SetDouble(['/sigouts/' num2str(channelIndex) '/offset'], value);
         end
-        
+
         function SetSignalOutVoltage(this, value_Vrms, channelName)
-            % SetSignalOutVoltage(value_V, channelName) - set the MFLI output voltage
-            % value_Vrms - RMS voltage at device given in Volts
-            % channelName - 'SignalOutput1' set as default
+            %Set the sine amplitude of a signal output, in V RMS.
+            %Sent to the instrument as a peak amplitude (value_Vrms * sqrt(2))
+            %
+            %Inputs:
+            %   value_Vrms  - amplitude, in V RMS
+            %   channelName - 'SignalOutput1' (default; the only signal output)
+
             arguments
-                this; 
-                value_Vrms (1,1) double; 
+                this;
+                value_Vrms (1,1) double;
                 channelName {mustBeText} = 'SignalOutput1';
             end
 
-            % Convert RMS value to peak-to-peak value
+            % Convert RMS value to peak value
             value_Vp = value_Vrms*sqrt(2);
 
             % Convert channel name to index to send to instrument and error checking
@@ -1459,11 +1739,14 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function SetSignalSource(this, channelName, demodIndex)
-            % SetSignalSource(channelIndex, demodIndex) - set the input signal source for a demodulator.
-            % channelName defines the input source - most common use: Signal Input 1 or Current Input 1
-            % demodIndex set to default value of 0 - set source for the demodulator that acquires data.
-            % can also set demodIndex to 1 to change source for second demodulator used as
-            % a reference demodulator.
+            %Set which input a demodulator demodulates.
+            %
+            %Inputs:
+            %   channelName - input name: 'SignalInput1', 'CurrentInput1',
+            %                 'Trigger1', 'Trigger2', 'AuxOut1' to 'AuxOut4',
+            %                 'AuxIn1' or 'AuxIn2'
+            %   demodIndex  - demodulator index, 0 for Demodulator 1 (default)
+
             arguments
                 this; channelName {mustBeText};
                 demodIndex (1,1) double = 0;
@@ -1476,13 +1759,13 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function SetTimeConstant(this, TC, demodIndex)
-            % SetTimeConstant(TC, demodIndex) - function to define the time constant of the low-pass filter.
-            % TC - time constant in seconds
-            % demodIndex set to default value of 0 - set time constant for demodulator that acquires data.
-            % can also set demodIndex to 1 to change time constant for second demodulator used as
-            % an external reference demodulator
-            % Note: to adjust the filter 3dB bandwidth, bandwidth must be converted into a time constant
-            % for a given order using function ConvertBWintoTC then inputted into SetTimeConstant.
+            %Set a demodulator's low-pass filter time constant, in s.
+            %To set a 3 dB bandwidth instead, convert it with ConvertBWtoTC
+            %
+            %Inputs:
+            %   TC         - time constant, in s
+            %   demodIndex - demodulator index, 0 for Demodulator 1 (default)
+
             arguments
                 this;
                 TC;
@@ -1492,14 +1775,14 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             if(this.SimulationMode); return; end
 
             this.SetDouble(['/demods/' num2str(demodIndex) '/timeconstant'], TC);
-        end 
-
-
-
-
-
+        end
 
         function Sweep_Abort(this, sweepHandle)
+            %Stop a running Sweeper Module sweep.
+            %
+            %Inputs:
+            %   sweepHandle - handle returned by Sweep_InitialiseSweep
+
             if(this.SimulationMode)
                 disp("Sweep aborted");
                 return;
@@ -1511,6 +1794,18 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function [SweepData, complete] = Sweep_Check_Completion_Poll_Data(this, sweepHandle, demodIndex)
+            %Read the data a sweep has recorded so far, and whether it has finished.
+            %
+            %Inputs:
+            %   sweepHandle - handle returned by Sweep_InitialiseSweep
+            %   demodIndex  - demodulator index, 0 for Demodulator 1 (default)
+            %
+            %Outputs:
+            %   SweepData - struct with column vectors SweepValues (the swept
+            %               parameter), Amplitude (R, in V), Phase (in degrees),
+            %               X and Y (in V) - empty if no data yet
+            %   complete  - true once the sweep has finished
+
             arguments
                 this;
                 sweepHandle;
@@ -1543,12 +1838,6 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             %Sweep handle can be empty in simulation mode - not if we get
             %to here though
             assert(~isempty(sweepHandle), "MFLI_Sweep_Error:EmptySweepHandle", "Sweep handle is empty in MFLI Sweep_Check_Completion call");
-
-            %Return and warn if handle is empty
-            % if isempty(sweepHandle)
-            %     disp("empty sweep handle");
-            %     return;
-            % end
 
             %Query whether the sweep is complete
             complete = ziDAQ('finished', sweepHandle);
@@ -1585,7 +1874,11 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function Sweep_Execute(this, sweepHandle)
-            % Sweep_Execute(sweepHandle) - Execute a sweep previously set up by OffsetSweep_Initialise, which
+            %Start a sweep set up by Sweep_InitialiseSweep.
+            %
+            %Inputs:
+            %   sweepHandle - handle returned by Sweep_InitialiseSweep
+
             arguments
                 this;
                 sweepHandle;
@@ -1598,19 +1891,31 @@ classdef ZI_MFLI < Palladium.Core.Instrument
 
             % execute handle
             ziDAQ('execute', sweepHandle);
-            ziDAQ('trigger', sweepHandle');
+            ziDAQ('trigger', sweepHandle);
         end
 
         function sweepHandle = Sweep_InitialiseSweep(this, auxChannelName, oscIndex, SweepName, SweepParams)
-            % InitialiseSweep - Function to initialise a sweep of the DC Aux
-            % Output 1 to produce a graph of demodulated amplitude R against the sweep parameter.
-            %This is for dI/dV sweeps. Loop back a coax wire from Aux1 out
-            %to Aux1 In, and set "Add" to true in the Output panel options
-            %in LabOne
+            %Set up a Sweeper Module sweep of demodulator 1 against frequency, amplitude or a DC offset.
+            %Each point averages the demodulator over a number of samples or
+            %time constants, at a fixed filter bandwidth. For dI/dV sweeps of
+            %Aux Output 1, loop a cable from Aux Output 1 to Aux Input 1 and
+            %turn on Add for the signal output (see AddAuxInput)
+            %
+            %Inputs:
+            %   auxChannelName - Aux Output swept by "AuxOutput1" sweeps (default "Aux1")
+            %   oscIndex       - oscillator swept by "Frequency" sweeps (default 0)
+            %   SweepName      - parameter to sweep: "Frequency" (Hz), "Amplitude"
+            %                    (signal output peak amplitude, V), "AuxOutput1" (Aux
+            %                    Output offset, V) or "OutputOffset" (signal output offset, V)
+            %   SweepParams    - name-value settings: Start, Stop, NumberOfSteps,
+            %                    LogScale, Bandwidth (Hz), FilterOrder, SettleTime,
+            %                    SweepInaccuracy, AveSample, AveTC and SweepMode
+            %                    ("Sequential", "Binary", "BiDirectional" or "Reverse")
+            %
+            %Outputs:
+            %   sweepHandle - handle of the Sweeper Module, for Sweep_Execute,
+            %                 Sweep_Check_Completion_Poll_Data and Sweep_Abort
 
-            % Measurement method is set to averaging - calculates average on each data set
-            % Sets the number of data samples per sweeper parameter point that is considered in the
-            % measurement.
             arguments
                 this;
                 auxChannelName              {mustBeText} = "Aux1"; % set default as Aux Output 1
@@ -1630,7 +1935,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
 
                 SweepParams.AveSample       (1,1) double  = 100; % Sets the effective number of samples (clock cycles) per sweeper parameter point that is considered in the measurement.
                 SweepParams.AveTC           (1,1) double  = 1;   % Effective calculation time is the maximum between samples and number of time constants. Usually set the Sample Count.
-               
+
                 SweepParams.SweepMode       {mustBeText}  = "Sequential";  %Select the scanning type, default is sequential (incremental scanning from start to stop value)
             end
 
@@ -1657,7 +1962,7 @@ classdef ZI_MFLI < Palladium.Core.Instrument
                     gridnode = ['sigouts/' num2str(sigoutIndex) '/offset'];
                 otherwise
                     error("MFLI_Sweep_InitialiseSweep_Error:InvalidSweptParameter", "%s", ['Invalid Sweep Parameter for function. ' ...
-                        'SweptParameter: Frequency, AuxOutput1, OutputOffset'])
+                        'SweptParameter: Frequency, Amplitude, AuxOutput1, OutputOffset'])
             end
 
             % obtain time constant from BW and filter order defined
@@ -1680,21 +1985,18 @@ classdef ZI_MFLI < Palladium.Core.Instrument
 
             ziDAQ('set', sweepHandle, 'sweep/loopcount', 1); % number of sweeps to perform
             if SweepParams.LogScale
-                ziDAQ('set', sweepHandle, 'sweep/xmapping', 1);%Not yet tested
+                ziDAQ('set', sweepHandle, 'sweep/xmapping', 1);% 1 = logarithmic spacing
             else
                 ziDAQ('set', sweepHandle, 'sweep/xmapping', 0); % 0 = linear sweep - spacing between two values is linear
             end
 
+            %Scan order of the values from start to stop
             switch (SweepParams.SweepMode)
-                case("Sequential")
-                    ziDAQ('set', sweepHandle, 'sweep/scan', 0); % sequential sweep - values change incrementally from small to large
-                case("Binary")
-                    ziDAQ('set', sweepHandle, 'sweep/scan', 1); % sequential sweep - values change incrementally from small to large
-                case("BiDirectional")
-                    ziDAQ('set', sweepHandle, 'sweep/scan', 2); % sequential sweep - values change incrementally from small to large
-                case("Reverse")
-                    ziDAQ('set', sweepHandle, 'sweep/scan', 3); % sequential sweep - values change incrementally from small to large
-                otherwise 
+                case("Sequential");     ziDAQ('set', sweepHandle, 'sweep/scan', 0); % smallest to largest
+                case("Binary");         ziDAQ('set', sweepHandle, 'sweep/scan', 1); % middle first, then halving the intervals
+                case("BiDirectional");  ziDAQ('set', sweepHandle, 'sweep/scan', 2); % sequential, then back again
+                case("Reverse");        ziDAQ('set', sweepHandle, 'sweep/scan', 3); % largest to smallest
+                otherwise
                     error("MFLI_Sweep_InitialiseSweep_Error:UnsupportedSweepDirection", "%s", "Unsupported sweep direction " + string(SweepParams.SweepMode));
             end
 
@@ -1713,8 +2015,16 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function daqData = Scope_AssembleData_FFT(this, tmp, demod_path_us, path)
-            % AssembleData_FFT(tmp, demod_path_us, path) - obtain the demodulated signal in
-            % the frequency domain
+            %Extract the FFT amplitude and its bandwidth from Data Acquisition Module data.
+            %
+            %Inputs:
+            %   tmp           - data struct read from the module
+            %   demod_path_us - subscribed node path, with dots replaced by underscores
+            %   path          - name of the signal's field, e.g. 'sample_r_fft_abs'
+            %
+            %Outputs:
+            %   daqData - the data struct, with fields Amplitude and bandwidth (in Hz) added
+
             arguments
                 this; tmp; demod_path_us; path;
             end
@@ -1739,11 +2049,19 @@ classdef ZI_MFLI < Palladium.Core.Instrument
                 daqData.bandwidth = bin_resolution * length(daqData.Amplitude);
             end
         end
-        
 
         function daqData = Scope_AssembleData_Time(this, tmp, demod_path_us, path, clockbase)
-            % AssembleData_Time(tmp, demod_path_us, path, clockbase) - obtain the demodulated signal
-            % in the time domain
+            %Extract the amplitude and time, in s, from Data Acquisition Module data.
+            %
+            %Inputs:
+            %   tmp           - data struct read from the module
+            %   demod_path_us - subscribed node path, with dots replaced by underscores
+            %   path          - name of the signal's field, e.g. 'sample_r_avg'
+            %   clockbase     - instrument clock frequency, in Hz, to convert timestamps to s
+            %
+            %Outputs:
+            %   daqData - the data struct, with fields Amplitude and Time (in s, from 0) added
+
             arguments
                 this; tmp; demod_path_us; path; clockbase;
             end
@@ -1770,10 +2088,19 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             end
         end
 
-
         function data = Scope_Execute(this, scopeModule, SamplingRate)
-            % Scope_Execute(scopeModule, ScopeParams) - Execute a measurement of the Scope in time or
-            % frequency domain using previously set up parameters by Scope_Initialise
+            %Record scope shots with a Scope Module set up by Scope_Initialise, and return the first.
+            %Waits for up to 20 records, or 30 s
+            %
+            %Inputs:
+            %   scopeModule  - handle returned by Scope_Initialise
+            %   SamplingRate - scope time base index, as set by Scope_Initialise (default 6, 938 kHz)
+            %
+            %Outputs:
+            %   data - the Scope Module data struct, with fields Amplitude (the
+            %          first record, in V or A), Frequency (FFT frequency axis,
+            %          in Hz) and time (in s) added
+
             arguments
                 this;
                 scopeModule;
@@ -1803,8 +2130,6 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             while records < min_num_records
                 pause(0.5)
                 records = ziDAQ('getInt', scopeModule, 'records');
-                %progress = ziDAQ('progress', scopeModule);
-                %fprintf('Scope module has acquired %d records (requested %d). \n', records, min_num_records);
 
                 if toc(time_start) > timeout
                     % break out of the loop if no longer receiving scope data from the device.
@@ -1821,8 +2146,9 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             % dividing by timestamp by clockbase gives time in seconds
             clockbase = this.GetInt('/clockbase');
 
-            % obtain data
-            records = data.(this.DeviceID).scopes(1).wave;
+            % obtain data. The data struct's device field is the lower-case
+            % device ID, i.e. DeviceHandle
+            records = data.(this.DeviceHandle).scopes(1).wave;
 
             % take first sample as data
             totalsamples = double(records{1}.totalsamples);
@@ -1843,8 +2169,11 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function length = Scope_GetScopeLength(this)
-            % GetScopeLength
-            % Function to get the length of a scope segment
+            %Read the length of a scope shot, in samples.
+            %
+            %Outputs:
+            %   length - number of samples per scope shot
+
             arguments
                 this;
             end
@@ -1854,9 +2183,11 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function resolution = Scope_GetScopeResolution(this)
-            % GetScopeResolution(this) - get the spectral resolution of the scope in Hz
-            % resolution functions give a rough indication of values - often
-            % values rounded to nearest integer or most appropriate value
+            %Calculate the scope's FFT frequency resolution, in Hz, from its sample rate and shot length.
+            %
+            %Outputs:
+            %   resolution - frequency resolution, in Hz (the reciprocal of the shot duration)
+
             arguments
                 this
             end
@@ -1875,7 +2206,11 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function sample_rate = Scope_GetScopeSampleRate(this)
-            % GetScopeSampleRate - obtain the scope sampling rate in Hz
+            %Read the scope's sample rate, in Hz (60 MHz / 2^n for time base index n).
+            %
+            %Outputs:
+            %   sample_rate - sample rate, in Hz
+
             arguments
                 this;
             end
@@ -1887,7 +2222,11 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function int = Scope_GetScopeSampleRateInt(this)
-            % GetScopeSampleRateInt - get the sampling rate of the scope as an integer
+            %Read the scope's time base index n, 0 to 15 - the sample rate is 60 MHz / 2^n.
+            %
+            %Outputs:
+            %   int - time base index
+
             arguments
                 this;
             end
@@ -1896,8 +2235,15 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function scope_value = Scope_GetScopeTimeData(this, Calculation, ScopeParams)
-            % Scope_GetScopeTimeData(Calculation, ScopeParams) - get the maximum amplitude of input signal
-            % pk of current or voltage amplitude
+            %Record a scope shot of demodulator 1's input and return its maximum, mean or minimum.
+            %
+            %Inputs:
+            %   Calculation - 'Max', 'Avg' or 'Min'
+            %   ScopeParams - name-value scope settings, as for Scope_Initialise
+            %
+            %Outputs:
+            %   scope_value - the result, in V or A
+
             arguments
                 this;
                 Calculation {mustBeText};
@@ -1924,21 +2270,31 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             % obtain data in time domain by executing the handle
             timeData = this.Scope_Execute(scopeHandle, ScopeParams.SamplingRate);
 
-            if(strcmp(Calculation, 'Max'))
-                % max value of scope data
-                scope_value = max(timeData.Amplitude);
-            elseif(strcmp(Calculation, 'Avg'))
-                % average value of scope data
-                scope_value = mean(timeData.Amplitude);
-            elseif(strcmp(Calculation, 'Min'))
-                % min value of scope data
-                scope_value = min(timeData.Amplitude);
+            switch(Calculation)
+                case('Max');    scope_value = max(timeData.Amplitude);
+                case('Avg');    scope_value = mean(timeData.Amplitude);
+                case('Min');    scope_value = min(timeData.Amplitude);
+                otherwise
+                    error("MFLI_Scope_GetScopeTimeData_Error:InvalidCalculation", "%s", "Calculation must be Max, Avg or Min, was " + string(Calculation));
             end
         end
 
         function scopeModule = Scope_Initialise(this, DomainSignal, ScopeParams)
-            % Scope_Initialise(ScopeParams) - Initialise an FFT or Time Domain measurement
-            % of the input signal into the Oscilloscope
+            %Set up the scope and a Scope Module to record an input in the time or frequency domain.
+            %Run it with Scope_Execute
+            %
+            %Inputs:
+            %   DomainSignal - 'Time' or 'FFT'
+            %   ScopeParams  - name-value settings: ChannelIdx (input name:
+            %                  'SignalInput1', 'CurrentInput1' or 'SignalOutput1'),
+            %                  Length (samples per shot), SamplingRate (time base
+            %                  index n, rate 60 MHz / 2^n), Weight (averaging weight,
+            %                  1 for none), Window (FFT window, 1 = Hann),
+            %                  SpectralDensity and Power (FFT options)
+            %
+            %Outputs:
+            %   scopeModule - handle of the Scope Module, empty in simulation
+
             arguments
                 this;
                 DomainSignal {mustBeText};
@@ -2015,14 +2371,18 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             ziDAQ('set', scopeModule, 'fft/spectraldensity', ScopeParams.SpectralDensity);
             ziDAQ('set', scopeModule, 'fft/power', ScopeParams.Power);
 
-            % subscribe to the scope's data in the module.
-            wave_nodepath = ['/' this.DeviceID '/scopes/0/wave'];
+            % subscribe to the scope's data in the module. The node path
+            % uses the lower-case device ID, DeviceHandle, as a char
+            wave_nodepath = ['/' this.DeviceHandle '/scopes/0/wave'];
             ziDAQ('subscribe', scopeModule, wave_nodepath);
         end
 
         function Scope_SetScopeResolution(this, resolution)
-            % SetResolution(resolution, sample_rate) - calculates the length of recorded scope shot for
-            % a given sampling rate to give the required resolution.
+            %Set the scope shot length to give a frequency resolution, in Hz, at the present sample rate.
+            %
+            %Inputs:
+            %   resolution - frequency resolution, in Hz
+
             arguments
                 this; resolution;
             end
@@ -2035,11 +2395,13 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             this.SetInt('/scopes/0/length', length);
         end
 
-
         function Scope_SetScopeFreqMax(this, maxFreq)
-            % SetScopeFreqMax(maxFreq) - set the frequency range of the Scope FFT
-            % Function will give closest to required maximum frequency value as possible as sampling rate
-            % are specified and encoded as integers in LabOne
+            %Set the scope sample rate to give an FFT frequency range up to about maxFreq, in Hz.
+            %Picks the scope time base nearest to a sample rate of twice maxFreq
+            %
+            %Inputs:
+            %   maxFreq - highest frequency wanted in the FFT, in Hz
+
             arguments
                 this; maxFreq;
             end
@@ -2047,9 +2409,9 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             sample_rate = maxFreq*2;
 
             % if sample rate half way between given sample rate values, set
-            % integer value
+            % integer value. The slowest time base is 15 (1.83 kHz)
             if(sample_rate <= 1.3e3)
-                int = 16;
+                int = 15;
             elseif(1.3e3 < sample_rate && sample_rate <= 2.7e3)
                 int = 15;
             elseif(2.7e3 < sample_rate && sample_rate <= 5.5e3)
@@ -2092,33 +2454,25 @@ classdef ZI_MFLI < Palladium.Core.Instrument
 
     end
 
-
     %% Methods (Protected)
     methods (Access = protected)
 
-
-
         function channelIdx = ConvertAuxChannelNameToChannelIndex(~, channelName)
-            % ConvertAuxChannelNameToChannelIndex(channelName)
-            % Convert channel name of aux channel ('Aux1', 'Aux2', 'Aux3', 'Aux4' to index
-            % to send to instrument and error checking.
+            %Node index of an Aux Output name, 0 for 'Aux1' to 3 for 'Aux4'.
 
-            if(strcmp(channelName, 'Aux1'))
-                channelIdx = 0;
-            elseif(strcmp(channelName, 'Aux2'))
-                channelIdx = 1;
-            elseif(strcmp(channelName, 'Aux3'))
-                channelIdx = 2;
-            elseif(strcmp(channelName, 'Aux4'))
-                channelIdx = 3;
-            else
-                error("MFLI_ConvertAuxChannelNameToChannelIndex_Error:InvalidChannelName", "%s", ['Invalid channelName in ZI_MFLI ConvertAuxChannelNameToChannelIndex. ChannelName can be Aux1, Aux2, Aux3, Aux4, was ' num2str(channelName)]);
+            switch(channelName)
+                case('Aux1');   channelIdx = 0;
+                case('Aux2');   channelIdx = 1;
+                case('Aux3');   channelIdx = 2;
+                case('Aux4');   channelIdx = 3;
+                otherwise
+                    error("MFLI_ConvertAuxChannelNameToChannelIndex_Error:InvalidChannelName", "%s", ['Invalid channelName in ZI_MFLI ConvertAuxChannelNameToChannelIndex. ChannelName can be Aux1, Aux2, Aux3, Aux4, was ' num2str(channelName)]);
             end
         end
 
         function channelIdx = ConvertChannelNameToChannelIndex(~, channelName)
-            % ConvertChannelNameToChannelIndex(channelName)
-            % Convert output channel name to index to send to instrument - MFLI only has one signal output
+            %Node index of a signal output name - 0 for 'SignalOutput1', the only one.
+
             if(strcmp(channelName, 'SignalOutput1'))
                 channelIdx = 0;
             else
@@ -2127,66 +2481,46 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function channelIdx = ConvertInputChannelNameToChannelIndex(~, channelName)
-            % ConvertInputChannelNameToChannelIndex(channelName)
-            % Function to convert input channel name to index to send to instrument.
-            % There are 11 possible input channels. The input channel is connected to the demodulator.
+            %Demodulator input select (ADCSELECT) value of an input name, e.g. 1 for 'CurrentInput1'.
 
-            if(strcmp(channelName, 'SignalInput1'))
-                channelIdx = 0;
-            elseif(strcmp(channelName, 'CurrentInput1'))
-                channelIdx = 1;
-            elseif(strcmp(channelName, 'Trigger1'))
-                channelIdx = 2;
-            elseif(strcmp(channelName, 'Trigger2'))
-                channelIdx = 3;
-            elseif(strcmp(channelName, 'AuxOut1'))
-                channelIdx = 4;
-            elseif(strcmp(channelName, 'AuxOut2'))
-                channelIdx = 5;
-            elseif(strcmp(channelName, 'AuxOut3'))
-                channelIdx = 6;
-            elseif(strcmp(channelName, 'AuxOut4'))
-                channelIdx = 7;
-            elseif(strcmp(channelName, 'AuxIn1'))
-                channelIdx = 8;
-            elseif(strcmp(channelName, 'AuxIn2'))
-                channelIdx = 9;
-            else
-                error("MFLI_ConvertInputChannelNameToChannelIndex_Error:InvalidChannelName", "%s", ['Invalid channelName in ZI_MFLI ConvertInputChannelNameToChannelIndex, was ' num2str(channelName)]);
+            switch(channelName)
+                case('SignalInput1');   channelIdx = 0;
+                case('CurrentInput1');  channelIdx = 1;
+                case('Trigger1');       channelIdx = 2;
+                case('Trigger2');       channelIdx = 3;
+                case('AuxOut1');        channelIdx = 4;
+                case('AuxOut2');        channelIdx = 5;
+                case('AuxOut3');        channelIdx = 6;
+                case('AuxOut4');        channelIdx = 7;
+                case('AuxIn1');         channelIdx = 8;
+                case('AuxIn2');         channelIdx = 9;
+                otherwise
+                    error("MFLI_ConvertInputChannelNameToChannelIndex_Error:InvalidChannelName", "%s", ['Invalid channelName in ZI_MFLI ConvertInputChannelNameToChannelIndex, was ' num2str(channelName)]);
             end
         end
 
         function channelName = ConvertInputChannelIndexToChannelName(~, channelIdx)
-            % ConvertInputChannelIndexToChannelName(channelIdx)
-            % Function to convert input channel index to name to send to instrument.
-            % There are 11 possible input channels. The input channel is connected to the demodulator.
+            %Input name of a demodulator input select (ADCSELECT) value, e.g. 'CurrentInput1' for 1.
 
-            if channelIdx == 0
-                channelName ='SignalInput1';
-            elseif channelIdx == 1
-                channelName = 'CurrentInput1';
-            elseif channelIdx == 2
-                channelName ='Trigger1';
-            elseif channelIdx == 3
-                channelName = 'Trigger2';
-            elseif channelIdx == 4
-                channelName = 'AuxOut1';
-            elseif channelIdx == 5
-                channelName = 'AuxOut2';
-            elseif channelIdx == 6
-                channelName = 'AuxOut3';
-            elseif channelIdx == 7
-                channelName = 'AuxOut4';
-            elseif channelIdx == 8
-                channelName = 'AuxIn1';
-            elseif channelIdx == 9
-                channelName = 'AuxIn2';
-            else
-                error("MFLI_ConvertInputChannelIndexToChannelName_Error:InvalidChannelIndex", 'Invalid channel index in ZI_MFLI ConvertInputChannelIndexToChannelName');
+            switch(channelIdx)
+                case(0);    channelName = 'SignalInput1';
+                case(1);    channelName = 'CurrentInput1';
+                case(2);    channelName = 'Trigger1';
+                case(3);    channelName = 'Trigger2';
+                case(4);    channelName = 'AuxOut1';
+                case(5);    channelName = 'AuxOut2';
+                case(6);    channelName = 'AuxOut3';
+                case(7);    channelName = 'AuxOut4';
+                case(8);    channelName = 'AuxIn1';
+                case(9);    channelName = 'AuxIn2';
+                otherwise
+                    error("MFLI_ConvertInputChannelIndexToChannelName_Error:InvalidChannelIndex", 'Invalid channel index in ZI_MFLI ConvertInputChannelIndexToChannelName');
             end
         end
 
         function val = GetDouble(this, command)
+            %Read a double node of this device, e.g. '/oscs/0/freq' (0 in simulation).
+
             if(this.SimulationMode)
                 val = 0;
                 return;
@@ -2197,6 +2531,8 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function val = GetInt(this, command)
+            %Read an integer node of this device, e.g. '/demods/0/order' (0 in simulation).
+
             if(this.SimulationMode)
                 val = 0;
                 return;
@@ -2207,12 +2543,13 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function propertiesToIgnore = GetPropertiesToIgnore(~)
-            %MFLI does not connect in the usual way, has a device ID only -
-            %hide all these connection options in the GUI..
+            %Hide the address properties in the GUI - the MFLI is identified by DeviceID only.
+
             propertiesToIgnore = {"GPIB_Address", "IP_Address", "Serial_Address", "VISA_Address"};
         end
 
         function [magnitude, unit, name] = GetSuppliedVoltageOrCurrentAndUnits(this)
+            %Signal output level, in V RMS, or in A RMS through the connected current source.
 
             %Get the size of voltage being output at the signal out port
             vOut = this.GetAmplitudeOutput();   % note, this is RMS voltage
@@ -2232,6 +2569,8 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function SetDouble(this, command, value)
+            %Set a double node of this device, e.g. '/oscs/0/freq' (nothing in simulation).
+
             if(this.SimulationMode)
                 return;
             end
@@ -2241,23 +2580,24 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function SetInt(this, command, value)
+            %Set an integer node of this device, e.g. '/sigouts/0/on' (nothing in simulation).
+
             if(this.SimulationMode)
                 return;
             end
 
             %Relay command to instrument via ZI Matlab API
-            ziDAQ('setInt', ['/' this.DeviceHandle char(command)], value); % turned on
+            ziDAQ('setInt', ['/' this.DeviceHandle char(command)], value);
         end
 
     end
 
     %% Methods (Private)
     methods (Access = private)
+
         function [demod_path, demod_path_us, path] = DemodPath_Time(this, DemodSignal, demodIndex)
-            % DemodPath_Time(DemodSignal, demodIndex) - get the path for the demodulated signal in the Time Domain
-            % Outputs:
-            % demod_path - node from which data will be recorded
-            % demod_path_us - dots in signal
+            %Data Acquisition Module node path, underscored path and field name of a time-domain demodulator signal.
+
             arguments
                 this;
                 DemodSignal {mustBeText}; % 'X','Y','R','Phase'
@@ -2289,17 +2629,14 @@ classdef ZI_MFLI < Palladium.Core.Instrument
                 path = 'sample_theta_avg' ;
 
             else
-                error("MFLI_DemodPath_Time_Error:InvalidDemodSignal", 'Invalid DemodSignal name - can be X, Y, R or Theta')
+                error("MFLI_DemodPath_Time_Error:InvalidDemodSignal", 'Invalid DemodSignal name - can be X, Y, R or Phase')
             end
 
         end
 
         function [demod_path, demod_path_us, path] = DemodPath_FFT(this, DemodSignal, demodIndex)
-            % DemodPath_FFT(DemodSignal, demodIndex) - get the path for the demodulated signal in the
-            % Frequency Domain
-            % Outputs:
-            % demod_path - node from which data will be recorded
-            % demod_path_us - dots in signal
+            %Data Acquisition Module node path, underscored path and field name of a demodulator signal's FFT.
+
             arguments
                 this;
                 DemodSignal {mustBeText}; % 'X','Y','R','Phase', 'XiY'
@@ -2337,52 +2674,58 @@ classdef ZI_MFLI < Palladium.Core.Instrument
                 demod_path_us = strrep(demod_path,'.','_');
                 path = 'sample_xiy_fft_abs' ;
             else
-                error("MFLI_DemodPath_FFT_Error:InvalidDemodSignal", 'Invalid DemodSignal name - can be X, Y, R or Theta')
+                error("MFLI_DemodPath_FFT_Error:InvalidDemodSignal", 'Invalid DemodSignal name - can be X, Y, R, Phase or XiY')
             end
         end
+
     end
 
     %% Methods (Static, Public)
     methods(Static, Access = public)
 
         function [R, theta] = ConvertCartesian(x, y)
-            % ConvertCartesian(x,y) - convert Cartesian coordinates to Polar coordinates.
-            % x and y in Volts
-            % outputs R (RMS voltage) in Volts and theta in degrees
+            %Convert demodulator X and Y to amplitude R and phase in degrees.
+            %
+            %Inputs:
+            %   x - in-phase component X
+            %   y - quadrature component Y, in the same units
+            %
+            %Outputs:
+            %   R     - amplitude, sqrt(x^2 + y^2), in the units of x and y
+            %   theta - phase, in degrees, from -180 to 180
+
             arguments
                 x; y;
             end
             R = sqrt(x^2 + y^2);
-            theta = atand(y/x); % degrees
+            theta = atan2d(y, x); % degrees, in all four quadrants
         end
 
         function TC_convert = ConvertBWtoTC(BW, order)
-            % ConvertBWtoTC(BW,order) - convert bandwidth frequency to time constant for a given filter order.
-            % BW - 3 dB frequency bandwidth in Hz. Equivalent to cut-off frequency.
-            % order - filter order
-            % Time constant obtained can be inputted into SetTimeConstant.
+            %Convert a demodulator filter's 3 dB bandwidth to its time constant.
+            %The result can be passed to SetTimeConstant
+            %
+            %Inputs:
+            %   BW    - 3 dB bandwidth, in Hz
+            %   order - filter order, 1 to 8
+            %
+            %Outputs:
+            %   TC_convert - time constant, in s
+
             arguments
                 BW;
                 order {mustBeInRange(order, 1, 8)}; % FO depends on filter order - table of conversions
             end
             % each filter order has a corresponding factor FO that depends on filter slope
             switch order
-                case 1
-                    FO = 1.0;
-                case 2
-                    FO = 0.6436;
-                case 3
-                    FO = 0.5098;
-                case 4
-                    FO = 0.4350;
-                case 5
-                    FO = 0.3856;
-                case 6
-                    FO = 0.3499;
-                case 7
-                    FO = 0.3226;
-                case 8
-                    FO = 0.3008;
+                case 1;     FO = 1.0;
+                case 2;     FO = 0.6436;
+                case 3;     FO = 0.5098;
+                case 4;     FO = 0.4350;
+                case 5;     FO = 0.3856;
+                case 6;     FO = 0.3499;
+                case 7;     FO = 0.3226;
+                case 8;     FO = 0.3008;
                 otherwise
                     error("MFLI_ConvertBWtoTC_Error:InvalidFilterOrder", 'Error: Order (%d) must be between 1 and 8!\n', order);
             end
@@ -2391,43 +2734,47 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function channelIdx = ConvertScopeInputNameToIndex(channelName)
-            % ConvertScopeInputNameToIndex(channelName) - convert channel name input into the scope into an index
-            % more than 3 indexes are possible
-            if(strcmp(channelName, 'SignalInput1'))
-                channelIdx = 0;
-            elseif(strcmp(channelName, 'CurrentInput1'))
-                channelIdx = 1;
-            elseif(strcmp(channelName, 'SignalOutput1'))
-                channelIdx = 12;
+            %Scope input select value of an input name: 'SignalInput1', 'CurrentInput1' or 'SignalOutput1'.
+            %
+            %Inputs:
+            %   channelName - input name
+            %
+            %Outputs:
+            %   channelIdx - value for the scope channel's INPUTSELECT node
+
+            switch(channelName)
+                case('SignalInput1');   channelIdx = 0;
+                case('CurrentInput1');  channelIdx = 1;
+                case('SignalOutput1');  channelIdx = 12;
+                otherwise
+                    error("MFLI_ConvertScopeInputNameToIndex_Error:InvalidChannelName", "%s", "Scope input must be SignalInput1, CurrentInput1 or SignalOutput1, was " + string(channelName));
             end
         end
 
         function BW_convert = ConvertTCtoBW(TC, order)
-            % ConvertTCtoBW(TC,order) - convert time constant to bandwidth frequency for a given filter order.
-            % TC - time constant in seconds
-            % order - filter order
+            %Convert a demodulator filter's time constant to its 3 dB bandwidth.
+            %
+            %Inputs:
+            %   TC    - time constant, in s
+            %   order - filter order, 1 to 8
+            %
+            %Outputs:
+            %   BW_convert - 3 dB bandwidth, in Hz
+
             arguments
                 TC;
                 order {mustBeInRange(order, 1, 8)}; % FO depends on filter order - table of conversions
             end
             % each filter order has a corresponding factor FO that depends on filter slope
             switch order
-                case 1
-                    FO = 1.0;
-                case 2
-                    FO = 0.6436;
-                case 3
-                    FO = 0.5098;
-                case 4
-                    FO = 0.4350;
-                case 5
-                    FO = 0.3856;
-                case 6
-                    FO = 0.3499;
-                case 7
-                    FO = 0.3226;
-                case 8
-                    FO = 0.3008;
+                case 1;     FO = 1.0;
+                case 2;     FO = 0.6436;
+                case 3;     FO = 0.5098;
+                case 4;     FO = 0.4350;
+                case 5;     FO = 0.3856;
+                case 6;     FO = 0.3499;
+                case 7;     FO = 0.3226;
+                case 8;     FO = 0.3008;
                 otherwise
                     error("MFLI_ConvertTCtoBW_Error:InvalidFilterOrder", 'Error: Order (%d) must be between 1 and 8!\n', order);
             end
@@ -2442,15 +2789,13 @@ classdef ZI_MFLI < Palladium.Core.Instrument
     methods (Static, Access = private)
 
         function deviceHandle = ZIConnect(deviceID, interface)
+            %Check the LabOne API is on the path, connect to the local Data Server and the device, and return the lower-case device ID.
 
             % Check the ziDAQ MEX (DLL) and Utility functions can be found in Matlab's path.
-            if ~(exist('ziDAQ', 'file') == 3) && ~(exist('ziCreateAPISession', 'file') == 2)
-                fprintf('Failed to either find the ziDAQ mex file or ziDevices() utility.\n')
-                fprintf('Please configure your path using the ziDAQ function ziAddPath().\n')
-                fprintf('This can be found in the API subfolder of your LabOne installation.\n');
-                fprintf('On Windows this is typically:\n');
-                fprintf('C:\\Program Files\\Zurich Instruments\\LabOne\\API\\MATLAB2012\\\n');
-                return
+            if ~(exist('ziDAQ', 'file') == 3) || ~(exist('ziCreateAPISession', 'file') == 2)
+                error("MFLI_ZIConnect_Error:LabOneApiNotFound", "%s", "Failed to find the LabOne MATLAB API (the ziDAQ mex file or its utility functions). " + ...
+                    "Add it to the MATLAB path with the ziAddPath function in the API subfolder of the LabOne installation - on Windows this is typically " + ...
+                    "C:\Program Files\Zurich Instruments\LabOne\API\MATLAB2012\");
             end
 
             % The API level 5 gives full functionality for an MFLI
@@ -2469,9 +2814,10 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function device = ZI_HandleConnect(device_serial, maximum_supported_apilevel)
-            %Simplified version of the ziCreateAPISession Util - without
+            %Connect to a device through the Data Server it reports by discovery (not currently used).
+            %Simplified version of the ziCreateAPISession utility - without
             %the clear command at the start among other changes, as that
-            %looked to stop us ever having 2 devices connected..
+            %looked to stop us ever having 2 devices connected
 
             % Determine the device identifier from it's serial/id
             device = lower(ziDAQ('discoveryFind', device_serial));
@@ -2500,15 +2846,12 @@ classdef ZI_MFLI < Palladium.Core.Instrument
         end
 
         function deviceHandle = ZI_HandleConnect_LabOneServerRunningOnPC(device_serial, interface, apilevel, server_address, port_number)
-            %Need to use this if want to be able to connect more than one ZI instrument at once as ziDAQ is a static/global object in the
-            %MATLAB API, cannot have 2 instances.
-            %See emails from 15/4/2025 with ZI. Look in MFLI manual under
-            %the MDS option and the 2.5. Running LabOne on a Separate PC
-            %section - LabOne can run on the internal PC in the instrument
-            %with no installation on the PC, but we need to run it on the
-            %PC running Palladium (which is a 'seperate PC' in this
-            %parlance, it means separate to the MFLI's internals). This
-            %function connects to MFLIs configured in that manner
+            %Connect to the Data Server on this PC and the device through it, and return the lower-case device ID.
+            %Needed to connect more than one ZI instrument at once, as ziDAQ is
+            %a single global session in the MATLAB API. See the "Running LabOne
+            %on a Separate PC" section of the MFLI manual (and emails with ZI,
+            %15/4/2025): the Data Server runs on the PC running Palladium
+            %rather than inside the MFLI
 
             arguments
                 device_serial {mustBeTextScalar};

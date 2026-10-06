@@ -7,7 +7,7 @@ classdef InstrumentController < handle
     properties (Access = private, Constant)
         InstrumentsNamespace string = "Palladium.Instruments";
         ControlsNamespace string = "Palladium.Instruments.Controls";
-        InstrumentClassesToIgnore = {"TemplateInstrumentClass"};   %Instrument class names to NOT load into the Browser panel, even if they are in either built in or User instruments directories. Template Instrument is a good example - you don't actually want to ever create one
+        InstrumentClassesToIgnore = {"TemplateInstrumentClass", "TemplatePythonInstrument"};   %Instrument class names (MATLAB or Python) to NOT load into the Browser panel, even if they are in the built-in, User or Python instruments folders - the templates for new drivers, which are copied into every user files folder but never wanted as instruments
     end
 
     %% Properties (Public)
@@ -114,6 +114,10 @@ classdef InstrumentController < handle
                 if isempty(instRef)
                     error("AddInstrumentError:CreationFailed", "%s", "Instrument creation failed: " + string(instrStringToAdd));
                 end
+
+                %Tell the instrument where the user's Instrument Drivers
+                %folder is - the compiled app can't put it on the search path
+                instRef.InstrumentDriversDir = string(this.Controller.UserInstrumentDriversDir);
 
                 %Set the instrument name if that optional parameter was
                 %passed in. This is useful when setting up Instruments and
@@ -503,6 +507,12 @@ classdef InstrumentController < handle
             %Load Python Instrument classes too
             if ~isempty(this.PythonInstrumentController)
                 pyNames = this.PythonInstrumentController.AvaialableInstrNames;
+
+                %Remove any entries that are specified to be excluded - like
+                %TemplatePythonInstrument
+                if ~isempty(pyNames)
+                    pyNames = pyNames(~ismember(string(pyNames), string(this.InstrumentClassesToIgnore)));
+                end
 
                 %Append to the list of names
                 classNames = [classNames pyNames];

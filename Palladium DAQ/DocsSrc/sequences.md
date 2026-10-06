@@ -26,10 +26,12 @@ Each command line starts with its type in square brackets:
 
 | Command | Example | What it does |
 | --- | --- | --- |
-| `[WAIT]` | `[WAIT] 30 sec` | Waits for a time, given in `sec`, `min` or `hr` |
+| `[WAIT]` | `[WAIT] 30 sec` | Waits for a time, given in `sec`, `min` or `hr` (in any case). A wait of 0 finishes at the next measurement tick |
 | `[INSTR]` | `[INSTR] K2000_1 : PrintIdentifier()` | Calls a method of an instrument, by the instrument's Name |
 | `[INSTR]` (control) | `[INSTR] K2410_SrcMtr_1.Sweep Control : SweepRun()` | Calls a method of one of an instrument's Instrument Controls |
 | `[DATAFILE]` | `[DATAFILE] 1 : C:\Data\Run2.dat` | Starts writing to a new data file |
+| `[DATAFILE]` (stop) | `[DATAFILE] 0` | Stops writing data to file - see Data file commands, below |
+| `[DATAFILE]` (resume) | `[DATAFILE] 1` | Starts writing to file again, with the current file name - see Data file commands, below |
 | `[RUN]` | `[RUN] C:\Sequences\Cooldown.seq` | Runs another sequence file at this point |
 
 A complete sequence might look like this:
@@ -37,20 +39,46 @@ A complete sequence might look like this:
 ```text
 Palladium Sequence File, Version [1.0]
 
-% Measure at 10 K, then at 20 K
-[INSTR] PPMS_1 : SetTemperature(10)
+% Measure at 10 K, then at 20 K, ramping at 2 K/min
+[INSTR] PPMS_1 : SetTemperature(10, 2)
 [WAIT] 10 min
 [DATAFILE] 1 : C:\Data\Sample1_10K.dat
 [INSTR] K2410_SrcMtr_1.Sweep Control : SweepRun()
-[INSTR] PPMS_1 : SetTemperature(20)
+[INSTR] PPMS_1 : SetTemperature(20, 2)
 [WAIT] 10 min
 [DATAFILE] 1 : C:\Data\Sample1_20K.dat
 [INSTR] K2410_SrcMtr_1.Sweep Control : SweepRun()
 ```
 
+### Data file commands
+
+`[DATAFILE]` switches writing to file on or off while measurements run - for example to give each stage of a sequence its own data file. It starts with `1` (write to file) or `0` (stop writing), and `true` and `false` also work:
+
+| Command | What it does |
+| --- | --- |
+| `[DATAFILE] 1 : C:\Data\Run2.dat` | Starts writing to a new data file, `C:\Data\Run2.dat` |
+| `[DATAFILE] 0` | Stops writing to file. Measurements carry on, and the plots still update, but no data is saved |
+| `[DATAFILE] 1` | **With no file name: starts writing to file again, using the current file name** (shown in the main window's File Name box) |
+
+The last form is easy to miss: leave the file name out to switch writing back on - after a `[DATAFILE] 0`, or after starting measurements with **Write to File** unticked - without choosing a new name. Leaving the file name empty in the Sequence Editor's Data File command form does the same.
+
+Whenever writing starts, the new file begins with the usual [header](data-files.md), with the instruments' settings at that moment. The **file write mode** set in the main window still applies:
+
+* **Increment File No.** (the default) - a new numbered file is started, such as `Run2-00002.dat`, so earlier data is never overwritten. This includes `[DATAFILE] 1` with no file name, which starts the next numbered file
+* **Append To File** - data is added to the end of the file if it already exists, without a second header
+* **Overwrite File** - an existing file of that name is replaced. Take care: `[DATAFILE] 1` naming the file currently being written, or with no file name, replaces that file
+
 ### Instrument commands
 
-An instrument command names the instrument by its **Name**, shown in its Instrument Settings. When an instrument is added it is named from its default name plus a number, such as `K2000_1` for the first Keithley 2000 or `K2410_SrcMtr_1` for a Keithley 2410, unless you rename it. The instrument must already be added when the sequence runs. The method can be any public method of the instrument - right-click the Command field to see them. Arguments can be numbers, `true` or `false`, or text (written without quotes). Spaces are removed from commands, so text arguments cannot contain spaces.
+An instrument command names the instrument by its **Name**, shown in its Instrument Settings. When an instrument is added it is named from its default name plus a number, such as `K2000_1` for the first Keithley 2000 or `K2410_SrcMtr_1` for a Keithley 2410, unless you rename it. The instrument must already be added when the sequence runs. The method can be any public method of the instrument - right-click the Command field to see them.
+
+Arguments go in brackets after the method name, separated by commas. The brackets can be left out for a method with no arguments. Each argument can be:
+
+* A number, such as `10` or `-2.5e-3`
+* `true` or `false`
+* Text. Put text in quotes - `"Sample A, run 2"` or `'C:\Data\Sample1'` - if it contains commas or colons, or if it should stay as text rather than being read as a number or `true`/`false` (`"10"`). Quoted text is passed exactly as written, without the quotes. Text without quotes is also allowed: spaces at its ends are removed, but spaces inside it are kept
+
+For example: `[INSTR] K2410_SrcMtr_1 : SetSourceLevel(1e-6, true)` (a source current of 1e-6 A, with the output on), or `[INSTR] MyInstr_1 : SetLabel("Sample A, run 2")`.
 
 ## How a sequence runs
 

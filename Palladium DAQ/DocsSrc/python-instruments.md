@@ -23,7 +23,9 @@ Python is optional: if there is no usable Python, Palladium DAQ starts without P
 
 ## Writing one
 
-A Python instrument is a class in its own `.py` file, in the `PythonInstruments` folder of your [user files folder](installation.md). The **class name must match the file name** - `MyDMM.py` contains `class MyDMM` - and it inherits from Palladium DAQ's Python `Instrument` base class:
+A Python instrument is a class in its own `.py` file, in the `PythonInstruments` folder of your [user files folder](installation.md). The **class name must match the file name** - `MyDMM.py` contains `class MyDMM` - and it inherits from Palladium DAQ's Python `Instrument` base class.
+
+To start one, copy `TemplatePythonInstrument.py`, which Palladium DAQ puts in that folder, and rename the copy and the class inside it. The template itself is never listed as an instrument. A short example:
 
 ```python
 import random
@@ -61,7 +63,16 @@ The class must:
 
 The connection type and address are chosen in the Instrument Settings panel, as for any instrument. When measurements start, the base class opens the connection and stores it in `self.DeviceHandle`: a `pyvisa` resource for GPIB, VISA and USB; a `socket` for Ethernet; or a `serial.Serial` port for serial.
 
-For GPIB, VISA and USB connections, the base class's `self.query_double(command)` and `self.query_string(command)` send a query and return the reply. For Ethernet and serial connections, read and write through `self.DeviceHandle` directly.
+The base class has methods for talking to the instrument, which work with every connection type:
+
+| Method | What it does |
+| --- | --- |
+| `self.write_command(command)` | Sends a command |
+| `self.query_string(command)` | Sends a query and returns the reply as text |
+| `self.query_double(command)` | Sends a query and returns the reply as a number |
+| `self.read_string()` | Reads a reply |
+
+Replies are returned without their line ending. On Ethernet and serial connections, commands are sent with a line ending, `self.WriteTermination`, and replies are read up to one, `self.ReadTermination` - both `"\n"` by default. If your instrument uses another, such as `"\r\n"`, set them in your class's `__init__`, after calling `super().__init__()`. GPIB, VISA and USB connections use pyvisa's own line-ending settings. For anything these methods don't cover - such as reading a large block of data - use `self.DeviceHandle` directly.
 
 With the connection type set to **Debug**, `self.SimulationMode` is `True` and no connection is made. `Measure` should then return realistic made-up readings, as above, so the instrument can be tried without hardware.
 

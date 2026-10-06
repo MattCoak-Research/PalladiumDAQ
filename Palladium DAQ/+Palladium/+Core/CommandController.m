@@ -4,18 +4,14 @@ classdef CommandController < handle
     %Also has tools to turn a Command struct of an instrument ref and a
     %string expected to represent a function call into a function handle
     %and then exceute it on that Instrument. Only logical, double and
-    %string arguments are currently supported.
+    %string arguments are supported: true/false, numbers, and text - in
+    %quotes ("..." or '...') if it contains spaces, commas or colons, or
+    %should not be read as a number.
     %
     %Example command structs that would work in ExecuteCommand:
     %cmd3.Instrument = k; cmd3.Command = "Close";   (k a reference to a
     %Keithley2000 Instrument object already created elsewhere)
     %cmd.Instrument = k; cmd.Command = "SetSourceLevel(2.1,true)";
-
-    %% Properties (Constant, Private)
-    properties(Constant, Access = private)
-        ArgumentNames = ["a", "b", "c", "d", "e", "f", "g", "h,", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"];
-        InstName = "inst";
-    end
 
     %% Properties (Public)
     properties
@@ -176,92 +172,95 @@ classdef CommandController < handle
         end
 
         function [fnHandle, args] = AssembleFunctionHandle(this, commandStr)
-
-            %Remove any semicolon that might be on there
-            cmd = erase(commandStr, ";");
-
-            %Remove any whitespace
-            cmd = erase(cmd, " ");
-
-            %If string does not end in (), maybe it was something like
-            %Instrument.Connect - which doesn't technically need them.
-            %Check for a missing ) at the end, and if not found assume this
-            %is the case. Add a () on - we will need it in the next step
-            if ~endsWith(cmd, ")")
-                cmd = cmd + "()";
-            end
-
-            %Get array of string of the argument names (they will have been
-            %passed in as (2, 4.5, "Holly"), we just want to count them and
-            %replace with (a,b,c) to construct our function call
-            [argumentNames, args] = this.GetListOfArgumentNamesFromFunctionString(cmd);
-
-            inputArgsStr = this.ConstructInputArgumentsString(argumentNames);
-            if isempty(args)%Case for functions with no arguments, like Connect();
-                inputValuesStr = this.InstName;
-            else
-                inputValuesStr = this.InstName + "," + "args";
-            end
-            cmd = this.InsertArgumentsStr(cmd, inputArgsStr);
-
-            str = "@" + "(" + inputValuesStr + ")" + cmd;
+            %Turn a command such as SetTemperature(10, "Sample A") into a
+            %function that calls that method on a target (an instrument or
+            %one of its controls), and a cell array of the arguments to
+            %pass it: fnHandle(target, args)
+            [methodName, args] = this.ParseCommandString(commandStr);
+            fnHandle = @(target, args) target.(methodName)(args{:});
 
             if this.DebugMode
                 this.Log(" ");
-                this.Log("Function to Execute:");
-                this.Log(str);
+                this.Log("Method to execute: " + methodName + ", with " + numel(args) + " argument(s)");
                 this.Log(" ");
-                if ~isempty(args)
-                    this.Log("With arguments:");
-                    this.Log(args);
-                    this.Log(" ");
-                end
-            end
-            fnHandle = str2func(str);
-        end
-
-        function str = ConstructInputArgumentsString(this, arrayOfArgNames)
-            str = this.InstName;
-
-            for i = 1 : length(arrayOfArgNames)
-                str = str + "," + "args." + arrayOfArgNames(i);
             end
         end
 
         function outVal = ConvertArgumentType(~, arg)
-            if arg == "true"
-                outVal = true;
-                return;
+            %An unquoted argument: true or false, a number, or else text
+            switch lower(arg)
+                case "true";    outVal = true;
+                case "false";   outVal = false;
+                otherwise
+                    outVal = str2double(arg);
+                    if isnan(outVal)
+                        outVal = arg;   %Not a number - keep it as text
+                    end
             end
-            if arg == "false"
-                outVal = false;
-                return;
-            end
-            if ~isnan(double(arg))
-                outVal = double(arg);
-                return;
-            end
-
-            %We got to here, guess we're sticking with a string
-            outVal = arg;
         end
 
-        function [argumentFieldNames, argsStruct] = GetListOfArgumentNamesFromFunctionString(this, commandStr)
-            argStr = extractBetween(commandStr, '(', ')');
-            argumentFieldNames = strings(0);
-            argsStruct = [];
+        function [methodName, args] = ParseCommandString(this, commandStr)
+            %Split a command such as SetTemperature(10, "Sample A") into the
+            %method name and a cell array of its arguments. The brackets
+            %are optional with no arguments (e.g. Connect)
+            cmd = strtrim(string(commandStr));
+            if endsWith(cmd, ";")
+                cmd = strtrim(extractBefore(cmd, strlength(cmd)));
+            end
 
-            if argStr == ""
+            if contains(cmd, "(")
+                methodName = strtrim(extractBefore(cmd, "("));
+                assert(endsWith(cmd, ")"), "ParseCommandStringError:MissingBracket", "%s", "Command must end with ): " + cmd);
+                openIdx = strfind(cmd, "(");
+                argStr = extractBetween(cmd, openIdx(1) + 1, strlength(cmd) - 1);   %Between the first ( and the last )
+            else
+                methodName = cmd;
+                argStr = "";
+            end
+
+            assert(isvarname(methodName), "ParseCommandStringError:InvalidMethodName", "%s", "Not a valid method name: '" + methodName + "', in command: " + cmd);
+            args = this.SplitArguments(argStr);
+        end
+
+        function args = SplitArguments(this, argStr)
+            %Split a comma-separated list of arguments into a cell array.
+            %Commas inside quotes ("..." or '...') don't split; quoted text
+            %is kept exactly, without its quotes, and is never converted to
+            %a number or true/false. Unquoted arguments are trimmed and
+            %converted with ConvertArgumentType
+            args = {};
+            argStr = char(argStr);
+            if isempty(strtrim(argStr))
                 return;
             end
 
-            givenArguments = strsplit(argStr, ',');
+            quoteChars = ['"', ''''];
+            pieces = {};
+            quoteChar = '';
+            startIdx = 1;
+            for k = 1 : length(argStr)
+                c = argStr(k);
+                if isempty(quoteChar) && any(c == quoteChars)
+                    quoteChar = c;
+                elseif ~isempty(quoteChar) && c == quoteChar
+                    quoteChar = '';
+                elseif isempty(quoteChar) && c == ','
+                    pieces{end + 1} = argStr(startIdx : k - 1); %#ok<AGROW>
+                    startIdx = k + 1;
+                end
+            end
+            assert(isempty(quoteChar), "SplitArgumentsError:UnclosedQuote", "%s", "Unclosed quote in arguments: " + string(argStr));
+            pieces{end + 1} = argStr(startIdx : end);
 
-            argumentFieldNames = strings(length(givenArguments), 1); % Initialize with correct dimensions
-
-            for i = 1 : length(givenArguments)
-                argumentFieldNames(i) = this.ArgumentNames(i); % Assign argument names (just use a,b,c..)
-                argsStruct.(this.ArgumentNames(i)) = this.ConvertArgumentType(givenArguments(i));
+            args = cell(1, numel(pieces));
+            for k = 1 : numel(pieces)
+                piece = strtrim(pieces{k});
+                assert(~isempty(piece), "SplitArgumentsError:EmptyArgument", "%s", "Empty argument in: " + string(argStr));
+                if length(piece) >= 2 && any(piece(1) == quoteChars) && piece(end) == piece(1)
+                    args{k} = string(piece(2 : end - 1));
+                else
+                    args{k} = this.ConvertArgumentType(string(piece));
+                end
             end
         end
 
@@ -293,11 +292,7 @@ classdef CommandController < handle
 
             %Execute the function on the Instrument stored in the command
             %struct
-            if isempty(args)
-                fnHandle(target);
-            else
-                fnHandle(target, args);
-            end
+            fnHandle(target, args);
 
         end
 
@@ -306,16 +301,11 @@ classdef CommandController < handle
             command.Start();
         end
 
-        function str = InsertArgumentsStr(~, commandStr, argStr)
-            deletedArgStr = eraseBetween(commandStr, '(', ')');
-            str = replaceBetween(deletedArgStr, '(', ')', argStr);
-        end
-
         function Log(this, str)
             if isempty(str) || strcmp(str, " ")
                 disp(" ");
             else
-                disp("Seq:: " + string(strrep(str, '\', '\\')));    %Properly escape filepath separators so the string of a path renders properly
+                disp("Seq:: " + string(str));    %disp prints backslashes as they are - no escaping needed
             end
         end
     end

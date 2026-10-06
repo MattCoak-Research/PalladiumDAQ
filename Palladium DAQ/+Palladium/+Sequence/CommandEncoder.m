@@ -40,7 +40,13 @@ classdef CommandEncoder < handle
                 case this.Enc_DataFile
                     writeToFile = details.WriteToFile;
                     if writeToFile
-                        filePath = fullfile(details.Directory, details.FileName);
+                        %No file name: no path, so writing resumes with the
+                        %current file name (the folder alone is not a file)
+                        if strlength(strtrim(string(details.FileName))) == 0
+                            filePath = "";
+                        else
+                            filePath = fullfile(details.Directory, details.FileName);
+                        end
                         com = Palladium.Sequence.Commands.DataFileCommand(true, "DataFilePath", filePath);
                     else
                         com = Palladium.Sequence.Commands.DataFileCommand(false);
@@ -167,14 +173,16 @@ classdef CommandEncoder < handle
         function str = BuildDataFileCommand(this, Settings)
             arguments
                 this;
-                Settings.FilePath {mustBeTextScalar} = string.empty;
+                Settings.FilePath {mustBeTextScalar} = "";
                 Settings.WriteToFile (1,1) logical;
             end
 
             %Build the command
             str = "[" + Palladium.Sequence.CommandEncoder.Enc_DataFile + "]" + " " + num2str(Settings.WriteToFile);
             
-            if Settings.WriteToFile
+            %Add the path, if there is one (with none, [DATAFILE] 1 switches
+            %writing back on with the current file name)
+            if Settings.WriteToFile && strlength(string(Settings.FilePath)) > 0
                 str = str + " : " + string(Settings.FilePath);
             end
         end
@@ -249,7 +257,7 @@ classdef CommandEncoder < handle
             %If we got here, none of the instruments matched
             instStringNameList = "";
             for i = 1 : length(instrumentsList)
-                instStringNameList = instStringNameList + instrumentsList.Name;
+                instStringNameList = instStringNameList + instrumentsList{i}.Name;
                 if i ~= length(instrumentsList)
                     instStringNameList = instStringNameList + ", ";
                 end
@@ -261,27 +269,32 @@ classdef CommandEncoder < handle
             error("GetInstrumentFromNameError:NotFound", "%s", "Could not find instrument of Name " + instName + ". Added Instruments: " + instStringNameList);
         end
 
-        function [writeFile, path] = ParseDataFileCommand(this, str)
-            %We want to split off everything after the : token, but 
-            %Paths on windows have another : character in them, after the
-            %drive, so just do first split
-            indicesOfDelims = strfind(str, ":");
-
-            if isempty(indicesOfDelims)
-                error("ParseDataFileCommandError:MissingDelimiter", "%s", "Data File Command String Does not contain expected : Delimiter, Cannot Parse: " + string(str));
+        function [writeFile, path] = ParseDataFileCommand(~, str)
+            %Parse the text after [DATAFILE]: a flag, 1 (write) or 0
+            %(stop writing), then optionally " : " and a file path, e.g.
+            %"1 : C:\Data\Run2.dat", or just "0". Split at the first : only,
+            %as Windows paths have another one after the drive letter. With
+            %0, or with 1 and no path, the path is empty: keep the current
+            %file name, and just switch writing on or off
+            str = string(str);
+            if contains(str, ":")
+                flag = strtrim(extractBefore(str, ":"));
+                path = strtrim(extractAfter(str, ":"));
+            else
+                flag = strtrim(str);
+                path = "";
             end
 
-            indexOfFirstDelim = indicesOfDelims(1);
-            charstr = char(str);
-            ss1 = strtrim(charstr(1:indexOfFirstDelim-1));
-            ss2 = strtrim(charstr(indexOfFirstDelim+1:end));
+            switch lower(flag)
+                case {"1", "true"};     writeFile = true;
+                case {"0", "false"};    writeFile = false;
+                otherwise
+                    error("ParseDataFileCommandError:InvalidFlag", "%s", "Data File command must start with 1 (write to file) or 0 (stop writing), but was given: " + str);
+            end
 
-            writeFile = logical(ss1);
-
-            if writeFile
-                path = string(ss2);
-            else
-                path = string.empty;
+            %A path means nothing when writing is switched off
+            if ~writeFile
+                path = "";
             end
         end
 
@@ -294,10 +307,13 @@ classdef CommandEncoder < handle
             %or
             %Keithley2410_1 : PrintIdentifier(foo)
 
-            %Split on the : to seperate target (first) and command (second)
-            ss = strsplit(str, ":");
-            targ = string(ss{1});
-            command = string(strtrim(ss{2}));
+            %Split at the first : to separate target (first) and command
+            %(second). Only the first - the command's arguments may contain
+            %colons, e.g. a path like C:\Data
+            str = string(str);
+            assert(contains(str, ":"), "ParseInstrumentCommandError:MissingDelimiter", "%s", "Instrument command must be <Instrument Name> : <Method(arguments)>, but was given: " + str);
+            targ = extractBefore(str, ":");
+            command = strtrim(extractAfter(str, ":"));
 
             ss2 = strsplit(targ, ".");
 
@@ -318,23 +334,24 @@ classdef CommandEncoder < handle
            seqFilePath = str;
         end
 
-        function [waitVal_Sec, waitUnit] = ParseWaitCommand(this, str)
+        function [waitVal_Sec, waitUnit] = ParseWaitCommand(~, str)
+            %Parse the text after [WAIT]: a number and a unit, sec, min or
+            %hr (in any case), separated by any amount of space, e.g.
+            %"30 sec". Returns the wait in seconds, and the unit in lower case
+            parts = split(strtrim(string(str)));
+            assert(numel(parts) == 2, "ParseWaitCommandError:InvalidFormat", "%s", "Wait command must be a number and a unit (sec, min or hr), e.g. 30 sec, but was given: " + string(str));
 
-            ss = strsplit(str, " ");
-            val = str2double(ss{1});
-            waitUnit = ss{2};
+            val = str2double(parts(1));
+            assert(~isnan(val), "ParseWaitCommandError:InvalidNumber", "%s", "Wait time is not a number: " + parts(1));
 
-            switch(waitUnit)
-                case("sec")
-                    waitVal_Sec = val;
-                case("min")
-                    waitVal_Sec = val * 60;
-                case("hr")
-                    waitVal_Sec = val * 3600;
+            waitUnit = lower(parts(2));
+            switch waitUnit
+                case "sec";     waitVal_Sec = val;
+                case "min";     waitVal_Sec = val * 60;
+                case "hr";      waitVal_Sec = val * 3600;
                 otherwise
-                    error("ParseWaitCommandError:UnrecognisedWaitUnit", "%s", "Unrecognised wait unit: " + Settings.WaitUnit);
+                    error("ParseWaitCommandError:UnrecognisedWaitUnit", "%s", "Unrecognised wait unit: " + parts(2) + " (use sec, min or hr)");
             end
-
         end
 
     end

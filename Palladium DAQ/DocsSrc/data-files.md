@@ -46,7 +46,7 @@ Instrument Controls that write their own files, such as sweeps, name them after 
 
 ## Plots
 
-**Save Plot** on a plot saves it as both a MATLAB figure (`.fig`) and an image (`.png`) in the data directory, named after the data file (with `-Fig` and a number), or after the plot's title if it has one. **Copy Plot** copies it into an ordinary MATLAB figure instead, for editing.
+**Save Plot** on a plot saves it as both a MATLAB figure (`.fig`) and an image (`.png`) in the data directory, named after the data file (with `-Fig` and a number), or after the plot's title if it has one. In the Data Viewer, **Save Plot** instead asks where to save, and uses exactly the name you choose. **Copy Plot** copies it into an ordinary MATLAB figure instead, for editing.
 
 ## The Data Viewer
 

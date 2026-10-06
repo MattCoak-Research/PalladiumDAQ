@@ -379,7 +379,7 @@ classdef PathUtils
                 return;
             end
 
-            %Split up the paths into the directories, seperate by "\"
+            %Split up the paths into the directories, separated by filesep
             pathCellArray = strsplit(path, filesep);
             refPathCellArray = strsplit(refPath, filesep);
 

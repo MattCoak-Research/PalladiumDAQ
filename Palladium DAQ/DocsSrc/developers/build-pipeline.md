@@ -58,7 +58,7 @@ The system tests in `Tests/Systems Tests - Simulated Hardware` are not part of t
 * Methods inherited from documented classes are listed and linked; methods that override a base class method borrow its help if they have none; one-line Categoricals converters get a generated description.
 * Documented class names in the Type column link to their pages.
 
-The classes documented are listed in `apidocTask` in `buildfile.m`, along with whole namespaces (currently `Palladium.Enums`).
+The classes documented are listed in `apidocTask` in `buildfile.m`: some individually, whole namespaces (currently `Palladium.Enums`), and every instrument driver file in `+Palladium/+Instruments` (`FolderClasses`, which reads the folder so that drivers in a user files folder on the path are not picked up). `TestInstrument`, a scratch driver for prototyping, is left out.
 
 ### gettingStarted - the toolbox's Getting Started guide
 
@@ -100,7 +100,7 @@ The documentation's screenshots of the GUI are taken by a script, so that they c
 * Keyboard focus is moved to the window itself before each capture, so no text field shows a focus border - otherwise which field has focus varies from run to run.
 * A file is only rewritten if the image has changed, so retaking unchanged screenshots doesn't show up in git. Scenes with plots of simulated data allow a small tolerance, since the data differs slightly from run to run.
 
-The scenes run with a screenshot-only config, writing everything to the git-ignored `Tools/DocScreenshots/work` folder, and set the visible folder fields to neutral values such as `C:\Data`, so a developer's own folders never appear in the docs. `TestInstrument` is hidden from the Instruments list.
+The scenes run with a screenshot-only config, writing everything to the git-ignored `Tools/DocScreenshots/work` folder, and set the visible folder fields to neutral values such as `C:\Data`, so a developer's own folders never appear in the docs. `TestInstrument`, a scratch instrument for prototyping that isn't shipped, is hidden from the Instruments list.
 
 **The screenshots task needs a display, so it is run by hand, not on GitHub Actions:**
 
@@ -114,11 +114,18 @@ To add a screenshot, add a scene function to `TakeDocScreenshots.m` and its name
 
 ### package - the toolbox
 
-`packageTask` builds `Release/Toolbox/PalladiumDAQ.mltbx` from the MATLAB Project's file list, with the version from `Palladium.ver()`. It sets the Getting Started guide to `Docs/GettingStarted.m`, and leaves `DocsSrc` (and any stray Markdown) out, so the toolbox ships only the generated documentation. It also leaves out `TestInstrument.m`, an instrument used only for testing Palladium DAQ itself.
+`packageTask` builds `Release/Toolbox/PalladiumDAQ.mltbx` from the MATLAB Project's file list, with the version from `Palladium.ver()`. It sets the Getting Started guide to `Docs/GettingStarted.m`, and leaves `DocsSrc` (and any stray Markdown) out, so the toolbox ships only the generated documentation. It also leaves out `TestInstrument.m`, a scratch instrument for prototyping new features, which is not shipped.
 
 ## Standalone application
 
-`deploy` compiles `Palladium.m` into a standalone application with MATLAB Compiler. Classes that are only loaded by name at run time - instruments, Instrument Controls, GUI components and views, enumerations and events - are not found by the compiler's dependency analysis, so `AssembleBuildOptions` adds every `.m` file in those folders explicitly (except `TestInstrument.m`). It then builds three installers in `Release/Package`: with the MATLAB Runtime bundled, with a web installer that downloads the Runtime, and with no Runtime. The installers also install two folders that the application reads from disk at run time, rather than from its compiled archive, next to `PalladiumDAQ.exe` in the installation's `application` folder: the HTML documentation (the built `Docs` folder), and `PalladiumPythonCore`, the Python base class for [Python instruments](../python-instruments.md), which Python imports from there. Only its `.py` files are installed: they are copied into `Release/Build/PalladiumPythonCore` first, leaving out `__pycache__` and any MATLAB autosave files.
+`deploy` compiles `Palladium.m` into a standalone application with MATLAB Compiler. Classes that are only loaded by name at run time - instruments, Instrument Controls, GUI components and views, enumerations and events - are not found by the compiler's dependency analysis, so `AssembleBuildOptions` adds every `.m` file in those folders explicitly (except `TestInstrument.m`). It then builds three installers in `Release/Package`: with the MATLAB Runtime bundled, with a web installer that downloads the Runtime, and with no Runtime. The installers show a summary, a description and installation notes, set in `deployTask`. The notes tell users updating from an earlier version to close Palladium DAQ and uninstall the old version first, because the installer neither replaces files in use nor removes files a new version no longer has (see [Installation](../installation.md)). The installers also install folders that the application reads from disk at run time, rather than from its compiled archive, next to `PalladiumDAQ.exe` in the installation's `application` folder:
+
+* `Docs` - the built HTML documentation, opened by the Help button
+* `PalladiumPythonCore` - the Python base class for [Python instruments](../python-instruments.md), which Python imports from there. Only its `.py` files are installed: they are copied into `Release/Build/PalladiumPythonCore` first, leaving out `__pycache__` and any MATLAB autosave files
+* `ExamplesAndTemplates/Presets` (`Example.json`), `ExamplesAndTemplates/PythonInstruments` (`TemplatePythonInstrument.py`, the template for new Python instruments) and `Instrument Drivers` (the PPMS's `QDInterface.dll`) - copied into the user files folder on first run, as they are when running in MATLAB (`Controller.Initialise`). The template for new MATLAB instrument drivers is left out: the standalone application can't load MATLAB drivers written after it is built. Both templates are kept out of the Instruments list by `InstrumentController.InstrumentClassesToIgnore`
+* `Graphics` - the Palladium icon, which `Controller` passes to the windows as `WindowSettings.PalladiumIconPath`
+
+The presets, Python template and icon are copied into `Release/Build` first, so that only those files are installed; `Docs` and `Instrument Drivers` are installed from the source.
 
 On Windows, the installers also include a private copy of Python, installed as `application/Python`, so that [Python instruments](../python-instruments.md) work with nothing to set up. `PrepareBundledPython` builds it in `Release/Build/Python`:
 

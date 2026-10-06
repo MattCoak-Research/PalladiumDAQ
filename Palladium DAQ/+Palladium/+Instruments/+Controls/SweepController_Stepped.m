@@ -20,6 +20,12 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
         YLabelStr = "Y axis var";
         ExtraDataColHeaders = [];
         CachedData = [];            %CachedData for the last iteration, ready to be written (need to wait until data fomr other instruments come in)
+        UnitsStr = "";              %Units of the sweep values last set by RefreshUnitsAndLimits - the start/middle/end values go back to their defaults when these change
+    end
+
+    %% Properties (Constant, Private)
+    properties (Constant, Access = private)
+        DefaultSpanFraction = 0.1;  %Default start and end values: this fraction of the way from the middle of the limits to each limit
     end
 
     %% Constructor
@@ -209,6 +215,10 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
             this.AvailableHeaders = headers;
             this.GUIView.UpdateAvailableDataColumnHeaders(headers);
             this.Plotter.UpdateVariables(headers);
+
+            %The instrument is connected now, so it can report limits set on
+            %the hardware
+            this.RefreshUnitsAndLimits();
         end
 
         function MeasurementsStarted(this, ~, ~, ~)
@@ -246,10 +256,32 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
         end
 
         function RefreshUnitsAndLimits(this)
+            %Update the units, limits and plot labels from the instrument.
+            %Called when the control is created, when an instrument setting
+            %changes, and once measurements are initialised (when the
+            %instrument is connected, so it can read limits set on the
+            %hardware). The first time, and whenever the units change, the
+            %start, middle and end values are set to defaults close to the
+            %middle of the limits (DefaultSpanFraction of the way to each
+            %limit) - not the limits themselves, which can be large. Otherwise
+            %the values already entered are kept, clamped to the new limits
+
             [unitsStr, limits, xlabelStr, ylabelStr] = this.Instrument.GetSweepUnitsString();
             this.GUIView.SetUnitsString(unitsStr);
             this.GUIView.SetLimits(limits(1), limits(2));
-            this.GUIView.SetStartingValues(limits(1), (limits(1)+limits(2))/2, limits(2));
+
+            sweepDetails = [];
+            if isfield(this.ControlDetailsStruct, "SweepDetails")
+                sweepDetails = this.ControlDetailsStruct.SweepDetails;
+            end
+            if string(unitsStr) ~= this.UnitsStr || ~isstruct(sweepDetails) || ~all(isfield(sweepDetails, ["MinVal", "MidVal", "MaxVal"]))
+                mid = (limits(1) + limits(2)) / 2;
+                this.GUIView.SetStartingValues(mid + this.DefaultSpanFraction * (limits(1) - mid), mid, mid + this.DefaultSpanFraction * (limits(2) - mid));
+            else
+                this.GUIView.SetStartingValues(sweepDetails.MinVal, sweepDetails.MidVal, sweepDetails.MaxVal);  %Clamps them to the new limits
+            end
+
+            this.UnitsStr = string(unitsStr);
             this.XLabelStr = xlabelStr;
             this.YLabelStr = ylabelStr;
         end

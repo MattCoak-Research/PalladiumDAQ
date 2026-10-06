@@ -34,7 +34,27 @@ classdef testProgramLaunch < matlab.uitest.TestCase
             verifyNotEmpty(testCase, pd.View);
             verifyNotEmpty(testCase, pd.Controller);
             drawnow();
+            verifyTrue(testCase, pd.Controller.HasGUIWindow());     %The standalone app then keeps logged errors off stderr (no Windows error box)
             pd.Close();
+        end
+
+        function LoggerReachesGUI(testCase)
+            %The Logger is given the Controller, so its warnings and errors
+            %show in the status bar, and it knows a window is open (so the
+            %standalone app keeps them off stderr - no Windows error box).
+            %It used to never get the Controller, and did neither
+            pd = Palladium(ConfigFilePath=testCase.ConfigPath);
+            c = onCleanup(@() pd.Close());
+            drawnow();
+            verifyTrue(testCase, pd.Controller.HasGUIWindow());
+
+            %Record the yellow status message sent to the GUI
+            setappdata(groot, "LoggerReachesGUI", "");
+            listener = event.listener(pd.Controller, "YellowStatus", @(~, e) setappdata(groot, "LoggerReachesGUI", string(e.Message)));
+            Palladium.Logging.Logger.Log("Warning", "Logger test warning");
+            delete(listener);
+            verifyEqual(testCase, getappdata(groot, "LoggerReachesGUI"), "Logger test warning", "The Logger's warning did not reach the GUI");
+            rmappdata(groot, "LoggerReachesGUI");
         end
         
         function LaunchEmptyNoView(testCase)
@@ -42,6 +62,7 @@ classdef testProgramLaunch < matlab.uitest.TestCase
             pd = Palladium(ConfigFilePath=testCase.ConfigPath, View=[]);
             verifyEmpty(testCase, pd.View);
             verifyNotEmpty(testCase, pd.Controller);
+            verifyFalse(testCase, pd.Controller.HasGUIWindow());
             pd.Close();      
         end
 

@@ -556,13 +556,6 @@
                                 </Category>
                             </Info>
                         </File>
-                        <File Location="SweepSetupControl.mlapp">
-                            <Info>
-                                <Category UUID="FileClassCategory">
-                                    <Label UUID="design"/>
-                                </Category>
-                            </Info>
-                        </File>
                         <File Location="SweepSetupControl_Ramp.mlapp">
                             <Info>
                                 <Category UUID="FileClassCategory">
@@ -737,13 +730,6 @@
                             </Category>
                         </Info>
                     </File>
-                    <File Location="Keysight4248A_LCR_Meter.m">
-                        <Info>
-                            <Category UUID="FileClassCategory">
-                                <Label UUID="design"/>
-                            </Category>
-                        </Info>
-                    </File>
                     <File Location="Lakeshore331.m">
                         <Info>
                             <Category UUID="FileClassCategory">
@@ -814,13 +800,6 @@
                             </Category>
                         </Info>
                     </File>
-                    <File Location="TemplateInstrumentClass.m">
-                        <Info>
-                            <Category UUID="FileClassCategory">
-                                <Label UUID="design"/>
-                            </Category>
-                        </Info>
-                    </File>
                     <File Location="TestInstrument.m">
                         <Info>
                             <Category UUID="FileClassCategory">
@@ -857,6 +836,13 @@
                         </Info>
                     </File>
                     <File Location="MercuryIPS.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
+                    <File Location="Keysight4284A_LCR_Meter.m">
                         <Info>
                             <Category UUID="FileClassCategory">
                                 <Label UUID="design"/>
@@ -1115,6 +1101,34 @@
                             </Category>
                         </Info>
                     </File>
+                    <File Location="test_DataFileSwitch.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="test"/>
+                            </Category>
+                        </Info>
+                    </File>
+                    <File Location="test_PresetSaveLoad.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="test"/>
+                            </Category>
+                        </Info>
+                    </File>
+                    <File Location="test_InstrumentControls.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="test"/>
+                            </Category>
+                        </Info>
+                    </File>
+                    <File Location="test_StarterFiles.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="test"/>
+                            </Category>
+                        </Info>
+                    </File>
                 </File>
                 <File Location="Unit Tests">
                     <Info/>
@@ -1244,7 +1258,7 @@
                                 <DIR_SIGNIFIER Location="1">
                                     <Info/>
                                 </DIR_SIGNIFIER>
-                                <File Location="TestInstrument.m">
+                                <File Location="PropertyListTestInstrument.m">
                                     <Info>
                                         <Category UUID="FileClassCategory">
                                             <Label UUID="design"/>
@@ -1280,6 +1294,9 @@
                                 </File>
                             </File>
                             <File Location="pythontest.py">
+                                <Info/>
+                            </File>
+                            <File Location="instrument_core_fakes.py">
                                 <Info/>
                             </File>
                         </File>
@@ -1438,6 +1455,13 @@
                                 </Category>
                             </Info>
                         </File>
+                        <File Location="test_CommandController.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
                     </File>
                     <File Location="DataWriting">
                         <Info/>
@@ -1497,6 +1521,26 @@
                                     </Category>
                                 </Info>
                             </File>
+                        </File>
+                        <File Location="test_AllInstruments_SimulationMode.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                    </File>
+                    <File Location="PythonInstruments">
+                        <Info/>
+                        <DIR_SIGNIFIER Location="1">
+                            <Info/>
+                        </DIR_SIGNIFIER>
+                        <File Location="test_PythonInstrumentCore.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
                         </File>
                     </File>
                 </File>
@@ -1579,6 +1623,13 @@
                                 </Category>
                             </Info>
                         </File>
+                        <File Location="RecordingInstrument.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="design"/>
+                                </Category>
+                            </Info>
+                        </File>
                     </File>
                 </File>
                 <File Location="Testing Data Files">
@@ -1640,6 +1691,28 @@
                         <Info/>
                     </DIR_SIGNIFIER>
                     <File Location="Example.json">
+                        <Info/>
+                    </File>
+                </File>
+                <File Location="Instruments">
+                    <Info/>
+                    <DIR_SIGNIFIER Location="1">
+                        <Info/>
+                    </DIR_SIGNIFIER>
+                    <File Location="TemplateInstrumentClass.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
+                </File>
+                <File Location="PythonInstruments">
+                    <Info/>
+                    <DIR_SIGNIFIER Location="1">
+                        <Info/>
+                    </DIR_SIGNIFIER>
+                    <File Location="TemplatePythonInstrument.py">
                         <Info/>
                     </File>
                 </File>
@@ -1737,6 +1810,9 @@
         </Reference>
         <Reference Location="9fb8b4d9-ca5a-461e-8f7e-c726052d43de">
             <Info Ref="Palladium DAQ/Tests/Unit Tests/data/Instrument Testing" Type="Relative"/>
+        </Reference>
+        <Reference Location="3e54805e-ad85-4fbc-bd9b-6ee39660e187">
+            <Info Ref="Palladium DAQ/Tests/Unit Tests/PythonInstruments" Type="Relative"/>
         </Reference>
     </ProjectPath>
     <Files Location="MLTestManagerTestSuites">

@@ -18,7 +18,7 @@ classdef DataFileCommand < Palladium.Sequence.Commands.Command
             arguments
                 writeToFile (1,1) logical;
                 Settings.FunctionOnComplete = [];
-                Settings.DataFilePath {mustBeTextScalar} = string.empty;
+                Settings.DataFilePath {mustBeTextScalar} = "";     %New data file. Empty: keep the current file, and just switch writing on or off
             end
             
             this.FunctionOnComplete = Settings.FunctionOnComplete;
@@ -32,8 +32,10 @@ classdef DataFileCommand < Palladium.Sequence.Commands.Command
     methods(Access = public)
         
         function str = GetDescription(this)
-            if this.WriteToFile
+            if this.WriteToFile && strlength(this.DataFilePath) > 0
                 str = "Write to: " + string(this.DataFilePath);
+            elseif this.WriteToFile
+                str = "Write Enable (current file name)";
             else
                 str = "Write Disable";
             end

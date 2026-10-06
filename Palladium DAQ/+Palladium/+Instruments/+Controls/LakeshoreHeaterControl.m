@@ -45,7 +45,7 @@ classdef LakeshoreHeaterControl < Palladium.Core.InstrumentControlBase
                 case("Lakeshore 372")
                     comp.SetTempControllerModel("370"); %372 is the same as 370 here
                 otherwise
-                    error("LakeshoreHeaterControl:UnsupportedInstrument", "%s", l.FullName + " not currently supported in LakeshoreHeaterControl");
+                    error("LakeshoreHeaterControl:UnsupportedInstrument", "%s", string(this.Instrument.FullName) + " not currently supported in LakeshoreHeaterControl");
             end
 
             %Add a plotter as well underneath
@@ -98,7 +98,7 @@ classdef LakeshoreHeaterControl < Palladium.Core.InstrumentControlBase
                 case("Lakeshore 372")
                     this.ConfigureForLS370(this.Instrument, this.Plotter);
                 otherwise
-                    error("LakeshoreHeaterControl:UnsupportedInstrument", "%s", l.FullName + " not currently supported in LakeshoreHeaterControl");
+                    error("LakeshoreHeaterControl:UnsupportedInstrument", "%s", string(this.Instrument.FullName) + " not currently supported in LakeshoreHeaterControl");
             end
 
         end

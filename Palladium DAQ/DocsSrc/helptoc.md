@@ -3,6 +3,7 @@
 * [Palladium DAQ](index.md)
     * [Getting started](quick-start.md)
     * [Installation](installation.md)
+        * [Setting up the PPMS](instrument-drivers/ppms.md)
     * [GUI tour](gui-tour.md)
     * [Presets and Config.json](presets-and-config.md)
     * [Sequences](sequences.md)

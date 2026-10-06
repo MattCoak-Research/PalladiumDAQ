@@ -26,6 +26,7 @@ classdef Logger < handle
             %This slightly clumsy pass-through boilerplate allows choosing
             %Logger settings on constructing it, then those options
             Palladium.Logging.Logger.Log("Debug", "Logger created",...
+                "Controller", controller,...
                 "LogFileDirectory", LogFileDirectory,...
                 "LogFileFileName", LogFileFileName,...
                 "CommandWindowMessageLevel", Settings.CommandWindowMessageLevel,...
@@ -92,12 +93,12 @@ classdef Logger < handle
                 msg = ErrorString;
                 title = "Error";
                 if isdeployed
-                    ErrorQuestResult = uiconfirm(fig, string(msg), title, ...
+                    ErrorQuestResult = uiconfirm(fig, Palladium.Utilities.GUIUtils.MessageToHTML(msg), title, ...
                         "Options", ["Stop Measurements", "Suppress Error", "Ignore"], ...
                         "Icon","warning", "Interpreter", "HTML",...
                         "DefaultOption", 1, "CancelOption", 3);
                 else
-                    ErrorQuestResult = uiconfirm(fig, string(msg), title, ...
+                    ErrorQuestResult = uiconfirm(fig, Palladium.Utilities.GUIUtils.MessageToHTML(msg), title, ...
                         "Options", ["Stop Measurements", "Stop & Go to Code", "Suppress Error", "Ignore"], ...
                         "Icon","warning", "Interpreter", "HTML",...
                         "DefaultOption", 1, "CancelOption", 4);
@@ -203,7 +204,7 @@ classdef Logger < handle
 
             %Logging to CommandWindow
             if Palladium.Logging.Logger.IsSeverityLevelAboveCutoff(level, CommandWindowMessageLevel)
-                Palladium.Logging.Logger.LogToCommandWindow(level, string(message), PrintStackTraceInCommandWindow);
+                Palladium.Logging.Logger.LogToCommandWindow(level, string(message), PrintStackTraceInCommandWindow, Palladium.Logging.Logger.HasGUIWindow(Controller));
             end
 
             %Logging to GUI
@@ -313,7 +314,7 @@ classdef Logger < handle
             end
         end
 
-        function LogToCommandWindow(level, message, printStackTraceInCommandWindow)
+        function LogToCommandWindow(level, message, printStackTraceInCommandWindow, hasGUIWindow)
             %Write the message to the command window - make it scary orange
             %warning text for warnings and errors
 
@@ -338,20 +339,32 @@ classdef Logger < handle
                     %Write to stderr, which shows in RED in the command
                     %window. But a compiled app without a console (the
                     %installed standalone application) shows anything
-                    %written to stderr in a modal "Error" box - fine for
-                    %errors, which may happen before the GUI exists, but not
-                    %for warnings, which are in the log file and status bar
-                    %anyway. So write those to stdout there: discarded by
-                    %that app, and still shown by the console debug build.
+                    %written to stderr in a modal Windows "Error" box. That
+                    %is only wanted for errors before Palladium's window
+                    %exists - warnings are in the log file and status bar,
+                    %and once the window is open it shows errors itself (status
+                    %bar, and its own dialog boxes), so the Windows box would
+                    %just pop up first. So write those to stdout there:
+                    %discarded by that app, and still shown by the console
+                    %debug build.
                     %Message is passed through %s so backslashes (eg file
                     %path separators) and % characters are printed literally
                     outputStream = 2;
-                    if isdeployed && level == "Warning"
+                    if isdeployed && (level == "Warning" || hasGUIWindow)
                         outputStream = 1;
                     end
                     fprintf(outputStream, "\n%s\n\n", fullMessage);
                 otherwise
                     error("LogToCommandWindowError:UnsupportedLevel", "%s", "Unsupported level in Logger: " + level);
+            end
+        end
+
+        function tf = HasGUIWindow(controller)
+            %True if Palladium's main window is open, to show messages in
+            try
+                tf = ~isempty(controller) && isvalid(controller) && controller.HasGUIWindow();
+            catch
+                tf = false;
             end
         end
 
@@ -372,8 +385,9 @@ classdef Logger < handle
 
             %Pass through the message and a colour to symbolise its
             %severity to the Palladium controller, to display however it
-            %seems best
-            if ~isempty(controller)
+            %seems best. Skip a deleted Controller - the Logger keeps the
+            %most recent one, which may have been closed already
+            if ~isempty(controller) && isvalid(controller)
                 controller.ShowMessageInGUI(colour, message);
             end
         end

@@ -267,13 +267,13 @@ function apidocTask(c)
 % Generate the API reference Markdown pages (DocsSrc/reference) from the help
 % comments in the code. The doc task then builds them into Docs/reference.
 
-%Prototype - a few representative classes, plus every class in the
-%namespaces listed
+%Classes listed individually, plus every class in the namespaces listed,
+%plus every instrument driver in the +Instruments folder (not
+%TestInstrument, which is a scratch driver for prototyping)
 classNames = ["Palladium.Core.Instrument", ...
-    "Palladium.Instruments.Keithley2000", ...
-    "Palladium.Instruments.Lakeshore331", ...
     "Palladium.Utilities.PathUtils", ...
-    NamespaceClasses("Palladium.Enums")];
+    NamespaceClasses("Palladium.Enums"), ...
+    FolderClasses(fullfile(c.Plan.RootFolder, "Palladium DAQ", "+Palladium", "+Instruments"), "Palladium.Instruments", "TestInstrument")];
 
 outputFolder = c.Task.Outputs.Path;
 if isfolder(outputFolder)
@@ -288,6 +288,16 @@ function names = NamespaceClasses(namespace)
 %Names of all the classes in a namespace (not including nested namespaces)
 ns = matlab.metadata.Namespace.fromName(namespace);
 names = string({ns.ClassList.Name});
+end
+
+function names = FolderClasses(folder, namespace, exclude)
+%Names of the classes defined by the .m files in one namespace folder (not
+%its subfolders), leaving out the class names in exclude. Reads the folder
+%rather than the namespace, which would also include any classes of the same
+%namespace in a user files folder on the path
+[~, classNames] = fileparts(string({dir(fullfile(folder, "*.m")).name}));
+classNames = setdiff(classNames, exclude, "stable");
+names = namespace + "." + classNames;
 end
 
 function pythonDir = PrepareBundledPython(pythonDir)
@@ -407,8 +417,8 @@ opts.ToolboxFiles(startsWith(opts.ToolboxFiles, fullfile(opts.ToolboxFolder, "Do
 docFiles = startsWith(opts.ToolboxFiles, fullfile(opts.ToolboxFolder, "Docs"));
 opts.ToolboxFiles(docFiles & endsWith(opts.ToolboxFiles, ".md")) = []; %Any left by a failed doc build
 
-%TestInstrument is for testing Palladium itself, not for users (it is left
-%out of the standalone application too - see AssembleBuildOptions)
+%TestInstrument is a scratch instrument for prototyping, not shipped (it is
+%left out of the standalone application too - see AssembleBuildOptions)
 opts.ToolboxFiles(endsWith(opts.ToolboxFiles, fullfile("+Palladium", "+Instruments", "TestInstrument.m"))) = [];
 
 %Build the .mltbx toolbox installation file
@@ -416,7 +426,7 @@ matlab.addons.toolbox.packageToolbox(opts);
 end
 
 function deployDebugTask(~)
-projectRoot = ""; %Was full path: "E:\OneDrive\OneDrive - University of Birmingham\Physics\Matlab\Palladium DAQ";
+projectRoot = "";   %The build runs from the repo root
 
 %Define, then clear (ready to write to) output directory
 exeDir = fullfile(projectRoot, "Release", "Debug Build");
@@ -439,7 +449,7 @@ BuildDebugStandalone(buildOpts);
 end
 
 function deployTask(~)
-projectRoot = ""; %Was full path: "E:\OneDrive\OneDrive - University of Birmingham\Physics\Matlab\Palladium DAQ";
+projectRoot = "";   %The build runs from the repo root
 
 %Define, then clear (ready to write to) output directory
 exeDir = fullfile(projectRoot, "Release", "Build");
@@ -486,7 +496,8 @@ packageOpts.Version = verString;
 packageOpts.Verbose = true;
 packageOpts.Summary = "Laboratory instrument control, data acquisition and live plotting.";
 packageOpts.Description = "Palladium Data Acquisition - an open source platform for laboratory instrument control, data acquisition logging and graphing. See https://github.com/MattCoak-Research/PalladiumDAQ for details.";
-packageOpts.InstallationNotes = "The documentation is installed with the application: open it with the Help button in Palladium DAQ, or open Docs\index.html in the installation's application folder.";
+packageOpts.InstallationNotes = "Updating from an earlier version? Close Palladium DAQ and uninstall the old version first (Settings > Apps > Installed apps), then run this installer. Your data and settings are kept. " ...
+    + "The documentation is installed with the application: open it with the Help button in Palladium DAQ, or open Docs\index.html in the installation's application folder.";
 
 %Files the application reads from disk at run time, rather than from its
 %compiled archive, installed next to the executable in application/:
@@ -498,10 +509,28 @@ packageOpts.InstallationNotes = "The documentation is installed with the applica
 % - Python (Windows only): a private copy of Python, with the packages
 %   Python instruments need, which the application uses unless the user's
 %   config names another (see Controller.SetUpPython)
+% - ExamplesAndTemplates/Presets: Example.json, ExamplesAndTemplates/
+%   PythonInstruments: the template Python instrument, and Instrument
+%   Drivers: the PPMS interface DLL - all copied into the user files folder
+%   on first run (see Controller.Initialise). The MATLAB template driver is
+%   left out: the standalone application can't load MATLAB drivers written
+%   after it is built
+% - Graphics: the Palladium icon, for the windows (Controller's
+%   WindowSettings.PalladiumIconPath)
 pythonCoreDir = fullfile(exeDir, "PalladiumPythonCore");
 mkdir(pythonCoreDir);
 copyfile(fullfile(projectRoot, "Palladium DAQ", "PalladiumPythonCore", "*.py"), pythonCoreDir);
-installFiles = [fullfile(projectRoot, "Palladium DAQ", "Docs"), pythonCoreDir];
+presetsDir = fullfile(exeDir, "ExamplesAndTemplates", "Presets");
+mkdir(presetsDir);
+copyfile(fullfile(projectRoot, "Palladium DAQ", "ExamplesAndTemplates", "Presets", "*.json"), presetsDir);
+pythonTemplatesDir = fullfile(exeDir, "ExamplesAndTemplates", "PythonInstruments");
+mkdir(pythonTemplatesDir);
+copyfile(fullfile(projectRoot, "Palladium DAQ", "ExamplesAndTemplates", "PythonInstruments", "*.py"), pythonTemplatesDir);
+graphicsDir = fullfile(exeDir, "Graphics");
+mkdir(graphicsDir);
+copyfile(fullfile(projectRoot, "Palladium DAQ", "+Palladium", "+Components", "Graphics", "PalladiumDAQIcon.png"), graphicsDir);
+installFiles = [fullfile(projectRoot, "Palladium DAQ", "Docs"), pythonCoreDir, fullfile(exeDir, "ExamplesAndTemplates"), ...
+    fullfile(projectRoot, "Palladium DAQ", "Instrument Drivers"), graphicsDir];
 if ispc
     installFiles(end+1) = PrepareBundledPython(fullfile(exeDir, "Python"));
 end
@@ -592,6 +621,7 @@ additionalFiles = GetAdditionalFilesFromFolders([...,...
     fullfile("Palladium DAQ", "+Palladium", "+Sequence", "+Views"),...
     fullfile("Palladium DAQ", "+Palladium", "+Views")]);
 
+%Leave out TestInstrument, a scratch instrument for prototyping, not shipped
 additionalFiles = RemoveAdditionalFiles(additionalFiles, [...
     fullfile("Palladium DAQ", "+Palladium", "+Instruments", "TestInstrument.m")...
     ]);

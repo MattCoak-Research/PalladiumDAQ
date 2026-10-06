@@ -1,6 +1,9 @@
-classdef InstrumentControlBase < Palladium.Core.Entity
+classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogeneous
     %InstrumentControlBase - Base class for a Logic controller add-on object to be added on to an
     %Instrument object, eg LakeshoreHeaterControl.m
+    %Heterogeneous, so that an Instrument can hold Controls of different
+    %classes in one array (e.g. a MagnetController and a
+    %SweepController_Ramp on a Mercury IPS).
 
     %% Properties (Public)
     properties (Access = public)

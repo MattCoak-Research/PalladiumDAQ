@@ -616,6 +616,44 @@ classdef test_DataWriter < matlab.unittest.TestCase
             testCase.verifyError(@() writer.SaveFigure(fig, ax, fullfile(testCase.TempDir, "nope"), "myplot"), "SaveFigureError:SaveFailed");
         end
 
+        function test_SaveFigure_ExactFileNameUsesNameAsGivenTest(testCase)
+            %As from a Save As dialog: no -Fig, no number, and a title doesn't replace the name
+            [fig, ax] = testCase.makeFigure();
+            title(ax, "My Plot Title");
+            writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("acq"));
+
+            writer.SaveFigure(fig, ax, testCase.TempDir, "chosen name", ExactFileName=true);
+
+            testCase.verifyTrue(isfile(fullfile(testCase.TempDir, "chosen name.fig")));
+            testCase.verifyTrue(isfile(fullfile(testCase.TempDir, "chosen name.png")));
+            testCase.verifyEqual(numel(dir(fullfile(testCase.TempDir, "*.png"))), 1);
+            testCase.verifyEqual(string(ax.Title.String), "My Plot Title");
+        end
+
+        function test_SaveFigure_ExactFileNameOverwritesExistingFileTest(testCase)
+            %The Save As dialog has already asked about overwriting
+            [fig, ax] = testCase.makeFigure();
+            writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("acq"));
+            pngFile = fullfile(testCase.TempDir, "chosen.png");
+            writelines("old", pngFile);
+
+            writer.SaveFigure(fig, ax, testCase.TempDir, "chosen", ExactFileName=true);
+
+            testCase.verifyGreaterThan(dir(pngFile).bytes, 10);
+            testCase.verifyEqual(numel(dir(fullfile(testCase.TempDir, "chosen*.png"))), 1);
+        end
+
+        function test_SaveFigure_TitlesTheGivenAxesNotCurrentOnesTest(testCase)
+            [fig, ax] = testCase.makeFigure();
+            [~, otherAx] = testCase.makeFigure();   %Made last, so its axes are the current ones
+            writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("acq"));
+
+            writer.SaveFigure(fig, ax, testCase.TempDir, "my_run_name");
+
+            testCase.verifyEqual(string(ax.Title.String), "my run name");
+            testCase.verifyEmpty(otherAx.Title.String);
+        end
+
         %% BuildMetadataLineStringFromStruct
         function test_BuildMetadataLineFromStruct_FormatsFieldsInOrderTest(testCase)
             s = struct("Frequency", 100, "Mode", "AC", "Enabled", true);
@@ -752,6 +790,44 @@ classdef test_DataWriter < matlab.unittest.TestCase
             end
         end
 
+
+        %% Write to File switched off (SaveFile = false)
+        function test_SaveFileOff_WriteHeadersCreatesNoFileTest(testCase)
+            writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("acq", SaveFile=false));
+
+            writer.WriteHeaders("a", MetadataLines="m");
+
+            testCase.verifyFalse(isfile(writer.FileWriteDetails.FilePath));
+        end
+
+        function test_SaveFileOff_WriteLineAndWriteDataCreateNoFileTest(testCase)
+            writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("acq", SaveFile=false));
+
+            writer.WriteLine([1 2]);
+            writer.WriteData([3 4; 5 6]);
+
+            testCase.verifyFalse(isfile(writer.FileWriteDetails.FilePath));
+        end
+
+        function test_SaveFileOff_WriteLineLeavesExistingFileUnchangedTest(testCase)
+            existing = testCase.writerWithData("acq");
+            before = testCase.fileLines(existing);
+            writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("acq", SaveFile=false));
+
+            writer.WriteLine([7 8]);
+
+            testCase.verifyEqual(testCase.fileLines(existing), before);
+        end
+
+        function test_SaveFileOff_InsertMetadataLinesLeavesExistingFileUnchangedTest(testCase)
+            existing = testCase.writerWithData("acq");
+            before = testCase.fileLines(existing);
+            writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("acq", SaveFile=false));
+
+            writer.InsertMetadataLines("inserted");
+
+            testCase.verifyEqual(testCase.fileLines(existing), before);
+        end
     end
 
     %% Methods (Private)
