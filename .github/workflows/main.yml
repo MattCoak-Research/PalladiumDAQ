@@ -11,6 +11,7 @@ on:
 
 jobs:
   BuildTask:
+    environment: "Palladium Build Environment"
     runs-on: ubuntu-latest
     permissions:
       contents: write
