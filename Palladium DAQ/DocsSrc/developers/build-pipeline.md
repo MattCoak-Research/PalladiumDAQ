@@ -33,6 +33,8 @@ Running a task runs the tasks it depends on first. Tasks with declared inputs an
 
 The system tests in `Tests/Systems Tests - Simulated Hardware` are not part of the build - run them separately from the Test Browser or with `runtests`.
 
+The hardware tests in `Tests/Connected Hardware` need a real instrument connected, so they are not part of the build or CI either. Each instrument has a folder with a shared abstract base class holding the tests and one small subclass per connection type, e.g. `runtests("Keithley2410_HardwareTest_GPIB")`. The setup the instrument needs (wiring, settings, safety limits) is described at the top of the base class.
+
 ## Documentation
 
 ### Folders

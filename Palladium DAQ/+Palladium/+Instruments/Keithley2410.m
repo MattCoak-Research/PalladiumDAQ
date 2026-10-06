@@ -129,12 +129,22 @@ classdef Keithley2410 < Palladium.Core.Instrument
         function data = FetchLatestData(this)
             %Read the latest reading from the instrument without triggering one.
             %Not used by the driver: a building block for triggered measurements
-            %(see ArmTrigger). It does not work in the standard configuration
+            %(see ArmTrigger). The instrument does not answer queries while
+            %the trigger model is running (after ArmTrigger), so abort it
+            %(:ABORt) before calling this
             %
             %Outputs:
-            %   data - the first element of the latest reading
+            %   data - the first element of the latest reading (the voltage,
+            %          with the data elements Connect sets)
 
-            data = this.QueryDouble("SENS:DAT:LAT?");
+            if this.SimulationMode
+                data = this.QueryDouble("SENS:DATA:LAT?");
+                return;
+            end
+
+            %The reply holds every data element, e.g. '+1.088302E-02,+9.999998E-06,+1.088302E+03'
+            reading = strsplit(this.QueryString("SENS:DATA:LAT?"), ',');
+            data = str2double(reading{1});
         end
 
         function [compValue, compStringWithUnits] = GetComplianceLevel(this)
