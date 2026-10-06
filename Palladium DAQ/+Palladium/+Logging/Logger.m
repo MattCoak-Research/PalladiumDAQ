@@ -71,8 +71,9 @@ classdef Logger < handle
                 ErrorString = string(sprintf("Error in Matlab function " + TopErrorName + " - line " + num2str(TopErrorLine) + ":\n\n")) + string(message) + string(sprintf("\n\nError in user function " + UserErrorName + " - line " + num2str(UserErrorLine) + "."));
             end
 
-            %Write the error message to the logfile
-            Palladium.Logging.Logger.LogError(err, message);
+            %No logging here - the caller (Controller.HandleError) has
+            %already logged the error, and doing it again here printed
+            %every error twice and wrote it to the log file twice
 
             if isempty(uiFigureHandle)  %If we do not have a uiFigure GUI to create modal dialogue boses in..
                 %Show a normal dialogue box asking the user what they want
@@ -126,10 +127,10 @@ classdef Logger < handle
                     case "Stop & Go to Code"
                         Halt = true;
                         fprintf(2, '%s\n', getReport(err, 'extended'));
-                        %#exclude matlab.desktop.editor.openAndGoToLine
-                        matlab.desktop.editor.openAndGoToLine(TopErrorFile, TopErrorLine);
-                        %#exclude matlab.desktop.editor.openAndGoToLine
-                        matlab.desktop.editor.openAndGoToLine(UserErrorFile, UserErrorLine);
+                        Palladium.Logging.Logger.GoToCode(TopErrorFile, TopErrorLine, TopErrorName);
+                        if ~strcmp(UserErrorFile, TopErrorFile) || UserErrorLine ~= TopErrorLine
+                            Palladium.Logging.Logger.GoToCode(UserErrorFile, UserErrorLine, UserErrorName);
+                        end
                     case "Suppress Error"
                         suppressError = true;
                     case "Ignore"
@@ -250,6 +251,28 @@ classdef Logger < handle
 
             %Construct the full path
             path = fullfile(logFileDirectory, fileName);
+        end
+
+        function GoToCode(file, line, functionName)
+            %Open the editor at a line of code, for the Stop & Go to Code option of the error dialogue.
+            %Ordinary code files open in the MATLAB editor at the line.
+            %App Designer (.mlapp) files cannot be opened at a line by the
+            %editor API, so they are opened in App Designer, and the
+            %function and line number are printed to find the spot in Code
+            %View - the line number matches the one shown there. Never
+            %throws: failing to open the editor must not break error handling.
+            try
+                [~, ~, ext] = fileparts(file);
+                if strcmpi(ext, ".mlapp")
+                    appdesigner(file);
+                    fprintf(2, 'Error is in an App Designer file: %s\n    function %s, line %d (as numbered in Code View)\n', file, functionName, line);
+                else
+                    %#exclude matlab.desktop.editor.openAndGoToLine
+                    matlab.desktop.editor.openAndGoToLine(file, line);
+                end
+            catch e
+                warning("GoToCodeWarning:OpenFailed", "%s", "Could not open " + string(file) + " at line " + string(line) + ": " + string(e.message));
+            end
         end
 
         function str = GetLevelText(level)

@@ -79,17 +79,17 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             this.GUIView = comp;
 
             %Subscribe to events
-            addlistener(comp, 'RunPushed', @(src,evnt)this.ScanRun(src, evnt));
-            addlistener(comp, 'AbortPushed', @(src,evnt)this.ScanAbort(src, evnt));
-            addlistener(comp, 'InsertSmartTag', @(src,evnt)this.InsertSmartTagRequest(src, evnt, controller));
-            addlistener(comp, 'ScanDataChange', @(src,evnt)this.ScanDataChanged(src, evnt));
+            this.AddGuardedListener(comp, 'RunPushed', @(src,evnt)this.ScanRun(src, evnt));
+            this.AddGuardedListener(comp, 'AbortPushed', @(src,evnt)this.ScanAbort(src, evnt));
+            this.AddGuardedListener(comp, 'InsertSmartTag', @(src,evnt)this.InsertSmartTagRequest(src, evnt, controller));
+            this.AddGuardedListener(comp, 'ScanDataChange', @(src,evnt)this.ScanDataChanged(src, evnt));
 
             %And to the event fired when instrument properties change! Note
             %that we have to store and register this listener handle
             %properly, or when we remove this control  the orphaned listener still lives on the instrument.
             %When you then change a dropdown (e.g., SourceMode), the PostSet → PropertyChanged event fires, the orphaned listener
             %tries to call RefreshUnitsAndLimits() on a deleted handle object, and MATLAB crashes.
-            ltr = addlistener(instrRef, 'PropertyChanged', @(src,evnt)this.RefreshUnitsAndLimits());
+            ltr = this.AddGuardedListener(instrRef, 'PropertyChanged', @(src,evnt)this.RefreshUnitsAndLimits());
             this.RegisterEventListener(ltr);
 
 
@@ -101,7 +101,7 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
                     this.Plotter = controller.AddNewPlotter(grid, Size="Medium", RegisterPlotter=false);    %Don't register the plotter centrally, as we will push data to it only when the sweep is running, and clear it on sweep start. This does mean, for now at least, that the Plotter is not hooked up
                     this.Plotter.Layout.Row = 2;
                     this.Plotter.Layout.Column = 4;
-                    ltr = addlistener(this.Plotter, 'AxesSelectionChange', @(src,evnt)this.PlotterAxesSelectionChange(src));
+                    ltr = this.AddGuardedListener(this.Plotter, 'AxesSelectionChange', @(src,evnt)this.PlotterAxesSelectionChange(src));
                     this.RegisterEventListener(ltr);
                 case("Simple")
                     this.Plotter = controller.AddNewSimplePlotter(grid, "Medium");

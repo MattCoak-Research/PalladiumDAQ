@@ -178,7 +178,7 @@ classdef InstrumentController < handle
                 %properly, or when we remove this control  the orphaned listener still lives on the instrument.
                 %When you then change a dropdown (e.g., SourceMode), the PostSet → PropertyChanged event fires, the orphaned listener
                 %tries to call RefreshUnitsAndLimits() on a deleted handle object, and MATLAB crashes.
-                ltr = addlistener(instRef, 'PropertyChanged', @(src,evnt)this.InstrumentPropertyChanged(evnt));
+                ltr = Palladium.Core.ErrorGuard.AddListener(instRef, 'PropertyChanged', @(src,evnt)this.InstrumentPropertyChanged(evnt), Controller = this.Controller, Context = "Error handling a property change on " + instRef.Name);
                 this.RegisterEventListener(ltr);
 
                 %Verbose/debug message printing
@@ -251,6 +251,7 @@ classdef InstrumentController < handle
                 %Make an instance of the selected datasource class
                 controlClassRef = Palladium.Utilities.PluginLoading.InstantiateClass(this.ControlsNamespace, controlDetailsStruct.ControlClassFileName);
                 controlClassRef.ControlDetailsStruct = controlDetailsStruct;
+                controlClassRef.Controller = this.Controller;   %Before CreateInstrumentControlGUI, which hooks up guarded listeners
                 controlClassRef.ProgrammeTargetUpdateTime = this.Controller.TimingLoopController.TargetUpdateTime;
 
                 %Tell the control class to create the required GUI etc
@@ -262,19 +263,23 @@ classdef InstrumentController < handle
                 %Subscribe it to Controller events. Store the handle to the
                 %Listener by calling RegisterEventListener, so we can
                 %unsubscribe from events on deletion of the control.
-                ltr = addlistener(this.Controller.TimingLoopController, 'Started', @(src,evnt)controlClassRef.MeasurementsStarted(src, evnt));
+                %All guarded, so errors in a control's handlers go to the
+                %error handling instead of becoming warnings (see ErrorGuard)
+                ctrlName = string(controlDetailsStruct.Name);
+                tlc = this.Controller.TimingLoopController;
+                ltr = Palladium.Core.ErrorGuard.AddListener(tlc, 'Started', @(src,evnt)controlClassRef.MeasurementsStarted(src, evnt), Controller = this.Controller, Context = "Error in " + ctrlName + " (Started)");
                 controlClassRef.RegisterEventListener(ltr);
-                ltr = addlistener(this.Controller.TimingLoopController, 'Paused', @(src,evnt)controlClassRef.MeasurementsPaused(src, evnt));
+                ltr = Palladium.Core.ErrorGuard.AddListener(tlc, 'Paused', @(src,evnt)controlClassRef.MeasurementsPaused(src, evnt), Controller = this.Controller, Context = "Error in " + ctrlName + " (Paused)");
                 controlClassRef.RegisterEventListener(ltr);
-                ltr = addlistener(this.Controller.TimingLoopController, 'Resumed', @(src,evnt)controlClassRef.MeasurementsResumed(src, evnt));
+                ltr = Palladium.Core.ErrorGuard.AddListener(tlc, 'Resumed', @(src,evnt)controlClassRef.MeasurementsResumed(src, evnt), Controller = this.Controller, Context = "Error in " + ctrlName + " (Resumed)");
                 controlClassRef.RegisterEventListener(ltr);
-                ltr = addlistener(this.Controller.TimingLoopController, 'Stopped', @(src,evnt)controlClassRef.MeasurementsStopped(src, evnt));
+                ltr = Palladium.Core.ErrorGuard.AddListener(tlc, 'Stopped', @(src,evnt)controlClassRef.MeasurementsStopped(src, evnt), Controller = this.Controller, Context = "Error in " + ctrlName + " (Stopped)");
                 controlClassRef.RegisterEventListener(ltr);
-                ltr = addlistener(this.Controller.TimingLoopController, 'MeasurementsInitialised', @(src,evnt)controlClassRef.MeasurementsInitialised(src, evnt));
+                ltr = Palladium.Core.ErrorGuard.AddListener(tlc, 'MeasurementsInitialised', @(src,evnt)controlClassRef.MeasurementsInitialised(src, evnt), Controller = this.Controller, Context = "Error in " + ctrlName + " (MeasurementsInitialised)");
                 controlClassRef.RegisterEventListener(ltr);
-                ltr = addlistener(this.Controller.TimingLoopController, 'TargetUpdateTimeChanged', @(src,evnt)controlClassRef.TargetUpdateTimeChanged(src, evnt));
+                ltr = Palladium.Core.ErrorGuard.AddListener(tlc, 'TargetUpdateTimeChanged', @(src,evnt)controlClassRef.TargetUpdateTimeChanged(src, evnt), Controller = this.Controller, Context = "Error in " + ctrlName + " (TargetUpdateTimeChanged)");
                 controlClassRef.RegisterEventListener(ltr);
-                ltr = addlistener(this, 'DataRowCollected', @(src,evnt)controlClassRef.DataRowCollected(evnt.DataRow, evnt.Headers));
+                ltr = Palladium.Core.ErrorGuard.AddListener(this, 'DataRowCollected', @(src,evnt)controlClassRef.DataRowCollected(evnt.DataRow, evnt.Headers), Controller = this.Controller, Context = "Error in " + ctrlName + " (DataRowCollected)");
                 controlClassRef.RegisterEventListener(ltr);
 
 

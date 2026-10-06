@@ -54,15 +54,15 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
             this.GUIView.SetName(instrRef.Name + " - Sweep Control");
 
             %Subscribe to events
-            addlistener(comp, 'RunSingleSweep', @(src,evnt)this.RunSweep(src, evnt));
-            addlistener(comp, 'StopSweep', @(src,evnt)this.AbortSweep(src, evnt));
-            addlistener(comp, 'InsertSmartTag', @(src,evnt)this.InsertSmartTagRequest(src, evnt, controller));
+            this.AddGuardedListener(comp, 'RunSingleSweep', @(src,evnt)this.RunSweep(src, evnt));
+            this.AddGuardedListener(comp, 'StopSweep', @(src,evnt)this.AbortSweep(src, evnt));
+            this.AddGuardedListener(comp, 'InsertSmartTag', @(src,evnt)this.InsertSmartTagRequest(src, evnt, controller));
 
             %Add a plotter as well, to the right
             this.Plotter = controller.AddNewPlotter(grid, Size="Medium", RegisterPlotter=false);    %Don't register the plotter centrally, as we will push data to it only when the sweep is running, and clear it on sweep start. This does mean, for now at least, that the Plotter is not hooked up
             this.Plotter.Layout.Row = 2;
             this.Plotter.Layout.Column = 2;
-            ltr = addlistener(this.Plotter, 'AxesSelectionChange', @(src,evnt)this.PlotterAxesSelectionChange(src));
+            ltr = this.AddGuardedListener(this.Plotter, 'AxesSelectionChange', @(src,evnt)this.PlotterAxesSelectionChange(src));
             this.RegisterEventListener(ltr);
         end
 

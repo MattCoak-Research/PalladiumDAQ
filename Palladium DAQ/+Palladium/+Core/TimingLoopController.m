@@ -35,6 +35,11 @@ classdef TimingLoopController < handle
     methods (Access = public)
 
         function CloseTimer(this)
+            %Safe to call more than once - can be reached from both the
+            %shutdown path and the timer error path
+            if isempty(this.Timer) || ~isvalid(this.Timer)
+                return;
+            end
             this.Timer.stop();
             delete(this.Timer);
         end
@@ -42,7 +47,10 @@ classdef TimingLoopController < handle
         function Initialise(this)
             %Create a Timer object that will schedule all the
             %measurement loop calls
-            this.Timer = timer('TimerFcn', @this.Update, 'ExecutionMode', 'fixedRate', 'Period', 0.1, 'ObjectVisibility','off');
+            %ErrorFcn is the last resort for an error escaping Update
+            %entirely, which the timer would otherwise turn into a warning
+            %and silently stop
+            this.Timer = timer('TimerFcn', @this.Update, 'ErrorFcn', @this.HandleTimerError, 'ExecutionMode', 'fixedRate', 'Period', 0.1, 'ObjectVisibility','off');
            
             %Cause an update/refresh of the GUI so it matches the
             %TargetUpdateTime property
@@ -189,6 +197,32 @@ classdef TimingLoopController < handle
             this.OnStopped();
         end
 
+        function HandleTimerError(this, ~, evnt)
+            %Called by the timer when an error escapes Update. A fixedRate
+            %timer has already stopped itself by now. Deliberately do NOT
+            %restart it - the programme is in an unknown state, and
+            %auto-restarting risks an error-restart-error loop against real
+            %hardware. Log, return cleanly to Ready, and alert the user.
+            try
+                msg = "Measurement loop timer error";
+                try
+                    msg = msg + ": " + string(evnt.Data.message);
+                catch
+                    %Event data not in the expected form, use the generic message
+                end
+
+                if isvalid(this.Controller) && ~this.Controller.IsClosing()
+                    Palladium.Logging.Logger.Log("Error", msg);
+                    if this.State ~= "Ready"
+                        this.OnStopped();
+                    end
+                    this.Controller.HandleWarning(msg + newline + newline + "Measurements have been stopped.", "Measurement loop error");
+                end
+            catch e
+                warning("HandleTimerErrorWarning:HandlingFailed", "%s", "Error while handling a timer error: " + string(e.message));
+            end
+        end
+
         function OnMeasurementsInitialised(this, headers)
             %Fired after successful connection to instruments, data column
             %headers locked in.
@@ -278,21 +312,8 @@ classdef TimingLoopController < handle
             %function here to avoid duplicating the code of handling an
             %error specifically in the Measurement Loop
             function CatchMeasurementLoopError(this, e)
-                % if(this.Closing)
-                %     %Just break out of the loop if we've closed the
-                %     %window - it can trigger silly errors about
-                %     %event listeners still being subscribed which I
-                %     %don't care about
-                %     this.CloseTimer();
-                %     return;
-                % else
                 %Show error message and ask if we want to stop measurements
-                halt = this.Controller.HandleError("Error in main measurement loop", e);
-                if(halt)
-                    Palladium.Logging.Logger.Log("Info", "Measurements aborted by User from Error Dialogue");
-                    this.OnStopped();
-                end
-                % end
+                this.Controller.HandleCallbackError("Error in main measurement loop", e);
             end
         end
     end

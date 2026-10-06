@@ -76,13 +76,13 @@ classdef SweepController_Ramp < Palladium.Instruments.Controls.SweepController
             comp.SetTitle(instrRef.Name + " Sweep Control");
 
             %Subscribe to events
-            addlistener(comp, 'Run', @(src,evnt)this.SweepRun(src, evnt));
-            addlistener(comp, 'Abort', @(src,evnt)this.SweepAbort(src, evnt));
-            addlistener(comp, 'SweepDataChange', @(src,evnt)this.SweepDataChanged(src, evnt));
-            addlistener(comp, 'RampToZero', @(src,evnt)this.RampToZero(src, evnt));
+            this.AddGuardedListener(comp, 'Run', @(src,evnt)this.SweepRun(src, evnt));
+            this.AddGuardedListener(comp, 'Abort', @(src,evnt)this.SweepAbort(src, evnt));
+            this.AddGuardedListener(comp, 'SweepDataChange', @(src,evnt)this.SweepDataChanged(src, evnt));
+            this.AddGuardedListener(comp, 'RampToZero', @(src,evnt)this.RampToZero(src, evnt));
 
             %And to the event fired when instrument properties change!
-            ltr = addlistener(instrRef, 'PropertyChanged', @(src,evnt)this.RefreshUnitsAndLimits());
+            ltr = this.AddGuardedListener(instrRef, 'PropertyChanged', @(src,evnt)this.RefreshUnitsAndLimits());
             this.RegisterEventListener(ltr);
 
             %Set up the defaults and populate parameters

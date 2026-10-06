@@ -60,7 +60,7 @@ classdef LakeshoreHeaterControl < Palladium.Core.InstrumentControlBase
             this.UpdateVarNames();
 
             %Subscribe to events
-            addlistener(comp, 'HeaterSettingsInput', @(src,evnt)this.HeaterSettingsInput(src,evnt));
+            this.AddGuardedListener(comp, 'HeaterSettingsInput', @(src,evnt)this.HeaterSettingsInput(src,evnt));
         end
 
         function DisplayData(this, settingStruct, heaterPercent, heaterEnabled, heaterPower)
