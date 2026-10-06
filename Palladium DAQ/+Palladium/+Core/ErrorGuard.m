@@ -33,6 +33,8 @@ classdef ErrorGuard
             %Optional name-value arguments:
             %   Controller - the Controller to report errors to. Empty (the default) uses the one registered with `DefaultController`
             %   Context - text shown in the error log and dialogue. Defaults to naming the event
+            %   Standalone - true if this is a window that does not interact with the measurement loop (e.g. the Data Viewer). The error dialogue then has no Stop Measurements option and never stops the loop. Default false
+            %   Figure - the window to show the error dialogue in: a figure, or any component inside one (e.g. `app.UIFigure` or `comp`). Default is the main Palladium window. Only needs setting for other windows, such as the Data Viewer, so the dialogue does not appear behind them
             %
             %Outputs:
             %   ltr - the listener handle
@@ -42,6 +44,8 @@ classdef ErrorGuard
                 callback (1,1) function_handle;
                 Settings.Controller = [];
                 Settings.Context {mustBeTextScalar} = "";
+                Settings.Standalone (1,1) logical = false;
+                Settings.Figure = [];
             end
 
             context = string(Settings.Context);
@@ -49,7 +53,7 @@ classdef ErrorGuard
                 context = "Error in " + string(eventName) + " event handler";
             end
 
-            guarded = Palladium.Core.ErrorGuard.Wrap(callback, Controller = Settings.Controller, Context = context);
+            guarded = Palladium.Core.ErrorGuard.Wrap(callback, Controller = Settings.Controller, Context = context, Standalone = Settings.Standalone, Figure = Settings.Figure);
             ltr = addlistener(src, eventName, guarded);
         end
 
@@ -72,7 +76,7 @@ classdef ErrorGuard
             controller = registered;
         end
 
-        function HandleError(context, err)
+        function HandleError(context, err, Settings)
             %Report an error caught in a GUI callback, for use in its `catch` block.
             %Needs no Controller handle, so it reads the same in any
             %component:
@@ -87,12 +91,18 @@ classdef ErrorGuard
             %Inputs:
             %   context - text describing where the error happened, shown in the log and dialogue
             %   err - the caught `MException`
+            %
+            %Optional name-value arguments:
+            %   Standalone - true if the callback is in a window that does not interact with the measurement loop (e.g. the Data Viewer). The error dialogue then has no Stop Measurements option and never stops the loop. Default false
+            %   Figure - the window to show the error dialogue in: a figure, or any component inside one (e.g. `app.UIFigure` or `comp`). Default is the main Palladium window. Only needs setting for other windows, such as the Data Viewer, so the dialogue does not appear behind them
             arguments
                 context {mustBeTextScalar};
                 err;
+                Settings.Standalone (1,1) logical = false;
+                Settings.Figure = [];
             end
 
-            Palladium.Core.ErrorGuard.Report([], string(context), err);
+            Palladium.Core.ErrorGuard.Report([], string(context), err, Settings.Standalone, Settings.Figure);
         end
 
         function guarded = Wrap(callback, Settings)
@@ -108,6 +118,8 @@ classdef ErrorGuard
             %Optional name-value arguments:
             %   Controller - the Controller to report errors to. Empty (the default) uses the one registered with `DefaultController`
             %   Context - text shown in the error log and dialogue
+            %   Standalone - true if this is a window that does not interact with the measurement loop (e.g. the Data Viewer). The error dialogue then has no Stop Measurements option and never stops the loop. Default false
+            %   Figure - the window to show the error dialogue in: a figure, or any component inside one (e.g. `app.UIFigure` or `comp`). Default is the main Palladium window. Only needs setting for other windows, such as the Data Viewer, so the dialogue does not appear behind them
             %
             %Outputs:
             %   guarded - function handle accepting any arguments
@@ -115,17 +127,21 @@ classdef ErrorGuard
                 callback (1,1) function_handle;
                 Settings.Controller = [];
                 Settings.Context {mustBeTextScalar} = "Error in callback";
+                Settings.Standalone (1,1) logical = false;
+                Settings.Figure = [];
             end
 
             controller = Settings.Controller;
             context = string(Settings.Context);
+            standalone = Settings.Standalone;
+            window = Settings.Figure;
             guarded = @GuardedCallback;
 
             function GuardedCallback(varargin)
                 try
                     callback(varargin{:});
                 catch err
-                    Palladium.Core.ErrorGuard.Report(controller, context, err);
+                    Palladium.Core.ErrorGuard.Report(controller, context, err, standalone, window);
                 end
             end
         end
@@ -135,7 +151,7 @@ classdef ErrorGuard
     %% Methods (Static, Private)
     methods (Static, Access = private)
 
-        function Report(controller, context, err)
+        function Report(controller, context, err, standalone, window)
             %Hand an error to the Controller if there is a live one, otherwise log it. Never throws.
             %An empty `controller` means the default one registered with
             %`DefaultController`. If there is no live Controller at all,
@@ -146,7 +162,7 @@ classdef ErrorGuard
                 end
 
                 if ~isempty(controller) && isvalid(controller)
-                    controller.HandleCallbackError(context, err);
+                    controller.HandleCallbackError(context, err, Standalone = standalone, Figure = window);
                 else
                     Palladium.Logging.Logger.LogError(err, context);
                 end

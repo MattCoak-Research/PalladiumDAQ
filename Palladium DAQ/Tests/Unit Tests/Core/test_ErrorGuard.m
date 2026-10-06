@@ -60,6 +60,57 @@ classdef test_ErrorGuard < matlab.unittest.TestCase
             testCase.verifyEqual(ctrl.Contexts, "From a GUI callback");
         end
 
+        function StandaloneFlagReachesController(testCase)
+            ctrl = MockErrorController();
+            testCase.verifyFalse(RunGuarded(ctrl, false));
+            testCase.verifyTrue(RunGuarded(ctrl, true));
+
+            %Default is not standalone, for AddListener and HandleError too
+            Palladium.Core.ErrorGuard.Wrap(@() error("Test:Boom", "boom"), Controller = ctrl)();
+            testCase.verifyFalse(ctrl.Standalone(end));
+
+            src = ErrorGuardTestSource();
+            ltr = Palladium.Core.ErrorGuard.AddListener(src, "Fired", @(~,~) error("Test:Boom", "boom"), Controller = ctrl, Standalone = true);
+            testCase.addTeardown(@() delete(ltr));
+            notify(src, "Fired");
+            testCase.verifyTrue(ctrl.Standalone(end));
+
+            previous = Palladium.Core.ErrorGuard.DefaultController();
+            Palladium.Core.ErrorGuard.DefaultController(ctrl);
+            testCase.addTeardown(@() Palladium.Core.ErrorGuard.DefaultController(previous));
+            Palladium.Core.ErrorGuard.HandleError("From a viewer", MException("Test:Boom", "boom"), Standalone = true);
+            testCase.verifyTrue(ctrl.Standalone(end));
+
+            function standalone = RunGuarded(controller, flag)
+                Palladium.Core.ErrorGuard.Wrap(@() error("Test:Boom", "boom"), Controller = controller, Standalone = flag)();
+                standalone = controller.Standalone(end);
+            end
+        end
+
+        function FigureOptionReachesController(testCase)
+            ctrl = MockErrorController();
+            marker = struct("Name", "SomeWindow");   %Stands in for a figure - only passed through here
+
+            %Default is no figure (the main window)
+            Palladium.Core.ErrorGuard.Wrap(@() error("Test:Boom", "boom"), Controller = ctrl)();
+            testCase.verifyEmpty(ctrl.Figures{end});
+
+            Palladium.Core.ErrorGuard.Wrap(@() error("Test:Boom", "boom"), Controller = ctrl, Figure = marker)();
+            testCase.verifyEqual(ctrl.Figures{end}, marker);
+
+            src = ErrorGuardTestSource();
+            ltr = Palladium.Core.ErrorGuard.AddListener(src, "Fired", @(~,~) error("Test:Boom", "boom"), Controller = ctrl, Figure = marker);
+            testCase.addTeardown(@() delete(ltr));
+            notify(src, "Fired");
+            testCase.verifyEqual(ctrl.Figures{end}, marker);
+
+            previous = Palladium.Core.ErrorGuard.DefaultController();
+            Palladium.Core.ErrorGuard.DefaultController(ctrl);
+            testCase.addTeardown(@() Palladium.Core.ErrorGuard.DefaultController(previous));
+            Palladium.Core.ErrorGuard.HandleError("From a viewer", MException("Test:Boom", "boom"), Figure = marker);
+            testCase.verifyEqual(ctrl.Figures{end}, marker);
+        end
+
         function WithoutControllerFallsBackToLogger(testCase)
             guarded = Palladium.Core.ErrorGuard.Wrap(@(~) error("Test:Boom", "boom"));
 

@@ -105,14 +105,22 @@ classdef SequenceEditorController < handle
             this.View = fnHandle();
             this.View.SetIcon(Settings.IconPath);
 
+            %The editor's own window, so that errors in it show their dialogue
+            %there rather than behind it on the main window. Views that
+            %cannot give one (empty) fall back to the main window
+            editorFigure = [];
+            if ismethod(this.View, "GetUIFigureHandle")
+                editorFigure = this.View.GetUIFigureHandle();
+            end
+
             %Subscribe to events
-            Palladium.Core.ErrorGuard.AddListener(this.View, "CommandInsert", @(src, event)this.CommandInserted(event.Details), Controller = this.Controller);
-            Palladium.Core.ErrorGuard.AddListener(this.View, "DirectorySelect", @(src, event)this.DirectorySelected(src, event), Controller = this.Controller);
-            Palladium.Core.ErrorGuard.AddListener(this.View, "FileSelect", @(src, event)this.FileSelected(src, event), Controller = this.Controller);
-            Palladium.Core.ErrorGuard.AddListener(this.View, "SaveButtonPressed", @(src, event)this.SaveSequenceButtonPushed(event.Value), Controller = this.Controller);
-            Palladium.Core.ErrorGuard.AddListener(this.View, "SingleCommandQueued", @(src, event)this.SingleCommandQueued(src, event), Controller = this.Controller);
-            Palladium.Core.ErrorGuard.AddListener(this.View, "SequenceRun", @(src, event)this.RunSequence(event), Controller = this.Controller);
-            Palladium.Core.ErrorGuard.AddListener(this.View, "SequenceAbort", @(src, event)this.AbortSequence(), Controller = this.Controller);
+            Palladium.Core.ErrorGuard.AddListener(this.View, "CommandInsert", @(src, event)this.CommandInserted(event.Details), Controller = this.Controller, Standalone = true, Figure = editorFigure);
+            Palladium.Core.ErrorGuard.AddListener(this.View, "DirectorySelect", @(src, event)this.DirectorySelected(src, event), Controller = this.Controller, Standalone = true, Figure = editorFigure);
+            Palladium.Core.ErrorGuard.AddListener(this.View, "FileSelect", @(src, event)this.FileSelected(src, event), Controller = this.Controller, Standalone = true, Figure = editorFigure);
+            Palladium.Core.ErrorGuard.AddListener(this.View, "SaveButtonPressed", @(src, event)this.SaveSequenceButtonPushed(event.Value), Controller = this.Controller, Standalone = true, Figure = editorFigure);
+            Palladium.Core.ErrorGuard.AddListener(this.View, "SingleCommandQueued", @(src, event)this.SingleCommandQueued(src, event), Controller = this.Controller, Standalone = true, Figure = editorFigure);
+            Palladium.Core.ErrorGuard.AddListener(this.View, "SequenceRun", @(src, event)this.RunSequence(event), Controller = this.Controller, Standalone = true, Figure = editorFigure);
+            Palladium.Core.ErrorGuard.AddListener(this.View, "SequenceAbort", @(src, event)this.AbortSequence(), Controller = this.Controller, Standalone = true, Figure = editorFigure);
 
             %Update the newly minted View
             this.View.RefreshInstrumentNames(this.Instruments);

@@ -279,12 +279,23 @@ classdef Controller < handle
             tf = this.Closing;
         end
 
-        function HandleCallbackError(this, context, err)
+        function HandleCallbackError(this, context, err, Settings)
             %Single entry point for errors caught in event listeners, GUI
             %callbacks, and the measurement loop itself (see ErrorGuard for
             %why callbacks need this). Logs the error, shows the error
             %dialogue, and stops the measurement loop if the user chooses to.
-            if this.Closing
+            %A Standalone error, from a window that does not interact with
+            %the measurement loop (e.g. the Data Viewer), gets a dialogue
+            %without the stop option, and never touches the loop.
+            arguments
+                this;
+                context;
+                err;
+                Settings.Standalone (1,1) logical = false;
+                Settings.Figure = [];
+            end
+
+            if this.Closing && ~Settings.Standalone
                 %Just break out of the loop if we've closed the window - it
                 %can trigger silly errors about event listeners still being
                 %subscribed which we don't care about
@@ -292,7 +303,7 @@ classdef Controller < handle
                 return;
             end
 
-            halt = this.HandleError(context, err);
+            halt = this.HandleError(context, err, Standalone = Settings.Standalone, Figure = Settings.Figure);
             if halt
                 Palladium.Logging.Logger.Log("Info", "Measurements aborted by User from Error Dialogue");
 
@@ -304,7 +315,20 @@ classdef Controller < handle
             end
         end
 
-        function Halt = HandleError(this, message, error)
+        function Halt = HandleError(this, message, error, Settings)
+            %Log an error and show the error dialogue, returning whether the
+            %user chose to stop the measurements. With Standalone = true the
+            %error is from a window that does not interact with the loop, so
+            %the dialogue has no stop option, Halt is false, and the main
+            %window's status light is left alone.
+            arguments
+                this;
+                message;
+                error;
+                Settings.Standalone (1,1) logical = false;
+                Settings.Figure = [];    %Window to show the dialogue in (figure, or a component in one). Empty, or no longer valid, means the main window
+            end
+
             %Assemble a full message from the message sent into the logger,
             %and the actual error details
             msg = string(message) + ": " + string(error.message);
@@ -322,7 +346,7 @@ classdef Controller < handle
             if this.ErrorDialogOpen
                 Halt = false;
                 try
-                    Palladium.Logging.Logger.LogError(error, message);
+                    Palladium.Logging.Logger.LogError(error, message, SkipGUI = Settings.Standalone);
                 catch
                     %Nothing more we can do
                 end
@@ -339,9 +363,11 @@ classdef Controller < handle
             %don't fuss if that fails, just ignore the exception and throw
             %a warning
             try
-                this.ShowStatus("Red", "Error: " + msg);
-                drawnow();
-                Palladium.Logging.Logger.Log("Error", msg, "FullMessage", msg + " : " + string(getReport(error, "extended", "hyperlinks", "on")));
+                if ~Settings.Standalone
+                    this.ShowStatus("Red", "Error: " + msg);
+                    drawnow();
+                end
+                Palladium.Logging.Logger.Log("Error", msg, "FullMessage", msg + " : " + string(getReport(error, "extended", "hyperlinks", "on")), "SkipGUI", Settings.Standalone);
             catch e
                 warning("HandleErrorWarning:HandlingFailed", "%s", "An error was thrown while.. trying to handle an error.. :" + string(e.message));
             end
@@ -352,7 +378,11 @@ classdef Controller < handle
             %Pass on the error to the Error Handler to show a dialogue box
             %- user can choose whether to stop the measurement loop, and
             %separately whether to suppress this error going forward
-            [Halt, suppressError] = Palladium.Logging.Logger.HandleError(message, error, this.UIFigureHandle);
+            %Dialogue goes in the requested window if there is a live one,
+            %else on the main window if there is a live one, else it is a
+            %free-floating box (e.g. the main window has been closed)
+            figureHandle = this.ResolveDialogueFigure(Settings.Figure);
+            [Halt, suppressError] = Palladium.Logging.Logger.HandleError(message, error, figureHandle, Standalone = Settings.Standalone);
 
             %User could have chosen to Suppress this error message in the
             %dialogue box, so it will not be shown in the future - handle
@@ -1054,6 +1084,27 @@ classdef Controller < handle
                 this.DataTable = dataRow;
             else
                 this.DataTable = [this.DataTable; dataRow];
+            end
+        end
+
+        function figureHandle = ResolveDialogueFigure(this, requested)
+            %The uifigure to show an error dialogue in: the requested one if
+            %given and still open, otherwise the main window, otherwise empty
+            figureHandle = [];
+            if ~isempty(requested)
+                try
+                    candidate = ancestor(requested, "figure");
+                    if ~isempty(candidate) && isvalid(candidate) && matlab.ui.internal.isUIFigure(candidate)
+                        figureHandle = candidate;
+                        return;
+                    end
+                catch
+                    %Deleted or not a UI object - use the main window
+                end
+            end
+
+            if this.HasGUIWindow()
+                figureHandle = this.UIFigureHandle;
             end
         end
 
