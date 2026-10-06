@@ -12,7 +12,10 @@ on:
 jobs:
   BuildTask:
     environment: "Palladium Build Environment"
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{matrix.os}}
     permissions:
       contents: write
     env:
@@ -43,6 +46,12 @@ jobs:
         with:
           name: toolbox
           path: "Release/Toolbox/PalladiumDAQ.mltbx"
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer_${{matrix.os}}
+          path: "Release/Package/Runtime Web Installer/Palladium DAQ Installer - Runtime Web Installer.*"
+          retention-days: 5
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
