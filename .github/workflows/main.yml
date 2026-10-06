@@ -17,6 +17,8 @@ jobs:
     env:
       # DocMaker converts Markdown via the GitHub API; the job's own token is enough
       DOCMAKER_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #MATLAB Compiler token - adding MATLAB_Compiler will fail if this is not present or valid
+      MLM_LICENSE_TOKEN: ${{secrets.MLM_LICENSE_TOKEN}}
     steps:
       - uses: actions/checkout@v4
       # Virtual display, so DocMaker's docrun can capture figures on Linux
@@ -29,12 +31,13 @@ jobs:
         with:
           products: >
             Instrument_Control_Toolbox
+            MATLAB_Compiler
       - uses: actions/setup-python@v6
         with:
             python-version: '3.13'
       - uses: matlab-actions/run-build@v2
         with:
-          tasks: package
+          tasks: deploy
       - uses: actions/upload-artifact@v4
         with:
           name: toolbox
