@@ -1,5 +1,7 @@
 # Palladium DAQ
 
+*Version {{version}}*
+
 Palladium DAQ is a modular framework for laboratory data acquisition: instrument control, data logging and real-time graphing, built in MATLAB. It includes a library of instrument drivers for common lab hardware - multimeters, source meters, lock-in amplifiers, temperature controllers, magnet power supplies and more - and adding new ones is straightforward. It grew out of condensed matter physics labs, where a cryostat's temperature controllers and magnet power supplies run alongside the measurement electronics, but it suits any setup where several instruments are read together over time.
 
 ## Features
@@ -24,11 +26,5 @@ Palladium DAQ can run with its default GUI, with an alternative GUI, or with no 
 * [Writing an instrument driver](writing-instruments.md) and [Python instruments](python-instruments.md) - adding your own hardware
 * [API reference](reference/index.md) - the classes, their properties and methods
 * [Developers](developers/index.md) - working on Palladium DAQ itself
-
-The version installed is:
-
-```matlab
-disp(Palladium.ver().FullVersionString)
-```
 
 Palladium DAQ is developed by M.J. Coak at the University of Birmingham, on [GitHub](https://github.com/MattCoak-Research/PalladiumDAQ). It is under active development - contributions and bug reports are welcome.

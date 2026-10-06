@@ -95,6 +95,12 @@ for i = 1 : numel(srcFiles)
     dest = fullfile(destFolder, srcFiles(i).name);
     copyfile(fullfile(srcFiles(i).folder, srcFiles(i).name), dest);
     if endsWith(dest, ".md")
+        if srcFiles(i).name == "index.md"
+            %Fill in the version, so the page needn't show code to print it
+            text = replace(fileread(dest, Encoding="UTF-8"), "{{version}}", ...
+                Palladium.ver().VersionString);
+            writelines(text, dest, Encoding="UTF-8");
+        end
         mdCopies(end+1) = dest; %#ok<AGROW>
     end
 end
@@ -221,7 +227,7 @@ for folder = GuiSourceFolders()
         files = [files, string(fullfile({listing.folder}, {listing.name}))]; %#ok<AGROW>
     end
 end
-digest = java.security.MessageDigest.getInstance("SHA-256");
+allBytes = uint8([]);
 for file = sort(files)
     fid = fopen(file, "r");
     bytes = fread(fid, Inf, "*uint8");
@@ -229,9 +235,14 @@ for file = sort(files)
     if endsWith(file, ".m")
         bytes(bytes == 13) = []; %Drop CRs
     end
-    digest.update(typecast(bytes, "int8"));
+    allBytes = [allBytes; bytes]; %#ok<AGROW>
 end
-hash = string(sprintf("%02x", typecast(digest.digest(), "uint8")));
+combined = string(tempname);
+cleanup = onCleanup(@() delete(combined));
+fid = fopen(combined, "w");
+fwrite(fid, allBytes, "uint8");
+fclose(fid);
+hash = FileSha256(combined);
 end
 
 function WarnIfScreenshotsStale(imagesFolder)
@@ -357,12 +368,18 @@ end
 
 function hash = FileSha256(file)
 %SHA-256 of a file, as a lower-case hex string
-fid = fopen(file, "r");
-bytes = fread(fid, Inf, "*uint8");
-fclose(fid);
-digest = java.security.MessageDigest.getInstance("SHA-256");
-digest.update(typecast(bytes, "int8"));
-hash = string(sprintf("%02x", typecast(digest.digest(), "uint8")));
+%Uses the OS's own tool rather than Java, which newer MATLAB doesn't bundle
+if ispc
+    command = "certutil -hashfile """ + file + """ SHA256";
+elseif ismac
+    command = "shasum -a 256 """ + file + """";
+else
+    command = "sha256sum """ + file + """";
+end
+[status, output] = system(command);
+hash = lower(string(regexp(output, "\<[0-9a-fA-F]{64}\>", "match", "once")));
+assert(status == 0 && strlength(hash) == 64, "BuildFile:Sha256Failed", "%s", ...
+    "Could not compute the SHA-256 of " + file + ":" + newline + string(output));
 end
 
 function EnsureDocMaker()
