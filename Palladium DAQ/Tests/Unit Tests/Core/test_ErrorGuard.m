@@ -66,7 +66,7 @@ classdef test_ErrorGuard < matlab.unittest.TestCase
             testCase.verifyTrue(RunGuarded(ctrl, true));
 
             %Default is not standalone, for AddListener and HandleError too
-            Palladium.Core.ErrorGuard.Wrap(@() error("Test:Boom", "boom"), Controller = ctrl)();
+            feval(Palladium.Core.ErrorGuard.Wrap(@() error("Test:Boom", "boom"), Controller = ctrl));
             testCase.verifyFalse(ctrl.Standalone(end));
 
             src = ErrorGuardTestSource();
@@ -82,7 +82,7 @@ classdef test_ErrorGuard < matlab.unittest.TestCase
             testCase.verifyTrue(ctrl.Standalone(end));
 
             function standalone = RunGuarded(controller, flag)
-                Palladium.Core.ErrorGuard.Wrap(@() error("Test:Boom", "boom"), Controller = controller, Standalone = flag)();
+                feval(Palladium.Core.ErrorGuard.Wrap(@() error("Test:Boom", "boom"), Controller = controller, Standalone = flag));
                 standalone = controller.Standalone(end);
             end
         end
@@ -92,10 +92,10 @@ classdef test_ErrorGuard < matlab.unittest.TestCase
             marker = struct("Name", "SomeWindow");   %Stands in for a figure - only passed through here
 
             %Default is no figure (the main window)
-            Palladium.Core.ErrorGuard.Wrap(@() error("Test:Boom", "boom"), Controller = ctrl)();
+            feval(Palladium.Core.ErrorGuard.Wrap(@() error("Test:Boom", "boom"), Controller = ctrl));
             testCase.verifyEmpty(ctrl.Figures{end});
 
-            Palladium.Core.ErrorGuard.Wrap(@() error("Test:Boom", "boom"), Controller = ctrl, Figure = marker)();
+            feval(Palladium.Core.ErrorGuard.Wrap(@() error("Test:Boom", "boom"), Controller = ctrl, Figure = marker));
             testCase.verifyEqual(ctrl.Figures{end}, marker);
 
             src = ErrorGuardTestSource();

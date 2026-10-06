@@ -332,9 +332,14 @@ classdef Logger < handle
             try
                 [~, ~, ext] = fileparts(file);
                 if strcmpi(ext, ".mlapp")
-                    appdesigner(file);
+                    %The editor functions are not available in a deployed app,
+                    %and the compiler needs telling to leave them out
+                    if ~isdeployed
+                        %#exclude appdesigner
+                        appdesigner(file);
+                    end
                     fprintf(2, 'Error is in an App Designer file: %s\n    function %s, line %d (as numbered in Code View)\n', file, functionName, line);
-                else
+                elseif ~isdeployed
                     %#exclude matlab.desktop.editor.openAndGoToLine
                     matlab.desktop.editor.openAndGoToLine(file, line);
                 end
