@@ -73,7 +73,7 @@ The task's inputs include `Palladium.m`, so a version bump rebuilds the guide. B
 The pages are converted with [MathWorks DocMaker](https://github.com/mathworks/docmaker) (an add-on, currently version 0.7). DocMaker only builds in place - it writes each HTML page next to its `.md`, and the index and search database next to `helptoc.md` - so `docTask`:
 
 1. Empties `Docs`, keeping only `GettingStarted.m` (built by `gettingStarted`) and `.gitkeep`.
-2. Copies the sources - Markdown pages and images - from `DocsSrc` into `Docs`, keeping their folder structure (`GettingStarted.md` is not a DocMaker page and is skipped). It also warns if the GUI screenshots look out of date (see below).
+2. Copies the sources - Markdown pages and images - from `DocsSrc` into `Docs`, keeping their folder structure (`GettingStarted.md` is not a DocMaker page and is skipped). It replaces `{{version}}` in the copy of `index.md` with the version from `Palladium.ver()`. It also warns if the GUI screenshots look out of date (see below).
 3. Converts each page to HTML with `docconvert`, using the light theme (which suits MATLAB's Help browser). Links to `.md` pages become links to `.html` pages.
 4. Runs the MATLAB code blocks in the pages with `docrun`, inserting their output and figures (not in the API reference).
 5. Builds `info.xml`, `helptoc.xml` and the search database from `helptoc.md` with `docindex`.
