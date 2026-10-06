@@ -317,6 +317,13 @@
                             </Category>
                         </Info>
                     </File>
+                    <File Location="ErrorGuard.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
                 </File>
                 <File Location="+DataWriting">
                     <Info/>
@@ -1129,6 +1136,13 @@
                             </Category>
                         </Info>
                     </File>
+                    <File Location="test_ErrorHandling.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="test"/>
+                            </Category>
+                        </Info>
+                    </File>
                 </File>
                 <File Location="Unit Tests">
                     <Info/>
@@ -1456,6 +1470,27 @@
                             </Info>
                         </File>
                         <File Location="test_CommandController.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="ErrorGuardTestSource.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="design"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="MockErrorController.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="design"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_ErrorGuard.m">
                             <Info>
                                 <Category UUID="FileClassCategory">
                                     <Label UUID="test"/>
