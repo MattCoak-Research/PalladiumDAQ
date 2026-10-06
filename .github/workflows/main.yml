@@ -25,8 +25,11 @@ jobs:
       MLM_LICENSE_TOKEN: ${{secrets.MLM_LICENSE_TOKEN}}
     steps:
       - uses: actions/checkout@v4
-      # Virtual display, so DocMaker's docrun can capture figures on Linux
+      # Virtual display, so DocMaker's docrun can capture figures. Only Linux
+      # needs one - Windows and macOS runners already have a desktop session
       - name: Start a display server
+        if: runner.os == 'Linux'
+        shell: bash
         run: |
           sudo apt-get install -y xvfb
           Xvfb :99 &
@@ -43,6 +46,7 @@ jobs:
         with:
           tasks: deploy
       - uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux'
         with:
           name: toolbox
           path: "Release/Toolbox/PalladiumDAQ.mltbx"
@@ -54,12 +58,13 @@ jobs:
           retention-days: 5
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux'
         with:
           name: docs
           path: "Palladium DAQ/Docs"
           if-no-files-found: error
       - name: Release
         uses: softprops/action-gh-release@v3
-        if: github.ref_type == 'tag'
+        if: runner.os == 'Linux' && github.ref_type == 'tag'
         with:
           files: "Release/Toolbox/PalladiumDAQ.mltbx"
