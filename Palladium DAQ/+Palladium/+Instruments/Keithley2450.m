@@ -1,49 +1,77 @@
 classdef Keithley2450 < Palladium.Core.Instrument
-    %Instrument implementation for Keithley 2450 source meter. Most likely
-    %works for a 2470 too, but is not tested.
+    %Keithley2450 - Instrument driver for the Keithley Model 2450 SourceMeter source-measure unit.
+    %Sources a voltage or a current, and takes one reading per measurement
+    %tick. Each tick records three columns: the reading, in the measure
+    %units set on the instrument (current, voltage, resistance or power);
+    %the source value (the measured value, with source readback on); and
+    %whether the source was limited by its compliance limit for that
+    %reading (1 or 0). Any errors the instrument logs are reported as
+    %warnings.
+    %
+    %Set the source and measure functions, ranges, limits and NPLC on the
+    %instrument before connecting: the driver reads the source function back
+    %as `SourceMode`, and the measure function and units as `MeasMode`, when
+    %it connects, and records the compliance limit, NPLC and sense mode in
+    %the data-file header.
+    %
+    %The 2450 can be programmed with either its SCPI or its TSP command set.
+    %`Language` must match the command set selected on the instrument (MENU >
+    %System > Settings > Command Set), otherwise connecting stops with an
+    %error. The 2450 has GPIB, USB and Ethernet (LAN) interfaces.
+    %
+    %Two Instrument Controls can be added:
+    %* Sweep Control - steps the source level through a range, each step set
+    %  by `SetNewSweepStepValue`
+    %* Double 2450 Gate Sweep - a gate sweep run by two 2450s (both on the
+    %  TSP command set), triggered over their digital I/O lines
+    %
+    %Probably also works with the Model 2470, but this is untested.
 
     %% Properties (Constant, Public)
     properties(Constant)
-        ABORT_PAUSE_S = 0.05;       %s, wait after sending abort, and after a device clear, before the next step of AbortScript. Tested on two 2450s (fw 1.7.12b/1.7.16a) with hung TSP scripts: even 0 s worked reliably, this leaves a margin
+        %Wait in s after an abort, and after a device clear, in AbortScript. Even 0 s worked reliably on two 2450s (fw 1.7.12b/1.7.16a) with hung TSP scripts; this leaves a margin
+        ABORT_PAUSE_S = 0.05;
     end
 
     %% Properties (Public)
     properties(Access = public)
-        FullName = "Keithley 2450 Src Meter";       %Full name, just for displaying on GUI
+        FullName = "Keithley 2450 Src Meter";                   %Full name, displayed in the GUI
     end
-    
+
     %% Properties (Public, Set Observable)
     % These properties will appear in the Instrument Settings GUI and are editable there
     properties(Access = public, SetObservable)
-        Name = "K2450_SrcMtr";                            %Instrument name
-        Connection_Type = Palladium.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
-        Language;                                   %Command scripting language to use - TSP or SCPI. Must match the option configured on the hardware, and Instrument needs a reset to change this setting. If this is set wrong, commands will all error
-     end
+        Name = "K2450_SrcMtr";                                  %Instrument name, used as the prefix of its data column headers
+        Connection_Type = Palladium.Enums.ConnectionType.GPIB;  %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
+        Language;                                               %Command set to use, TSP or SCPI. Must match the command set selected on the instrument, which only changes after a reboot.
+    end
 
     %% Properties (Public, Private Set)
     properties(GetAccess = public, SetAccess = private)
-        SourceMode;                                 %Source function/mode: Current or Voltage. Will be queried from the hardware right after connecting.
-        MeasMode;                                   %Measurement mode: Resistance, Voltage, Current or Power. Will be queried from the hardware (measure function and units) right after connecting.
+        SourceMode;                                             %Source function, Voltage or Current, read from the instrument when connecting
+        MeasMode;                                               %Quantity measured - Current, Voltage, Resistance or Power - from the measure function and units read when connecting
     end
 
     %% Properties (Private)
     properties(Access = private)
-        MeasFunction;                               %Underlying SCPI measure function (CURR, VOLT or RES) - differs from MeasMode when units are changed, e.g. VOLT measured in Ohms gives Resistance
+        MeasFunction;                                           %Underlying SCPI measure function (CURR, VOLT or RES), set when connecting in SCPI - e.g. VOLT for a voltage measured in Ohms (MeasMode Resistance)
     end
 
     %% Categoricals
     methods
-        function catOut = MeasType(this, inputStr); catOut = this.ConvertToCategorical(inputStr, ["Resistance", "Voltage", "Current", "Power"]); end
-        function catOut = SourceType(this, inputStr); catOut = this.ConvertToCategorical(inputStr, ["Voltage", "Current"]); end
+        function catOut = MeasType(this, inputStr);     catOut = this.ConvertToCategorical(inputStr, ["Resistance", "Voltage", "Current", "Power"]); end
+        function catOut = SourceType(this, inputStr);   catOut = this.ConvertToCategorical(inputStr, ["Voltage", "Current"]); end
         function catOut = LanguageType(this, inputStr); catOut = this.ConvertToCategorical(inputStr, ["TSP", "SCPI"]); end
     end
 
     %% Constructor
     methods
         function this = Keithley2450()
-            %Specify communication options and settings
+            %Set the supported connection types, default connection settings and Instrument Controls
+
+            %The 2450 has GPIB, USB and LAN ports; VISA can address any of them
             this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "USB", "VISA"]);
-            this.GPIB_Address = 18;      %Default Address
+            this.GPIB_Address = 18;     %Factory default
             this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];
             this.VISA_Address = 'USB0::0x05E6::0x2450::04602266::0::INSTR';
 
@@ -62,14 +90,21 @@ classdef Keithley2450 < Palladium.Core.Instrument
     methods (Access = public)
 
         function AbortScript(this, Settings)
-            %Stop anything running on the instrument (a TSP script, or the
-            %trigger model in SCPI), clear the GPIB interface so it is
-            %ready for new commands, and turn the output off. Use to
-            %recover from a hung script, e.g. one waiting forever for a
-            %trigger. Settings and stored data are not affected. To stop
-            %several instruments quickly, call SendAbortCommand,
-            %ClearInterface and TurnOutputOff on each in turn, sharing the
-            %pauses between them (see Keithley2450_Double_GateSweep)
+            %Stop anything running on the instrument, clear its interface and turn the output off.
+            %Stops a running TSP script, or the trigger model in SCPI, then does a
+            %device clear so the instrument is ready for new commands. Use to
+            %recover from a hung script, e.g. one waiting forever for a trigger.
+            %Settings and stored data are not affected.
+            %
+            %To stop several instruments quickly, call `SendAbortCommand`,
+            %`ClearInterface` and `TurnOutputOff` on each in turn, sharing the
+            %pauses between them (as the Double 2450 Gate Sweep control does).
+            %
+            %Inputs:
+            %   Settings.Pause_s - wait in s after the abort and after the device
+            %                      clear, for the instrument to process each
+            %                      (default ABORT_PAUSE_S)
+
             arguments
                 this;
                 Settings.Pause_s (1,1) double {mustBeNonnegative} = this.ABORT_PAUSE_S;    %Wait after the abort and after the device clear, for the instrument to process each
@@ -88,7 +123,11 @@ classdef Keithley2450 < Palladium.Core.Instrument
         end
 
         function Connect(this)
-            %Call base class functionality
+            %Open the connection, check the command set, and read the source and measure settings.
+            %Clears the interface and the instrument's event log, errors if the
+            %command set on the instrument does not match `Language`, then reads
+            %`SourceMode` and `MeasMode` from the instrument
+
             Connect@Palladium.Core.Instrument(this);
 
             %Discard anything left over from an earlier session (e.g. a
@@ -121,27 +160,25 @@ classdef Keithley2450 < Palladium.Core.Instrument
         end
 
         function ClearErrorQueue(this)
-            %Remove all events from the instrument's event log (errors,
-            %warnings and info) - note this also clears the front-panel
-            %event log
+            %Remove all events (errors, warnings and info) from the instrument's event log.
+            %This also clears the event log shown on the front panel
+
             if (this.SimulationMode); return; end
 
             switch(this.Language)
-                case(this.LanguageType("SCPI"))
-                    this.WriteCommand("SYST:CLE");
-                case(this.LanguageType("TSP"))
-                    this.WriteCommand("eventlog.clear()");
+                case(this.LanguageType("SCPI"));    this.WriteCommand("SYST:CLE");
+                case(this.LanguageType("TSP"));     this.WriteCommand("eventlog.clear()");
                 otherwise
                     error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
             end
         end
 
         function ClearInterface(this)
-            %Device clear: empties the instrument's input buffer, output
-            %queue and command queue, so no stale replies or queued
-            %commands are left to be mistaken for the next query's reply.
-            %Settings and stored data are not affected. Does not stop a
-            %running script - use AbortScript for that
+            %Device clear: empty the instrument's input buffer, output queue and command queue.
+            %Leaves no stale replies or queued commands to be mistaken for the next
+            %query's reply. Settings and stored data are not affected. This does
+            %not stop a running script - use `AbortScript` for that
+
             if (this.SimulationMode); return; end
 
             try
@@ -155,9 +192,13 @@ classdef Keithley2450 < Palladium.Core.Instrument
         end
 
         function metadataStruct = CollectMetaData(this)
-            %Record instrument settings and metadata like compliance,
-            %voltage, measurement mode, that will not change during the
-            %measurement and therefore don't merit logging each step
+            %Source and measure settings, recorded in the data-file header.
+            %
+            %Outputs:
+            %   metadataStruct - struct with fields ComplianceLevel (e.g. "0.1 mA"),
+            %                    MeasurementMode, SourceMode, NumPowerLineCycles,
+            %                    IntegrationTime_s and FourWireMode
+
             [~, metadataStruct.ComplianceLevel] = this.GetComplianceLevel();
             metadataStruct.MeasurementMode = this.MeasMode;
             metadataStruct.SourceMode = this.GetSourceMode();
@@ -166,25 +207,30 @@ classdef Keithley2450 < Palladium.Core.Instrument
         end
 
         function [compValue, compStringWithUnits] = GetComplianceLevel(this)
+            %Read the source's compliance limit: the current limit when sourcing voltage, or the voltage limit when sourcing current.
+            %
+            %Outputs:
+            %   compValue           - the limit, in A or V
+            %   compStringWithUnits - the limit in mA or mV, as text with its
+            %                         units, e.g. "0.12 mA"
+
             if (this.SimulationMode)
                 compValue = 120e-6;
             else
+                %The limit is named after the source function, e.g.
+                %SOUR:VOLT:ILIM is the current limit when sourcing voltage
                 switch(this.Language)
                     case(this.LanguageType("SCPI"))
                         switch(this.SourceMode)
-                            case(this.SourceType("Voltage"))   %Compliance is opposite to source.. the 2450 names it after the source function, e.g. SOUR:VOLT:ILIM is the current limit when sourcing voltage
-                                compValue = this.QueryDouble("SOUR:VOLT:ILIM?");
-                            case(this.SourceType("Current"))
-                                compValue = this.QueryDouble("SOUR:CURR:VLIM?");
+                            case(this.SourceType("Voltage"));   compValue = this.QueryDouble("SOUR:VOLT:ILIM?");
+                            case(this.SourceType("Current"));   compValue = this.QueryDouble("SOUR:CURR:VLIM?");
                             otherwise
                                 error("Keithley2450:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
                         end
                     case(this.LanguageType("TSP"))
                         switch(this.SourceMode)
-                            case(this.SourceType("Voltage"))   %Compliance is opposite to source..
-                                compValue = this.QueryDouble("print(smu.source.ilimit.level)"); 
-                            case(this.SourceType("Current"))
-                                compValue = this.QueryDouble("print(smu.source.vlimit.level)"); 
+                            case(this.SourceType("Voltage"));   compValue = this.QueryDouble("print(smu.source.ilimit.level)");
+                            case(this.SourceType("Current"));   compValue = this.QueryDouble("print(smu.source.vlimit.level)");
                             otherwise
                                 error("Keithley2450:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
                         end
@@ -193,11 +239,10 @@ classdef Keithley2450 < Palladium.Core.Instrument
                 end
             end
 
+            %Compliance is opposite to source
             switch(this.SourceMode)
-                case(this.SourceType("Voltage"))   %Compliance is opposite to source..
-                    str = " mA";
-                case(this.SourceType("Current"))
-                    str = " mV";
+                case(this.SourceType("Voltage"));   str = " mA";
+                case(this.SourceType("Current"));   str = " mV";
                 otherwise
                     error("Keithley2450:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
             end
@@ -210,29 +255,34 @@ classdef Keithley2450 < Palladium.Core.Instrument
         end
 
         function errorCount = GetErrorCount(this)
-            %Number of unread errors in the instrument's event log (errors
-            %only, not warnings or info). Does not remove them
+            %Count the unread errors in the instrument's event log, without removing them.
+            %Counts errors only, not warnings or info events
+            %
+            %Outputs:
+            %   errorCount - number of unread errors
+
             if (this.SimulationMode)
                 errorCount = 0;
                 return;
             end
 
             switch(this.Language)
-                case(this.LanguageType("SCPI"))
-                    errorCount = this.QueryDouble("SYST:ERR:COUN?");
-                case(this.LanguageType("TSP"))
-                    errorCount = this.QueryDouble("print(eventlog.getcount(eventlog.SEV_ERROR))");
+                case(this.LanguageType("SCPI"));    errorCount = this.QueryDouble("SYST:ERR:COUN?");
+                case(this.LanguageType("TSP"));     errorCount = this.QueryDouble("print(eventlog.getcount(eventlog.SEV_ERROR))");
                 otherwise
                     error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
             end
         end
 
         function errors = GetErrors(this)
-            %Read and remove all unread errors from the instrument's event
-            %log, oldest first. Returns a struct array with fields Code
-            %(event number) and Message - empty if there are no errors. Once
-            %read, errors can no longer be read remotely (they stay visible
-            %in the front-panel event log until cleared)
+            %Read and remove all unread errors from the instrument's event log, oldest first.
+            %Once read, errors can no longer be read remotely (they stay visible in
+            %the front-panel event log until cleared)
+            %
+            %Outputs:
+            %   errors - struct array with fields Code (event number) and
+            %            Message - empty if there are no errors
+
             errors = struct("Code", {}, "Message", {});
             if (this.SimulationMode); return; end
 
@@ -265,6 +315,11 @@ classdef Keithley2450 < Palladium.Core.Instrument
         end
 
         function fourWireEnabled = GetFourWireEnabledStatus(this)
+            %Read whether the measure function uses 4-wire (remote) sensing.
+            %
+            %Outputs:
+            %   fourWireEnabled - true for 4-wire sensing, false for 2-wire
+
             if (this.SimulationMode)
                 fourWireEnabled = true;
                 return;
@@ -277,57 +332,64 @@ classdef Keithley2450 < Palladium.Core.Instrument
                     result = this.QueryDouble("SENS:" + this.MeasFunction + ":RSEN?");
                     fourWireEnabled = logical(result);
                 case(this.LanguageType("TSP"))
-                     result = this.QueryString("print(smu.measure.sense)");
-                     if strcmp(result, "smu.SENSE_2WIRE")
-                         fourWireEnabled = false;
-                     elseif strcmp(result, "smu.SENSE_4WIRE")
-                         fourWireEnabled = true;
-                     end
-
+                    result = this.QueryString("print(smu.measure.sense)");
+                    if strcmp(result, "smu.SENSE_2WIRE")
+                        fourWireEnabled = false;
+                    elseif strcmp(result, "smu.SENSE_4WIRE")
+                        fourWireEnabled = true;
+                    else
+                        error("Keithley2450:UnexpectedSenseResponse", "%s", "Unexpected sense mode response: " + result);
+                    end
                 otherwise
                     error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
             end
         end
 
-
         function [Headers, Units] = GetHeaders(this)
+            %Data column headers and units for the values returned by Measure.
+            %The reading (named after MeasMode), the source value, and the
+            %compliance flag
+            %
+            %The source column is named after SourceMode. When the source and
+            %measured quantities are the same (e.g. sourcing and measuring
+            %current), it is prefixed "Source" so the two columns differ
+            %
+            %Outputs:
+            %   Headers - e.g. ["K2450_SrcMtr - Resistance_Ohms", "K2450_SrcMtr - Current_A",
+            %             "K2450_SrcMtr - Compliance Limited"], or with
+            %             "K2450_SrcMtr - Source Current_A" as the second
+            %   Units   - matching units, e.g. ["Ohms", "A", ""]
+
             switch(this.MeasMode)
-                case(this.MeasType("Resistance"))
-                    switch(this.SourceMode)
-                        case(this.SourceType("Current"))
-                            Headers = [this.Name + " - Resistance_Ohms", this.Name + " - Current_A", this.Name + " - Compliance Limited"];
-                            Units = ["Ohms", "A", ""];
-                        case(this.SourceType("Voltage"))
-                            Headers = [this.Name + " - Resistance_Ohms", this.Name + " - Voltage_V", this.Name + " - Compliance Limited"];
-                            Units = ["Ohms", "V", ""];
-                        otherwise
-                            error("Keithley2450:InvalidSourceType", "Invalid type");
-                    end
-                case(this.MeasType("Current"))
-                    Headers = [this.Name + " - Current_A", this.Name + " - Voltage_V", this.Name + " - Compliance Limited"];
-                    Units = ["A", "V", ""];
-                case(this.MeasType("Voltage"))
-                    Headers = [this.Name + " - Voltage_V", this.Name + " - Current_A", this.Name + " - Compliance Limited"];
-                    Units = ["V", "A", ""];
-                case(this.MeasType("Power"))
-                    switch(this.SourceMode)
-                        case(this.SourceType("Current"))
-                            Headers = [this.Name + " - Power_W", this.Name + " - Current_A", this.Name + " - Compliance Limited"];
-                            Units = ["W", "A", ""];
-                        case(this.SourceType("Voltage"))
-                            Headers = [this.Name + " - Power_W", this.Name + " - Voltage_V", this.Name + " - Compliance Limited"];
-                            Units = ["W", "V", ""];
-                        otherwise
-                            error("Keithley2450:InvalidSourceType", "Invalid type");
-                    end
+                case(this.MeasType("Resistance"));  measHeader = "Resistance_Ohms";     measUnits = "Ohms";
+                case(this.MeasType("Current"));     measHeader = "Current_A";           measUnits = "A";
+                case(this.MeasType("Voltage"));     measHeader = "Voltage_V";           measUnits = "V";
+                case(this.MeasType("Power"));       measHeader = "Power_W";             measUnits = "W";
                 otherwise
                     error("Keithley2450:InvalidMeasureMode", "%s", "Mode must be Resistance, Voltage, Current or Power, this was " + string(this.MeasMode));
             end
 
-            
+            switch(this.SourceMode)
+                case(this.SourceType("Current"));   srcHeader = "Current_A";    srcUnits = "A";
+                case(this.SourceType("Voltage"));   srcHeader = "Voltage_V";    srcUnits = "V";
+                otherwise
+                    error("Keithley2450:InvalidSourceType", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
+            end
+            if srcHeader == measHeader
+                srcHeader = "Source " + srcHeader;
+            end
+
+            Headers = [this.Name + " - " + measHeader, this.Name + " - " + srcHeader, this.Name + " - Compliance Limited"];
+            Units = [measUnits, srcUnits, ""];
         end
 
         function lang = GetLanguage(this)
+            %Read the command set selected on the instrument.
+            %
+            %Outputs:
+            %   lang - LanguageType categorical, TSP or SCPI. Errors for any other
+            %          command set, such as the Model 2400 emulation (SCPI2400)
+
             if this.SimulationMode
                 lang = this.LanguageType("TSP");
                 return;
@@ -344,10 +406,14 @@ classdef Keithley2450 < Palladium.Core.Instrument
         end
 
         function measMode = GetMeasurementMode(this)
-            %The quantity actually measured depends on both the measure
-            %function and its units - e.g. a voltage measurement can be
-            %reported in Ohms (R = V / I_source) or Watts - so query both
-            %and set the mode from the units
+            %Read the quantity being measured, from the instrument's measure function and units.
+            %The quantity depends on both - e.g. a voltage measurement can be
+            %reported in Ohms (R = V / I_source) or Watts - so both are queried,
+            %and the mode set from the units. In SCPI this also sets MeasFunction
+            %
+            %Outputs:
+            %   measMode - MeasType categorical: Current, Voltage, Resistance or Power
+
             if (this.SimulationMode)
                 measMode = this.MeasType("Resistance");
                 return;
@@ -393,42 +459,55 @@ classdef Keithley2450 < Palladium.Core.Instrument
             end
 
             switch(unitStr)
-                case("AMP")
-                    measMode = this.MeasType("Current");
-                case("VOLT")
-                    measMode = this.MeasType("Voltage");
-                case("OHM")
-                    measMode = this.MeasType("Resistance");
-                case("WATT")
-                    measMode = this.MeasType("Power");
+                case("AMP");    measMode = this.MeasType("Current");
+                case("VOLT");   measMode = this.MeasType("Voltage");
+                case("OHM");    measMode = this.MeasType("Resistance");
+                case("WATT");   measMode = this.MeasType("Power");
                 otherwise
                     error("Keithley2450:UnsupportedMeasurementUnit", "%s", "Unsupported measurement unit: " + unitStr);
             end
         end
 
         function [nplc, integrationTime_s] = GetNPLC(this)
-            %Get the Number of Power Line Cycles for the selected
-            %measurement - the integration time for each reading. second
-            %output helpfully converts this into a time in seconds
+            %Read the integration time of each reading, as a number of power line cycles (NPLC) and in seconds.
+            %The time in seconds uses the line frequency the instrument detected
+            %at power-on (50 or 60 Hz)
+            %
+            %Outputs:
+            %   nplc              - integration time, in power line cycles
+            %   integrationTime_s - integration time, in s
+
             if (this.SimulationMode)
                 nplc = 1;
+                lineFrequency_Hz = 50;
             else
                 switch(this.Language)
                     case(this.LanguageType("SCPI"))
                         %NPLC belongs to the underlying measure function, not
                         %the MeasMode (e.g. Resistance may be VOLT in Ohms)
                         nplc = this.QueryDouble("SENS:" + this.MeasFunction + ":NPLC?");
+                        lineFrequency_Hz = this.QueryDouble("SYST:LFR?");
                     case(this.LanguageType("TSP"))
                         nplc = this.QueryDouble("print(smu.measure.nplc)");
+                        lineFrequency_Hz = this.QueryDouble("print(localnode.linefreq)");
                     otherwise
                         error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
                 end
             end
 
-            integrationTime_s = nplc / 60;
+            integrationTime_s = nplc / lineFrequency_Hz;
         end
 
         function [str, limits, xlabelStr, ylabelStr] = GetSweepUnitsString(this)
+            %Units, limits and plot labels of the swept source level, for a Sweep Control.
+            %Before connecting, when the source function is not yet known, the
+            %units and x label are empty
+            %
+            %Outputs:
+            %   str       - units of the source level, "V" or "A"
+            %   limits    - default lowest and highest sweep values, [min, max]
+            %   xlabelStr - label for the source level on plots, e.g. "Source Voltage (V)"
+            %   ylabelStr - label for the measured value on plots (the first data column header)
 
             %Handle the case of having not yet connected - so we don't yet
             %know the source and measurement mode
@@ -440,15 +519,11 @@ classdef Keithley2450 < Palladium.Core.Instrument
                 return;
             end
 
+            %The 2450 can source up to +/-210 V and +/-1.05 A - these
+            %narrower limits also set the Sweep Control's starting values
             switch(this.SourceMode)
-                case(this.SourceType("Voltage"))
-                    xlabelStr = "Source Voltage (V)";
-                    str = "V";
-                    limits = [-50, 50];    %Need to check what these physical limits actually are and improve this
-                case(this.SourceType("Current"))
-                    xlabelStr = "Source Current (A)";
-                    str = "A";
-                    limits = [-1, 1]; %Need to check what these physical limits actually are and improve this
+                case(this.SourceType("Voltage"));   xlabelStr = "Source Voltage (V)";   str = "V";  limits = [-50, 50];
+                case(this.SourceType("Current"));   xlabelStr = "Source Current (A)";   str = "A";  limits = [-1, 1];
                 otherwise
                     error("Keithley2450:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
             end
@@ -458,27 +533,29 @@ classdef Keithley2450 < Palladium.Core.Instrument
         end
 
         function srcLevel = GetSourceLevel(this)
+            %Read the programmed source level.
+            %
+            %Outputs:
+            %   srcLevel - source level, in V or A depending on SourceMode. In
+            %              SimulationMode, the last level set by SetSourceLevel
+
             if (this.SimulationMode)
                 srcLevel = this.RetrieveSimulatedDataValue("SourceLevel");
                 return;
-            end            
+            end
 
             switch(this.SourceMode)
                 case(this.SourceType("Voltage"))
                     switch(this.Language)
-                        case(this.LanguageType("SCPI"))                            
-                            srcLevel = this.QueryDouble("SOUR:VOLT:LEV:AMPL?");
-                        case(this.LanguageType("TSP"))
-                            srcLevel = this.QueryDouble("print(smu.source.getattribute(smu.FUNC_DC_VOLTAGE, smu.ATTR_SRC_LEVEL))");
+                        case(this.LanguageType("SCPI"));    srcLevel = this.QueryDouble("SOUR:VOLT:LEV:AMPL?");
+                        case(this.LanguageType("TSP"));     srcLevel = this.QueryDouble("print(smu.source.getattribute(smu.FUNC_DC_VOLTAGE, smu.ATTR_SRC_LEVEL))");
                         otherwise
                             error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
                     end
                 case(this.SourceType("Current"))
                     switch(this.Language)
-                        case(this.LanguageType("SCPI"))
-                            srcLevel = this.QueryDouble("SOUR:CURR:LEV:AMPL?");
-                        case(this.LanguageType("TSP"))
-                            srcLevel = this.QueryDouble("print(smu.source.getattribute(smu.FUNC_DC_CURRENT, smu.ATTR_SRC_LEVEL))");
+                        case(this.LanguageType("SCPI"));    srcLevel = this.QueryDouble("SOUR:CURR:LEV:AMPL?");
+                        case(this.LanguageType("TSP"));     srcLevel = this.QueryDouble("print(smu.source.getattribute(smu.FUNC_DC_CURRENT, smu.ATTR_SRC_LEVEL))");
                         otherwise
                             error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
                     end
@@ -488,6 +565,11 @@ classdef Keithley2450 < Palladium.Core.Instrument
         end
 
         function srcMode = GetSourceMode(this)
+            %Read the instrument's source function.
+            %
+            %Outputs:
+            %   srcMode - SourceType categorical, Voltage or Current
+
             if (this.SimulationMode)
                 srcMode = this.SourceType("Current");
                 return;
@@ -521,12 +603,16 @@ classdef Keithley2450 < Palladium.Core.Instrument
         end
 
         function [ovp_V, ovpSetting] = GetVoltageSourceOVP(this)
-            %Overvoltage protection level for the voltage source function
-            %(OVP is stored per source function - this reads the voltage
-            %one whichever function is active). ovp_V is the limit in volts
-            %(Inf for none); ovpSetting is the instrument's own value, e.g.
-            %"smu.PROTECT_40V" (TSP) or "PROT40" (SCPI), for passing back to
-            %SetVoltageSourceOVP - a reset clears it to none
+            %Read the overvoltage protection level of the voltage source function.
+            %OVP is stored per source function - this reads the voltage function's,
+            %whichever function is active. A reset clears it to none
+            %
+            %Outputs:
+            %   ovp_V      - the protection limit, in V (Inf for none)
+            %   ovpSetting - the instrument's own value, e.g. "smu.PROTECT_40V"
+            %                (TSP) or "PROT40" (SCPI), for passing back to
+            %                SetVoltageSourceOVP
+
             if (this.SimulationMode)
                 ovp_V = Inf;
                 ovpSetting = "smu.PROTECT_NONE";
@@ -534,10 +620,8 @@ classdef Keithley2450 < Palladium.Core.Instrument
             end
 
             switch(this.Language)
-                case(this.LanguageType("SCPI"))
-                    ovpSetting = strtrim(string(this.QueryString("SOUR:VOLT:PROT?")));
-                case(this.LanguageType("TSP"))
-                    ovpSetting = strtrim(string(this.QueryString("print(smu.source.getattribute(smu.FUNC_DC_VOLTAGE, smu.ATTR_SRC_PROTECT_LEVEL))")));
+                case(this.LanguageType("SCPI"));    ovpSetting = strtrim(string(this.QueryString("SOUR:VOLT:PROT?")));
+                case(this.LanguageType("TSP"));     ovpSetting = strtrim(string(this.QueryString("print(smu.source.getattribute(smu.FUNC_DC_VOLTAGE, smu.ATTR_SRC_PROTECT_LEVEL))")));
                 otherwise
                     error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
             end
@@ -553,32 +637,35 @@ classdef Keithley2450 < Palladium.Core.Instrument
         end
 
         function [complianceLimited] = IsAtComplianceLimit(this)
-            %Note the hardware's tripped flag reflects the LAST measurement
-            %taken, it is not a live reading of the output - Measure takes
-            %its compliance flag from each reading's source status instead
+            %Read whether the source was limited by its compliance limit in the last measurement.
+            %The instrument's tripped flag reflects the last measurement taken, not
+            %a live reading of the output - Measure takes its compliance flag
+            %from each reading's source status instead
+            %
+            %Outputs:
+            %   complianceLimited - true if the source was at its limit
+
             if (this.SimulationMode)
                 complianceLimited = false;
                 return;
             end
 
+            %Compliance is opposite to source, e.g. SOUR:VOLT:ILIM:TRIP? is
+            %the current limit when sourcing voltage. (This command differs
+            %from the older 2400-series models)
             switch(this.Language)
                 case(this.LanguageType("SCPI"))
-                    %Run volt or current queries depending on measurement mode
                     switch(this.SourceMode)
-                        case(this.SourceType("Voltage"))   %Compliance is opposite to source.. and note that this command is different in the newer 2450 to the older models
-                            compValue = this.QueryDouble("SOUR:VOLT:ILIM:TRIP?");
-                        case(this.SourceType("Current"))
-                            compValue = this.QueryDouble("SOUR:CURR:VLIM:TRIP?");
+                        case(this.SourceType("Voltage"));   compValue = this.QueryDouble("SOUR:VOLT:ILIM:TRIP?");
+                        case(this.SourceType("Current"));   compValue = this.QueryDouble("SOUR:CURR:VLIM:TRIP?");
                         otherwise
                             error("Keithley2450:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
                     end
                     complianceLimited = logical(compValue);
                 case(this.LanguageType("TSP"))
                     switch(this.SourceMode)
-                        case(this.SourceType("Voltage"))   %Compliance is opposite to source.. and note that this command is different in the newer 2450 to the older models
-                            result = this.QueryString("print(smu.source.ilimit.tripped)");
-                        case(this.SourceType("Current"))
-                            result = this.QueryString("print(smu.source.vlimit.tripped)");
+                        case(this.SourceType("Voltage"));   result = this.QueryString("print(smu.source.ilimit.tripped)");
+                        case(this.SourceType("Current"));   result = this.QueryString("print(smu.source.vlimit.tripped)");
                         otherwise
                             error("Keithley2450:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
                     end
@@ -599,9 +686,13 @@ classdef Keithley2450 < Palladium.Core.Instrument
         end
 
         function tf = IsInterlockEngaged(this)
-            %true if the safety interlock is engaged - required to source
-            %more than 42 V; without it the output is silently limited to
-            %below 42 V. (The instrument calls this state "tripped")
+            %Read whether the safety interlock is engaged, which is needed to source more than 42 V.
+            %Without it the output is silently limited to below 42 V. (The
+            %instrument calls this state "tripped")
+            %
+            %Outputs:
+            %   tf - true if the interlock is engaged
+
             if (this.SimulationMode)
                 tf = true;
                 return;
@@ -619,12 +710,15 @@ classdef Keithley2450 < Palladium.Core.Instrument
         end
 
         function tf = IsReplyWaiting(this)
-            %true if the instrument has a reply waiting to be read. Unlike
-            %a read, this never blocks: over GPIB/VISA it is a serial poll,
-            %which works even while a TSP script is running - so it can be
-            %used to wait for a script to print its result while staying
-            %responsive (e.g. to an Abort button). An error in the event
-            %log does not count as a reply
+            %Check, without blocking, whether the instrument has a reply waiting to be read.
+            %Over GPIB/VISA this is a serial poll, which works even while a TSP
+            %script is running - so it can be used to wait for a script to print
+            %its result while staying responsive (e.g. to an Abort button). An
+            %error in the event log does not count as a reply
+            %
+            %Outputs:
+            %   tf - true if a reply is waiting
+
             if (this.SimulationMode)
                 tf = true;
                 return;
@@ -640,8 +734,15 @@ classdef Keithley2450 < Palladium.Core.Instrument
         end
 
         function [dataRow] = Measure(this)
-            %Retrieve source level (will work for simulated and real data
-            %both)
+            %Take a reading, and return it with the source value and compliance flag.
+            %Any errors the instrument has logged are reported as warnings (and
+            %cleared). An overrange reading is returned as NaN, and a failed
+            %reading (e.g. output off in Resistance or 4-wire mode) is an error
+            %
+            %Outputs:
+            %   dataRow - [reading, source value, compliance limited (1 or 0)],
+            %             matching GetHeaders
+
             if(this.SimulationMode)
                 %Return dummy values if in simulation mode
                 sourceLevel = this.GetSourceLevel();
@@ -709,45 +810,51 @@ classdef Keithley2450 < Palladium.Core.Instrument
         end
 
         function Reset(this)
-            %Clear the interface first, so no stale replies or queued
-            %commands survive the reset, then reset all settings to defaults
+            %Clear the interface, then reset all instrument settings to their defaults.
+            %Clearing first means no stale replies or queued commands survive the
+            %reset
+
             this.ClearInterface();
 
             switch(this.Language)
-                case(this.LanguageType("SCPI"))
-                    this.WriteCommand("*RST");
-                case(this.LanguageType("TSP"))
-                    this.WriteCommand("reset(true)");
+                case(this.LanguageType("SCPI"));    this.WriteCommand("*RST");
+                case(this.LanguageType("TSP"));     this.WriteCommand("reset(true)");
                 otherwise
                     error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
             end
         end
 
         function SendAbortCommand(this)
-            %Stop a running TSP script (or the trigger model in SCPI).
-            %abort is processed even while a script is running. Allow a
-            %short time (ABORT_PAUSE_S) before sending further commands
+            %Stop a running TSP script, or the trigger model in SCPI.
+            %The abort is processed even while a script is running. Allow a short
+            %time (ABORT_PAUSE_S) before sending further commands
+
             if (this.SimulationMode); return; end
 
             switch(this.Language)
-                case(this.LanguageType("SCPI"))
-                    this.WriteCommand("ABOR");
-                case(this.LanguageType("TSP"))
-                    this.WriteCommand("abort");
+                case(this.LanguageType("SCPI"));    this.WriteCommand("ABOR");
+                case(this.LanguageType("TSP"));     this.WriteCommand("abort");
                 otherwise
                     error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
             end
         end
 
         function SetNewSweepStepValue(this, value)
-            %This built-in function is defined in the Instrument base class
-            %(does nothing) and called by any added
-            %SweepController_Stepped. Define here what action to take when
-            %a new step is triggered (set the new source voltage/current)
+            %Set the source to the next step of a Sweep Control's sweep, with the output on.
+            %
+            %Inputs:
+            %   value - source level, in V or A depending on SourceMode
+
             this.SetSourceLevel(value, true);
         end
 
         function SetSourceLevel(this, level, enableOutput)
+            %Turn the output on or off, and set the source level.
+            %
+            %Inputs:
+            %   level        - source level, in V or A depending on SourceMode
+            %   enableOutput - true to turn the output on, false to turn it off
+
             if(this.SimulationMode)
                 %Store in SimulatedData struct, otherwise do nothing, just print
                 disp("Setting source to " + num2str(level) + ", output enabled: " + num2str(enableOutput));
@@ -758,7 +865,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
 
             %Turn output on or off
             switch(this.Language)
-                case(this.LanguageType("SCPI"))    
+                case(this.LanguageType("SCPI"))
                     if(enableOutput)
                         this.WriteCommand("OUTP ON");
                     else
@@ -778,10 +885,8 @@ classdef Keithley2450 < Palladium.Core.Instrument
             switch(this.Language)
                 case(this.LanguageType("SCPI"))
                     switch(this.SourceMode)
-                        case(this.SourceType("Voltage"))
-                            this.WriteCommand("SOUR:VOLT:LEV " + num2str(level));
-                        case(this.SourceType("Current"))
-                            this.WriteCommand("SOUR:CURR:LEV " + num2str(level));
+                        case(this.SourceType("Voltage"));   this.WriteCommand("SOUR:VOLT:LEV " + num2str(level));
+                        case(this.SourceType("Current"));   this.WriteCommand("SOUR:CURR:LEV " + num2str(level));
                         otherwise
                             error("Keithley2450:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
                     end
@@ -793,9 +898,14 @@ classdef Keithley2450 < Palladium.Core.Instrument
         end
 
         function SetVoltageSourceOVP(this, ovpSetting)
-            %Set the voltage source function's overvoltage protection, from
-            %a value returned by GetVoltageSourceOVP (e.g. to restore it
-            %after a reset). Set it before turning the output on
+            %Set the overvoltage protection level of the voltage source function.
+            %Takes a value returned by GetVoltageSourceOVP, e.g. to restore it after
+            %a reset. Set it before turning the output on
+            %
+            %Inputs:
+            %   ovpSetting - the instrument's own value: e.g. "smu.PROTECT_40V" or
+            %                "smu.PROTECT_NONE" in TSP, "PROT40" or "NONE" in SCPI
+
             arguments
                 this;
                 ovpSetting (1,1) string;
@@ -815,26 +925,17 @@ classdef Keithley2450 < Palladium.Core.Instrument
         end
 
         function TurnOutputOff(this)
+            %Turn the source output off.
+
             if (this.SimulationMode); return; end
 
             switch(this.Language)
-                case(this.LanguageType("SCPI"))
-                    this.WriteCommand("OUTP OFF");
-                case(this.LanguageType("TSP"))
-                    this.WriteCommand("smu.source.output = smu.OFF");
+                case(this.LanguageType("SCPI"));    this.WriteCommand("OUTP OFF");
+                case(this.LanguageType("TSP"));     this.WriteCommand("smu.source.output = smu.OFF");
                 otherwise
                     error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
             end
         end
 
     end
-
-    %% Methods (Protected)
-    methods (Access = protected)
-
-     
-
-    end
 end
-
-

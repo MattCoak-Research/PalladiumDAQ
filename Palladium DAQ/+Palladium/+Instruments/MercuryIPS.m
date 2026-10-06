@@ -1,57 +1,61 @@
 classdef MercuryIPS < Palladium.Core.Instrument
-    %Instrument implementation for the Oxford Instruments MercuryiPS power
-    %supply for superconducting magnets. Commands are taken from the
-    %"MercuryiPS Power Supply" Operator's Manual (Issue 14, Mar 2016,
-    %UMC0071), Chapter 10 "Command Reference Guide", section 10.3.5.2
-    %"Addressing a magnet power supply device".
+    %MercuryIPS - Instrument driver for the Oxford Instruments MercuryiPS superconducting magnet power supply.
+    %Records the magnet field (T) and current (A) each measurement tick. The
+    %Magnet Control tab sets the target field and field ramp rate and gives
+    %Hold, To Set Point and To Zero commands; the optional Sweep Control tab
+    %ramps the field through a sequence of target points. The persistent
+    %switch heater can be read and set from scripts.
     %
-    %The iPS uses the same SCPI-derived READ:/SET: protocol as the
-    %MercuryITC (see MercuryITC.m), so the low-level communication helpers
-    %here follow that class as a pattern. Magnet devices/groups are
-    %addressed as DEV:<UID>:PSU, where <UID> is either an individual power
-    %supply device name (eg "PSU.M1") or an axis group name (eg "GRPZ").
-    %This class assumes a single-axis (solenoid / split-pair) magnet, so
-    %AxisAddress defaults to the group UID "GRPZ" used in that
-    %configuration - change it to address an individual device, or a
-    %different axis group on a multi-axis (Vector Rotate) system.
+    %The MercuryiPS uses the same SCPI-like `READ:`/`SET:` protocol as the
+    %MercuryITC (see `MercuryITC`), from chapter 10 "Command Reference
+    %Guide" of the MercuryiPS Operator's Manual (Issue 14, Mar 2016,
+    %UMC0071). Every command is answered with a `STAT:` reply, ending in
+    %`:VALID` or `:INVALID` for `SET:` commands; an `INVALID` reply raises an
+    %error. The magnet is addressed as `DEV:<UID>:PSU`, where `<UID>` is set
+    %by `AxisAddress`: an axis group such as `GRPZ` (the default, for a
+    %single-axis solenoid or split pair) or an individual power supply board
+    %such as `PSU.M1`. Groups accept more commands than boards - the ramp
+    %status, switch heater, target and ramp rate are only settable on a
+    %group.
     %
-    %This class implements the same public interface as the older
-    %Mercury120_IPS.m (GetField, SetTargetField, SetState_Hold, etc, plus
-    %the CheckRampStatus/SetRampingToTarget/GatherStatusStructForControlPanel/
-    %GetSweepUnitsString methods expected by the MagnetController and
-    %SweepController_Ramp Instrument Controls) so it can be used as a
-    %drop-in alternative for magnets driven by the newer Mercury protocol.
+    %Ethernet (port 7020, always), GPIB, RS-232 and USB (a virtual serial
+    %port, 115200 baud, 8 data bits, 1 stop bit) are supported, all with
+    %LF terminators.
+    %
+    %It has the same public methods as `Mercury120_IPS` (GetField,
+    %SetTargetField, SetState_Hold, and so on), so either can drive the
+    %Magnet Control and Sweep Control tabs.
 
     %% Properties (Public)
     properties(Access = public)
-        FullName = "Oxford Instruments MercuryiPS";     %Full name, just for displaying on GUI
+        FullName = "Oxford Instruments MercuryiPS";             %Full name, displayed in the GUI
     end
 
     %% Properties (Public, Set Observable)
     % These properties will appear in the Instrument Settings GUI and are editable there
     properties(Access = public, SetObservable)
-        Name = "MercuryIPS";                                          %Instrument name
-        Connection_Type = Palladium.Enums.ConnectionType.Ethernet;    %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
+        Name = "MercuryIPS";                                    %Instrument name, used as the prefix of its data column headers
+        Connection_Type = Palladium.Enums.ConnectionType.Ethernet;  %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
 
-        %UID used to address the magnet power supply, eg the axis group
-        %name "GRPZ" (default, single-axis solenoid/split-pair systems),
-        %"GRPY"/"GRPX" for other axes on a Vector Rotate system, or an
-        %individual device name such as "PSU.M1". Send READ:SYS:CAT to
-        %the instrument to list the UIDs it actually has configured.
-        AxisAddress = "GRPZ";
+        %UID of the magnet power supply to address: an axis group, e.g. "GRPZ" (the default) or "GRPX"/"GRPY" on a vector magnet, or a board, e.g. "PSU.M1". GetDeviceCatalog lists them.
+        AxisAddress {mustBeTextScalar} = "GRPZ";
 
-        FieldLimits_T = [-16 16];    %Expected operating field range (T), used to configure the Sweep Control GUI
+        FieldLimits_T (1,2) double = [-16 16];                  %Lowest and highest target field allowed in the Sweep Control, in T
     end
 
     %% Constructor
     methods
         function this = MercuryIPS()
-            %Specify communication options and settings
+            %Set the connection options and the Magnet and Sweep Control tabs.
+
             this.DefineSupportedConnectionTypes(["Debug", "Ethernet", "GPIB", "Serial", "VISA"]);
 
-            this.ConnectionSettings.Port = 7020;   %MercuryiPS SCPI Ethernet port
+            %Commands and replies end in LF on every interface. The Ethernet
+            %port is always 7020. 115200 baud, 8 data bits and 1 stop bit
+            %are the USB virtual serial port's fixed settings; the RS-232
+            %port's baud rate is set on the instrument
+            this.ConnectionSettings.Port = 7020;
             this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];
-
             this.ConnectionSettings.SerialSettings.BaudRate = 115200;
             this.ConnectionSettings.SerialSettings.StopBits = 1;
             this.ConnectionSettings.SerialSettings.Terminator = "LF";
@@ -66,14 +70,27 @@ classdef MercuryIPS < Palladium.Core.Instrument
     methods (Access = public)
 
         function AbortRamp(this)
-            %Called by SweepController_Ramp to abort a running sweep
+            %Stop a running sweep by putting the supply into Hold.
+
             this.SetState_Hold();
         end
 
-        function rampStatus = CheckRampStatus(this, ~, tDiff, currentTarget, rampRate_min)
-            %Called by SweepController_Ramp to check whether a ramp has
-            %reached its target. Return simulated data only if we are
-            %debugging without a physical instrument connected
+        function rampStatus = CheckRampStatus(this, ~, tDiff, currentTarget, rampRate_min, ~)
+            %Check whether the field has finished ramping, for the Sweep Control.
+            %The ramp is taken as finished when the ramp status (ACTN) is no
+            %longer To Set Point or To Zero. In SimulationMode the field is
+            %ramped towards the target at the ramp rate
+            %
+            %Inputs (in the order the Sweep Control passes them):
+            %   timeElapsed_s   - time since the sweep started, in s (not used)
+            %   tDiff           - time since the last check, in s
+            %   currentTarget   - target field of this ramp, in T
+            %   rampRate_min    - ramp rate, in T/min
+            %   sweepController - the SweepController_Ramp calling this (not used)
+            %
+            %Outputs:
+            %   rampStatus - struct with field TargetReached
+
             if this.SimulationMode
                 lastField = this.RetrieveSimulatedDataValue("Field_T");
                 newField = lastField + tDiff * sign(currentTarget - lastField) * rampRate_min / 60;
@@ -89,15 +106,19 @@ classdef MercuryIPS < Palladium.Core.Instrument
                 return;
             end
 
-            %Real instrument - the unit drops back into "Hold" once a
-            %ramp (to set point, or to zero) is complete
             actionCode = this.GetPSUString(this.AxisAddress, "ACTN");
             isRamping = ismember(upper(actionCode), ["RTOS", "RTOZ"]);
             rampStatus.TargetReached = ~isRamping;
         end
 
         function statusStruct = GatherStatusStructForControlPanel(this)
-            %This will get called by the MagnetController Control, if added
+            %Read the field, current, ramp rate, set point and ramp status, for the Magnet Control tab.
+            %
+            %Outputs:
+            %   statusStruct - struct with fields Current_A, Field_T,
+            %                  RampRate_Tmin, SetPoint_T and StatusString (the
+            %                  SweepStatus from GetStatus, e.g. "Hold")
+
             statusStruct.Current_A = this.GetCurrent();
             statusStruct.Field_T = this.GetField();
             statusStruct.RampRate_Tmin = this.GetFieldRampRate();
@@ -108,8 +129,9 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function rampRate_Amin = GetActualCurrentRampRate(this)
-            %Actual current ramp rate (A/min) - only meaningful when
-            %addressing a power supply group (eg AxisAddress = "GRPZ")
+            %Read the rate the current is actually changing at, in A/min (SIG:RCUR).
+            %Only available on an axis group, e.g. AxisAddress = "GRPZ"
+
             if this.SimulationMode
                 rampRate_Amin = 1.1;
                 return;
@@ -119,8 +141,9 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function rampRate_Tmin = GetActualFieldRampRate(this)
-            %Actual field ramp rate (T/min) - only meaningful when
-            %addressing a power supply group (eg AxisAddress = "GRPZ")
+            %Read the rate the field is actually changing at, in T/min (SIG:RFLD).
+            %Only available on an axis group, e.g. AxisAddress = "GRPZ"
+
             if this.SimulationMode
                 rampRate_Tmin = 0.1;
                 return;
@@ -130,6 +153,9 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function current_A = GetCurrent(this)
+            %Read the output current, in A (SIG:CURR).
+            %On an axis group, this is the sum of its power supply boards' currents
+
             if this.SimulationMode
                 current_A = this.RetrieveSimulatedDataValue("Current_A");
                 return;
@@ -139,7 +165,8 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function currentLimit_A = GetCurrentLimit(this)
-            %Maximum current for the power supply group (CLIM)
+            %Read the maximum current set for the power supply, in A (CLIM).
+
             if this.SimulationMode
                 currentLimit_A = 120;
                 return;
@@ -149,7 +176,8 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function rampRate_Amin = GetCurrentRampRate(this)
-            %Target current ramp rate (A/min)
+            %Read the target current ramp rate, in A/min (SIG:RCST).
+
             if this.SimulationMode
                 rampRate_Amin = 1.1;
                 return;
@@ -159,8 +187,9 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function ratio_AperT = GetCurrentToFieldRatio(this)
-            %Current to field ratio (A/T), ATOB - only meaningful when
-            %addressing a power supply group (eg AxisAddress = "GRPZ")
+            %Read the magnet's current to field ratio, in A/T (ATOB).
+            %Only available on an axis group, e.g. AxisAddress = "GRPZ"
+
             if this.SimulationMode
                 ratio_AperT = 10;
                 return;
@@ -170,10 +199,14 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function catalogString = GetDeviceCatalog(this)
-            %Query the instrument for the catalogue of devices/boards it
-            %can see (SYS:CAT). Use this to find the UIDs of the power
-            %supply devices/groups actually configured (eg "PSU.M1",
-            %"GRPZ") to set AxisAddress correctly.
+            %Read the list of devices the instrument has (SYS:CAT).
+            %Use it to find the UIDs of the axis groups and power supply boards
+            %(e.g. "GRPZ" and "PSU.M1") to set AxisAddress to
+            %
+            %Outputs:
+            %   catalogString - the reply, listing each device as
+            %                   DEV:<UID>:<type>, e.g. DEV:GRPZ:PSU
+
             if this.SimulationMode
                 catalogString = "SIMULATED DEVICE CATALOG";
                 return;
@@ -183,6 +216,10 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function field_T = GetField(this)
+            %Read the output field, in T (SIG:FLD).
+            %This is the field the supply is driving - in persistent mode it is not
+            %the field in the magnet (see GetPersistentField)
+
             if this.SimulationMode
                 field_T = this.RetrieveSimulatedDataValue("Field_T");
                 return;
@@ -192,7 +229,8 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function rampRate_Tmin = GetFieldRampRate(this)
-            %Target field ramp rate (T/min)
+            %Read the target field ramp rate, in T/min (SIG:RFST).
+
             if this.SimulationMode
                 rampRate_Tmin = 0.1;
                 return;
@@ -202,12 +240,22 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function [Headers, Units] = GetHeaders(this)
+            %Data column headers and units for the values returned by Measure.
+            %
+            %Outputs:
+            %   Headers - [Name + " - Field (T)", Name + " - Current (A)"]
+            %   Units   - ["T", "A"]
+
             Headers = [this.Name + " - Field (T)", this.Name + " - Current (A)"];
             Units = ["T", "A"];
         end
 
         function idnString = GetIDN(this)
-            %Query the instrument identity string (*IDN?)
+            %Read the instrument's identity string (*IDN?).
+            %
+            %Outputs:
+            %   idnString - e.g. "IDN:OXFORD INSTRUMENTS:MERCURY iPS:<serial>:<firmware>"
+
             if this.SimulationMode
                 idnString = "SIMULATED MERCURY IPS";
                 return;
@@ -217,6 +265,8 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function inductance_H = GetMagnetInductance(this)
+            %Read the magnet inductance set on the supply, in H (IND).
+
             if this.SimulationMode
                 inductance_H = 0;
                 return;
@@ -226,6 +276,8 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function persistentCurrent_A = GetPersistentCurrent(this)
+            %Read the persistent current in the magnet, in A (SIG:PCUR).
+
             if this.SimulationMode
                 persistentCurrent_A = 0;
                 return;
@@ -235,6 +287,8 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function persistentField_T = GetPersistentField(this)
+            %Read the persistent field in the magnet, in T (SIG:PFLD).
+
             if this.SimulationMode
                 persistentField_T = 0;
                 return;
@@ -244,6 +298,8 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function setPtCurrent_A = GetSetPointCurrent(this)
+            %Read the target current, in A (SIG:CSET).
+
             if this.SimulationMode
                 setPtCurrent_A = 0;
                 return;
@@ -253,6 +309,8 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function setPtField_T = GetSetPointField(this)
+            %Read the target field, in T (SIG:FSET).
+
             if this.SimulationMode
                 setPtField_T = 0;
                 return;
@@ -262,8 +320,13 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function status = GetStatus(this)
-            %Query the ramp action status (ACTN) and switch heater status
-            %(SIG:SWHT) and decode them into human-readable strings
+            %Read the ramp status (ACTN) and switch heater status (SIG:SWHT).
+            %
+            %Outputs:
+            %   status - struct with fields SweepStatus ("Hold", "Ramping To Set
+            %            Point", "Ramping To Zero" or "Clamped") and
+            %            SwitchHeaterStatus ("On" or "Off")
+
             if this.SimulationMode
                 status.SweepStatus = "Hold";
                 status.SwitchHeaterStatus = "Off";
@@ -272,14 +335,10 @@ classdef MercuryIPS < Palladium.Core.Instrument
 
             actionCode = upper(this.GetPSUString(this.AxisAddress, "ACTN"));
             switch(actionCode)
-                case("HOLD")
-                    status.SweepStatus = "Hold";
-                case("RTOS")
-                    status.SweepStatus = "Ramping To Set Point";
-                case("RTOZ")
-                    status.SweepStatus = "Ramping To Zero";
-                case("CLMP")
-                    status.SweepStatus = "Clamped";
+                case("HOLD");   status.SweepStatus = "Hold";
+                case("RTOS");   status.SweepStatus = "Ramping To Set Point";
+                case("RTOZ");   status.SweepStatus = "Ramping To Zero";
+                case("CLMP");   status.SweepStatus = "Clamped";
                 otherwise
                     error("MercuryIPS:UnrecognisedRampAction", "%s", "Error parsing MercuryiPS status - ramp action code " + string(actionCode) + " not recognised.");
             end
@@ -292,8 +351,14 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function [str, limits, xlabelStr, ylabelStr] = GetSweepUnitsString(this)
-            %Tells the Sweep controller what the units and limits are of
-            %the parameter it is sweeping
+            %Units, limits and plot labels of the swept field, for the Sweep Control.
+            %
+            %Outputs:
+            %   str       - units, "T"
+            %   limits    - allowed range of target fields, FieldLimits_T
+            %   xlabelStr - plot x-axis label, "Time (mins)"
+            %   ylabelStr - plot y-axis label, "Field (T)"
+
             str = "T";
             limits = this.FieldLimits_T;
             xlabelStr = "Time (mins)";
@@ -301,7 +366,8 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function current_A = GetSwitchHeaterCurrent(this)
-            %Static switch heater current (SHTC)
+            %Read the switch heater current set on the supply (SHTC).
+
             if this.SimulationMode
                 current_A = 0;
                 return;
@@ -311,6 +377,12 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function isOn = GetSwitchHeaterOn(this)
+            %Read whether the persistent switch heater is on (SIG:SWHT).
+            %
+            %Outputs:
+            %   isOn - true if the heater is on (switch open, magnet driven by the
+            %          supply)
+
             if this.SimulationMode
                 isOn = true;
                 return;
@@ -321,6 +393,8 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function voltage_V = GetVoltage(this)
+            %Read the output voltage, in V (SIG:VOLT).
+
             if this.SimulationMode
                 voltage_V = 0;
                 return;
@@ -330,7 +404,8 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function voltageLimit_V = GetVoltageLimit(this)
-            %Maximum normal operation voltage / quench threshold (VLIM)
+            %Read the maximum normal operating voltage (the quench threshold), in V (VLIM).
+
             if this.SimulationMode
                 voltageLimit_V = 10;
                 return;
@@ -340,18 +415,28 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function [dataRow] = Measure(this)
-            %Get measurement values
+            %Read the field and current.
+            %
+            %Outputs:
+            %   dataRow - [field in T, current in A]
+
             field = this.GetField();
             current = this.GetCurrent();
 
-            %Assign data to output data row
             dataRow = [field, current];
         end
 
         function resultString = ReadValue(this, command, readPrefix)
-            %Low level read - writes readPrefix + command to the
-            %instrument and returns the reply string. readPrefix defaults
-            %to "READ:", matching the instrument's SCPI-like command set.
+            %Send a read command and return the reply.
+            %
+            %Inputs:
+            %   command    - what to read, e.g. "DEV:GRPZ:PSU:SIG:FLD"
+            %   readPrefix - text sent before command; "READ:" (the default), or ""
+            %                for commands such as *IDN?
+            %
+            %Outputs:
+            %   resultString - the reply, e.g. "STAT:DEV:GRPZ:PSU:SIG:FLD:1.2345T"
+
             arguments
                 this;
                 command {mustBeTextScalar};
@@ -367,6 +452,12 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function SetCurrentRampRate_AminMin(this, currentRampRate_Amin)
+            %Set the target current ramp rate, in A/min (SIG:RCST), and check it was set.
+            %Errors if the value the supply confirms does not match
+            %
+            %Inputs:
+            %   currentRampRate_Amin - ramp rate, in A/min
+
             arguments
                 this
                 currentRampRate_Amin (1,1) double;
@@ -382,6 +473,12 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function SetFieldRampRate_TeslaMin(this, fieldRampRate_Tmin)
+            %Set the target field ramp rate, in T/min (SIG:RFST), and check it was set.
+            %Errors if the value the supply confirms does not match
+            %
+            %Inputs:
+            %   fieldRampRate_Tmin - ramp rate, in T/min
+
             arguments
                 this
                 fieldRampRate_Tmin (1,1) double;
@@ -397,16 +494,33 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function SetRampingToTarget(this, target, rate, ~)
-            %Called by SweepController_Ramp
+            %Set the field ramp rate and target field, then start ramping to it, for the Sweep Control.
+            %
+            %Inputs:
+            %   target - target field, in T
+            %   rate   - field ramp rate, in T/min
+
             this.SetFieldRampRate_TeslaMin(rate);
             this.SetTargetField(target);
             this.SetState_RampToSetPoint();
         end
 
+        function SetRampRate_TeslaMin(this, fieldRampRate_Tmin)
+            %Set the target field ramp rate, in T/min - the same as SetFieldRampRate_TeslaMin.
+            %The Magnet Control tab calls this name, which Mercury120_IPS and
+            %Mercury120_10_IPS use
+            %
+            %Inputs:
+            %   fieldRampRate_Tmin - ramp rate, in T/min
+
+            this.SetFieldRampRate_TeslaMin(fieldRampRate_Tmin);
+        end
+
         function SetState_Clamp(this)
-            %Output stages are clamped - the default state on power-up.
-            %Ramp To Set Point / To Zero commands are not recognised from
-            %this state, so give a Hold command first.
+            %Clamp the supply's output (ACTN CLMP).
+            %Clamped is the state at power-up. To Set Point and To Zero are not
+            %recognised while clamped, so give a Hold command first
+
             if this.SimulationMode
                 disp("Magnet state set to Clamp");
                 return;
@@ -416,6 +530,8 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function SetState_Hold(this)
+            %Hold the output at its present value (ACTN HOLD).
+
             if this.SimulationMode
                 disp("Magnet state set to Hold");
                 return;
@@ -425,6 +541,8 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function SetState_RampToSetPoint(this)
+            %Start ramping the output to the target field or current (ACTN RTOS).
+
             if this.SimulationMode
                 disp("Magnet ramping to set point");
                 return;
@@ -434,6 +552,8 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function SetState_RampToZero(this)
+            %Start ramping the output to zero (ACTN RTOZ).
+
             if this.SimulationMode
                 disp("Magnet ramping to zero");
                 return;
@@ -443,6 +563,8 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function SetSwitchHeaterOff(this)
+            %Turn the persistent switch heater off (SIG:SWHT OFF), closing the switch.
+
             if this.SimulationMode
                 disp("Switch heater turned OFF (simulated)");
                 return;
@@ -452,9 +574,10 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function SetSwitchHeaterOn(this)
-            %Turns the persistent switch heater on. The instrument checks
-            %the output current matches the persistent current before
-            %allowing this (SWHT).
+            %Turn the persistent switch heater on (SIG:SWHT ON), opening the switch.
+            %The instrument checks that the output current matches the persistent
+            %current before turning it on
+
             if this.SimulationMode
                 disp("Switch heater turned ON (simulated)");
                 return;
@@ -464,10 +587,10 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function SetSwitchHeaterOn_Forced(this)
-            %Forces the persistent switch heater on without the
-            %instrument's current-matching safety check (SWHN). Only use
-            %this if you know what you are doing - forcing the heater on
-            %with mismatched currents can quench the magnet.
+            %Turn the persistent switch heater on without the instrument's current check (SIG:SWHN ON).
+            %Only use this if you know the output and persistent currents match:
+            %opening the switch with them mismatched can quench the magnet
+
             if this.SimulationMode
                 disp("Switch heater force-turned ON (simulated)");
                 return;
@@ -477,6 +600,13 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function SetTargetCurrent(this, current_A)
+            %Set the target current, in A (SIG:CSET), and check it was set.
+            %Errors if the value the supply confirms does not match. Does not start
+            %a ramp - see SetState_RampToSetPoint
+            %
+            %Inputs:
+            %   current_A - target current, in A
+
             arguments
                 this
                 current_A (1,1) double;
@@ -492,6 +622,13 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function SetTargetField(this, field_T)
+            %Set the target field, in T (SIG:FSET), and check it was set.
+            %Errors if the value the supply confirms does not match. Does not start
+            %a ramp - see SetState_RampToSetPoint
+            %
+            %Inputs:
+            %   field_T - target field, in T
+
             arguments
                 this
                 field_T (1,1) double;
@@ -507,8 +644,16 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function resultString = SetValue(this, command)
-            %Low level set - writes "SET:" + command to the instrument
-            %and returns the (echoed) reply string.
+            %Send a set command and return the reply.
+            %
+            %Inputs:
+            %   command - what to set, with its value, e.g.
+            %             "DEV:GRPZ:PSU:SIG:FSET:1.5" ("SET:" is added in front)
+            %
+            %Outputs:
+            %   resultString - the reply, e.g.
+            %                  "STAT:DEV:GRPZ:PSU:SIG:FSET:1.5:VALID"
+
             arguments
                 this;
                 command {mustBeTextScalar};
@@ -523,7 +668,8 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function SweepComplete(this)
-            %Called by a SweepController once the sweep is completed
+            %Put the supply into Hold once a Sweep Control sweep has finished.
+
             this.SetState_Hold();
         end
 
@@ -533,8 +679,11 @@ classdef MercuryIPS < Palladium.Core.Instrument
     methods (Access = private)
 
         function value = GetPSUValue(this, uid, noun)
-            %Generic numeric read of a DEV:<uid>:PSU:<noun> value, eg
-            %noun = "SIG:FLD" or "CLIM"
+            %Read a numeric DEV:<uid>:PSU:<noun> value, e.g. noun = "SIG:FLD" or "CLIM".
+            %
+            %Outputs:
+            %   value - the value, scaled by its SI prefix (so mT is returned in T)
+
             arguments
                 this;
                 uid {mustBeTextScalar};
@@ -551,8 +700,11 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function strVal = GetPSUString(this, uid, noun)
-            %Generic string read of a DEV:<uid>:PSU:<noun> value, eg
-            %noun = "ACTN" or "SIG:SWHT"
+            %Read a text DEV:<uid>:PSU:<noun> value, e.g. noun = "ACTN" or "SIG:SWHT".
+            %
+            %Outputs:
+            %   strVal - the value, e.g. "HOLD" or "ON"
+
             arguments
                 this;
                 uid {mustBeTextScalar};
@@ -569,10 +721,15 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function mult = GetSIPrefixMultiplier(~, unitToken)
-            %Convert an SI-prefixed unit string (eg "mT", "kA") into its
-            %multiplier. A bare unit with no recognised prefix (eg "T",
-            %"A") returns a multiplier of 1, matching the manual's own
-            %definition of "# - none" as one of the possible scales.
+            %Multiplier for the SI prefix at the start of a unit, e.g. 1e-3 for "mT".
+            %A unit with no recognised prefix, e.g. "T", "A" or "T/m", gives 1
+            %
+            %Inputs:
+            %   unitToken - the unit, e.g. "mT"
+            %
+            %Outputs:
+            %   mult - the multiplier
+
             prefixMap = containers.Map(...
                 {'n', 'u', char(181), 'm', 'k', 'M'}, ...   %char(181) is the micro sign
                 {1e-9, 1e-6, 1e-6, 1e-3, 1e3, 1e6});
@@ -592,35 +749,39 @@ classdef MercuryIPS < Palladium.Core.Instrument
             end
         end
 
-        function value = ParseSIPrefixedValue(~, valueString)
-            %Parse a value string of the form "<number><prefix><unit>" or
-            %"<number><unit>" (no prefix) into a double, applying the SI
-            %unit prefix if present. Used as a fallback for the case
-            %where the numeric value and its unit are concatenated into a
-            %single token rather than being separate colon-delimited
-            %tokens (see ParseSignalResponse).
-            siPrefixes = containers.Map(...
-                {'M', 'k', 'm', char(181), 'n', 'p'}, ...
-                {1e6, 1e3, 1e-3, 1e-6, 1e-9, 1e-12});
+        function value = ParseSIPrefixedValue(this, valueString)
+            %Parse a number followed by its unit, e.g. "1.2345mT", into a double scaled by the unit's SI prefix.
+            %Used where the reply has the number and unit in one token (see
+            %ParseSignalResponse). The unit can contain any characters, e.g.
+            %"T/m" for a ramp rate
+            %
+            %Inputs:
+            %   valueString - e.g. "1.2345mT" or "0.2000T/m"
+            %
+            %Outputs:
+            %   value - e.g. 1.2345e-3 or 0.2
 
-            prefixChar = valueString(end-1);
-
-            if isstrprop(prefixChar, 'digit')
-                value = str2double(valueString(1:end-1));
-            elseif isKey(siPrefixes, prefixChar)
-                value = str2double(valueString(1:end-2)) * siPrefixes(prefixChar);
-            else
+            parts = regexp(char(valueString), '^\s*([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)(.*)$', 'tokens', 'once');
+            if isempty(parts)
                 error("MercuryIPS:SIValueParseFailed", "%s", "Could not parse SI-prefixed value: " + string(valueString));
             end
+
+            value = str2double(parts{1}) * this.GetSIPrefixMultiplier(strtrim(parts{2}));
         end
 
         function value = ParseSignalResponse(this, responseString)
-            %Parse a STAT:...:<value> response into a double. Handles a
-            %SET confirmation echoing back a plain unscaled number (eg
-            %"...:TSET:4.321:VALID"), a READ of a signal returning the
-            %number and its SI-prefixed unit as separate colon-delimited
-            %tokens (eg "...:SIG:VOLT:12.345:mV:VALID"), and (as a
-            %fallback) the number and unit concatenated into one token.
+            %Parse a STAT:...:<value> reply into a double.
+            %Handles a plain number, as echoed by a SET (e.g.
+            %"...:FSET:1.5:VALID"); a number and its unit as separate tokens
+            %(e.g. "...:SIG:VOLT:12.345:mV"); and a number and its unit as one
+            %token (e.g. "...:SIG:FLD:1.2345T"). Errors on an INVALID reply
+            %
+            %Inputs:
+            %   responseString - the reply
+            %
+            %Outputs:
+            %   value - the value, scaled by its SI prefix
+
             tokens = strsplit(char(responseString), ":");
 
             if ~isempty(tokens) && any(strcmpi(tokens{end}, ["VALID", "INVALID"]))
@@ -650,9 +811,15 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function strVal = ParseStringResponse(~, responseString)
-            %Parse a STAT:...:<value> response where the value is a
-            %string/enumerated status (eg ON/OFF, HOLD/RTOS/RTOZ/CLMP)
-            %rather than a number.
+            %Parse a STAT:...:<value> reply whose value is text, e.g. ON/OFF or HOLD/RTOS/RTOZ/CLMP.
+            %Errors on an INVALID reply
+            %
+            %Inputs:
+            %   responseString - the reply
+            %
+            %Outputs:
+            %   strVal - the value
+
             tokens = strsplit(char(responseString), ":");
 
             if ~isempty(tokens) && any(strcmpi(tokens{end}, ["VALID", "INVALID"]))
@@ -666,10 +833,16 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function confirmedValue = SetPSUValue(this, uid, noun, value)
-            %Generic numeric write to a DEV:<uid>:PSU:<noun> value, eg
-            %noun = "SIG:FSET" or "CLIM". Verifies the instrument
-            %confirmed the value was VALID and returns the confirmed
-            %(echoed) value.
+            %Set a numeric DEV:<uid>:PSU:<noun> value, e.g. noun = "SIG:FSET", and return the value the supply confirms.
+            %
+            %Inputs:
+            %   uid   - power supply UID, e.g. "GRPZ"
+            %   noun  - what to set, e.g. "SIG:FSET"
+            %   value - the value to set
+            %
+            %Outputs:
+            %   confirmedValue - the value echoed in the supply's VALID reply
+
             arguments
                 this;
                 uid {mustBeTextScalar};
@@ -688,10 +861,16 @@ classdef MercuryIPS < Palladium.Core.Instrument
         end
 
         function confirmedStr = SetPSUString(this, uid, noun, valueStr)
-            %Generic string write to a DEV:<uid>:PSU:<noun> value, eg
-            %noun = "ACTN" or "SIG:SWHT". Verifies the instrument
-            %confirmed the value was VALID and returns the confirmed
-            %(echoed) value.
+            %Set a text DEV:<uid>:PSU:<noun> value, e.g. noun = "ACTN", and return the value the supply confirms.
+            %
+            %Inputs:
+            %   uid      - power supply UID, e.g. "GRPZ"
+            %   noun     - what to set, e.g. "ACTN" or "SIG:SWHT"
+            %   valueStr - the value to set, e.g. "HOLD" or "ON"
+            %
+            %Outputs:
+            %   confirmedStr - the value echoed in the supply's VALID reply
+
             arguments
                 this;
                 uid {mustBeTextScalar};

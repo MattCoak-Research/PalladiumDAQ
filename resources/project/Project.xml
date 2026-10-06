@@ -730,13 +730,6 @@
                             </Category>
                         </Info>
                     </File>
-                    <File Location="Keysight4248A_LCR_Meter.m">
-                        <Info>
-                            <Category UUID="FileClassCategory">
-                                <Label UUID="design"/>
-                            </Category>
-                        </Info>
-                    </File>
                     <File Location="Lakeshore331.m">
                         <Info>
                             <Category UUID="FileClassCategory">
@@ -843,6 +836,13 @@
                         </Info>
                     </File>
                     <File Location="MercuryIPS.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
+                    <File Location="Keysight4284A_LCR_Meter.m">
                         <Info>
                             <Category UUID="FileClassCategory">
                                 <Label UUID="design"/>

@@ -39,12 +39,12 @@ A complete sequence might look like this:
 ```text
 Palladium Sequence File, Version [1.0]
 
-% Measure at 10 K, then at 20 K
-[INSTR] PPMS_1 : SetTemperature(10)
+% Measure at 10 K, then at 20 K, ramping at 2 K/min
+[INSTR] PPMS_1 : SetTemperature(10, 2)
 [WAIT] 10 min
 [DATAFILE] 1 : C:\Data\Sample1_10K.dat
 [INSTR] K2410_SrcMtr_1.Sweep Control : SweepRun()
-[INSTR] PPMS_1 : SetTemperature(20)
+[INSTR] PPMS_1 : SetTemperature(20, 2)
 [WAIT] 10 min
 [DATAFILE] 1 : C:\Data\Sample1_20K.dat
 [INSTR] K2410_SrcMtr_1.Sweep Control : SweepRun()

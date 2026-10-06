@@ -295,6 +295,15 @@ end
 function text = Signature(m, mc)
 inputs = string(m.InputNames);
 outputs = string(m.OutputNames);
+if any(inputs == "varargin")
+    %A method with an arguments block reports its inputs as varargin - take
+    %the real names from its call signature instead
+    inputs = SignatureInputs(m, inputs);
+end
+if any(outputs == "varargout")
+    %Likewise for outputs
+    outputs = SignatureOutputs(m, outputs);
+end
 name = string(m.Name);
 if m.Static
     name = ShortName(mc.Name) + "." + name;
@@ -308,6 +317,42 @@ if isscalar(outputs)
 elseif numel(outputs) > 1
     text = "[" + join(outputs, ", ") + "] = " + text;
 end
+end
+
+function outputs = SignatureOutputs(m, outputs)
+%Output names from the method's call signature. Falls back to the names given
+try
+    args = m.Signature.Outputs;
+catch
+    return; %No call signature available
+end
+if ~isempty(args)
+    outputs = arrayfun(@(a) string(a.Identifier.Name), args);
+end
+end
+
+function inputs = SignatureInputs(m, inputs)
+%Input names from the method's call signature (matlab.metadata.CallSignature),
+%with name-value arguments shown as Name=value. Falls back to the names given
+try
+    args = m.Signature.Inputs;
+catch
+    return; %No call signature available
+end
+if isempty(args)
+    return;
+end
+names = strings(1, 0);
+for a = args
+    name = string(a.Identifier.Name);
+    if a.NameValue
+        name = name + "=value";
+    elseif a.Repeating
+        name = name + ",...";
+    end
+    names(end+1) = name; %#ok<AGROW>
+end
+inputs = names;
 end
 
 function text = MethodAttributes(m)
@@ -462,6 +507,9 @@ end
 if isfield(instanceValues, p.Name)
     value = instanceValues.(p.Name);
     cell = Code(ValueString(value));
+    if ~hasDeclared && isnumeric(value) && isempty(value)
+        cell = "-";     %No default and still [] - set later, e.g. on connecting
+    end
     if cell ~= "-" && (~hasDeclared || ~isequal(value, declared))
         cell = cell + " *(set in constructor)*";
     end
@@ -480,6 +528,8 @@ if (isenum(value) || iscategorical(value)) && isscalar(value)
     text = string(value);
 elseif (isnumeric(value) || islogical(value)) && isscalar(value)
     text = string(value);
+elseif (isnumeric(value) || islogical(value)) && isvector(value) && numel(value) <= 6
+    text = string(mat2str(value, 6)); %Short vectors, e.g. limits [-6 6]
 elseif isstring(value) && isscalar(value)
     text = """" + value + """";
 elseif ischar(value) && (isrow(value) || isempty(value))

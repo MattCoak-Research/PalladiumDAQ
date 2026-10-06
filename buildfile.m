@@ -267,13 +267,13 @@ function apidocTask(c)
 % Generate the API reference Markdown pages (DocsSrc/reference) from the help
 % comments in the code. The doc task then builds them into Docs/reference.
 
-%Prototype - a few representative classes, plus every class in the
-%namespaces listed
+%Classes listed individually, plus every class in the namespaces listed,
+%plus every instrument driver in the +Instruments folder (not
+%TestInstrument, which is a scratch driver for prototyping)
 classNames = ["Palladium.Core.Instrument", ...
-    "Palladium.Instruments.Keithley2000", ...
-    "Palladium.Instruments.Lakeshore331", ...
     "Palladium.Utilities.PathUtils", ...
-    NamespaceClasses("Palladium.Enums")];
+    NamespaceClasses("Palladium.Enums"), ...
+    FolderClasses(fullfile(c.Plan.RootFolder, "Palladium DAQ", "+Palladium", "+Instruments"), "Palladium.Instruments", "TestInstrument")];
 
 outputFolder = c.Task.Outputs.Path;
 if isfolder(outputFolder)
@@ -288,6 +288,16 @@ function names = NamespaceClasses(namespace)
 %Names of all the classes in a namespace (not including nested namespaces)
 ns = matlab.metadata.Namespace.fromName(namespace);
 names = string({ns.ClassList.Name});
+end
+
+function names = FolderClasses(folder, namespace, exclude)
+%Names of the classes defined by the .m files in one namespace folder (not
+%its subfolders), leaving out the class names in exclude. Reads the folder
+%rather than the namespace, which would also include any classes of the same
+%namespace in a user files folder on the path
+[~, classNames] = fileparts(string({dir(fullfile(folder, "*.m")).name}));
+classNames = setdiff(classNames, exclude, "stable");
+names = namespace + "." + classNames;
 end
 
 function pythonDir = PrepareBundledPython(pythonDir)
