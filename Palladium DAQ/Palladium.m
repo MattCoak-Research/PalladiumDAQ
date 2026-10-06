@@ -28,11 +28,11 @@ classdef Palladium < handle
 
         %Minor version number - semantic versioning used of form
         %major.minor.build, each of these are integers.
-        MinorVersionNo = 6;
+        MinorVersionNo = 7;
 
         %Build version number - semantic versioning used of form
         %major.minor.build, each of these are integers.
-        BuildVersionNo = 4;
+        BuildVersionNo = 0;
 
         %Author information
         AuthorString = "M.J. Coak, University of Birmingham";
