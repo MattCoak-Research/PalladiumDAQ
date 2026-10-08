@@ -17,6 +17,12 @@ buildtool -tasks               % list the tasks
 
 Running a task runs the tasks it depends on first. Tasks with declared inputs and outputs are *incremental*: buildtool skips them when their inputs and outputs are unchanged since their last successful run, and reports them as `Skipped (up-to-date)`. To force one to run again, delete one of its outputs.
 
+## Settings
+
+Every hardcoded name, path and option the build uses - folders, the author and description, the toolbox's supported MATLAB releases, installer names, the pinned DocMaker and bundled Python versions - is set in one place, the `Settings` function near the top of `buildfile.m`. Change values there rather than in the tasks. A buildfile's tasks can't share variables, so each task calls `cfg = Settings();`.
+
+A few values are repeated in the GitHub Actions workflows, which can't read `buildfile.m`: the toolbox and installer file paths in `release.yml`, and the Python version for `setup-python`. They are marked in `Settings`; keep them in step.
+
 ## Tasks
 
 | Task | What it does | Depends on |
@@ -60,7 +66,7 @@ The hardware tests in `Tests/Connected Hardware` need a real instrument connecte
 * Methods inherited from documented classes are listed and linked; methods that override a base class method borrow its help if they have none; one-line Categoricals converters get a generated description.
 * Documented class names in the Type column link to their pages.
 
-The classes documented are listed in `apidocTask` in `buildfile.m`: some individually, whole namespaces (currently `Palladium.Enums`), and every instrument driver file in `+Palladium/+Instruments` (`FolderClasses`, which reads the folder so that drivers in a user files folder on the path are not picked up). `TestInstrument`, a scratch driver for prototyping, is left out.
+The classes documented are set in `Settings` and assembled by `apidocTask` in `buildfile.m`: some individually, whole namespaces (currently `Palladium.Enums`), and every instrument driver file in `+Palladium/+Instruments` (`FolderClasses`, which reads the folder so that drivers in a user files folder on the path are not picked up). `TestInstrument`, a scratch driver for prototyping, is left out.
 
 ### gettingStarted - the toolbox's Getting Started guide
 
