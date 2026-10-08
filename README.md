@@ -33,6 +33,9 @@ This is a modular framework for laboratory data acquisition. A library of Instru
   <img width="800" alt="image" src="https://github.com/user-attachments/assets/5c005410-36a1-4481-869a-e02e7322fb36" />
 
 
+## Documentation
+Help and documentation files are bundled with the installation, and can also be viewed online:
+* [PalladiumDAQ Documentation](https://mattcoak-research.github.io/PalladiumDAQ/)
 
 
 ## System Requirements
@@ -43,6 +46,8 @@ PalladiumDAQ can be installed as a Toolbox inside a MATLAB environment (allows m
 ## Download
 Latest release download:
 * [PalladiumDAQ.mltbx](https://github.com/MattCoak-Research/PalladiumDAQ/releases/latest/download/PalladiumDAQ.mltbx)
+* [Windows installer](https://github.com/MattCoak-Research/PalladiumDAQ/releases/latest/download/Palladium.DAQ.Installer.-.Runtime.Web.Installer.exe)
+* [Linux installer](https://github.com/MattCoak-Research/PalladiumDAQ/releases/latest/download/Palladium.DAQ.Installer.-.Runtime.Web.Installer.install)
 
 ## Installation
 * Toolbox version - search "Palladium" in MATLAB's built in Add On Explorer (Home -> Add-Ons -> Explore Add-Ons), select the entry and then click Add.
@@ -52,6 +57,7 @@ Latest release download:
 
 
 * Toolbox version - manual install. Download the PalladiumDAQ.mltbx file in the Download section above. Double click the file to run (it will open via MATLAB) and it will install.
+* Standalone version (no MATLAB environment). Download the Installer for your operating system from the list above and run it.
 
 ## Run PalladiumDAQ
 
