@@ -153,9 +153,9 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             this.SetInstrumentList(instrsList);
 
             %Subscribe to events
-            addlistener(comp, 'Run', @(src,evnt)this.RequestRun(evnt.SweepDetails));
-            addlistener(comp, 'Abort', @(src,evnt)this.Abort());
-            addlistener(comp, 'InsertSmartTag', @(src,evnt)this.InsertSmartTagRequest(src, evnt, controller));
+            this.AddGuardedListener(comp, 'Run', @(src,evnt)this.RequestRun(evnt.SweepDetails));
+            this.AddGuardedListener(comp, 'Abort', @(src,evnt)this.Abort());
+            this.AddGuardedListener(comp, 'InsertSmartTag', @(src,evnt)this.InsertSmartTagRequest(src, evnt, controller));
 
             %Add a plotter as well, to the right
             this.Plotter = controller.AddNewPlotter(grid, Size="Medium", RegisterPlotter=false);    %Don't register the plotter centrally, as we will push data to it only when the sweep is running, and clear it on sweep start. This does mean, for now at least, that the Plotter is not hooked up
@@ -169,7 +169,7 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             this.Plotter.SetDefaultXAxis("Gate_Voltage_V");
             this.Plotter.SetDefaultYAxis(1, "Current_A");
             this.Plotter.UpdateVariables(this.GetHeaderNames());
-            ltr = addlistener(this.Plotter, 'AxesSelectionChange', @(src,evnt)this.PlotterAxesSelectionChange(src));
+            ltr = this.AddGuardedListener(this.Plotter, 'AxesSelectionChange', @(src,evnt)this.PlotterAxesSelectionChange(src));
             this.RegisterEventListener(ltr);
         end
 
@@ -803,7 +803,7 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
                 this.RunFromGUI(sweepDetails);
             catch err
                 if ~isempty(this.ParentController)
-                    this.ParentController.HandleError("Double gate sweep failed", err);
+                    this.ParentController.HandleCallbackError("Double gate sweep failed", err);
                 else
                     this.LogWarning("Double gate sweep failed: " + err.message);
                 end

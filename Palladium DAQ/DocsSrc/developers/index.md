@@ -22,3 +22,4 @@ Run them from MATLAB's Test Browser app, or with `runtests`. No hardware is need
 
 * [Build pipeline](build-pipeline.md) - how the toolbox, documentation and standalone application are built, and the GitHub Actions workflow
 * [Code and comment conventions](code-conventions.md) - the class layout and help comment style used throughout the code, which the API reference is generated from
+* [Error handling in the GUI](error-handling.md) - how errors in GUI callbacks and event listeners are caught and reported, and how to hook up new GUI code

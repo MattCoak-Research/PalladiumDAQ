@@ -41,11 +41,11 @@ classdef MagnetController < Palladium.Core.InstrumentControlBase
             plotter.SetDefaultXAxis("Time (mins)");
 
             %Subscribe to events
-            addlistener(comp, 'HoldCommandGiven', @(src,evnt)this.HoldCommandGiven(src,evnt));            
-            addlistener(comp, 'RampToZeroCommandGiven', @(src,evnt)this.RampToZeroCommandGiven(src,evnt));         
-            addlistener(comp, 'ToSetPointCommandGiven', @(src,evnt)this.ToSetPointCommandGiven(src,evnt));          
-            addlistener(comp, 'RampRateChanged', @(src,evnt)this.RampRateChanged(src,evnt));            
-            addlistener(comp, 'SetPointChanged', @(src,evnt)this.SetPointChanged(src,evnt));                 
+            this.AddGuardedListener(comp, 'HoldCommandGiven', @(src,evnt)this.HoldCommandGiven(src,evnt));            
+            this.AddGuardedListener(comp, 'RampToZeroCommandGiven', @(src,evnt)this.RampToZeroCommandGiven(src,evnt));         
+            this.AddGuardedListener(comp, 'ToSetPointCommandGiven', @(src,evnt)this.ToSetPointCommandGiven(src,evnt));          
+            this.AddGuardedListener(comp, 'RampRateChanged', @(src,evnt)this.RampRateChanged(src,evnt));            
+            this.AddGuardedListener(comp, 'SetPointChanged', @(src,evnt)this.SetPointChanged(src,evnt));                 
         end
 
         function HoldCommandGiven(this, ~, ~)

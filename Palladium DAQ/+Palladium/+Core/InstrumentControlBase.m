@@ -8,6 +8,7 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
     %% Properties (Public)
     properties (Access = public)
         ControlDetailsStruct;
+        Controller;                 %Palladium.Core.Controller - set by InstrumentController when the control is added, used to route callback errors to the error handling
         FileNamePropertyDelimiters = "[]";
         DecimalPointReplacementCharacter = "p";
         ProgrammeTargetUpdateTime;
@@ -144,6 +145,16 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
 
     %% Methods (Protected)
     methods (Access = protected)
+
+        function ltr = AddGuardedListener(this, src, eventName, callback)
+            %Use instead of addlistener in Instrument Controls. Errors
+            %thrown in the callback are caught and sent to the Controller's
+            %error handling - with a raw addlistener MATLAB just prints an
+            %orange warning, even (especially) while the loop is running.
+            %Returns the listener handle like addlistener does, so it can be
+            %passed to RegisterEventListener
+            ltr = Palladium.Core.ErrorGuard.AddListener(src, eventName, callback, Controller = this.Controller, Context = "Error in " + this.GetName() + " (" + string(eventName) + ")");
+        end
 
         function stringLine = CreateDataRowHeaderString(this)
             %Create a line of metadata to log to a datafile that has

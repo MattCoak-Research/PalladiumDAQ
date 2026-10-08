@@ -40,7 +40,22 @@ classdef Logger < handle
     %% Methods (Static, Public)
     methods (Static, Access = public)
         
-        function [Halt, suppressError] = HandleError(message, err, uiFigureHandle)
+        function [Halt, suppressError] = HandleError(message, err, uiFigureHandle, Settings)
+            %Show the error dialogue and return what the user chose.
+            %By default (an error in the measurement loop or something that
+            %could affect it) the options are Stop Measurements, Stop & Go to
+            %Code, Suppress Error and Ignore. For a Standalone error - in a
+            %window that does not interact with the measurement loop, e.g.
+            %the Data Viewer - there is nothing to stop, so the options are
+            %OK, Go to Code, Suppress Error and Ignore, and Halt is always
+            %false.
+            arguments
+                message;
+                err;
+                uiFigureHandle;
+                Settings.Standalone (1,1) logical = false;
+            end
+
             Halt = false;
             suppressError = false;
 
@@ -71,8 +86,15 @@ classdef Logger < handle
                 ErrorString = string(sprintf("Error in Matlab function " + TopErrorName + " - line " + num2str(TopErrorLine) + ":\n\n")) + string(message) + string(sprintf("\n\nError in user function " + UserErrorName + " - line " + num2str(UserErrorLine) + "."));
             end
 
-            %Write the error message to the logfile
-            Palladium.Logging.Logger.LogError(err, message);
+            %No logging here - the caller (Controller.HandleError) has
+            %already logged the error, and doing it again here printed
+            %every error twice and wrote it to the log file twice
+
+            if Settings.Standalone
+                suppressError = Palladium.Logging.Logger.ShowStandaloneErrorDialogue(ErrorString, err, uiFigureHandle, ...
+                    [string(TopErrorFile), string(UserErrorFile)], [TopErrorLine, UserErrorLine], [string(TopErrorName), string(UserErrorName)]);
+                return;
+            end
 
             if isempty(uiFigureHandle)  %If we do not have a uiFigure GUI to create modal dialogue boses in..
                 %Show a normal dialogue box asking the user what they want
@@ -126,10 +148,10 @@ classdef Logger < handle
                     case "Stop & Go to Code"
                         Halt = true;
                         fprintf(2, '%s\n', getReport(err, 'extended'));
-                        %#exclude matlab.desktop.editor.openAndGoToLine
-                        matlab.desktop.editor.openAndGoToLine(TopErrorFile, TopErrorLine);
-                        %#exclude matlab.desktop.editor.openAndGoToLine
-                        matlab.desktop.editor.openAndGoToLine(UserErrorFile, UserErrorLine);
+                        Palladium.Logging.Logger.GoToCode(TopErrorFile, TopErrorLine, TopErrorName);
+                        if ~strcmp(UserErrorFile, TopErrorFile) || UserErrorLine ~= TopErrorLine
+                            Palladium.Logging.Logger.GoToCode(UserErrorFile, UserErrorLine, UserErrorName);
+                        end
                     case "Suppress Error"
                         suppressError = true;
                     case "Ignore"
@@ -155,6 +177,7 @@ classdef Logger < handle
                 Settings.GUIMessageLevel                {mustBeTextScalar, mustBeMember(Settings.GUIMessageLevel, ["Off", "Debug", "Info", "Warning", "Error"])}            = "Warning";    %Messages at or above this severity level will be passed on to GUI
                 Settings.LogFileMessageLevel            {mustBeTextScalar, mustBeMember(Settings.LogFileMessageLevel, ["Off", "Debug", "Info", "Warning", "Error"])}        = "Debug";
                 Settings.PrintStackTraceInCommandWindow (1,1) logical = false;
+                Settings.SkipGUI (1,1) logical = false;     %True to leave the message out of the GUI message area / status light, e.g. for an error in a window unrelated to the measurement loop
             end
 
             %Option to have a full verbose message to log to e.g. file but
@@ -208,7 +231,7 @@ classdef Logger < handle
             end
 
             %Logging to GUI
-            if Palladium.Logging.Logger.IsSeverityLevelAboveCutoff(level, GUIMessageLevel)
+            if ~Settings.SkipGUI && Palladium.Logging.Logger.IsSeverityLevelAboveCutoff(level, GUIMessageLevel)
                 Palladium.Logging.Logger.LogToGUI(level, string(message), Controller);
             end
 
@@ -221,15 +244,18 @@ classdef Logger < handle
 
         end
 
-        function LogError(err, message)
+        function LogError(err, message, Settings)
+            %Log an error, with its full stack in the log file.
+            %Pass SkipGUI = true to keep it out of the GUI status light and message area.
             arguments
                 err;
                 message = [];
+                Settings.SkipGUI (1,1) logical = false;
             end
             try
                 report = string(getReport(err, 'extended'));
                 msg = string(err.message) + " : " + message;
-                Palladium.Logging.Logger.Log("Error", msg, "FullMessage", report, "LogFileMessageLevel", "Error", "CommandWindowMessageLevel", "Error", "GUIMessageLevel", "Error");
+                Palladium.Logging.Logger.Log("Error", msg, "FullMessage", report, "LogFileMessageLevel", "Error", "CommandWindowMessageLevel", "Error", "GUIMessageLevel", "Error", "SkipGUI", Settings.SkipGUI);
             catch err
                 warning("LogErrorWarning:LoggingFailed", "Error thrown while attempting to log.. another error");
             end
@@ -250,6 +276,76 @@ classdef Logger < handle
 
             %Construct the full path
             path = fullfile(logFileDirectory, fileName);
+        end
+
+        function suppressError = ShowStandaloneErrorDialogue(errorString, err, uiFigureHandle, files, lines, names)
+            %Dialogue for an error in a window that does not interact with
+            %the measurement loop: nothing to stop, so the options are OK,
+            %Go to Code (not in a deployed app, which has no editor),
+            %Suppress Error and Ignore. Returns true if the user chose to
+            %suppress this error from now on.
+            %files, lines and names hold the top stack frame, then the
+            %first user-code frame, for Go to Code.
+            suppressError = false;
+
+            title = "Error";
+            if isempty(uiFigureHandle)
+                %questdlg only has room for three buttons, so there is no
+                %Ignore here - it would do the same as OK anyway
+                options = "OK";
+                if ~isdeployed
+                    options(end+1) = "Go to Code";
+                end
+                options(end+1) = "Suppress Error";
+                result = string(questdlg(errorString, title, options(:)', "OK"));
+            else
+                options = "OK";
+                if ~isdeployed
+                    options(end+1) = "Go to Code";
+                end
+                options = [options, "Suppress Error", "Ignore"];
+                result = string(uiconfirm(uiFigureHandle, Palladium.Utilities.GUIUtils.MessageToHTML(errorString), title, ...
+                    "Options", options, "Icon", "warning", "Interpreter", "HTML", ...
+                    "DefaultOption", 1, "CancelOption", numel(options)));
+            end
+
+            %OK, Ignore, or the dialogue being closed all just dismiss it
+            if result == "Suppress Error"
+                suppressError = true;
+            elseif result == "Go to Code"
+                fprintf(2, '%s\n', getReport(err, 'extended'));
+                Palladium.Logging.Logger.GoToCode(files(1), lines(1), names(1));
+                if files(2) ~= files(1) || lines(2) ~= lines(1)
+                    Palladium.Logging.Logger.GoToCode(files(2), lines(2), names(2));
+                end
+            end
+        end
+
+        function GoToCode(file, line, functionName)
+            %Open the editor at a line of code, for the Stop & Go to Code option of the error dialogue.
+            %Ordinary code files open in the MATLAB editor at the line.
+            %App Designer (.mlapp) files cannot be opened at a line by the
+            %editor API, so they are opened in App Designer, and the
+            %function and line number are printed to find the spot in Code
+            %View - the line number matches the one shown there. Never
+            %throws: failing to open the editor must not break error handling.
+            try
+                [~, ~, ext] = fileparts(file);
+                if strcmpi(ext, ".mlapp")
+                    %The editor functions are not available in a deployed app,
+                    %and the compiler needs telling to leave them out
+                    if ~isdeployed
+                        %#exclude appdesigner
+                        appdesigner(file);
+                    end
+                    fprintf(2, 'Error is in an App Designer file: %s\n    function %s, line %d (as numbered in Code View)\n', file, functionName, line);
+                elseif ~isdeployed
+                    %#exclude matlab.desktop.editor.openAndGoToLine
+                    matlab.desktop.editor.openAndGoToLine(file, line);
+                end
+            catch e
+                warning("GoToCodeWarning:OpenFailed", "%s", "Could not open " + string(file) + " at line " + string(line) + ": " + string(e.message));
+            end
         end
 
         function str = GetLevelText(level)

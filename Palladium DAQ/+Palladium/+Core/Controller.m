@@ -59,6 +59,7 @@ classdef Controller < handle
         Closing = false;    %Will get set by an attached GUI if it is in the process of being closed, to tell us to stop sending events to a now-invalid GUI
        
         SuppressedErrorMessages = {};
+        ErrorDialogOpen = false;    %True while an error dialogue is showing, so further errors get logged without stacking more dialogues
         UIFigureHandle = []; %Needed for error handling - need to know if we are throwing a modal dialogue box in an attached UIFigure, or a free floating normal one if there is no listening View
     end
 
@@ -87,6 +88,9 @@ classdef Controller < handle
 
             this.DebugMode = Settings.DebugMode;
 
+            %Register as the default place for GUI callback errors to go - see ErrorGuard.HandleError
+            Palladium.Core.ErrorGuard.DefaultController(this);
+
             this.ApplicationDir = Settings.ApplicationDir;
 
             %Create a helper class for managing Instruments
@@ -105,14 +109,17 @@ classdef Controller < handle
 
             %Create a SequenceViewerController
             this.SequenceEditorController = Palladium.Sequence.SequenceEditorController();
+            this.SequenceEditorController.Controller = this;
 
             %Hook up events
-            addlistener(this.InstrumentController, "InstrumentsChanged", @(s,e)this.SequenceEditorController.InstrumentsChanged(e));      
-            addlistener(this.SequenceEditorController, "SingleCommandQueue", @(s,args)this.CacheInstrumentCommand(args.InstrumentRef, string(args.CommandString), args.ControlName, FunctionOnComplete = args.FunctionToRunOnComplete)); 
-            addlistener(this.SequenceEditorController, "SequenceQueue", @(s,args)this.QueueSequence(args));     
-            addlistener(this.SequenceEditorController, "SequenceAbort", @(s, args)this.AbortSequence());  
-            addlistener(this.CommandController, "CommandsFinished", @(s, args)this.SequenceEditorController.CommandsFinished());    
-            addlistener(this.CommandController, "DataFileCommandRun", @(s, args)this.SetFilePathWhileRunning(args.FileWriteDetails.FullPath, args.FileWriteDetails.SaveFile));    
+            %(Guarded, so that errors in the handlers are caught and
+            %handled instead of just becoming warnings - see ErrorGuard)
+            Palladium.Core.ErrorGuard.AddListener(this.InstrumentController, "InstrumentsChanged", @(s,e)this.SequenceEditorController.InstrumentsChanged(e), Controller = this);
+            Palladium.Core.ErrorGuard.AddListener(this.SequenceEditorController, "SingleCommandQueue", @(s,args)this.CacheInstrumentCommand(args.InstrumentRef, string(args.CommandString), args.ControlName, FunctionOnComplete = args.FunctionToRunOnComplete), Controller = this);
+            Palladium.Core.ErrorGuard.AddListener(this.SequenceEditorController, "SequenceQueue", @(s,args)this.QueueSequence(args), Controller = this);
+            Palladium.Core.ErrorGuard.AddListener(this.SequenceEditorController, "SequenceAbort", @(s, args)this.AbortSequence(), Controller = this);
+            Palladium.Core.ErrorGuard.AddListener(this.CommandController, "CommandsFinished", @(s, args)this.SequenceEditorController.CommandsFinished(), Controller = this);
+            Palladium.Core.ErrorGuard.AddListener(this.CommandController, "DataFileCommandRun", @(s, args)this.SetFilePathWhileRunning(args.FileWriteDetails.FullPath, args.FileWriteDetails.SaveFile), Controller = this);
         end
     end
 
@@ -156,10 +163,10 @@ classdef Controller < handle
 
                 %Subscribe to events
                 if Settings.RegisterPlotter
-                    addlistener(pltr, 'AxesSelectionChange', @(src,evnt)this.PlotterAxesSelectionChange(src));
+                    Palladium.Core.ErrorGuard.AddListener(pltr, 'AxesSelectionChange', @(src,evnt)this.PlotterAxesSelectionChange(src), Controller = this);
                 end
 
-                addlistener(pltr, 'SavePlot', @(src,evnt)this.SavePlot(evnt));
+                Palladium.Core.ErrorGuard.AddListener(pltr, 'SavePlot', @(src,evnt)this.SavePlot(evnt), Controller = this);
 
             catch err
                 this.HandleError("Error adding new plotter", err);
@@ -195,7 +202,7 @@ classdef Controller < handle
                 pltr.AttachContextMenu(this.UIFigureHandle);
 
                 %Subscribe to events
-                addlistener(pltr, 'SavePlot', @(src,evnt)this.SavePlot(evnt));
+                Palladium.Core.ErrorGuard.AddListener(pltr, 'SavePlot', @(src,evnt)this.SavePlot(evnt), Controller = this);
 
                 %Simple plotters do not get registered for auto-updates.
                 %Whatever made them has to push data to them itself.
@@ -268,7 +275,60 @@ classdef Controller < handle
             end
         end
 
-        function Halt = HandleError(this, message, error)
+        function tf = IsClosing(this)
+            tf = this.Closing;
+        end
+
+        function HandleCallbackError(this, context, err, Settings)
+            %Single entry point for errors caught in event listeners, GUI
+            %callbacks, and the measurement loop itself (see ErrorGuard for
+            %why callbacks need this). Logs the error, shows the error
+            %dialogue, and stops the measurement loop if the user chooses to.
+            %A Standalone error, from a window that does not interact with
+            %the measurement loop (e.g. the Data Viewer), gets a dialogue
+            %without the stop option, and never touches the loop.
+            arguments
+                this;
+                context;
+                err;
+                Settings.Standalone (1,1) logical = false;
+                Settings.Figure = [];
+            end
+
+            if this.Closing && ~Settings.Standalone
+                %Just break out of the loop if we've closed the window - it
+                %can trigger silly errors about event listeners still being
+                %subscribed which we don't care about
+                this.TimingLoopController.CloseTimer();
+                return;
+            end
+
+            halt = this.HandleError(context, err, Standalone = Settings.Standalone, Figure = Settings.Figure);
+            if halt
+                Palladium.Logging.Logger.Log("Info", "Measurements aborted by User from Error Dialogue");
+
+                %Only wind the loop down if it is actually running - a
+                %callback error while idle should not re-close instruments
+                if this.TimingLoopController.State ~= "Ready"
+                    this.TimingLoopController.OnStopped();
+                end
+            end
+        end
+
+        function Halt = HandleError(this, message, error, Settings)
+            %Log an error and show the error dialogue, returning whether the
+            %user chose to stop the measurements. With Standalone = true the
+            %error is from a window that does not interact with the loop, so
+            %the dialogue has no stop option, Halt is false, and the main
+            %window's status light is left alone.
+            arguments
+                this;
+                message;
+                error;
+                Settings.Standalone (1,1) logical = false;
+                Settings.Figure = [];    %Window to show the dialogue in (figure, or a component in one). Empty, or no longer valid, means the main window
+            end
+
             %Assemble a full message from the message sent into the logger,
             %and the actual error details
             msg = string(message) + ": " + string(error.message);
@@ -280,13 +340,34 @@ classdef Controller < handle
                 return;
             end
 
+            %The timer keeps ticking underneath a modal error dialogue, so
+            %more errors can arrive while one is being handled. Log those, but
+            %don't stack up more dialogues
+            if this.ErrorDialogOpen
+                Halt = false;
+                try
+                    Palladium.Logging.Logger.LogError(error, message, SkipGUI = Settings.Standalone);
+                catch
+                    %Nothing more we can do
+                end
+                return;
+            end
+
+            %Held for the whole of error handling, not just the dialogue:
+            %ShowStatus below fires events whose listeners could themselves
+            %throw, which would otherwise loop back in here
+            this.ErrorDialogOpen = true;
+            resetFlag = onCleanup(@() this.ClearErrorDialogOpen());
+
             %Message about the error - Try to display a red light error status in the programme, and Log, but
             %don't fuss if that fails, just ignore the exception and throw
             %a warning
             try
-                this.ShowStatus("Red", "Error: " + msg);
-                drawnow();
-                Palladium.Logging.Logger.Log("Error", msg, "FullMessage", msg + " : " + string(getReport(error, "extended", "hyperlinks", "on")));
+                if ~Settings.Standalone
+                    this.ShowStatus("Red", "Error: " + msg);
+                    drawnow();
+                end
+                Palladium.Logging.Logger.Log("Error", msg, "FullMessage", msg + " : " + string(getReport(error, "extended", "hyperlinks", "on")), "SkipGUI", Settings.Standalone);
             catch e
                 warning("HandleErrorWarning:HandlingFailed", "%s", "An error was thrown while.. trying to handle an error.. :" + string(e.message));
             end
@@ -297,7 +378,11 @@ classdef Controller < handle
             %Pass on the error to the Error Handler to show a dialogue box
             %- user can choose whether to stop the measurement loop, and
             %separately whether to suppress this error going forward
-            [Halt, suppressError] = Palladium.Logging.Logger.HandleError(message, error, this.UIFigureHandle);
+            %Dialogue goes in the requested window if there is a live one,
+            %else on the main window if there is a live one, else it is a
+            %free-floating box (e.g. the main window has been closed)
+            figureHandle = this.ResolveDialogueFigure(Settings.Figure);
+            [Halt, suppressError] = Palladium.Logging.Logger.HandleError(message, error, figureHandle, Standalone = Settings.Standalone);
 
             %User could have chosen to Suppress this error message in the
             %dialogue box, so it will not be shown in the future - handle
@@ -652,21 +737,8 @@ classdef Controller < handle
             %function here to avoid duplicating the code of handling an
             %error specifically in the Measurement Loop
             function CatchMeasurementLoopError(this, e)
-                if(this.Closing)
-                    %Just break out of the loop if we've closed the
-                    %window - it can trigger silly errors about
-                    %event listeners still being subscribed which I
-                    %don't care about
-                    this.TimingLoopController.CloseTimer();
-                    return;
-                else
-                    %Show error message and ask if we want to stop measurements
-                    halt = this.HandleError("Error in main measurement loop", e);
-                    if(halt)
-                        Palladium.Logging.Logger.Log("Info", "Measurements aborted by User from Error Dialogue");
-                        this.TimingLoopController.OnStopped();
-                    end
-                end
+                %Show error message and ask if we want to stop measurements
+                this.HandleCallbackError("Error in main measurement loop", e);
             end
         end
 
@@ -1012,6 +1084,35 @@ classdef Controller < handle
                 this.DataTable = dataRow;
             else
                 this.DataTable = [this.DataTable; dataRow];
+            end
+        end
+
+        function figureHandle = ResolveDialogueFigure(this, requested)
+            %The uifigure to show an error dialogue in: the requested one if
+            %given and still open, otherwise the main window, otherwise empty
+            figureHandle = [];
+            if ~isempty(requested)
+                try
+                    candidate = ancestor(requested, "figure");
+                    if ~isempty(candidate) && isvalid(candidate) && matlab.ui.internal.isUIFigure(candidate)
+                        figureHandle = candidate;
+                        return;
+                    end
+                catch
+                    %Deleted or not a UI object - use the main window
+                end
+            end
+
+            if this.HasGUIWindow()
+                figureHandle = this.UIFigureHandle;
+            end
+        end
+
+        function ClearErrorDialogOpen(this)
+            %Used by an onCleanup in HandleError, so the flag is reset even
+            %if showing the dialogue itself errors
+            if isvalid(this)
+                this.ErrorDialogOpen = false;
             end
         end
 

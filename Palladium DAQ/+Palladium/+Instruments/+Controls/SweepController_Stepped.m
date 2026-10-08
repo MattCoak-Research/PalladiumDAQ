@@ -117,17 +117,17 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
             comp.SetTitle(instrRef.Name + " Sweep Control");
 
             %Subscribe to events
-            addlistener(comp, 'Run', @(src,evnt)this.SweepRun());
-            addlistener(comp, 'Abort', @(src,evnt)this.SweepAbort());
-            addlistener(comp, 'SweepDataChange', @(src,evnt)this.SweepDataChanged(src, evnt));
-            addlistener(comp, 'InsertSmartTag', @(src,evnt)this.InsertSmartTagRequest(src, evnt, controller));
+            this.AddGuardedListener(comp, 'Run', @(src,evnt)this.SweepRun());
+            this.AddGuardedListener(comp, 'Abort', @(src,evnt)this.SweepAbort());
+            this.AddGuardedListener(comp, 'SweepDataChange', @(src,evnt)this.SweepDataChanged(src, evnt));
+            this.AddGuardedListener(comp, 'InsertSmartTag', @(src,evnt)this.InsertSmartTagRequest(src, evnt, controller));
 
             %And to the event fired when instrument properties change! Note
             %that we have to store and register this listener handle
             %properly, or when we remove this control  the orphaned listener still lives on the instrument.
             %When you then change a dropdown (e.g., SourceMode), the PostSet → PropertyChanged event fires, the orphaned listener
             %tries to call RefreshUnitsAndLimits() on a deleted handle object, and MATLAB crashes.
-            ltr = addlistener(instrRef, 'PropertyChanged', @(src,evnt)this.RefreshUnitsAndLimits());
+            ltr = this.AddGuardedListener(instrRef, 'PropertyChanged', @(src,evnt)this.RefreshUnitsAndLimits());
             this.RegisterEventListener(ltr);
 
             %Set up the defaults and populate parameters
@@ -141,7 +141,7 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
                     this.Plotter = controller.AddNewPlotter(grid, Size="Medium", RegisterPlotter=false);    %Don't register the plotter centrally, as we will push data to it only when the sweep is running, and clear it on sweep start. This does mean, for now at least, that the Plotter is not hooked up
                     this.Plotter.Layout.Row = 2;
                     this.Plotter.Layout.Column = 4;
-                    ltr = addlistener(this.Plotter, 'AxesSelectionChange', @(src,evnt)this.PlotterAxesSelectionChange(src));
+                    ltr = this.AddGuardedListener(this.Plotter, 'AxesSelectionChange', @(src,evnt)this.PlotterAxesSelectionChange(src));
                     this.RegisterEventListener(ltr);
                 case("Simple")
                     this.Plotter = controller.AddNewSimplePlotter(grid, "Medium");

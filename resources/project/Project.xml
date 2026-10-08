@@ -317,6 +317,13 @@
                             </Category>
                         </Info>
                     </File>
+                    <File Location="ErrorGuard.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
                 </File>
                 <File Location="+DataWriting">
                     <Info/>
@@ -1129,6 +1136,13 @@
                             </Category>
                         </Info>
                     </File>
+                    <File Location="test_ErrorHandling.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="test"/>
+                            </Category>
+                        </Info>
+                    </File>
                 </File>
                 <File Location="Unit Tests">
                     <Info/>
@@ -1462,6 +1476,27 @@
                                 </Category>
                             </Info>
                         </File>
+                        <File Location="ErrorGuardTestSource.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="design"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="MockErrorController.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="design"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_ErrorGuard.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
                     </File>
                     <File Location="DataWriting">
                         <Info/>
@@ -1679,6 +1714,12 @@
                 <DIR_SIGNIFIER Location="1">
                     <Info/>
                 </DIR_SIGNIFIER>
+                <File Location="developers">
+                    <Info/>
+                    <DIR_SIGNIFIER Location="1">
+                        <Info/>
+                    </DIR_SIGNIFIER>
+                </File>
             </File>
             <File Location="ExamplesAndTemplates">
                 <Info/>
