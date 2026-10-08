@@ -44,10 +44,17 @@ PalladiumDAQ can be installed as a Toolbox inside a MATLAB environment (allows m
  - To run PalladiumDAQ Standalone Version, the MATLAB Runtime (R2026b) is required. This is bundled with some installers (see Installation & Downloads sections) or can be downloaded from [Mathworks Downloads](https://uk.mathworks.com/products/compiler/matlab-runtime.html) (no MATLAB licence required).
 
 ## Download
-Latest release download:
-* [PalladiumDAQ.mltbx](https://github.com/MattCoak-Research/PalladiumDAQ/releases/latest/download/PalladiumDAQ.mltbx)
-* [Windows installer](https://github.com/MattCoak-Research/PalladiumDAQ/releases/latest/download/Palladium.DAQ.Installer.-.Runtime.Web.Installer.exe)
-* [Linux installer](https://github.com/MattCoak-Research/PalladiumDAQ/releases/latest/download/Palladium.DAQ.Installer.-.Runtime.Web.Installer.install)
+Latest release downloads:
+* MATLAB Toolbox:
+  * [PalladiumDAQ.mltbx](https://github.com/MattCoak-Research/PalladiumDAQ/releases/latest/download/PalladiumDAQ.mltbx)
+* Windows:
+  * [Web Installer](https://github.com/MattCoak-Research/PalladiumDAQ/releases/latest/download/Palladium.DAQ.Installer.-.Runtime.Web.Installer.exe)
+  * [Offline Installer - Runtime Bundled](https://github.com/MattCoak-Research/PalladiumDAQ/releases/latest/download/Palladium.DAQ.Installer.-.Runtime.Bundled.exe)
+  * [Offline Installer - No Runtime](https://github.com/MattCoak-Research/PalladiumDAQ/releases/latest/download/Palladium.DAQ.Installer.-.No.Runtime.exe)
+* Linux:
+  * [Web installer](https://github.com/MattCoak-Research/PalladiumDAQ/releases/latest/download/Palladium.DAQ.Installer.-.Runtime.Web.Installer.install)
+  * [Offline Installer - Runtime Bundled](https://github.com/MattCoak-Research/PalladiumDAQ/releases/latest/download/Palladium.DAQ.Installer.-.Runtime.Bundled.install)
+  * [Offline Installer - No Runtime](https://github.com/MattCoak-Research/PalladiumDAQ/releases/latest/download/Palladium.DAQ.Installer.-.No.Runtime.install)
 
 ## Installation
 * Toolbox version - search "Palladium" in MATLAB's built in Add On Explorer (Home -> Add-Ons -> Explore Add-Ons), select the entry and then click Add.
