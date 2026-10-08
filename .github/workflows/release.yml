@@ -149,8 +149,7 @@ jobs:
           tasks: deploy -skip check -skip test -skip packageToolbox -skip doc -skip apidoc -skip gettingStarted
       # Saves the installer as an artifact, named per OS so the two don't
       # collide. deploy makes three installers (Runtime Bundled, Runtime Web,
-      # No Runtime); only the web one is published - it is small, and
-      # downloads the MATLAB Runtime when run. The ".*" matches whatever
+      # No Runtime). The ".*" matches whatever
       # extension this OS's installer has (.exe on Windows, .install on
       # Linux). retention-days: 5 deletes the artifact after 5 days - the
       # release keeps its own copy
@@ -158,6 +157,18 @@ jobs:
         with:
           name: installer_${{matrix.os}}
           path: "Release/Package/Runtime Web Installer/Palladium DAQ Installer - Runtime Web Installer.*"
+          retention-days: 5
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer_runtime_bundled_${{matrix.os}}
+          path: "Release/Package/Runtime Web Installer/Palladium DAQ Installer - Runtime Bundled.*"
+          retention-days: 5
+          if-no-files-found: error
+       - uses: actions/upload-artifact@v4
+         with:
+          name: installer_runtime_bundled_${{matrix.os}}
+          path: "Release/Package/Runtime Web Installer/Palladium DAQ Installer - No Runtime.*"
           retention-days: 5
           if-no-files-found: error
 
