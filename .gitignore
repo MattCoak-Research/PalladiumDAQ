@@ -46,7 +46,7 @@ Palladium DAQ/DocsSrc/reference/
 Tools/DocScreenshots/work/
 #buildtool's cache for incremental builds
 .buildtool/
-#Build output: toolbox, standalone application and installers (buildtool package, deploy)
+#Build output: toolbox, standalone application and installers (buildtool packageToolbox, deploy)
 Release/
 #Personal config of a source checkout - created by the Config Entry window on first run
 /Palladium DAQ/Config.json

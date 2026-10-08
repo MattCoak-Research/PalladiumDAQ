@@ -1,0 +1,242 @@
+# Builds and publishes a release: the toolbox, the documentation (as a zip and
+# as a GitHub Pages site) and the standalone installers for Windows and Linux.
+#
+# It does NOT run the tests - test.yml has already done that on the commit
+# being tagged, when it was pushed to / merged into main. (Nothing enforces
+# that order, so only tag commits that have passed.)
+#
+# Jobs and how they depend on each other:
+#
+#   Toolbox ----+--> Installer (Linux, Windows) --+--> Release
+#               |                                 |
+#               +-----------------------------------   (Toolbox -> Release too)
+#               +--> Pages
+#
+# Jobs share files through "artifacts": a job uploads files, a later job
+# (which must list it under "needs") downloads them. Each job runs on its own
+# fresh machine, so nothing else is shared between them.
+name: Release (toolbox, docs and installers)
+
+# What starts this workflow
+on:
+  push:
+    # Only pushing a tag - not a branch push. Tags are made by hand, named
+    # after the version
+    tags:
+      - "v*.*"   # i.e. Releases - manually tag releases with version names 'v3.6.0' to trigger this - also matches v1.2.3
+
+jobs:
+  # Builds the documentation and the toolbox file. Linux only: the output
+  # doesn't depend on the OS, so building it more than once would be a waste
+  Toolbox:
+    # Uses the "Palladium Build Environment" set up in the repo's Settings.
+    # It gives this job access to that environment's secrets and rules. (If
+    # the environment limits which branches or tags may deploy, tags must be
+    # allowed, or the job is blocked)
+    environment: "Palladium Build Environment"
+    runs-on: ubuntu-latest
+    # The job needs to read the repo, and nothing more. (Publishing the
+    # release, which needs write access, is done by the Release job)
+    permissions:
+      contents: read
+    # Environment variables, for every step of this job
+    env:
+      # DocMaker converts Markdown to HTML by sending it to GitHub's Markdown
+      # API, which limits anonymous requests. It reads this variable for a
+      # token to make the limit bigger. The job's own built-in token is
+      # enough (it needs no permissions of its own, only to be present)
+      DOCMAKER_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      # Downloads the repo's code at the tagged commit
+      - uses: actions/checkout@v4
+      # DocMaker's docrun runs the code examples in the docs and captures any
+      # figures they draw. Figures need a display, and a Linux runner has
+      # none. So: install Xvfb (a virtual, in-memory screen), start it in the
+      # background as display :99, and set DISPLAY for all the later steps
+      # (by appending to $GITHUB_ENV) so MATLAB finds it. Windows and macOS
+      # runners already have a desktop session
+      - name: Start a display server
+        shell: bash
+        run: |
+          sudo apt-get install -y xvfb
+          Xvfb :99 &
+          echo "DISPLAY=:99" >> $GITHUB_ENV
+      # Installs MATLAB with the Instrument Control Toolbox, which the code
+      # (and so the doc build, which runs it) uses. No Python step: nothing
+      # in this job needs Python
+      - uses: matlab-actions/setup-matlab@v2.3.1
+        with:
+          products: Instrument_Control_Toolbox
+      # Runs "buildtool packageToolbox" with the tasks it would normally
+      # depend on (check and test) skipped. The doc task, which the package
+      # depends on, is NOT skipped, so the documentation is built too. Tests
+      # already ran on the push/PR to main
+      - uses: matlab-actions/run-build@v2
+        with:
+          tasks: packageToolbox -skip check -skip test
+      # Saves the toolbox file as an artifact called "toolbox", for the
+      # Release job. if-no-files-found: error makes a missing file fail the
+      # job here, rather than silently releasing without it
+      - uses: actions/upload-artifact@v4
+        with:
+          name: toolbox
+          path: "Release/Toolbox/PalladiumDAQ.mltbx"
+          if-no-files-found: error
+      # Saves the generated documentation as an artifact called "docs". Three
+      # later jobs use it: Installer (the installers bundle the docs), Pages
+      # (publishes it as a website) and Release (attaches it as a zip)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docs
+          path: "Palladium DAQ/Docs"
+          if-no-files-found: error
+
+  # Builds the standalone application and its installer, on each OS - an
+  # installer only works on the OS it was compiled on
+  Installer:
+    # Wait for Toolbox to finish (and succeed): the docs it builds are
+    # needed here
+    needs: Toolbox
+    environment: "Palladium Build Environment"
+    strategy:
+      # Don't cancel the other OS's build if one fails
+      fail-fast: false
+      matrix:
+        # One job per OS, in parallel. ${{matrix.os}} below is each in turn
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{matrix.os}}
+    permissions:
+      contents: read
+    env:
+      # The licence token that lets MATLAB Compiler run on a CI machine, which
+      # has no licence of its own. It is a secret stored in the repo's
+      # settings (in the environment above), and is read by MATLAB when it
+      # starts. If it is missing or invalid, installing MATLAB_Compiler below
+      # fails
+      MLM_LICENSE_TOKEN: ${{secrets.MLM_LICENSE_TOKEN}}
+    steps:
+      - uses: actions/checkout@v4
+      # The installer bundles the built docs (the app's Help button opens
+      # them), but the docs are generated, not in git. Rather than build them
+      # again on each OS (the build needs a display and takes time), download
+      # the ones the Toolbox job built into the folder the build expects
+      - uses: actions/download-artifact@v4
+        with:
+          name: docs
+          path: "Palladium DAQ/Docs"
+      # MATLAB, plus MATLAB_Compiler, which compiles the standalone
+      # application and builds its installer
+      - uses: matlab-actions/setup-matlab@v2.3.1
+        with:
+          products: |
+            Instrument_Control_Toolbox
+            MATLAB_Compiler
+      # Only the Windows build needs Python: PrepareBundledPython runs pip to
+      # assemble the Python bundled in the installer. (The Linux build doesn't
+      # bundle one.) "if" skips the step on Linux
+      - uses: actions/setup-python@v6
+        if: runner.os == 'Windows'
+        with:
+          python-version: '3.14'
+      # Runs "buildtool deploy", which compiles the app and makes the
+      # installers. deploy depends on other tasks, which "-skip" turns off:
+      # check and test (done by test.yml), packageToolbox (done by the Toolbox
+      # job), and doc, apidoc and gettingStarted (the docs came from the
+      # artifact above - and skipping doc alone wouldn't skip the tasks it
+      # depends on)
+      - uses: matlab-actions/run-build@v2
+        with:
+          tasks: deploy -skip check -skip test -skip packageToolbox -skip doc -skip apidoc -skip gettingStarted
+      # Saves the installer as an artifact, named per OS so the two don't
+      # collide. deploy makes three installers (Runtime Bundled, Runtime Web,
+      # No Runtime); only the web one is published - it is small, and
+      # downloads the MATLAB Runtime when run. The ".*" matches whatever
+      # extension this OS's installer has (.exe on Windows, .install on
+      # Linux). retention-days: 5 deletes the artifact after 5 days - the
+      # release keeps its own copy
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer_${{matrix.os}}
+          path: "Release/Package/Runtime Web Installer/Palladium DAQ Installer - Runtime Web Installer.*"
+          retention-days: 5
+          if-no-files-found: error
+
+  # Publishes the documentation as a website on GitHub Pages. Needs the repo's
+  # Settings > Pages > Source to be "GitHub Actions"
+  Pages:
+    # Only needs the docs, so doesn't wait for the installers
+    needs: Toolbox
+    runs-on: ubuntu-latest
+    # Permissions the Pages deployment requires: write to Pages, and an
+    # identity token (id-token) to prove to Pages that this workflow is
+    # allowed to deploy
+    permissions:
+      pages: write
+      id-token: write
+    # Pages deployments must be in the "github-pages" environment. The url
+    # shows as a link to the live site on the workflow run, taken from the
+    # output of the deployment step below
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      # Gets the docs into a folder called "site"
+      - uses: actions/download-artifact@v4
+        with:
+          name: docs
+          path: site
+      # Packs that folder in the form Pages needs. Its root must hold
+      # index.html, which the doc build produces
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      # Publishes it. "id" lets the environment url above read this step's
+      # output
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  # Creates the GitHub release for the tag, and attaches the files. Done in
+  # one job, after everything is built, so that (a) the release only appears
+  # if every build succeeded, and (b) parallel jobs don't race to create the
+  # same release
+  Release:
+    needs: [Toolbox, Installer]
+    runs-on: ubuntu-latest
+    # Creating a release and uploading files to it needs write access
+    permissions:
+      contents: write
+    steps:
+      # Everything to attach goes into one folder, dist
+      # The toolbox file...
+      - uses: actions/download-artifact@v4
+        with:
+          name: toolbox
+          path: dist
+      # ...and the installers. They are in separate artifacts, one per OS,
+      # named installer_<os>: "pattern" fetches all of those, and
+      # merge-multiple puts their files side by side in dist, rather than a
+      # subfolder each. (The Windows and Linux installers differ in extension,
+      # so don't overwrite each other)
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: installer_*
+          path: dist
+          merge-multiple: true
+      # The docs, into a separate folder: a release attachment must be a
+      # single file, so they are zipped (next step) rather than attached
+      # loose. Kept out of dist so the loose files aren't attached too
+      - uses: actions/download-artifact@v4
+        with:
+          name: docs
+          path: docs
+      # Zips the contents of the docs folder (the "." - so index.html is at
+      # the top of the zip, not in a subfolder) into dist
+      - name: Zip docs
+        run: cd docs && zip -r ../dist/PalladiumDAQ-docs.zip .
+      # Creates the release for the tag that triggered this run (the action
+      # works that out itself), and attaches every file in dist: the
+      # toolbox, the installers and the docs zip. GITHUB_TOKEN, with the
+      # write permission above, is used automatically
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: dist/*

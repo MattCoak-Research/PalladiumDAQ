@@ -1,0 +1,59 @@
+# Runs the code check and unit tests (the buildfile's "test" task, which
+# depends on "check") whenever code is proposed or merged. This is the gate
+# for code quality: release.yml deliberately does NOT re-run the tests, as it
+# relies on this workflow having already passed on the commit being tagged.
+name: Tests on PR or Push into Main
+
+# What starts this workflow
+on:
+  # A commit landing on main (a merged PR, or a direct push)
+  push:
+    branches: [main]
+  # A pull request aimed at main - so tests run on the proposed changes, and
+  # the result shows on the PR before it is merged. Runs on every push to the
+  # PR's branch too
+  pull_request:
+    branches: [main]
+  # Adds a "Run workflow" button in the repo's Actions tab, to start it by hand
+  workflow_dispatch:
+
+jobs:
+  # The job's id (shown in the Actions tab). The name is historical - it runs
+  # the buildfile's tasks, here just "test"
+  BuildTask:
+    strategy:
+      # By default one matrix leg failing cancels the others. Turn that off,
+      # so a failure on one OS doesn't hide whether the other passes
+      fail-fast: false
+      matrix:
+        # Run the whole job once per OS, in parallel. Palladium DAQ runs on
+        # both, and has OS-specific code (paths, the bundled Python), so test both
+        os: [ubuntu-latest, windows-latest]
+    # Each matrix leg runs on a fresh GitHub-hosted virtual machine of its OS
+    runs-on: ${{matrix.os}}
+    # The job's token (GITHUB_TOKEN) gets only what is listed. Tests only
+    # need to read the repo, so don't give write access
+    permissions:
+      contents: read
+    steps:
+      # A runner starts empty - this downloads the repo's code at the commit
+      # being tested. Every job that needs the code must do this first
+      - uses: actions/checkout@v4
+      # Installs MATLAB on the runner. "products" lists the toolboxes to add
+      # on top of base MATLAB - the Instrument Control Toolbox, which the
+      # instrument drivers use (the unit tests load them)
+      - uses: matlab-actions/setup-matlab@v2.3.1
+        with:
+          products: Instrument_Control_Toolbox
+      # Installs Python, which MATLAB finds (pyenv) and uses. Needed for the
+      # tests of the Python instrument support. Not needed by the release
+      # build, which is why release.yml mostly leaves it out
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      # Runs "buildtool test" in the repo. buildfile.m makes "test" depend on
+      # "check", so the code analyser runs first. A failing unit test fails
+      # this step, which fails the job and so the PR check
+      - uses: matlab-actions/run-build@v2
+        with:
+          tasks: test
