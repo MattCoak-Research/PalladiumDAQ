@@ -39,8 +39,8 @@ plan("screenshots").Inputs = [GuiSourceFolders(), ...
     fullfile("Tools", "DocScreenshots", "CaptureScreenshot.m")];
 plan("screenshots").Outputs = fullfile(docsrc, "images", "gui");
 
-plan("package").Dependencies = ["test", "doc"];
-plan("deploy").Dependencies = "package";
+plan("packageToolbox").Dependencies = ["test", "doc"];
+plan("deploy").Dependencies = "packageToolbox";
 plan("deployDebug").Dependencies = "test";
 
 end
@@ -403,7 +403,7 @@ matlab.addons.install(mltbx);
 fprintf(1, "Installed DocMaker %s from %s\n", docMakerVersion, url);
 end
 
-function packageTask(~)
+function packageToolboxTask(~)
 projectRoot = "";
 
 %Construct a toolbox options object to set parameters, and retrieve the

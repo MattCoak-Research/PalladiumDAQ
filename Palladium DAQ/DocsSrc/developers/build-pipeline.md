@@ -9,7 +9,7 @@ Palladium DAQ is built with the [MATLAB build tool](https://www.mathworks.com/he
 Open the MATLAB Project (`PalladiumDAQ.prj`) so that the source folders are on the path, then run tasks from the repository root:
 
 ```matlab
-buildtool package              % check, test, build the docs, package the toolbox
+buildtool packageToolbox       % check, test, build the docs, package the toolbox
 buildtool doc                  % just the documentation
 buildtool test -skip check     % run the unit tests without the code check
 buildtool -tasks               % list the tasks 
@@ -26,8 +26,8 @@ Running a task runs the tasks it depends on first. Tasks with declared inputs an
 | `apidoc` | Generates the API reference Markdown from the classes' help comments | - |
 | `gettingStarted` | Builds the toolbox's Getting Started guide from its Markdown source | - |
 | `doc` | Builds the HTML documentation, help index and search database | `apidoc`, `gettingStarted` |
-| `package` | Packages the toolbox installer, `Release/Toolbox/PalladiumDAQ.mltbx` | `test`, `doc` |
-| `deploy` | Compiles the standalone application and its installers into `Release/Build` and `Release/Package` | `package` |
+| `packageToolbox` | Packages the toolbox installer, `Release/Toolbox/PalladiumDAQ.mltbx` | `test`, `doc` |
+| `deploy` | Compiles the standalone application and its installers into `Release/Build` and `Release/Package` | `packageToolbox` |
 | `deployDebug` | Compiles a debug build of the standalone application, with a console window, into `Release/Debug Build` | `test` |
 | `screenshots` | Retakes the GUI screenshots used in the documentation. Run by hand - see below | - |
 
@@ -114,9 +114,9 @@ Run it after changing the GUI, then review the changed images (git shows which o
 
 To add a screenshot, add a scene function to `TakeDocScreenshots.m` and its name to `AllScenes`, run the task, and refer to it in a page as `images/gui/<scene>.png` (`../images/gui/<scene>.png` from a subfolder). Scenes take screenshots of the Windows look of the GUI.
 
-### package - the toolbox
+### packageToolbox - the toolbox
 
-`packageTask` builds `Release/Toolbox/PalladiumDAQ.mltbx` from the MATLAB Project's file list, with the version from `Palladium.ver()`. It sets the Getting Started guide to `Docs/GettingStarted.m`, and leaves `DocsSrc` (and any stray Markdown) out, so the toolbox ships only the generated documentation. It also leaves out `TestInstrument.m`, a scratch instrument for prototyping new features, which is not shipped.
+`packageToolboxTask` builds `Release/Toolbox/PalladiumDAQ.mltbx` from the MATLAB Project's file list, with the version from `Palladium.ver()`. It sets the Getting Started guide to `Docs/GettingStarted.m`, and leaves `DocsSrc` (and any stray Markdown) out, so the toolbox ships only the generated documentation. It also leaves out `TestInstrument.m`, a scratch instrument for prototyping new features, which is not shipped.
 
 ## Standalone application
 
@@ -141,10 +141,13 @@ At startup, `Controller.SetUpPython` chooses which Python to use: `PythonSetting
 
 ## GitHub Actions
 
-`.github/workflows/main.yml` runs on pushes and pull requests to `main`, on version tags, and on demand. On an Ubuntu runner it:
+There are two workflows in `.github/workflows`.
 
-1. Starts a virtual display (Xvfb), so `docrun` can capture figures.
-2. Installs MATLAB with the Instrument Control Toolbox, and Python 3.13.
-3. Runs `buildtool package` - so the code check, unit tests, documentation and toolbox package all run.
-4. Uploads the toolbox (`toolbox`) and the built documentation (`docs`) as artifacts.
-5. For a version tag (`v*.*.*`), attaches the toolbox to a GitHub release.
+**`test.yml`** runs on pushes and pull requests to `main`, and on demand. On Ubuntu and Windows runners it installs MATLAB (with the Instrument Control Toolbox) and Python, and runs `buildtool test` - so the code check and unit tests run.
+
+**`release.yml`** runs when a version tag (`v*.*`) is pushed. It does not run the tests again, as `test.yml` has already run on the commit being tagged. Its jobs are:
+
+1. `Toolbox` (Ubuntu): starts a virtual display (Xvfb) so `docrun` can capture figures, then runs `buildtool packageToolbox -skip check -skip test` - so the documentation and toolbox package are built. Uploads the toolbox (`toolbox`) and the built documentation (`docs`) as artifacts.
+2. `Installer` (Ubuntu and Windows, after `Toolbox`): downloads the `docs` artifact into `Palladium DAQ/Docs`, since the installers bundle the built documentation, then runs `buildtool deploy` with the check, test and documentation tasks skipped. Uploads the Runtime Web Installer as an artifact, `installer_<os>`. This needs the MATLAB Compiler licence token, `MLM_LICENSE_TOKEN`, from the `Palladium Build Environment` environment.
+3. `Pages` (after `Toolbox`): publishes the `docs` artifact to GitHub Pages. The repository's Pages source must be set to "GitHub Actions".
+4. `Release` (after `Toolbox` and `Installer`): attaches the toolbox, the installers and a zip of the documentation (`PalladiumDAQ-docs.zip`) to the GitHub release for the tag. The release is created once, here, so the parallel jobs can't race to create it.
