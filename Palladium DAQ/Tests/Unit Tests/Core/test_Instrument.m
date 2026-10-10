@@ -81,7 +81,7 @@ classdef test_Instrument < matlab.unittest.TestCase
         %% Constructor and defaults
         function test_Constructor_DefaultPropertyValuesTest(testCase)
             testCase.verifyEqual(testCase.Instrument.GPIB_Address, 0);
-            testCase.verifyEqual(testCase.Instrument.IP_Address, '192.0.0.0.0');
+            testCase.verifyEqual(testCase.Instrument.IP_Address, '127.0.0.1');
             testCase.verifyEqual(testCase.Instrument.Serial_Address, 'COM12');
             testCase.verifyEqual(testCase.Instrument.VISA_Address, "VISA_ADDRESS");
             testCase.verifyFalse(testCase.Instrument.SimulationMode);

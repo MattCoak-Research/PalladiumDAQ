@@ -438,6 +438,32 @@ classdef test_PathUtils < matlab.unittest.TestCase
             testCase.verifyEqual(actualSuccessfullyMadeRelative, expectedSuccessfullyMadeRelative);
         end
 
+        function test_MakeFilePathRelative_SiblingWithLongerName(testCase)
+            %A folder whose name starts with the reference folder's name is
+            %a sibling, not inside it: relative to "...\Test Folder",
+            %"...\Test Folder 1" is "\..\Test Folder 1". This used to give
+            %" 1", because the paths were compared as text, not folders
+            testingDir = fullfile(testCase.ApplicationDir, testCase.TestingDir);
+            refDir = fullfile(testingDir, "Test Folder");
+            path = fullfile(testingDir, "Test Folder 1");
+
+            [actualNewPath, actualSuccessfullyMadeRelative] = Palladium.Utilities.PathUtils.MakeFilePathRelative(path, RefDir=refDir);
+
+            testCase.verifyEqual(actualNewPath, filesep + fullfile("..", "Test Folder 1"));
+            testCase.verifyTrue(actualSuccessfullyMadeRelative);
+            testCase.verifyEqual(Palladium.Utilities.PathUtils.CleanPath(fullfile(refDir, actualNewPath)), Palladium.Utilities.PathUtils.CleanPath(path), "The relative path should lead back to the folder");
+        end
+
+        function test_MakeFilePathRelative_RefDirItself(testCase)
+            %The reference folder itself is the empty relative path
+            refDir = fullfile(testCase.ApplicationDir, testCase.TestingDir);
+
+            [actualNewPath, actualSuccessfullyMadeRelative] = Palladium.Utilities.PathUtils.MakeFilePathRelative(refDir, RefDir=refDir);
+
+            testCase.verifyEqual(actualNewPath, "");
+            testCase.verifyTrue(actualSuccessfullyMadeRelative);
+        end
+
         function test_MakeFilePathRelative_CheckFolderHeirachy(testCase)
             %This test added because the Utilities folder heirachy being
             %changed did lead to a bug - the default setting for

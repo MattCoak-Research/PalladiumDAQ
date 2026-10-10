@@ -7,7 +7,7 @@ classdef (ConstructOnLoad) InstrumentControlAddEventData < event.EventData
     %% Properties (Public)
     properties
         InstrumentRef           %The instrument to add the control to
-        ControlDetailsStruct    %The control's definition, as given to DefineInstrumentControl: Name, ClassName, TabName, EnabledByDefault and UserData
+        ControlDetailsStruct    %The control's definition, from DefineInstrumentControl: Name, ControlClassFileName, TabName, EnabledByDefault and UserData
     end
 
     %% Constructor

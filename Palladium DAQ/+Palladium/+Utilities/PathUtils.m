@@ -1,16 +1,24 @@
 classdef PathUtils
-    %PATHUTILS static functions to help with verify and handling paths to
-    %files and folders
+    %PathUtils - Static functions for checking and handling file and folder paths.
+    %Cleaning and comparing paths, creating folders, numbering data files so
+    %none is overwritten, and finding the user's Documents and application
+    %settings folders on Windows, Mac and Linux.
 
     %% Methods (Static, Public)
     methods (Static, Access = public)
 
         function cleanPath = CleanPath(pathStr)
-            %CLEANPATH Clean a file path name. Removes redundant characters from
-            %   the path name, e.g. '//', '/./' as well as initial './' and circular
-            %   paths e.g. 'abc/def/../def/'.
-            %   Additionally, all file separators are set to the platform file
-            %   separator.
+            %Tidy a path: remove redundant parts and use the platform's file separator.
+            %Removes '//', '/./', an initial './' and circular parts such as
+            %'abc/def/../def/', and trims whitespace. All file separators
+            %become the platform's (filesep)
+            %
+            %Inputs:
+            %   pathStr - the path, as text
+            %
+            %Outputs:
+            %   cleanPath - the tidied path, as a string
+
             % get the possible file separators
             allowed_file_separators = '/';  % add the "standard" file separator
             if filesep ~= '/' % add the system file separator if different
@@ -75,17 +83,14 @@ classdef PathUtils
         end
 
         function CopyFiles(filesToCopy, sourceInstrumentDir, destInstrumentDir, Settings)
-          % COPYFILES - Copy listed files if missing in the dest directory
-          %
-          % Input arguments:
-          % filesToCopy           - string array of filenames to copy
-          % sourceInstrumentDir   - source directory path (text scalar)
-          % destInstrumentDir     - destination directory path (text scalar)
-          %
-          % Name-Value Pairs (Optional)
-          % Overwrite - default false. Set to true to have file copy and
-          % overwrite if a file of the same name already exists in
-          % destination
+            %Copy files from one folder to another, skipping any already there.
+            %
+            %Inputs:
+            %   filesToCopy         - string array of file names to copy
+            %   sourceInstrumentDir - the folder to copy from
+            %   destInstrumentDir   - the folder to copy to
+            %   Overwrite           - true to copy over files of the same name
+            %                         that are already there. Default false
             
             arguments
                 filesToCopy             string;
@@ -104,13 +109,15 @@ classdef PathUtils
         end
 
         function newDirCreated = EnsureDirectoryExists(dirPath)
-            % ENSUREDIRECTORYEXISTS - Ensure a directory exists, create if needed
+            %Create a folder if it doesn't exist yet.
             %
-            % Input arguments:
-            % dirPath - path to directory (string or char scalar)
+            %Inputs:
+            %   dirPath - path of the folder
             %
-            % Output arguments:
-            % newDirCreated - true if directory was created, false if already existed
+            %Outputs:
+            %   newDirCreated - true if the folder was created, false if it
+            %                   already existed
+
             arguments
                 dirPath {mustBeTextScalar};
             end
@@ -128,9 +135,16 @@ classdef PathUtils
 
 
         function newPath = EnsureExtension(filepath, extension)
-            % Send in a string filepath and string extension, and ensure
-            % that the ouput contains that extension. Throw warnings if
-            % not, error on full mismatch
+            %Add an extension to a file path that has none, checking any it has.
+            %Errors if the path already has a different extension
+            %
+            %Inputs:
+            %   filepath  - the file path
+            %   extension - the extension, starting with ".", e.g. ".dat"
+            %
+            %Outputs:
+            %   newPath - filepath, with the extension added if it had none
+
             arguments
                 filepath    {mustBeTextScalar};
                 extension   {mustBeTextScalar};
@@ -156,30 +170,29 @@ classdef PathUtils
         end
 
         function newFileName = GetIncrementedFileName(filepath)
-            % GETINCREMENTEDFILENAME - Return the file name (without folder or
-            % extension) to save as, so that no existing file is overwritten
+            %The file name to save as, numbered so that no existing file is overwritten.
+            %A file is numbered with a counter: a hyphen followed by exactly 5
+            %digits at the end of the name, like "run-00001". A name without a
+            %counter gets "-00001" added. A name that already ends in a counter
+            %is incremented from there, if the file with that counter exists -
+            %so a name that has already been through here ("run-00001") goes to
+            %"run-00002" next time.
             %
-            % A file is numbered with a counter: a hyphen followed by
-            % exactly 5 digits at the end of the name, like "run-00001".
-            % A name without a counter gets "-00001" added. A name that
-            % already ends in a counter is incremented from there, if the
-            % file with that counter exists - so a name that has already
-            % been through here ("run-00001") goes to "run-00002" next time.
+            %A name that merely ends in numbers is not a counter and is never
+            %incremented: "run_Temperature297" becomes "run_Temperature297-00001",
+            %and so does "sample 02-Aug-2026". Hence exactly 5 digits - a year
+            %or a short number won't match.
             %
-            % A name that merely ends in numbers is not a counter and is never
-            % incremented: "run_Temperature297" becomes
-            % "run_Temperature297-00001", and so does "sample 02-Aug-2026".
-            % Hence exactly 5 digits - a year or a short number won't match.
+            %Past "-99999" the next number has 6 digits, which is no longer a
+            %counter, so a new one is started after it: "run-99999",
+            %"run-100000", "run-100000-00001", "run-100000-00002"...
             %
-            % Past "-99999" the next number has 6 digits, which is no longer a
-            % counter, so a new one is started after it: "run-99999",
-            % "run-100000", "run-100000-00001", "run-100000-00002"...
+            %Inputs:
+            %   filepath - the path to save to, including the file extension
             %
-            % Input arguments:
-            % filepath - text scalar path, including the file extension
-            %
-            % Output arguments:
-            % newFileName  - file name without folder or extension
+            %Outputs:
+            %   newFileName - the file name to use, without folder or extension
+
             arguments
                 filepath {mustBeTextScalar};
             end
@@ -214,9 +227,16 @@ classdef PathUtils
         end
 
         function dirPath = GetPathOfFolderOnSearchPath(dirName)
-            %See https://uk.mathworks.com/matlabcentral/answers/347892-get-full-path-of-directory-that-is-on-matlab-search-path
-            %Get the actual directory file path to a folder that is on the
-            %MATLAB search path
+            %Full path of a folder on the MATLAB search path, found by its name.
+            %Errors if no folder of that name is on the path. Method from
+            %https://uk.mathworks.com/matlabcentral/answers/347892
+            %
+            %Inputs:
+            %   dirName - the folder's name, e.g. "PPMS Communication"
+            %
+            %Outputs:
+            %   dirPath - its full path (the first match), as a string
+
 
             esctofind = regexptranslate('escape', dirName);   %in case it has special characters
 
@@ -232,7 +252,7 @@ classdef PathUtils
         end
 
         function appDataPath = GetAppDataDirectory()
-            %GetAppDataDirectory - Return the current user's folder for application settings, on Windows, Mac and Linux.
+            %The current user's folder for application settings, on Windows, Mac and Linux.
             %This is %APPDATA% on Windows, ~/Library/Application Support on
             %Mac, and $XDG_CONFIG_HOME (by default ~/.config) on Linux. The
             %folder may not exist yet.
@@ -256,7 +276,7 @@ classdef PathUtils
         end
 
         function documentsPath = GetDocumentsDirectory()
-            %GetDocumentsDirectory - Return the current user's Documents folder, on Windows, Mac and Linux.
+            %The current user's Documents folder, on Windows, Mac and Linux.
             %Falls back to the user's home folder if there is no Documents
             %folder.
             %
@@ -294,11 +314,14 @@ classdef PathUtils
         end
 
         function valid = IsDirectoryValid(directory)
-            % ISDIRECTORYVALID - Check whether a directory path is valid
-            % syntactically and exists
+            %Whether a folder path is given and the folder exists.
             %
-            % Input arguments:
-            % directory - text scalar containing a directory path
+            %Inputs:
+            %   directory - the folder path
+            %
+            %Outputs:
+            %   valid - true if it is not empty and the folder exists
+
             arguments
                 directory {mustBeTextScalar}
             end
@@ -318,13 +341,15 @@ classdef PathUtils
         end
 
         function valid = IsFileNameValid(filename)
-            % ISFILENAMEVALID - Check a filename string is valid, allowed format
+            %Whether text can be used as a file name (without folder or extension).
+            %Not valid if empty, or if it contains any of / * : ? " < > | or "."
             %
-            % Input arguments:
-            % filename - text scalar representing a file name to validate
+            %Inputs:
+            %   filename - the file name to check
             %
-            % Output arguments:
-            % valid    - logical indicating whether filename is valid
+            %Outputs:
+            %   valid - true if it can be used
+
             arguments
                 filename {mustBeTextScalar}
             end
@@ -344,9 +369,18 @@ classdef PathUtils
         end
 
         function [newPath, successfullyMadeRelative] = MakeFilePathRelative(path, Settings)
-            %Make an absolute path into a relative one, relative to the
-            %Palladium folder by default, or to that given as optional
-            %argument RefDir
+            %Make an absolute path relative to a folder - by default the one Palladium.m is in.
+            %
+            %Inputs:
+            %   path   - the absolute path
+            %   RefDir - the folder to make it relative to. Default [], the
+            %            folder Palladium.m is in
+            %
+            %Outputs:
+            %   newPath                  - the relative path, e.g. "../Data", or
+            %                              path itself if it is on a different drive
+            %   successfullyMadeRelative - true if a relative path was made
+
             arguments
                 path {mustBeTextScalar};
                 Settings.RefDir = [];
@@ -370,11 +404,12 @@ classdef PathUtils
             refPath = strip(refPath, filesep);
             path = strip(path, filesep);
 
-            %Case for if the path totally contains the refPath - ie the
-            %path is a folder inside that root reference path. Just remove
-            %the ref bit and return
-            if contains(path, refPath)
-                newPath = strrep(path, refPath, "");
+            %Case for the path being the reference folder or a folder inside it - just
+            %remove the reference folder from the front. Whole folder names are
+            %compared, so a sibling such as "Palladium DAQ Data" is not taken to be
+            %inside "Palladium DAQ"
+            if path == refPath || startsWith(path, refPath + filesep)
+                newPath = extractAfter(path, strlength(refPath));
                 successfullyMadeRelative = true;
                 return;
             end
@@ -428,8 +463,14 @@ classdef PathUtils
         end
 
         function outstr = ReplaceDateTag(str)
-            %If a string has '<DATE>' in it, let's replace that with today's
-            %date for convenience
+            %Replace each <DATE> tag in text with today's date, as yyyy-MM-dd.
+            %
+            %Inputs:
+            %   str - the text, e.g. "<DATE>_run"
+            %
+            %Outputs:
+            %   outstr - e.g. "2026-10-10_run"
+
             d = datetime;
             format = 'yyyy-MM-dd';
             dateStr = string(d, format);  %Today's date
@@ -438,6 +479,14 @@ classdef PathUtils
         end
 
         function newFileName = StripExtension(fileName)
+            %The name of a file, without its folder or extension.
+            %
+            %Inputs:
+            %   fileName - the file name or path, e.g. "Data/run.dat"
+            %
+            %Outputs:
+            %   newFileName - e.g. "run"
+
             [~, newFileName, ~] = fileparts(fileName);
         end
 
