@@ -680,13 +680,6 @@
                                 </Category>
                             </Info>
                         </File>
-                        <File Location="SweepDataEventData.m">
-                            <Info>
-                                <Category UUID="FileClassCategory">
-                                    <Label UUID="design"/>
-                                </Category>
-                            </Info>
-                        </File>
                     </File>
                     <File Location="AH2550_Bridge.m">
                         <Info>
