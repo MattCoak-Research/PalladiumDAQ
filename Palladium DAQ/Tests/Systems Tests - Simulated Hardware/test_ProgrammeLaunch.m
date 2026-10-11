@@ -169,7 +169,133 @@ classdef test_ProgrammeLaunch < matlab.unittest.TestCase
         end
     end
 
+    methods (Test)
+        function InstrumentsDisconnectedAfterStop(testCase)
+            %Instruments are connected while measuring, and not once
+            %stopped - simulated ones too
+            pd = Palladium(View=[], ConfigFilePath=testCase.ConfigPath);
+            testCase.addTeardown(@() pd.Close());
+            instr = pd.AddInstrument("Keithley2000", ConnectionType="Debug");
+            pd.SetUpdateTime(0.1);
+            testCase.verifyFalse(instr.IsConnected);
+
+            pd.Start();
+            pause(0.5);
+            testCase.verifyTrue(instr.IsConnected);
+
+            pd.Stop();
+            pause(0.5);
+            testCase.verifyFalse(instr.IsConnected);
+        end
+
+        function StopFromInstrumentErrorDialogueStopsCleanly(testCase)
+            %With ErrorOnAllInstrumentErrors, choosing Stop Measurements in
+            %the error dialogue stops at once: one dialogue, Stopped raised
+            %once, and every instrument disconnected. The tick's row is still
+            %written and plotted, in full - NaNs for the failed instrument
+            %and for those not measured. Used to carry on measuring the other
+            %(now closed) instruments, each failing with its own dialogue
+            pd = Palladium(View=[], ConfigFilePath=testCase.ConfigPath);
+            testCase.addTeardown(@() pd.Close());
+            first = pd.AddInstrument("Keithley2000", ConnectionType="Debug");
+            second = pd.AddInstrument("Keithley2000", ConnectionType="Debug");
+            pd.SetUpdateTime(0.1);
+            pd.Controller.InstrumentController.ErrorOnAllInstrumentErrors = true;
+
+            %Answer the (modal) error dialogue with Stop Measurements
+            Palladium.Logging.Logger.TestDialogResponse("set", "Stop Measurements");
+            testCase.addTeardown(@() Palladium.Logging.Logger.TestDialogResponse("set", ""));
+
+            %Count Stopped events, and data rows, noting how many rows there
+            %were when measurements stopped
+            setappdata(groot, "HaltTest", struct("Stopped", 0, "Rows", 0, "RowsAtStop", NaN, "LastRow", []));
+            testCase.addTeardown(@() rmappdata(groot, "HaltTest"));
+            l1 = addlistener(pd.Controller.TimingLoopController, "Stopped", @(~, ~) testCase.recordStop());
+            l2 = addlistener(pd.Controller, "DataRowUpdated", @(~, e) testCase.recordRow(e.DataRow));
+            testCase.addTeardown(@() delete([l1, l2]));
+
+            pd.Start();
+            pause(0.5);
+            first.Disconnect();     %Its next reading fails, as a real instrument's would
+            pause(1);
+
+            counts = getappdata(groot, "HaltTest");
+            testCase.verifyEqual(Palladium.Logging.Logger.TestDialogResponse("count"), 1, "There should be one error dialogue");
+            testCase.verifyEqual(counts.Stopped, 1, "Stopped should be raised once");
+            testCase.verifyEqual(string(pd.Controller.TimingLoopController.State), "Ready");
+            testCase.verifyFalse(first.IsConnected);
+            testCase.verifyFalse(second.IsConnected);
+            testCase.verifyEqual(counts.Rows, counts.RowsAtStop + 1, "The stopped tick's row should still be written and plotted - once");
+            testCase.verifyNumElements(counts.LastRow, numel(pd.Controller.Headers), "The row should have a value for every column");
+            testCase.verifyFalse(isnan(counts.LastRow(1)), "The time column should be filled");
+            testCase.verifyTrue(all(isnan(counts.LastRow(2:end))), "Both instruments' columns should be NaN: the first failed, the second was not measured");
+
+            %...and it is the last line of the data file
+            fileRows = readmatrix(pd.Controller.DataWriter.FileWriteDetails.FilePath, FileType="text", Delimiter="	");
+            testCase.verifyEqual(size(fileRows, 2), numel(pd.Controller.Headers), "Every line of the data file should be full width");
+            testCase.verifyTrue(all(isnan(fileRows(end, 2:end))), "The last line written should be the padded row");
+        end
+    end
+
+    methods (Test)
+        function ConnectionStateWarningsOnlyWhenSomethingWentWrong(testCase)
+            %Connect and Disconnect warn if called in the wrong state - which
+            %normal use never does: starting and stopping, a start that
+            %fails on its second instrument (the first is disconnected, the
+            %CloseAll after it skips both), and closing Palladium
+            pd = Palladium(View=[], ConfigFilePath=testCase.ConfigPath);
+            closer = onCleanup(@() pd.Close());
+            pd.AddInstrument("Keithley2000", ConnectionType="Debug");
+            pd.SetUpdateTime(0.1);
+
+            setappdata(groot, "ConnectionWarnings", strings(0));
+            testCase.addTeardown(@() rmappdata(groot, "ConnectionWarnings"));
+            lst = addlistener(pd.Controller, "YellowStatus", @(~, e) testCase.recordConnectionWarning(e.Message));
+            testCase.addTeardown(@() delete(lst));
+
+            %Start and stop
+            pd.Start();
+            pause(0.5);
+            pd.Stop();
+            pause(0.5);
+
+            %A start that fails: a GPIB instrument with no hardware attached
+            failing = pd.AddInstrument("Keithley2000", ConnectionType="GPIB");
+            evalc("pd.Start();");   %Hide the "could not connect" warning
+            pause(0.5);
+            testCase.verifyEqual(string(pd.Controller.TimingLoopController.State), "Ready");
+            testCase.verifyFalse(failing.IsConnected);
+
+            %Close Palladium
+            clear closer
+            testCase.verifyEmpty(getappdata(groot, "ConnectionWarnings"), "Normal use should not warn about the connection state");
+        end
+    end
+
     methods (Access = private)
+        function recordConnectionWarning(~, message)
+            %Record a status message about Connect or Disconnect being called in the wrong state
+            if contains(message, ["Connect was called", "Disconnect was called"])
+                setappdata(groot, "ConnectionWarnings", [getappdata(groot, "ConnectionWarnings"), string(message)]);
+            end
+        end
+
+        function recordStop(~)
+            %Count a Stopped event, noting the number of rows so far
+            counts = getappdata(groot, "HaltTest");
+            counts.Stopped = counts.Stopped + 1;
+            counts.RowsAtStop = counts.Rows;
+            setappdata(groot, "HaltTest", counts);
+        end
+
+        function recordRow(~, dataRow)
+            %Count a data row written and plotted, keeping the last one
+            counts = getappdata(groot, "HaltTest");
+            counts.Rows = counts.Rows + 1;
+            counts.LastRow = dataRow;
+            setappdata(groot, "HaltTest", counts);
+        end
+
         function last = lastOf(~, messages)
             %The last message recorded, or "" if there are none
             last = "";

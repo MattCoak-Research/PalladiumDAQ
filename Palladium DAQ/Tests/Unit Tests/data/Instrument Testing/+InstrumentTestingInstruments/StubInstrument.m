@@ -27,7 +27,8 @@ classdef StubInstrument < Palladium.Core.Instrument
         UseBaseCollectMetaData = false;         %Run the real (default) Instrument.CollectMetaData
         UseBaseGetPropertiesToIgnore = false;   %Run the real (default) Instrument.GetPropertiesToIgnore
         AppliedSettings = {};       %Every settings value passed to ApplySettings
-        InitialisedCount = 0;       %Times OnInitialised ran
+        ConnectedCount = 0;         %Times OnConnected ran
+        ThrowOnConnected = false;   %Make OnConnected error
     end
 
     %% Methods (Public)
@@ -105,33 +106,33 @@ classdef StubInstrument < Palladium.Core.Instrument
             this.AppliedSettings{end + 1} = settings;
         end
 
-        function ConnectGPIB(this)
+        function OpenGPIBConnection(this)
             if this.UseBaseConnectionMethods
-                ConnectGPIB@Palladium.Core.Instrument(this);
+                OpenGPIBConnection@Palladium.Core.Instrument(this);
             else
                 this.RecordConnection("GPIB");
             end
         end
 
-        function ConnectSerial(this)
+        function OpenSerialConnection(this)
             if this.UseBaseConnectionMethods
-                ConnectSerial@Palladium.Core.Instrument(this);
+                OpenSerialConnection@Palladium.Core.Instrument(this);
             else
                 this.RecordConnection("Serial");
             end
         end
 
-        function ConnectTCPIP(this)
+        function OpenTCPIPConnection(this)
             if this.UseBaseConnectionMethods
-                ConnectTCPIP@Palladium.Core.Instrument(this);
+                OpenTCPIPConnection@Palladium.Core.Instrument(this);
             else
                 this.RecordConnection("Ethernet");
             end
         end
 
-        function ConnectVISA(this)
+        function OpenVISAConnection(this)
             if this.UseBaseConnectionMethods
-                ConnectVISA@Palladium.Core.Instrument(this);
+                OpenVISAConnection@Palladium.Core.Instrument(this);
             else
                 this.RecordConnection("VISA");
             end
@@ -145,8 +146,11 @@ classdef StubInstrument < Palladium.Core.Instrument
             end
         end
 
-        function OnInitialised(this)
-            this.InitialisedCount = this.InitialisedCount + 1;
+        function OnConnected(this)
+            this.ConnectedCount = this.ConnectedCount + 1;
+            if this.ThrowOnConnected
+                error("StubInstrument:OnConnectedFailed", "Stub OnConnected failure");
+            end
         end
 
     end

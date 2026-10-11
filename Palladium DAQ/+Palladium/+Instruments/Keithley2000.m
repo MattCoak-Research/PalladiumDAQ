@@ -55,16 +55,6 @@ classdef Keithley2000 < Palladium.Core.Instrument
     %% Methods (Public)
     methods (Access = public)
 
-        function Close(this)
-            %Restore continuous readings, then disconnect.
-            %Puts the instrument back to free-running readings, as on the front panel
-
-            if ~this.SimulationMode && ~isempty(this.DeviceHandle)
-                this.WriteCommand(":INIT:CONT ON");
-            end
-            Close@Palladium.Core.Instrument(this);
-        end
-
         function metadataStruct = CollectMetaData(this)
             %Measurement setup, recorded in the data-file header.
             %The function and units and, where the function has them, the range and
@@ -87,34 +77,6 @@ classdef Keithley2000 < Palladium.Core.Instrument
                 metadataStruct.AutoRange = this.QueryDouble(":SENS:" + scpiFunction + ":RANG:AUTO?") == 1;
                 metadataStruct.NPLC = this.QueryDouble(":SENS:" + scpiFunction + ":NPLC?");
             end
-        end
-
-        function Connect(this)
-            %Open the connection and prepare the instrument for measuring.
-            %Sets up triggering for one fresh reading per Measure call, and reads back
-            %the measurement function and units
-            %selected on the instrument
-
-            Connect@Palladium.Core.Instrument(this);
-            if this.SimulationMode
-                return;
-            end
-
-            %Clear the error queue, and have readings sent as a bare number
-            %(no units or channel) so they can be parsed as a double
-            this.WriteCommand("*CLS");
-            this.WriteCommand(":FORM:ELEM READ");
-
-            %Stop free-running readings, so that each :READ? in Measure
-            %triggers and returns one new reading. The function, range,
-            %integration rate and filter set on the front panel are kept
-            %(unlike :CONFigure, which resets them)
-            this.WriteCommand(":INIT:CONT OFF");
-            this.WriteCommand(":TRIG:SOUR IMM");
-            this.WriteCommand(":TRIG:COUN 1");
-            this.WriteCommand(":SAMP:COUN 1");
-
-            [this.MeasMode, this.MeasUnit] = this.GetMeasurementMode();
         end
 
         function [Headers, Units] = GetHeaders(this)
@@ -187,13 +149,56 @@ classdef Keithley2000 < Palladium.Core.Instrument
                 return;
             end
 
-            %:READ? triggers a reading and waits for it (see Connect)
+            %:READ? triggers a reading and waits for it (see OpenConnection)
             dataRow = this.QueryDouble(":READ?");
 
             %The instrument returns +9.9e37 for an overrange reading
             if abs(dataRow) >= 9.9e37
                 dataRow = NaN;
             end
+        end
+
+    end
+
+    %% Methods (Protected)
+    methods (Access = protected)
+
+        function OpenConnection(this)
+            %Open the connection and prepare the instrument for measuring.
+            %Sets up triggering for one fresh reading per Measure call, and reads back
+            %the measurement function and units
+            %selected on the instrument
+
+            OpenConnection@Palladium.Core.Instrument(this);
+            if this.SimulationMode
+                return;
+            end
+
+            %Clear the error queue, and have readings sent as a bare number
+            %(no units or channel) so they can be parsed as a double
+            this.WriteCommand("*CLS");
+            this.WriteCommand(":FORM:ELEM READ");
+
+            %Stop free-running readings, so that each :READ? in Measure
+            %triggers and returns one new reading. The function, range,
+            %integration rate and filter set on the front panel are kept
+            %(unlike :CONFigure, which resets them)
+            this.WriteCommand(":INIT:CONT OFF");
+            this.WriteCommand(":TRIG:SOUR IMM");
+            this.WriteCommand(":TRIG:COUN 1");
+            this.WriteCommand(":SAMP:COUN 1");
+
+            [this.MeasMode, this.MeasUnit] = this.GetMeasurementMode();
+        end
+
+        function CloseConnection(this)
+            %Restore continuous readings, then disconnect.
+            %Puts the instrument back to free-running readings, as on the front panel
+
+            if ~this.SimulationMode && ~isempty(this.DeviceHandle)
+                this.WriteCommand(":INIT:CONT ON");
+            end
+            CloseConnection@Palladium.Core.Instrument(this);
         end
 
     end

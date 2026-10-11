@@ -96,7 +96,12 @@ classdef Logger < handle
                 return;
             end
 
-            if isempty(uiFigureHandle)  %If we do not have a uiFigure GUI to create modal dialogue boses in..
+            testResponse = Palladium.Logging.Logger.TestDialogResponse("use");
+            if testResponse ~= ""
+                %A test is answering the dialogue (it is modal, so would
+                %block the test) - see TestDialogResponse
+                ErrorQuestResult = testResponse;
+            elseif isempty(uiFigureHandle)  %If we do not have a uiFigure GUI to create modal dialogue boses in..
                 %Show a normal dialogue box asking the user what they want
                 %to do
                 msg = ErrorString;
@@ -236,8 +241,10 @@ classdef Logger < handle
             end
 
             %Logging to File - note that this will use FullMessage, others
-            %will not
-            if Palladium.Logging.Logger.IsSeverityLevelAboveCutoff(level, LogFileMessageLevel)
+            %will not. There is no log file until Palladium has set one up -
+            %e.g. for an instrument used from the Command Window on its own
+            hasLogFile = ~isempty(LogFileDirectory) && strlength(string(LogFileDirectory)) > 0;
+            if hasLogFile && Palladium.Logging.Logger.IsSeverityLevelAboveCutoff(level, LogFileMessageLevel)
                 filePath = Palladium.Logging.Logger.ConstructFilePath(LogFileDirectory, LogFileFileName);
                 Palladium.Logging.Logger.LogToFile(level, string(fullMessage), filePath);
             end
@@ -258,6 +265,44 @@ classdef Logger < handle
                 Palladium.Logging.Logger.Log("Error", msg, "FullMessage", report, "LogFileMessageLevel", "Error", "CommandWindowMessageLevel", "Error", "GUIMessageLevel", "Error", "SkipGUI", Settings.SkipGUI);
             catch err
                 warning("LogErrorWarning:LoggingFailed", "Error thrown while attempting to log.. another error");
+            end
+        end
+
+    end
+
+    %% Methods (Static, Public, Hidden) - for tests
+    methods (Static, Access = public, Hidden)
+
+        function out = TestDialogResponse(action, response)
+            %Answer the error dialogue in place of a person, for tests - it is modal, so would block them.
+            %   TestDialogResponse("set", "Stop Measurements") - answer every
+            %       error dialogue with this choice from now on
+            %   TestDialogResponse("set", "") - show the dialogues again (do
+            %       this in the test's teardown)
+            %   TestDialogResponse("count") - how many dialogues have been
+            %       answered since the last "set"
+            %HandleError calls TestDialogResponse("use"), which returns the
+            %choice to use ("" for none) and counts it
+
+            arguments
+                action {mustBeMember(action, ["set", "use", "count"])}
+                response (1,1) string = ""
+            end
+
+            persistent storedResponse timesUsed
+            if isempty(storedResponse)
+                storedResponse = "";
+                timesUsed = 0;
+            end
+
+            switch action
+                case "set";     storedResponse = response;  timesUsed = 0;  out = storedResponse;
+                case "count";   out = timesUsed;
+                case "use"
+                    out = storedResponse;
+                    if out ~= ""
+                        timesUsed = timesUsed + 1;
+                    end
             end
         end
 

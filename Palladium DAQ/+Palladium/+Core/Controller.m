@@ -367,8 +367,13 @@ classdef Controller < handle
             halt = this.HandleError("Error in main measurement loop - Collect Data from " + instr.FullName, e);
             if(halt)
                 Palladium.Logging.Logger.Log("Info", "Measurements aborted by User from Error Dialogue");
-                this.TimingLoopController.Stop();
-                this.TimingLoopController.OnStopped();
+
+                %Wind the loop down now (stop the timer, close the
+                %instruments, raise Stopped) - unless it already has been,
+                %as in HandleCallbackError
+                if this.TimingLoopController.State ~= "Ready"
+                    this.TimingLoopController.OnStopped();
+                end
             end
         end
 
@@ -863,12 +868,17 @@ classdef Controller < handle
             %to DataTable, updates the plots and raises DataRowUpdated. Each
             %step catches its own errors (see HandleCallbackError), so the
             %rest still run if the user chooses to carry on; a failed data
-            %collection gives a row of NaNs
+            %collection gives a row of NaNs. If the user chooses to stop while
+            %commands run, the rest of the tick is skipped; if they stop while
+            %collecting, the row (padded with NaNs) is still written and plotted
 
             try
                 this.CommandController.Update();
             catch e
                 CatchMeasurementLoopError(this, e);
+            end
+            if this.TimingLoopController.State == "Ready"
+                return;     %The user chose to stop measurements from an error dialogue - the instruments are closed now
             end
 
             try

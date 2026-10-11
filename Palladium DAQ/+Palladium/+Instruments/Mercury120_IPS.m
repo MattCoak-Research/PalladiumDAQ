@@ -93,32 +93,6 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
             rampStatus.TargetReached = ~isRamping;
         end
 
-        function Close(this)
-            %Put the supply back into Local and Unlocked control, then disconnect.
-            %Local control is only set if the connection was opened, so a failed
-            %Connect can still be closed
-
-            if ~isempty(this.DeviceHandle)
-                this.SetLocal();
-            end
-
-            Close@Palladium.Core.Instrument(this);
-        end
-
-        function Connect(this)
-            %Open the connection and put the supply into Remote and Unlocked control.
-            %The supply only obeys control commands in Remote control
-
-            Connect@Palladium.Core.Instrument(this);
-
-            %Read the status once and discard it, before sending any commands
-            this.QueryString("X");
-
-            %Remote and Unlocked: commands are accepted, and the front panel
-            %LOC/REM button can still return the supply to Local control
-            this.SetRemote();
-        end
-
         function statusStruct = GatherStatusStructForControlPanel(this)
             %Read the field, current, ramp rate, set point and sweep status, for the Magnet Control tab.
             %
@@ -590,6 +564,37 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
             %Put the supply into Hold once a Sweep Control sweep has finished.
 
             this.SetState_Hold();
+        end
+
+    end
+
+    %% Methods (Protected)
+    methods (Access = protected)
+
+        function OpenConnection(this)
+            %Open the connection and put the supply into Remote and Unlocked control.
+            %The supply only obeys control commands in Remote control
+
+            OpenConnection@Palladium.Core.Instrument(this);
+
+            %Read the status once and discard it, before sending any commands
+            this.QueryString("X");
+
+            %Remote and Unlocked: commands are accepted, and the front panel
+            %LOC/REM button can still return the supply to Local control
+            this.SetRemote();
+        end
+
+        function CloseConnection(this)
+            %Put the supply back into Local and Unlocked control, then disconnect.
+            %Local control is only set if the connection was opened, so a failed
+            %Connect can still be closed
+
+            if ~isempty(this.DeviceHandle)
+                this.SetLocal();
+            end
+
+            CloseConnection@Palladium.Core.Instrument(this);
         end
 
     end

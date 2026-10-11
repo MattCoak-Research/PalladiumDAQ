@@ -379,16 +379,23 @@ classdef InstrumentController < handle
         end
 
         function CloseAll(this)
-            %Disconnect from all the instruments being measured.
+            %Disconnect from all the connected instruments being measured.
             %Called by `Controller.OnMeasurementsStopped` when measurements
-            %stop, and when Palladium closes
+            %stop, and when Palladium closes. Skips instruments that are not
+            %connected
 
             %Display a status message in the logger
             this.Controller.Log("Info", "Closing Instruments", "Yellow", "Closing Instruments");
 
-            %Close all instruments
+            %Close all connected instruments (Disconnect calls each driver's
+            %CloseConnection, and marks it as not connected). Instruments that
+            %aren't connected are skipped - e.g. after a failed start, the ones
+            %never reached or already disconnected, or when Palladium closes
+            %while stopped
             for i = 1 : length(this.Instruments)
-                this.Instruments{i}.Close();
+                if this.Instruments{i}.IsConnected
+                    this.Instruments{i}.Disconnect();
+                end
             end
 
             %Display a status message in the logger
@@ -403,15 +410,18 @@ classdef InstrumentController < handle
             %If an instrument errors, its columns are NaN, and either a
             %warning is logged or, with ErrorOnAllInstrumentErrors, the error
             %dialogue is shown (`Controller.HaltMeasurementsOnInstrumentError`).
-            %The row is then stored in each instrument's LastFullDataRow, and
-            %DataRowCollected is raised
+            %If the user chooses to stop there, it returns at once, with NaNs
+            %for the instruments not measured, without passing the row to the
+            %Instrument Controls. Otherwise the row is stored in each instrument's
+            %LastFullDataRow, and DataRowCollected is raised
             %
             %Inputs:
             %   headers - the data column headers of all instruments, passed
             %             to each instrument's UpdateAndMeasure
             %
             %Outputs:
-            %   DataRow - the row of values, in the order of the headers
+            %   DataRow - the row of values, in the order of the headers - always
+            %             one per header
 
             %Get current time in universal coordinated time (seconds since 1970) then divide by 60 to get minutes
             Time = posixtime(datetime('now')) /60;
@@ -439,6 +449,18 @@ classdef InstrumentController < handle
 
                     if this.ErrorOnAllInstrumentErrors
                         this.Controller.HaltMeasurementsOnInstrumentError(this.Instruments{i}, e);
+
+                        %If the user chose to stop, measurements have now
+                        %stopped and every instrument is closed - stop here,
+                        %rather than measuring the rest (which would fail,
+                        %each with its own dialogue) or passing the row on
+                        %to the Instrument Controls. Pad the row with NaNs
+                        %for the instruments not measured, so it is still
+                        %written in full
+                        if string(this.Controller.TimingLoopController.State) == "Ready"
+                            DataRow = [DataRow, nan(1, numel(headers) - numel(DataRow))]; %#ok<AGROW>
+                            return;
+                        end
                     else
                         %Just show a warning, do not halt execution
                         reportStr = string(e.message);
@@ -597,12 +619,13 @@ classdef InstrumentController < handle
             %Connect to every added instrument when measurements start.
             %Called by `Controller.InitialiseMeasurements`. Copies
             %SelectedInstruments to Instruments, then calls each instrument's
-            %Initialise, updating the progress bar. If one fails to connect,
+            %Connect, updating the progress bar. If one fails to connect,
             %closes those already connected and stops there
             %
             %Outputs:
             %   success - true if all connected (or there are no instruments)
-            %   msg     - if not, the message from the instrument that failed
+            %   msg     - if not, a message naming the instrument that failed, with
+            %             its error (Instrument.ConnectionFailedMessage)
             %   title   - if not, a title for the warning dialogue
 
             %Set starting values. Note, function will immediately return if
@@ -614,14 +637,20 @@ classdef InstrumentController < handle
             %Set the list of instruments from the selection panel's ItemData
             this.Instruments = this.GetInstruments();
 
-            %Initialise all instruments
+            %Connect all instruments
             for i = 1 : length(this.Instruments)
 
                 %Update the progress bar
                 this.Controller.UpdateProgress((i) / (length(this.Instruments)+1), "Connecting to " + this.Instruments{i}.Name);
 
                 %Try to connect to the instrument
-                [success, instr_msg] = this.Instruments{i}.Initialise();
+                try
+                    this.Instruments{i}.Connect();
+                    success = true;
+                catch err
+                    success = false;
+                    instr_msg = this.Instruments{i}.ConnectionFailedMessage(err);
+                end
 
                 if ~success
                     %We failed to connect to an Instrument. Rather than
@@ -633,7 +662,7 @@ classdef InstrumentController < handle
 
                     %Disconnect from previous instruments
                     for j = 1 : i-1
-                        this.Instruments{j}.Close();
+                        this.Instruments{j}.Disconnect();
                     end
 
                     %Abort, with warning message

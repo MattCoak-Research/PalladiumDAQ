@@ -124,7 +124,13 @@ Override `CollectMetaData` to record settings that don't change during a run - r
 
 ### Connecting and closing
 
-To set the instrument up when measurements start - for example to read back its configuration - override `Connect`, call the base class's version first, and then send your commands (skipping them in simulation mode). Override `Close` to put the instrument back in its normal state before disconnecting. The Keithley2000 driver does both.
+Palladium connects and disconnects instruments with `Connect` and `Disconnect`, which you can also call from a script. They keep `IsConnected` up to date, and a driver can't override them. To customise connecting, override the protected methods instead, in a `methods (Access = protected)` block - MATLAB won't load the driver if they are public:
+
+* **`OpenConnection`** opens the connection. To set the instrument up when measurements start - for example to read back its configuration - override it, call `OpenConnection@Palladium.Core.Instrument(this)` first, and then send your commands (skipping them in simulation mode). A driver that talks to its instrument through a vendor's library can open that connection here instead.
+* **`CloseConnection`** closes it. Override it to put the instrument back in its normal state, then call `CloseConnection@Palladium.Core.Instrument(this)`.
+* **`OnConnected`** is called once the connection is open, for anything else to do then.
+
+The Keithley2000 driver overrides `OpenConnection` and `CloseConnection`.
 
 ## Instrument Controls
 

@@ -37,7 +37,7 @@ classdef PPMS < Palladium.Core.Instrument
 
     %% Properties (Private)
     properties(Access = private)
-        Interface;                                                  %QDInterface.Controller .NET object, created by Connect
+        Interface;                                                  %QDInterface.Controller .NET object, created by OpenConnection
     end
 
     %% Constructor
@@ -57,40 +57,6 @@ classdef PPMS < Palladium.Core.Instrument
 
     %% Methods (Public)
     methods (Access = public)
-
-        function Close(this)
-            %Release the connection to the Quantum Design instrument server.
-
-            delete(this.Interface);
-            this.Interface = [];
-
-            if this.SimulationMode
-                disp("Disconnected from simulated PPMS");
-            end
-        end
-
-        function Connect(this)
-            %Load the Quantum Design .NET files and connect to the instrument server.
-            %In Debug mode, connects to Quantum Design's simulated PPMS instead.
-            %Errors with instructions if either .NET file is missing
-
-            switch(this.Connection_Type)
-                case(Palladium.Enums.ConnectionType.Debug)
-                    disp("Connecting to simulated " + this.Name + " instrument...");
-                    this.SimulationMode = true;
-                    this.Interface = this.ConnectToInterface(true, this.GetPPMSCommDirectory(), this.InterfacePath);
-                    disp("Connected to simulated " + this.Name);
-
-                case(Palladium.Enums.ConnectionType.Ethernet)
-                    disp("Connecting to " + this.Name + " instrument.");
-                    this.SimulationMode = false;
-                    this.Interface = this.ConnectToInterface(false, this.GetPPMSCommDirectory(), this.InterfacePath, this.IP_Address, this.ConnectionSettings.Port);
-                    disp("Connected to " + this.Name + " instrument.");
-
-                otherwise
-                    error("PPMS:UnsupportedConnectionType", "%s", "Unsupported connection type on PPMS: " + this.Connection_Type);
-            end
-        end
 
         function B_T = GetField(this)
             %Read the magnetic field, in T.
@@ -358,6 +324,45 @@ classdef PPMS < Palladium.Core.Instrument
 
             assert(~isempty(this.Interface), "PPMS:InterfaceEmpty", "PPMS interface object is empty - call Connect first?");
             this.Interface.SetTemperature(val_K, rate_KperMin, am);
+        end
+
+    end
+
+    %% Methods (Protected)
+    methods (Access = protected)
+
+        function OpenConnection(this)
+            %Load the Quantum Design .NET files and connect to the instrument server.
+            %In Debug mode, connects to Quantum Design's simulated PPMS instead.
+            %Errors with instructions if either .NET file is missing
+
+            switch(this.Connection_Type)
+                case(Palladium.Enums.ConnectionType.Debug)
+                    disp("Connecting to simulated " + this.Name + " instrument...");
+                    this.SimulationMode = true;
+                    this.Interface = this.ConnectToInterface(true, this.GetPPMSCommDirectory(), this.InterfacePath);
+                    disp("Connected to simulated " + this.Name);
+
+                case(Palladium.Enums.ConnectionType.Ethernet)
+                    disp("Connecting to " + this.Name + " instrument.");
+                    this.SimulationMode = false;
+                    this.Interface = this.ConnectToInterface(false, this.GetPPMSCommDirectory(), this.InterfacePath, this.IP_Address, this.ConnectionSettings.Port);
+                    disp("Connected to " + this.Name + " instrument.");
+
+                otherwise
+                    error("PPMS:UnsupportedConnectionType", "%s", "Unsupported connection type on PPMS: " + this.Connection_Type);
+            end
+        end
+
+        function CloseConnection(this)
+            %Release the connection to the Quantum Design instrument server.
+
+            delete(this.Interface);
+            this.Interface = [];
+
+            if this.SimulationMode
+                disp("Disconnected from simulated PPMS");
+            end
         end
 
     end

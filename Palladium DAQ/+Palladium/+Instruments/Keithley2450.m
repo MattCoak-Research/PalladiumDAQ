@@ -122,43 +122,6 @@ classdef Keithley2450 < Palladium.Core.Instrument
             this.TurnOutputOff();
         end
 
-        function Connect(this)
-            %Open the connection, check the command set, and read the source and measure settings.
-            %Clears the interface and the instrument's event log, errors if the
-            %command set on the instrument does not match `Language`, then reads
-            %`SourceMode` and `MeasMode` from the instrument
-
-            Connect@Palladium.Core.Instrument(this);
-
-            %Discard anything left over from an earlier session (e.g. a
-            %late reply to a query that timed out), so the first query below
-            %gets its own reply
-            this.ClearInterface();
-
-            %Check the command language set on the hardware matches our
-            %Language setting - it can only be changed on the instrument
-            %with a reboot, so error with instructions if not
-            if ~this.SimulationMode
-                hardwareLanguage = this.GetLanguage();
-                if hardwareLanguage ~= this.Language
-                    msg = this.Name + " is configured on the hardware to use the " + string(hardwareLanguage) + ...
-                        " command set, but its Language setting is " + string(this.Language) + ". Set Language to " + string(hardwareLanguage) + ...
-                        ", or change the command set on the instrument (MENU > System > Settings > Command Set, or send *LANG " + ...
-                        string(this.Language) + ") and reboot it.";
-                    error("Keithley2450:LanguageMismatch", "%s", msg);
-                end
-            end
-
-            %Start with an empty event log, so any errors reported during
-            %measurements come from this session
-            this.ClearErrorQueue();
-
-            %Query hardware options and setup, set properties like
-            %MeasurementMode based on this
-            this.SourceMode = this.GetSourceMode();
-            this.MeasMode = this.GetMeasurementMode();
-        end
-
         function ClearErrorQueue(this)
             %Remove all events (errors, warnings and info) from the instrument's event log.
             %This also clears the event log shown on the front panel
@@ -935,6 +898,48 @@ classdef Keithley2450 < Palladium.Core.Instrument
                 otherwise
                     error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
             end
+        end
+
+    end
+
+    %% Methods (Protected)
+    methods (Access = protected)
+
+        function OpenConnection(this)
+            %Open the connection, check the command set, and read the source and measure settings.
+            %Clears the interface and the instrument's event log, errors if the
+            %command set on the instrument does not match `Language`, then reads
+            %`SourceMode` and `MeasMode` from the instrument
+
+            OpenConnection@Palladium.Core.Instrument(this);
+
+            %Discard anything left over from an earlier session (e.g. a
+            %late reply to a query that timed out), so the first query below
+            %gets its own reply
+            this.ClearInterface();
+
+            %Check the command language set on the hardware matches our
+            %Language setting - it can only be changed on the instrument
+            %with a reboot, so error with instructions if not
+            if ~this.SimulationMode
+                hardwareLanguage = this.GetLanguage();
+                if hardwareLanguage ~= this.Language
+                    msg = this.Name + " is configured on the hardware to use the " + string(hardwareLanguage) + ...
+                        " command set, but its Language setting is " + string(this.Language) + ". Set Language to " + string(hardwareLanguage) + ...
+                        ", or change the command set on the instrument (MENU > System > Settings > Command Set, or send *LANG " + ...
+                        string(this.Language) + ") and reboot it.";
+                    error("Keithley2450:LanguageMismatch", "%s", msg);
+                end
+            end
+
+            %Start with an empty event log, so any errors reported during
+            %measurements come from this session
+            this.ClearErrorQueue();
+
+            %Query hardware options and setup, set properties like
+            %MeasurementMode based on this
+            this.SourceMode = this.GetSourceMode();
+            this.MeasMode = this.GetMeasurementMode();
         end
 
     end

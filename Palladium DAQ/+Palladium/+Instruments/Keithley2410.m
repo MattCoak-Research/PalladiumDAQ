@@ -91,15 +91,6 @@ classdef Keithley2410 < Palladium.Core.Instrument
             this.WriteCommand("*CLS");
         end
 
-        function Close(this)
-            %Return the instrument to local (front panel) control, then disconnect.
-
-            if ~isempty(this.DeviceHandle)
-                this.SetLocal();
-            end
-            Close@Palladium.Core.Instrument(this);
-        end
-
         function metadataStruct = CollectMetaData(this)
             %Source and measurement settings, recorded in the data-file header.
             %
@@ -113,19 +104,6 @@ classdef Keithley2410 < Palladium.Core.Instrument
             metadataStruct.FourWireMode = this.GetFourWireEnabledStatus();
         end
 
-        function Connect(this)
-            %Open the connection, set the data elements and check SourceMode.
-            %Sets :READ? replies to voltage, current and resistance, in that
-            %order. Errors if the source function set on the instrument is not
-            %SourceMode
-
-            Connect@Palladium.Core.Instrument(this);
-            if ~this.SimulationMode
-                this.WriteCommand(":FORM:ELEM VOLT,CURR,RES");
-            end
-            this.VerifyConnectionSettings();
-        end
-
         function data = FetchLatestData(this)
             %Read the latest reading from the instrument without triggering one.
             %Not used by the driver: a building block for triggered measurements
@@ -135,7 +113,7 @@ classdef Keithley2410 < Palladium.Core.Instrument
             %
             %Outputs:
             %   data - the first element of the latest reading (the voltage,
-            %          with the data elements Connect sets)
+            %          with the data elements OpenConnection sets)
 
             if this.SimulationMode
                 data = this.QueryDouble("SENS:DATA:LAT?");
@@ -491,6 +469,33 @@ classdef Keithley2410 < Palladium.Core.Instrument
 
     end
 
+    %% Methods (Protected)
+    methods (Access = protected)
+
+        function OpenConnection(this)
+            %Open the connection, set the data elements and check SourceMode.
+            %Sets :READ? replies to voltage, current and resistance, in that
+            %order. Errors if the source function set on the instrument is not
+            %SourceMode
+
+            OpenConnection@Palladium.Core.Instrument(this);
+            if ~this.SimulationMode
+                this.WriteCommand(":FORM:ELEM VOLT,CURR,RES");
+            end
+            this.VerifyConnectionSettings();
+        end
+
+        function CloseConnection(this)
+            %Return the instrument to local (front panel) control, then disconnect.
+
+            if ~isempty(this.DeviceHandle)
+                this.SetLocal();
+            end
+            CloseConnection@Palladium.Core.Instrument(this);
+        end
+
+    end
+
     %% Methods (Private)
     methods (Access = private)
 
@@ -499,7 +504,7 @@ classdef Keithley2410 < Palladium.Core.Instrument
             %
             %Inputs:
             %   data - comma-separated reading starting voltage, current,
-            %          resistance (as set by Connect; :MEASure? also adds
+            %          resistance (as set by OpenConnection; :MEASure? also adds
             %          timestamp and status, which are ignored)
             %
             %Outputs:

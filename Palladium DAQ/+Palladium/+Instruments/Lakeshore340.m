@@ -102,38 +102,6 @@ classdef Lakeshore340 < Palladium.Core.Instrument
             heaterPower = this.GetHeaterPower();
         end
 
-        function Connect(this)
-            %Open the connection and read the heater's maximum current and display mode.
-            %Both are needed by GetHeaterPower
-            %
-            %Reads loop 1's maximum current (CLIMIT?) and whether its output
-            %is shown as a percentage of current or power (CDISP?). Change
-            %these on the instrument, then reconnect.
-
-            Connect@Palladium.Core.Instrument(this);
-            if this.SimulationMode
-                return;
-            end
-
-            %Reply is "<SP limit>,<positive slope>,<negative slope>,<max current>,<max range>",
-            %where max current is 1 = 0.25 A, 2 = 0.5 A, 3 = 1 A, 4 = 2 A, 5 = User
-            climit = strsplit(strtrim(this.QueryString("CLIMIT? 1")), ",");
-            switch(str2double(climit{4}))
-                case(1);    this.MaxHeaterCurrent = 0.25;
-                case(2);    this.MaxHeaterCurrent = 0.5;
-                case(3);    this.MaxHeaterCurrent = 1;
-                case(4);    this.MaxHeaterCurrent = 2;
-                otherwise
-                    this.MaxHeaterCurrent = NaN;
-                    warning("Lakeshore340:UnknownMaxCurrent", "%s", this.Name + ": the heater's maximum current is set to User (or could not be read), so the heater power cannot be calculated and is recorded as NaN. Choose 0.25, 0.5, 1 or 2 A on the instrument to record it.");
-            end
-
-            %Reply is "<number of loops>,<resistance>,<current/power>,<large output enable>",
-            %where current/power is 1 = current, 2 = power
-            cdisp = strsplit(strtrim(this.QueryString("CDISP? 1")), ",");
-            this.HeaterOutputIsPower = str2double(cdisp{3}) == 2;
-        end
-
         function controlMode = GetControlMode(this, controlChannel)
             %Read a control loop's control mode
             %
@@ -460,6 +428,38 @@ classdef Lakeshore340 < Palladium.Core.Instrument
 
     %% Methods (Protected)
     methods (Access = protected)
+
+        function OpenConnection(this)
+            %Open the connection and read the heater's maximum current and display mode.
+            %Both are needed by GetHeaterPower
+            %
+            %Reads loop 1's maximum current (CLIMIT?) and whether its output
+            %is shown as a percentage of current or power (CDISP?). Change
+            %these on the instrument, then reconnect.
+
+            OpenConnection@Palladium.Core.Instrument(this);
+            if this.SimulationMode
+                return;
+            end
+
+            %Reply is "<SP limit>,<positive slope>,<negative slope>,<max current>,<max range>",
+            %where max current is 1 = 0.25 A, 2 = 0.5 A, 3 = 1 A, 4 = 2 A, 5 = User
+            climit = strsplit(strtrim(this.QueryString("CLIMIT? 1")), ",");
+            switch(str2double(climit{4}))
+                case(1);    this.MaxHeaterCurrent = 0.25;
+                case(2);    this.MaxHeaterCurrent = 0.5;
+                case(3);    this.MaxHeaterCurrent = 1;
+                case(4);    this.MaxHeaterCurrent = 2;
+                otherwise
+                    this.MaxHeaterCurrent = NaN;
+                    warning("Lakeshore340:UnknownMaxCurrent", "%s", this.Name + ": the heater's maximum current is set to User (or could not be read), so the heater power cannot be calculated and is recorded as NaN. Choose 0.25, 0.5, 1 or 2 A on the instrument to record it.");
+            end
+
+            %Reply is "<number of loops>,<resistance>,<current/power>,<large output enable>",
+            %where current/power is 1 = current, 2 = power
+            cdisp = strsplit(strtrim(this.QueryString("CDISP? 1")), ",");
+            this.HeaterOutputIsPower = str2double(cdisp{3}) == 2;
+        end
 
         function ApplySettings(this, settings)
             %Send the Heater Control tab's settings to the instrument.

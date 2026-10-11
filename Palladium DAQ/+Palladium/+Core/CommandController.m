@@ -34,7 +34,7 @@ classdef CommandController < handle
     %text - in quotes ("..." or '...') if it contains spaces, commas or
     %colons, or should not be read as a number. For example:
     %
-    %* `Close` or `Close()` calls `instr.Close()`
+    %* `ClearStatus` or `ClearStatus()` calls `instr.ClearStatus()`
     %* `SetSourceLevel(2.1, true)` calls `instr.SetSourceLevel(2.1, true)`
     %* `SetSample("Sample A, run 2")` calls `instr.SetSample("Sample A, run 2")`
 
@@ -282,7 +282,7 @@ classdef CommandController < handle
         function [methodName, args] = ParseCommandString(this, commandStr)
             %Split a command string into the method name and a cell array of its arguments.
             %For example SetTemperature(10, "Sample A"). The brackets are
-            %optional with no arguments (e.g. Connect), and a trailing ";"
+            %optional with no arguments (e.g. ClearStatus), and a trailing ";"
             %is ignored. Errors if the method name isn't a valid name
 
             cmd = strtrim(string(commandStr));

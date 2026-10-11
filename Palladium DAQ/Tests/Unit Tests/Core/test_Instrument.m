@@ -6,9 +6,9 @@ classdef test_Instrument < matlab.unittest.TestCase
     % handle standing in for real hardware.
     %
     % Not covered, as they need a real instrument or network connection:
-    % the bodies of ConnectGPIB, ConnectSerial, ConnectTCPIP and
-    % ConnectVISA (the StubInstrument overrides them to record that
-    % Connect dispatched to them).
+    % the bodies of OpenGPIBConnection, OpenSerialConnection,
+    % OpenTCPIPConnection and OpenVISAConnection (the StubInstrument
+    % overrides them to record that OpenConnection dispatched to them).
 
     %% Properties
     properties
@@ -229,59 +229,106 @@ classdef test_Instrument < matlab.unittest.TestCase
             testCase.verifyError(@() testCase.Instrument.Connect(), "StubInstrument:ConnectFailed");
         end
 
-        %% Initialise
-        function test_Initialise_SuccessTest(testCase)
+        %% Connect - connected state, OnConnected and failures
+        function test_Connect_SetsIsConnectedTest(testCase)
             testCase.Instrument.Connection_Type = Palladium.Enums.ConnectionType.Debug;
 
-            output = evalc("[success, msg] = testCase.Instrument.Initialise();"); %#ok<NASGU>
+            evalc("testCase.Instrument.Connect();");
 
-            testCase.verifyTrue(success);
-            testCase.verifyEqual(msg, "");
+            testCase.verifyTrue(testCase.Instrument.IsConnected);
             testCase.verifyTrue(testCase.Instrument.SimulationMode);
         end
 
-        function test_Initialise_CallsOnInitialisedOnceOnSuccessTest(testCase)
+        function test_Connect_CallsOnConnectedOnceTest(testCase)
             testCase.Instrument.Connection_Type = Palladium.Enums.ConnectionType.GPIB;
 
-            testCase.Instrument.Initialise();
+            testCase.Instrument.Connect();
 
-            testCase.verifyEqual(testCase.Instrument.InitialisedCount, 1);
+            testCase.verifyEqual(testCase.Instrument.ConnectedCount, 1);
         end
 
-        function test_Initialise_FailureReportsDetailsAndSkipsOnInitialisedTest(testCase)
+        function test_Connect_FailureSkipsOnConnectedAndLeavesNotConnectedTest(testCase)
             testCase.Instrument.Connection_Type = Palladium.Enums.ConnectionType.GPIB;
             testCase.Instrument.ThrowOnConnect = true;
 
-            [success, msg] = testCase.Instrument.Initialise();
+            testCase.verifyError(@() testCase.Instrument.Connect(), "StubInstrument:ConnectFailed");
 
-            testCase.verifyFalse(success);
+            testCase.verifyEqual(testCase.Instrument.ConnectedCount, 0);
+            testCase.verifyFalse(testCase.Instrument.IsConnected);
+        end
+
+        function test_Connect_OnConnectedErrorDisconnectsAgainTest(testCase)
+            %An error in OnConnected doesn't leave a half-set-up instrument connected
+            testCase.Instrument.Connection_Type = Palladium.Enums.ConnectionType.Debug;
+            testCase.Instrument.ThrowOnConnected = true;
+
+            evalc("testCase.verifyError(@() testCase.Instrument.Connect(), ""StubInstrument:OnConnectedFailed"");");
+
+            testCase.verifyFalse(testCase.Instrument.IsConnected);
+        end
+
+        function test_Connect_WhenAlreadyConnectedWarnsAndReconnectsTest(testCase)
+            %Something earlier failed to disconnect it - say so, but carry on
+            testCase.logWarningsToCommandWindow();
+            testCase.Instrument.Connection_Type = Palladium.Enums.ConnectionType.Debug;
+            first = evalc("testCase.Instrument.Connect();");
+
+            second = evalc("testCase.Instrument.Connect();");
+
+            testCase.verifyFalse(contains(first, "WARNING"), "The first Connect should not warn");
+            testCase.verifySubstring(second, "Connect was called while it was already connected");
+            testCase.verifyTrue(testCase.Instrument.IsConnected);
+            testCase.verifyEqual(testCase.Instrument.ConnectedCount, 2, "It should connect again anyway");
+        end
+
+        function test_Disconnect_WhenNotConnectedWarnsAndClosesTest(testCase)
+            %Something earlier lost track of it - say so, but close anyway
+            testCase.logWarningsToCommandWindow();
+            testCase.Instrument.Connection_Type = Palladium.Enums.ConnectionType.Debug;
+            evalc("testCase.Instrument.Connect();");
+            first = evalc("testCase.Instrument.Disconnect();");
+
+            second = evalc("testCase.Instrument.Disconnect();");
+
+            testCase.verifyFalse(contains(first, "WARNING"), "The first Disconnect should not warn");
+            testCase.verifySubstring(second, "Disconnect was called while it was not connected");
+            testCase.verifySubstring(second, "Disconnected from simulated Stub instrument.", "It should close anyway");
+            testCase.verifyFalse(testCase.Instrument.IsConnected);
+        end
+
+        %% ConnectionFailedMessage
+        function test_ConnectionFailedMessage_ReportsDetailsTest(testCase)
+            testCase.Instrument.Connection_Type = Palladium.Enums.ConnectionType.GPIB;
+            testCase.Instrument.ThrowOnConnect = true;
+            err = testCase.connectError();
+
+            msg = testCase.Instrument.ConnectionFailedMessage(err);
+
             testCase.verifySubstring(msg, "Could not connect to Instrument");
             testCase.verifySubstring(msg, "Stub Instrument");   %FullName
             testCase.verifySubstring(msg, "Stub");              %Name
             testCase.verifySubstring(msg, "GPIB");              %Connection type
             testCase.verifySubstring(msg, "Stub connection failure");
-            testCase.verifyEqual(testCase.Instrument.InitialisedCount, 0);
         end
 
-        function test_Initialise_FailureMessageIsMultilineTest(testCase)
+        function test_ConnectionFailedMessage_IsMultilineTest(testCase)
             %The message is shown to the user, so its line breaks must be
             %real newlines rather than the two characters backslash-n
             testCase.Instrument.Connection_Type = Palladium.Enums.ConnectionType.GPIB;
             testCase.Instrument.ThrowOnConnect = true;
 
-            [~, msg] = testCase.Instrument.Initialise();
+            msg = testCase.Instrument.ConnectionFailedMessage(testCase.connectError());
 
             expectedStart = "Could not connect to Instrument:" + newline + "Stub Instrument - Stub" + newline + "Connection type GPIB" + newline + newline + "Error message: ";
             testCase.verifyTrue(startsWith(msg, expectedStart), "Unexpected message layout: " + msg);
             testCase.verifyFalse(contains(msg, "\n"), "Message contains a literal backslash-n");
         end
 
-        function test_Initialise_UnsupportedTypeFailsGracefullyTest(testCase)
+        function test_ConnectionFailedMessage_UnsupportedTypeTest(testCase)
             testCase.Instrument.Connection_Type = "Bogus";
 
-            [success, msg] = testCase.Instrument.Initialise();
+            msg = testCase.Instrument.ConnectionFailedMessage(testCase.connectError());
 
-            testCase.verifyFalse(success);
             testCase.verifySubstring(msg, "Unsupported connection type: Bogus");
         end
 
@@ -289,7 +336,7 @@ classdef test_Instrument < matlab.unittest.TestCase
         function test_Close_DebugReportsDisconnectTest(testCase)
             testCase.Instrument.Connection_Type = Palladium.Enums.ConnectionType.Debug;
 
-            output = evalc("testCase.Instrument.Close()");
+            output = evalc("testCase.Instrument.Disconnect()");
 
             testCase.verifySubstring(output, "Disconnected from simulated Stub instrument.");
         end
@@ -297,7 +344,7 @@ classdef test_Instrument < matlab.unittest.TestCase
         function test_Close_NotConnectedDoesNotErrorTest(testCase)
             testCase.Instrument.Connection_Type = Palladium.Enums.ConnectionType.GPIB;
 
-            output = evalc("testCase.Instrument.Close()");
+            output = evalc("testCase.Instrument.Disconnect()");
 
             testCase.verifySubstring(output, "Tried to close Stub but it is not connected");
         end
@@ -306,7 +353,7 @@ classdef test_Instrument < matlab.unittest.TestCase
             testCase.Instrument.Connection_Type = Palladium.Enums.ConnectionType.GPIB;
             testCase.Instrument.SetDeviceHandleForTest(InstrumentTestingInstruments.FakeDeviceHandle());
 
-            testCase.Instrument.Close();
+            testCase.Instrument.Disconnect();
 
             testCase.verifyEmpty(testCase.Instrument.GetDeviceHandleForTest());
         end
@@ -336,17 +383,16 @@ classdef test_Instrument < matlab.unittest.TestCase
                 "Second Instrument should share the first one's connection rather than opening another");
         end
 
-        function test_Initialise_EthernetConnectsAndSucceedsTest(testCase)
+        function test_Connect_EthernetConnectsAndCallsOnConnectedTest(testCase)
             server = testCase.startEchoServer();
             testCase.prepareEthernet(testCase.Instrument, server.Port);
 
-            [success, msg] = testCase.Instrument.Initialise();
+            testCase.Instrument.Connect();
             testCase.addTeardown(@() testCase.closeIfConnected(testCase.Instrument));
 
-            testCase.verifyTrue(success);
-            testCase.verifyEqual(msg, "");
+            testCase.verifyTrue(testCase.Instrument.IsConnected);
             testCase.verifyNotEmpty(testCase.Instrument.GetDeviceHandleForTest());
-            testCase.verifyEqual(testCase.Instrument.InitialisedCount, 1);
+            testCase.verifyEqual(testCase.Instrument.ConnectedCount, 1);
         end
 
         function test_QueryString_RoundTripsOverEthernetTest(testCase)
@@ -382,10 +428,10 @@ classdef test_Instrument < matlab.unittest.TestCase
             testCase.connectOverEthernet(testCase.Instrument, server.Port);
             testCase.verifyTrue(testCase.waitFor(@() server.Server.Connected), "Server never saw the client connect");
 
-            testCase.Instrument.Close();
+            testCase.Instrument.Disconnect();
 
             testCase.verifyEmpty(testCase.Instrument.GetDeviceHandleForTest());
-            testCase.verifyTrue(testCase.waitFor(@() ~server.Server.Connected), "Server still shows the client connected after Close");
+            testCase.verifyTrue(testCase.waitFor(@() ~server.Server.Connected), "Server still shows the client connected after Disconnect");
         end
 
         %% Supported connection types
@@ -778,6 +824,7 @@ classdef test_Instrument < matlab.unittest.TestCase
 
         %% UpdateAndMeasure
         function test_UpdateAndMeasure_ReturnsMeasuredDataRowTest(testCase)
+            testCase.connect();
             testCase.Instrument.DataRowToReturn = [4 5 6];
 
             dataRow = testCase.Instrument.UpdateAndMeasure(["h1", "h2", "h3"]);
@@ -786,6 +833,7 @@ classdef test_Instrument < matlab.unittest.TestCase
         end
 
         function test_UpdateAndMeasure_UpdatesControlsThenMeasuresThenUpdatesDataTest(testCase)
+            testCase.connect();
             recorder = InstrumentTestingInstruments.CallRecorder();
             testCase.Instrument.Recorder = recorder;
             testCase.registerControl("A", recorder);
@@ -797,6 +845,7 @@ classdef test_Instrument < matlab.unittest.TestCase
         end
 
         function test_UpdateAndMeasure_PassesDataRowAndHeadersToControlsTest(testCase)
+            testCase.connect();
             testCase.Instrument.DataRowToReturn = [7 8];
             control = testCase.registerControl("A");
             headers = ["h1", "h2"];
@@ -809,6 +858,7 @@ classdef test_Instrument < matlab.unittest.TestCase
         end
 
         function test_UpdateAndMeasure_WorksWithNoControlsTest(testCase)
+            testCase.connect();
             recorder = InstrumentTestingInstruments.CallRecorder();
             testCase.Instrument.Recorder = recorder;
 
@@ -818,12 +868,46 @@ classdef test_Instrument < matlab.unittest.TestCase
         end
 
         function test_UpdateAndMeasure_RemovedControlIsNoLongerUpdatedTest(testCase)
+            testCase.connect();
             control = testCase.registerControl("A");
             testCase.Instrument.RemoveControlObject("A");
 
             testCase.Instrument.UpdateAndMeasure("h");
 
             testCase.verifyEqual(control.UpdateCount, 0);
+        end
+
+        function test_UpdateAndMeasure_ErrorsWhenNotConnectedTest(testCase)
+            %Never connected - in Debug mode too, like a real instrument
+            testCase.verifyError(@() testCase.Instrument.UpdateAndMeasure("h"), "Instrument:NotConnected");
+        end
+
+        %% IsConnected and Disconnect
+        function test_IsConnected_FalseUntilConnectedTest(testCase)
+            testCase.verifyFalse(testCase.Instrument.IsConnected);
+            testCase.connect();
+            testCase.verifyTrue(testCase.Instrument.IsConnected);
+        end
+
+        function test_IsConnected_SetByConnectTest(testCase)
+            evalc("testCase.Instrument.Connect();");
+            testCase.verifyTrue(testCase.Instrument.IsConnected);
+        end
+
+        function test_IsConnected_FalseWhenConnectFailsTest(testCase)
+            testCase.Instrument.Connection_Type = "GPIB";
+            testCase.Instrument.ThrowOnConnect = true;
+            testCase.connectError();
+            testCase.verifyFalse(testCase.Instrument.IsConnected);
+        end
+
+        function test_Disconnect_ClosesAndMarksNotConnectedTest(testCase)
+            %A closed simulated instrument can't be measured - it fails like
+            %a real one would
+            testCase.connect();
+            evalc("testCase.Instrument.Disconnect();");
+            testCase.verifyFalse(testCase.Instrument.IsConnected);
+            testCase.verifyError(@() testCase.Instrument.UpdateAndMeasure("h"), "Instrument:NotConnected");
         end
 
         %% ConvertToCategorical
@@ -1098,7 +1182,7 @@ classdef test_Instrument < matlab.unittest.TestCase
 
         function closeIfConnected(~, instrument)
             if ~isempty(instrument.GetDeviceHandleForTest())
-                instrument.Close();
+                instrument.Disconnect();
             end
         end
 
@@ -1115,6 +1199,34 @@ classdef test_Instrument < matlab.unittest.TestCase
         function enterSimulationMode(testCase)
             testCase.Instrument.Connection_Type = Palladium.Enums.ConnectionType.Debug;
             evalc("testCase.Instrument.Connect()");   %Swallow the 'Connected to simulated..' message
+        end
+
+        function logWarningsToCommandWindow(testCase)
+            %Set the (shared, persistent) Logger to print warnings to the
+            %Command Window, where evalc can see them, and nowhere else -
+            %other tests may have turned it off. Passing a Controller resets
+            %all its settings, as test_DataWriter does
+            Palladium.Logging.Logger.Log("Debug", "Logging to the Command Window for test", "Controller", true, ...
+                "LogFileDirectory", "", "LogFileFileName", "", ...
+                "CommandWindowMessageLevel", "Warning", "GUIMessageLevel", "Off", "LogFileMessageLevel", "Off");
+            testCase.addTeardown(@() Palladium.Logging.Logger.Log("Debug", "Logging stopped", "Controller", true, ...
+                "LogFileDirectory", "", "LogFileFileName", "", ...
+                "CommandWindowMessageLevel", "Off", "GUIMessageLevel", "Off", "LogFileMessageLevel", "Off"));
+        end
+
+        function err = connectError(testCase)
+            %The error Connect throws (the test fails if it doesn't throw)
+            err = [];
+            try
+                evalc("testCase.Instrument.Connect();");
+            catch err
+            end
+            testCase.assertNotEmpty(err, "Connect should have errored");
+        end
+
+        function connect(testCase)
+            %Connect the stub (Debug), as UpdateAndMeasure needs, hiding its message
+            evalc("testCase.Instrument.Connect()");
         end
 
         function control = registerControl(testCase, name, recorder)

@@ -118,14 +118,6 @@ classdef MercuryITC < Palladium.Core.Instrument
             this.SetLoopString(deviceAddress, "HTR", heaterUID);
         end
 
-        function Connect(this)
-            %Open the connection and read the instrument's device catalogue.
-            %Fills any Channel_n_Name left at "Default" (see GetDeviceCatalogue)
-
-            Connect@Palladium.Core.Instrument(this);
-            this.DeviceCatalogue = this.GetDeviceCatalogue();
-        end
-
         function DisablePIDControl(this, deviceAddress)
             %Switch a temperature sensor's control loop to manual (PID control off).
             %Sets `LOOP:ENAB` to OFF
@@ -488,6 +480,14 @@ classdef MercuryITC < Palladium.Core.Instrument
 
     %% Methods (Protected)
     methods(Access = protected)
+
+        function OpenConnection(this)
+            %Open the connection and read the instrument's device catalogue.
+            %Fills any Channel_n_Name left at "Default" (see GetDeviceCatalogue)
+
+            OpenConnection@Palladium.Core.Instrument(this);
+            this.DeviceCatalogue = this.GetDeviceCatalogue();
+        end
 
         function propertiesToIgnore = GetPropertiesToIgnore(~)
             %Hide the GPIB address in the GUI - this driver does not support GPIB.

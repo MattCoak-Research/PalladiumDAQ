@@ -4,8 +4,10 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
     %`GetHeaders` and `Measure`. This class provides the rest:
     %
     %* **Connecting** over GPIB, VISA, USB, Ethernet or serial (`Connect`,
-    %  `Close`), and a Debug connection type that puts the driver in
-    %  `SimulationMode`, for testing without hardware.
+    %  `Disconnect`), and a Debug connection type that puts the driver in
+    %  `SimulationMode`, for testing without hardware. `IsConnected` says
+    %  whether it is connected. Drivers customise connecting by overriding
+    %  the protected `OpenConnection`, `CloseConnection` and `OnConnected`.
     %* **Communication**: `WriteCommand`, `QueryString`, `QueryDouble` and
     %  `ReadString`, which do nothing (or return dummy values) in simulation.
     %* **GUI settings**: public `SetObservable` properties are shown and
@@ -56,9 +58,14 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
         SimulationMode = false;         %True when connected with the Debug connection type: no hardware is used, and drivers return simulated data
     end
 
+    %% Properties (Public, Private Set)
+    properties(GetAccess = public, SetAccess = private)
+        IsConnected (1,1) logical = false;  %True between Connect and Disconnect - in Debug mode too. UpdateAndMeasure errors when false
+    end
+
     %% Properties (Protected)
     properties(Access = protected)
-        DeviceHandle = [];              %The connection to the instrument (visadev, tcpclient or serialport), set by Connect - empty when not connected
+        DeviceHandle = [];              %The connection to the instrument (visadev, tcpclient or serialport), set by OpenConnection - empty when not connected
         SettingsToApply = [];           %Settings entered in an Instrument Control (e.g. a Heater Control), waiting to be applied on the next tick, or [] for none
         SimulatedData = [];             %Struct of values a driver stores for its simulated data, e.g. SimulatedData.SourceLevel - see RetrieveSimulatedDataValue
 
@@ -147,33 +154,6 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             end
         end
 
-        function Close(this)
-            %Disconnect from the instrument.
-            %Drivers can override this to do more first (e.g. return the
-            %instrument to local control), then call
-            %`Close@Palladium.Core.Instrument(this)`
-
-            switch(this.Connection_Type)
-                case(Palladium.Enums.ConnectionType.Debug)
-                    %Just print a message
-                    disp("Disconnected from simulated " + this.Name + " instrument.");
-                otherwise
-                    %Warn and return if there is no connection to disconnect from
-                    if(isempty(this.DeviceHandle))
-                        disp("Tried to close " + this.Name + " but it is not connected, or has no device handle. Returning Disconnect() with no action taken.");
-                        return;
-                    end
-
-                    %Terminate the connection, reporting any errors if
-                    %found
-                    try
-                        this.DeviceHandle = [];
-                    catch e
-                        error("CloseError:DisconnectFailed", "%s", "Error disconnecting from " + this.Name + ": " + e.message);
-                    end
-            end
-        end
-
         function metadataStruct = CollectMetaData(this) %#ok<*MANU>
             %Instrument settings to record in the data file header - override to add some.
             %Use it for settings that don't change during a measurement, such
@@ -186,35 +166,6 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             %                    no header line
 
             metadataStruct = [];
-        end
-
-        function Connect(this)
-            %Open the connection to the instrument, using Connection_Type.
-            %The Debug connection type makes no connection, and puts the
-            %driver in SimulationMode. Drivers can override this to do more
-            %after connecting (e.g. read settings), calling
-            %`Connect@Palladium.Core.Instrument(this)` first
-
-            switch(this.Connection_Type)
-                case(Palladium.Enums.ConnectionType.Debug)
-                    %Do not make a physical connection to a real instrument
-                    %- this places the class into SimulationMode, for
-                    %testing without a real piece of hardware connected
-                    disp("Connected to simulated " + this.Name + " instrument.");
-                    this.SimulationMode = true;
-                case(Palladium.Enums.ConnectionType.Ethernet)
-                    this.ConnectTCPIP();
-                case(Palladium.Enums.ConnectionType.GPIB)
-                    this.ConnectGPIB();
-                case(Palladium.Enums.ConnectionType.VISA)
-                    this.ConnectVISA();
-                case(Palladium.Enums.ConnectionType.USB)
-                    this.ConnectUSB();
-                case(Palladium.Enums.ConnectionType.Serial)
-                    this.ConnectSerial();
-                otherwise
-                    error("ConnectError:UnsupportedConnectionType", "%s", "Unsupported connection type: " + this.Connection_Type + ". ConnectionType can be tcpip, gpib, serial, usb, or visa.");
-            end
         end
 
         function datArray = GenerateSimulatedData(~, numRows, numCols, Settings)
@@ -409,31 +360,6 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             connectionTypes = this.AllowedConnectionTypes;
         end
 
-        function [success, msg] = Initialise(this)
-            %Connect to the instrument when measurements start, reporting rather than throwing errors.
-            %Called by the InstrumentController for each instrument. On
-            %success, calls OnInitialised
-            %
-            %Outputs:
-            %   success - true if the connection was made
-            %   msg     - if not, a message for the user, naming the
-            %             instrument and connection type, with the error
-
-            try
-                this.Connect();
-            catch err
-
-                success = false;
-                msg = "Could not connect to Instrument:" + newline + this.FullName + " - " + this.Name + newline + "Connection type " + string(this.Connection_Type) + newline + newline + "Error message: " + err.message;
-                return;
-            end
-
-            success = true;
-            msg = "";
-
-            this.OnInitialised();
-        end
-
         function str = PrintIdentifier(this)
             %Print the instrument's full name to the Command Window, for debugging.
             %
@@ -580,7 +506,7 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
                 case(Palladium.Enums.ConnectionType.Serial)
                     propertiesToIgnore = {"GPIB_Address", "IP_Address", "VISA_Address"};
                 case(Palladium.Enums.ConnectionType.USB)
-                    %USB connects through VISA (see ConnectUSB), so it uses
+                    %USB connects through VISA (see OpenUSBConnection), so it uses
                     %the VISA address
                     propertiesToIgnore = {"GPIB_Address", "IP_Address", "Serial_Address"};
                 otherwise
@@ -633,6 +559,51 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
     %% Methods (Public, Sealed)
     methods (Access = public, Sealed)
 
+        function Connect(this)
+            %Open the connection, set IsConnected, then call OnConnected - how to connect to the instrument.
+            %How Palladium connects each instrument when measurements start,
+            %and how to connect one from a script. Errors if the connection
+            %cannot be opened (see ConnectionFailedMessage for a message for
+            %the user). If OnConnected errors, the instrument is disconnected
+            %again before the error is rethrown. Drivers customise connecting
+            %by overriding the protected OpenConnection and OnConnected. If
+            %the instrument is already connected, logs a warning (something
+            %earlier failed to disconnect it) and connects again anyway
+
+            if this.IsConnected
+                Palladium.Logging.Logger.Log("Warning", this.Name + ": Connect was called while it was already connected - connecting again. It was not disconnected properly earlier.");
+            end
+
+            this.OpenConnection();
+            this.IsConnected = true;
+
+            try
+                this.OnConnected();
+            catch err
+                try
+                    this.Disconnect();
+                catch
+                    %Report the OnConnected error, not a failure to close
+                end
+                rethrow(err);
+            end
+        end
+
+        function msg = ConnectionFailedMessage(this, err)
+            %A message for the user explaining that connecting to this instrument failed.
+            %Used by the InstrumentController when Connect errors as
+            %measurements start
+            %
+            %Inputs:
+            %   err - the error Connect threw
+            %
+            %Outputs:
+            %   msg - names the instrument and connection type, then gives the
+            %         error message, over several lines
+
+            msg = "Could not connect to Instrument:" + newline + this.FullName + " - " + this.Name + newline + "Connection type " + string(this.Connection_Type) + newline + newline + "Error message: " + err.message;
+        end
+
         function DefineSupportedConnectionTypes(this, connectionTypes)
             %Set the connection types offered for this instrument - call in the constructor.
             %Only these are offered in the GUI's Connection_Type drop-down
@@ -647,6 +618,29 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             end
 
             this.AllowedConnectionTypes = connectionTypes;
+        end
+
+        function Disconnect(this)
+            %Close the connection and set IsConnected false - how to disconnect from the instrument.
+            %How Palladium closes instruments - when measurements stop, and
+            %when a failed start disconnects the instruments already
+            %connected - and how to close one from a script. Calls the
+            %driver's CloseConnection. IsConnected is set false even if
+            %that errors (the error is then rethrown). If the instrument is
+            %not connected, logs a warning (something earlier lost track of
+            %it) and closes anyway, to be sure
+
+            if ~this.IsConnected
+                Palladium.Logging.Logger.Log("Warning", this.Name + ": Disconnect was called while it was not connected - closing anyway. It was not connected, or was already disconnected.");
+            end
+
+            try
+                this.CloseConnection();
+            catch err
+                this.IsConnected = false;
+                rethrow(err);
+            end
+            this.IsConnected = false;
         end
 
         function [controlDetailsStructs] = GetAvailableControlOptions(this)
@@ -727,7 +721,9 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             %Update the Instrument Controls, take a reading, and pass it to the controls.
             %The entry point for each measurement tick, called by the
             %InstrumentController: calls each control's Update, then Measure,
-            %then each control's UpdateData with the new reading
+            %then each control's UpdateData with the new reading. Errors if
+            %the instrument is not connected (IsConnected) - in Debug mode
+            %too, so a closed simulated instrument fails like a real one
             %
             %Inputs:
             %   headers - the data column headers of all instruments, passed on
@@ -735,6 +731,8 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             %
             %Outputs:
             %   dataRow - the reading from Measure
+
+            assert(this.IsConnected, "Instrument:NotConnected", "%s", this.Name + " is not connected - measurements have stopped, or it was never connected");
 
             %First Update any added Controls
             this.UpdateControls();
@@ -752,6 +750,35 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
     %% Methods (Protected)
     methods(Access = protected)
 
+        function CloseConnection(this)
+            %Close the connection to the instrument - called by Disconnect, which outside code uses.
+            %Drivers can override it (as protected) to do more first, e.g.
+            %return the instrument to local control, then call
+            %`CloseConnection@Palladium.Core.Instrument(this)`. Drivers that
+            %open their own kind of connection (see OpenConnection) close it
+            %here instead
+
+            switch(this.Connection_Type)
+                case(Palladium.Enums.ConnectionType.Debug)
+                    %Just print a message
+                    disp("Disconnected from simulated " + this.Name + " instrument.");
+                otherwise
+                    %Warn and return if there is no connection to disconnect from
+                    if(isempty(this.DeviceHandle))
+                        disp("Tried to close " + this.Name + " but it is not connected, or has no device handle. Returning Disconnect() with no action taken.");
+                        return;
+                    end
+
+                    %Terminate the connection, reporting any errors if
+                    %found
+                    try
+                        this.DeviceHandle = [];
+                    catch e
+                        error("CloseError:DisconnectFailed", "%s", "Error disconnecting from " + this.Name + ": " + e.message);
+                    end
+            end
+        end
+
         function ApplySettings(this, settings) %#ok<INUSD>
             %Apply settings entered in an Instrument Control - override to use them.
             %Called on the next tick after SettingsInput, between readings.
@@ -761,8 +788,8 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             %   settings - struct of settings, as the Instrument Control sends them
         end
 
-        function ConnectGPIB(this)
-            %Connect over GPIB, using GPIB_Address and ConnectionSettings.
+        function OpenGPIBConnection(this)
+            %Open a GPIB connection, using GPIB_Address and ConnectionSettings.
             %Uses GPIB_BoardIndex, GPIB_Terminators and GPIB_Timeout
 
             this.DeviceHandle = visadev("GPIB::" + num2str(this.GPIB_Address) + "::" + num2str(this.ConnectionSettings.GPIB_BoardIndex) + "::INSTR");
@@ -770,8 +797,8 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             this.DeviceHandle.Timeout = this.ConnectionSettings.GPIB_Timeout;%In seconds
         end
 
-        function ConnectSerial(this)
-            %Connect over a serial (COM) port, using Serial_Address and ConnectionSettings.SerialSettings.
+        function OpenSerialConnection(this)
+            %Open a serial (COM) port connection, using Serial_Address and ConnectionSettings.SerialSettings.
 
             this.DeviceHandle = serialport(this.Serial_Address, this.ConnectionSettings.SerialSettings.BaudRate);
 
@@ -782,8 +809,8 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             configureTerminator(this.DeviceHandle, this.ConnectionSettings.SerialSettings.Terminator);
         end
 
-        function ConnectTCPIP(this)
-            %Connect over Ethernet (TCP), using IP_Address and ConnectionSettings.Port.
+        function OpenTCPIPConnection(this)
+            %Open an Ethernet (TCP) connection, using IP_Address and ConnectionSettings.Port.
             %Reuses an existing connection to the same address and port if
             %there is one
 
@@ -804,14 +831,14 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             end
         end
 
-        function ConnectUSB(this)
-            %Connect over USB, through VISA, using VISA_Address.
+        function OpenUSBConnection(this)
+            %Open a USB connection, through VISA, using VISA_Address.
 
-            this.ConnectVISA();
+            this.OpenVISAConnection();
         end
 
-        function ConnectVISA(this)
-            %Connect through VISA, using VISA_Address.
+        function OpenVISAConnection(this)
+            %Open a VISA connection, using VISA_Address.
             %Reuses an existing connection to the same resource if there is one
 
             %Note that 2022 Matlab has changed the syntax for these -
@@ -905,9 +932,40 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             propertiesToIgnore = {};
         end
 
-        function OnInitialised(this)
-            %Called after connecting when measurements start - override to do more then.
-            %Does nothing by default
+        function OnConnected(this)
+            %Called by Connect once the connection is open - override to do more then.
+            %Does nothing by default. If it errors, Connect disconnects again
+        end
+
+        function OpenConnection(this)
+            %Open the connection to the instrument, using Connection_Type - called by Connect, which outside code uses.
+            %The Debug connection type makes no connection, and puts the
+            %driver in SimulationMode. Drivers can override it (as protected)
+            %to do more after connecting (e.g. read settings), calling
+            %`OpenConnection@Palladium.Core.Instrument(this)` first - or to
+            %open their own kind of connection (e.g. through a vendor's
+            %library) instead
+
+            switch(this.Connection_Type)
+                case(Palladium.Enums.ConnectionType.Debug)
+                    %Do not make a physical connection to a real instrument
+                    %- this places the class into SimulationMode, for
+                    %testing without a real piece of hardware connected
+                    disp("Connected to simulated " + this.Name + " instrument.");
+                    this.SimulationMode = true;
+                case(Palladium.Enums.ConnectionType.Ethernet)
+                    this.OpenTCPIPConnection();
+                case(Palladium.Enums.ConnectionType.GPIB)
+                    this.OpenGPIBConnection();
+                case(Palladium.Enums.ConnectionType.VISA)
+                    this.OpenVISAConnection();
+                case(Palladium.Enums.ConnectionType.USB)
+                    this.OpenUSBConnection();
+                case(Palladium.Enums.ConnectionType.Serial)
+                    this.OpenSerialConnection();
+                otherwise
+                    error("ConnectError:UnsupportedConnectionType", "%s", "Unsupported connection type: " + this.Connection_Type + ". ConnectionType can be tcpip, gpib, serial, usb, or visa.");
+            end
         end
 
 

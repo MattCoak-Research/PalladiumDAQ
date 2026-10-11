@@ -110,7 +110,7 @@ classdef (Abstract) Keithley2410_HardwareTest_Base < matlab.unittest.TestCase
             catch
             end
             try
-                k.Close();
+                k.Disconnect();
             catch
             end
         end
@@ -270,26 +270,26 @@ classdef (Abstract) Keithley2410_HardwareTest_Base < matlab.unittest.TestCase
             k.WriteCommand(":FORM:ELEM VOLT");
             testCase.verifyEqual(string(k.QueryString(":FORM:ELEM?")), "VOLT");
 
-            k.Close();
+            k.Disconnect();
             k.Connect();
             testCase.verifyEqual(string(k.QueryString(":FORM:ELEM?")), "VOLT,CURR,RES");
         end
 
         function testCloseDisconnects(testCase)
             k = testCase.Instrument;
-            k.Close();
+            k.Disconnect();
             testCase.verifyError(@() k.QueryString("*IDN?"), "QueryStringError:NotConnected");
         end
 
         function testCloseWhenNotConnectedDoesNothing(testCase)
             k = testCase.Instrument;
-            k.Close();
-            testCase.verifyWarningFree(@() k.Close());
+            k.Disconnect();
+            testCase.verifyWarningFree(@() k.Disconnect());
         end
 
         function testReconnectAfterClose(testCase)
             k = testCase.Instrument;
-            k.Close();
+            k.Disconnect();
             k.Connect();
             testCase.verifyMatches(k.QueryString("*IDN?"), "(?i)KEITHLEY");
         end
@@ -297,7 +297,7 @@ classdef (Abstract) Keithley2410_HardwareTest_Base < matlab.unittest.TestCase
         function testConnectSucceedsWhenSourceModeMatches(testCase, SourceMode)
             k = testCase.Instrument;
             testCase.Initialise(SourceMode);
-            k.Close();
+            k.Disconnect();
             testCase.verifyWarningFree(@() k.Connect());
             testCase.verifyEqual(string(k.GetSourceMode()), string(SourceMode));
         end
@@ -305,7 +305,7 @@ classdef (Abstract) Keithley2410_HardwareTest_Base < matlab.unittest.TestCase
         function testConnectErrorsWhenSourceModeMismatches(testCase)
             %The instrument is sourcing current, so a driver set to Voltage must refuse
             k = testCase.Instrument;
-            k.Close();
+            k.Disconnect();
             k.SourceMode = k.SourceType("Voltage");
             testCase.verifyError(@() k.Connect(), "Keithley2410:SourceModeMismatch");
         end

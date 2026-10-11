@@ -67,23 +67,6 @@ classdef SR830_Lockin < Palladium.Core.Instrument
             metadataStruct.Frequency_Hz = this.GetFrequency();
         end
 
-        function Connect(this)
-            %Open the connection, and tell the SR830 which interface to reply on.
-            %Replies go to only one interface, set by OUTX, which must be sent
-            %before any query (manual section 5, Setup commands)
-
-            Connect@Palladium.Core.Instrument(this);
-            if this.SimulationMode
-                return;
-            end
-
-            if this.Connection_Type == Palladium.Enums.ConnectionType.Serial
-                this.WriteCommand("OUTX 0");
-            else
-                this.WriteCommand("OUTX 1");
-            end
-        end
-
         function [Headers, Units] = GetHeaders(this)
             %Data column headers and units for the values returned by Measure.
             %X, Y and the output level, plus a resistance column when a current
@@ -208,6 +191,28 @@ classdef SR830_Lockin < Palladium.Core.Instrument
 
             if(this.AutoSensitivity && ~this.SimulationMode)
                 this.AutoTuneSensitivity(x, y);
+            end
+        end
+
+    end
+
+    %% Methods (Protected)
+    methods (Access = protected)
+
+        function OpenConnection(this)
+            %Open the connection, and tell the SR830 which interface to reply on.
+            %Replies go to only one interface, set by OUTX, which must be sent
+            %before any query (manual section 5, Setup commands)
+
+            OpenConnection@Palladium.Core.Instrument(this);
+            if this.SimulationMode
+                return;
+            end
+
+            if this.Connection_Type == Palladium.Enums.ConnectionType.Serial
+                this.WriteCommand("OUTX 0");
+            else
+                this.WriteCommand("OUTX 1");
             end
         end
 

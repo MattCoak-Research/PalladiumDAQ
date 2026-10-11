@@ -99,22 +99,6 @@ classdef Lakeshore331 < Palladium.Core.Instrument
             heaterPower = this.GetHeaterPower();
         end
 
-        function Connect(this)
-            %Open the connection and read the heater output display mode.
-            %Whether the heater output is a percentage of power or of current is
-            %needed by GetHeaterPower
-
-            Connect@Palladium.Core.Instrument(this);
-            if this.SimulationMode
-                return;
-            end
-
-            %Reply is "<input>,<units>,<powerup enable>,<current/power>",
-            %where current/power is 1 = current, 2 = power
-            cset = strsplit(strtrim(this.QueryString("CSET? " + this.HeaterLoop)), ",");
-            this.HeaterOutputIsPower = str2double(cset{4}) == 2;
-        end
-
         function controlMode = GetControlMode(this)
             %Read the heater's control mode
             %
@@ -442,6 +426,22 @@ classdef Lakeshore331 < Palladium.Core.Instrument
 
     %% Methods (Protected)
     methods (Access = protected)
+
+        function OpenConnection(this)
+            %Open the connection and read the heater output display mode.
+            %Whether the heater output is a percentage of power or of current is
+            %needed by GetHeaterPower
+
+            OpenConnection@Palladium.Core.Instrument(this);
+            if this.SimulationMode
+                return;
+            end
+
+            %Reply is "<input>,<units>,<powerup enable>,<current/power>",
+            %where current/power is 1 = current, 2 = power
+            cset = strsplit(strtrim(this.QueryString("CSET? " + this.HeaterLoop)), ",");
+            this.HeaterOutputIsPower = str2double(cset{4}) == 2;
+        end
 
         function ApplySettings(this, settings)
             %Send the Heater Control tab's settings to the instrument.

@@ -61,18 +61,6 @@ classdef Keithley6430 < Palladium.Core.Instrument
     %% Methods (Public)
     methods (Access = public)
 
-        function Connect(this)
-            %Open the connection and set the data elements returned by readings.
-            %Readings are then voltage, current and resistance, in that order
-
-            Connect@Palladium.Core.Instrument(this);
-            if this.SimulationMode
-                return;
-            end
-
-            this.WriteCommand(":FORM:ELEM VOLT,CURR,RES");
-        end
-
         function [Headers, Units] = GetHeaders(this)
             %Data column headers and units for the values returned by Measure.
             %
@@ -130,7 +118,7 @@ classdef Keithley6430 < Palladium.Core.Instrument
             end
 
             %Reply is voltage, current and resistance (the data elements set in
-            %Connect), e.g. for a 184 kOhm resistor with 10 uA current:
+            %OpenConnection), e.g. for a 184 kOhm resistor with 10 uA current:
             %'+1.839736E+00,+9.999968E-06,+1.839742E+05'
             values = str2double(strsplit(this.QueryString("READ?"), ','));
 
@@ -175,6 +163,23 @@ classdef Keithley6430 < Palladium.Core.Instrument
                 otherwise
                     error("Keithley6430:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
             end
+        end
+
+    end
+
+    %% Methods (Protected)
+    methods (Access = protected)
+
+        function OpenConnection(this)
+            %Open the connection and set the data elements returned by readings.
+            %Readings are then voltage, current and resistance, in that order
+
+            OpenConnection@Palladium.Core.Instrument(this);
+            if this.SimulationMode
+                return;
+            end
+
+            this.WriteCommand(":FORM:ELEM VOLT,CURR,RES");
         end
 
     end

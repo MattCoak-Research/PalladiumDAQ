@@ -490,7 +490,7 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
     %% Methods (Protected)
     methods(Access = protected)
 
-        function OnInitialised(this)
+        function OnConnected(this)
             %Enlarge the input buffer for trace data transfers, after connecting.
 
             if this.SimulationMode

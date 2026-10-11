@@ -25,7 +25,7 @@ classdef test_AllInstruments_SimulationMode < matlab.unittest.TestCase
             else
                 instr = feval("Palladium.Instruments." + Driver);
             end
-            testCase.addTeardown(@() instr.Close());
+            testCase.addTeardown(@() testCase.disconnectIfConnected(instr));
 
             instr.Connection_Type = Palladium.Enums.ConnectionType.Debug;
             instr.Connect();
@@ -38,6 +38,15 @@ classdef test_AllInstruments_SimulationMode < matlab.unittest.TestCase
             testCase.verifyNumElements(units, numel(headers), "GetHeaders should return one unit per header");
             testCase.verifyNumElements(dataRow, numel(headers), "Measure should return one value per header");
             testCase.verifyClass(dataRow, "double");
+        end
+    end
+
+    methods (Access = private)
+        function disconnectIfConnected(~, instr)
+            %Teardown - a test skipped before connecting has nothing to disconnect
+            if instr.IsConnected
+                instr.Disconnect();
+            end
         end
     end
 end

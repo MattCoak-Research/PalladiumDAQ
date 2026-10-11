@@ -203,60 +203,6 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             clear ziDAQ;
         end
 
-        function Close(this)
-            %Leave the device connected to the Data Server, so LabOne and other MFLIs are unaffected.
-            %Disconnecting the device would also close it in the LabOne web
-            %interface, so nothing is sent to the instrument
-
-            switch(this.Connection_Type)
-                case(Palladium.Enums.ConnectionType.Debug)
-                    %Just print a message
-                    disp("Disconnected from simulated " + this.Name + " instrument.");
-                otherwise
-                    %Disconnect from the actual device, rather than clearing the
-                    %whole ziDAQ setup (which would mess up other MFLIs that might
-                    %be connected)
-                    %   ziDAQ('disconnectDevice', this.DeviceID); %do we
-                    %   actually need to do this? Disconnecting it closes the
-                    %   LabOne window which is pretty annoying..
-            end
-        end
-
-        function Connect(this)
-            %Open the connection through the LabOne Data Server running on this PC.
-            %Ethernet and USB both connect to the local Data Server (which
-            %reaches the instrument over either), so several MFLIs can be
-            %connected at once. Debug connects to a simulated instrument
-
-            %Make sure DeviceID is a string, and do some error
-            %checking/verification
-            this.DeviceID = string(this.DeviceID);
-            assert(startsWith(this.DeviceID, "DEV"), "MFLI_Connect_Error:InvalidDeviceID", "%s", "Invalid Device ID:" + newline + string(this.DeviceID) + newline + "in MFLI connect. Device ID must start with ""DEV"" - form is DEV123, as a string");
-
-            switch(this.Connection_Type)
-                case(Palladium.Enums.ConnectionType.Debug)
-                    %Do not make a physical connection to a real instrument
-                    %- this places the class into SimulationMode, for
-                    %testing without a real piece of hardware connected
-                    disp("Connecting to simulated " + this.Name + " instrument....");
-                    pause(0.3);
-                    disp("Connected to simulated " + this.Name + " instrument.");
-                    this.SimulationMode = true;
-
-                case(Palladium.Enums.ConnectionType.Ethernet)
-                    %Connect to instrument via ZI Matlab API
-                    this.DeviceHandle = this.ZIConnect(this.DeviceID, '1GbE');
-
-                case(Palladium.Enums.ConnectionType.USB)
-                    %Connect to instrument via ZI Matlab API
-                    this.DeviceHandle = this.ZIConnect(this.DeviceID, '1GbE'); %Don't tell it USB, keep it 1GbE instead - we actually connect to the dataserver on LocalHost (to allow connecting multiple instruments) - so USB errors out, even if the device is connected to the dataserver by USB. Let's hide the user from this, stop them panicking that USB is not a supported option
-
-                otherwise
-                    error("MFLI_Connect_Error:UnsupportedConnectionType", "%s", "Unsupported connection type: " + string(this.Connection_Type));
-            end
-
-        end
-
         function DAQHandle = DAQ_Initialise_Both(this, DemodSignal, demodIndex)
             %Set up a Data Acquisition Module recording of a demodulator signal in time and frequency.
             %Records the time trace and its FFT together, on a trigger from the
@@ -2456,6 +2402,60 @@ classdef ZI_MFLI < Palladium.Core.Instrument
 
     %% Methods (Protected)
     methods (Access = protected)
+
+        function OpenConnection(this)
+            %Open the connection through the LabOne Data Server running on this PC.
+            %Ethernet and USB both connect to the local Data Server (which
+            %reaches the instrument over either), so several MFLIs can be
+            %connected at once. Debug connects to a simulated instrument
+
+            %Make sure DeviceID is a string, and do some error
+            %checking/verification
+            this.DeviceID = string(this.DeviceID);
+            assert(startsWith(this.DeviceID, "DEV"), "MFLI_Connect_Error:InvalidDeviceID", "%s", "Invalid Device ID:" + newline + string(this.DeviceID) + newline + "in MFLI connect. Device ID must start with ""DEV"" - form is DEV123, as a string");
+
+            switch(this.Connection_Type)
+                case(Palladium.Enums.ConnectionType.Debug)
+                    %Do not make a physical connection to a real instrument
+                    %- this places the class into SimulationMode, for
+                    %testing without a real piece of hardware connected
+                    disp("Connecting to simulated " + this.Name + " instrument....");
+                    pause(0.3);
+                    disp("Connected to simulated " + this.Name + " instrument.");
+                    this.SimulationMode = true;
+
+                case(Palladium.Enums.ConnectionType.Ethernet)
+                    %Connect to instrument via ZI Matlab API
+                    this.DeviceHandle = this.ZIConnect(this.DeviceID, '1GbE');
+
+                case(Palladium.Enums.ConnectionType.USB)
+                    %Connect to instrument via ZI Matlab API
+                    this.DeviceHandle = this.ZIConnect(this.DeviceID, '1GbE'); %Don't tell it USB, keep it 1GbE instead - we actually connect to the dataserver on LocalHost (to allow connecting multiple instruments) - so USB errors out, even if the device is connected to the dataserver by USB. Let's hide the user from this, stop them panicking that USB is not a supported option
+
+                otherwise
+                    error("MFLI_Connect_Error:UnsupportedConnectionType", "%s", "Unsupported connection type: " + string(this.Connection_Type));
+            end
+
+        end
+
+        function CloseConnection(this)
+            %Leave the device connected to the Data Server, so LabOne and other MFLIs are unaffected.
+            %Disconnecting the device would also close it in the LabOne web
+            %interface, so nothing is sent to the instrument
+
+            switch(this.Connection_Type)
+                case(Palladium.Enums.ConnectionType.Debug)
+                    %Just print a message
+                    disp("Disconnected from simulated " + this.Name + " instrument.");
+                otherwise
+                    %Disconnect from the actual device, rather than clearing the
+                    %whole ziDAQ setup (which would mess up other MFLIs that might
+                    %be connected)
+                    %   ziDAQ('disconnectDevice', this.DeviceID); %do we
+                    %   actually need to do this? Disconnecting it closes the
+                    %   LabOne window which is pretty annoying..
+            end
+        end
 
         function channelIdx = ConvertAuxChannelNameToChannelIndex(~, channelName)
             %Node index of an Aux Output name, 0 for 'Aux1' to 3 for 'Aux4'.
