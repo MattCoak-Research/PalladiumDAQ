@@ -529,7 +529,7 @@ classdef InstrumentController < handle
                 catch e
                     %Just show a warning, do not halt execution
                     reportStr = string(e.message);
-                    Palladium.Logging.Logger.Log("Warning", "Last dataRow update call to instrument " + this.Instruments{i}.Name + " failed in CollectMeasurement. Error message: " + reportStr);
+                    Palladium.Logging.Logger.Log("Warning", "Could not store the data column headers and data file details in instrument " + this.Instruments{i}.Name + " in GetHeaders. Error message: " + reportStr);
                 end
             end
         end

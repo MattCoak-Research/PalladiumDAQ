@@ -679,7 +679,7 @@ classdef Controller < handle
                 if ismember(this.PythonSetupStatus.Status, ["OK", "PackagesMissing"])
                     this.InstrumentController.PythonInstrumentController = Palladium.PythonInstruments.PythonInstrumentController(this.PythonInstrumentNamespace, this.ApplicationDir);
                     this.InstrumentController.PythonInstrumentController.LoadInstrumentClasses(this.UserPythonInstrumentsDir);
-                    this.Log("Debug", "Python Instrument Classes initialised (Python " + this.PythonSetupStatus.Version + ", " + this.PythonSetupStatus.Executable + ")", "Green", "Instruments intialised");
+                    this.Log("Debug", "Python Instrument Classes initialised (Python " + this.PythonSetupStatus.Version + ", " + this.PythonSetupStatus.Executable + ")", "Green", "Instruments initialised");
                 end
                 if this.PythonSetupStatus.Status ~= "OK"
                     [title, ~] = Palladium.Utilities.PythonUtils.SetupHelpMessage(this.PythonSetupStatus);
@@ -698,7 +698,7 @@ classdef Controller < handle
                 %list)
                 this.Log("Debug", "Initialising Instrument Classes", "Yellow", "Initialising Instruments...");
                 this.InstrumentController.LoadInstrumentClasses();
-                this.Log("Debug", "Instrument Classes initialised", "Green", "Instruments intialised");
+                this.Log("Debug", "Instrument Classes initialised", "Green", "Instruments initialised");
 
                 %Initialise TimingLoopController
                 this.TimingLoopController.Initialise();
