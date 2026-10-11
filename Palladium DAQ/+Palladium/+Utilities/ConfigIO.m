@@ -167,7 +167,21 @@ classdef ConfigIO < handle
                 error("SaveDefaultConfigError:SaveFailed", "%s", "Error saving new default Config file in ConfigIO: " + e.message);
             end
         end
-        
+
+        function isSource = IsSourceCheckout(this, applicationDir)
+            %Whether Palladium DAQ is running from a source checkout, rather than an installed copy.
+            %A source checkout has the MATLAB Project in the folder above
+            %applicationDir. An installed toolbox or compiled application
+            %doesn't
+            %
+            %Inputs:
+            %   applicationDir - the folder Palladium.m is in
+            %
+            %Outputs:
+            %   isSource - true for a source checkout
+            isSource = ~isdeployed && isfile(fullfile(fileparts(applicationDir), this.ProjectFileName));
+        end
+
     end
 
     %% Methods (Private)
@@ -192,12 +206,6 @@ classdef ConfigIO < handle
             %checkout, and by installed copies before they used the user's
             %settings folder
             legacyPath = fullfile(applicationDir, this.ConfigDirectory, this.ConfigFileName);
-        end
-
-        function isSource = IsSourceCheckout(this, applicationDir)
-            %True if running from a source checkout (with the MATLAB Project),
-            %rather than an installed toolbox or compiled application
-            isSource = ~isdeployed && isfile(fullfile(fileparts(applicationDir), this.ProjectFileName));
         end
 
         function ConfigEntryComplete(this, ~, eventData)

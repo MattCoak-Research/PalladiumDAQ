@@ -1479,21 +1479,6 @@ classdef Controller < handle
             end
         end
 
-        function path = MakeAbsoluteFromApplicationDir(this, path)
-            %Make a path absolute, taking a relative one as relative to ApplicationDir.
-            %An absolute path (PathUtils.IsAbsolutePath) is returned as it is
-            %
-            %Inputs:
-            %   path - a config path, e.g. "Data" or "C:\Data"
-            %
-            %Outputs:
-            %   path - the absolute path
-
-            if ~Palladium.Utilities.PathUtils.IsAbsolutePath(path)
-                path = fullfile(this.ApplicationDir, path);
-            end
-        end
-
         function [logSettings, pathSettings, windowSettings, plotterSettings, pythonSettings, warningSettings] = LoadSettings(this, Settings)
             %Load the config file and return its sections, with the paths tidied and made absolute.
             %Remembers the config file's path in ConfigFilePath. Fixes a user
@@ -1549,11 +1534,13 @@ classdef Controller < handle
 
 
             %Folders stored as relative paths are relative to ApplicationDir
-            %(the folder Palladium.m is in) - make them absolute
-            pathSettings.DefaultDirectory = this.MakeAbsoluteFromApplicationDir(pathSettings.DefaultDirectory);
-            logSettings.LogFileDirectory = this.MakeAbsoluteFromApplicationDir(logSettings.LogFileDirectory);
-            pathSettings.DefaultSequenceDirectory = this.MakeAbsoluteFromApplicationDir(pathSettings.DefaultSequenceDirectory);
-            pathSettings.UserFilesDirectory = this.MakeAbsoluteFromApplicationDir(pathSettings.UserFilesDirectory);
+            %(the folder Palladium.m is in) - make them absolute. In an
+            %installed copy that is the installation folder, so warn
+            isInstalled = ~configIO.IsSourceCheckout(this.ApplicationDir);
+            pathSettings.DefaultDirectory = this.MakeAbsoluteFromApplicationDir(pathSettings.DefaultDirectory, this.ApplicationDir, isInstalled);
+            logSettings.LogFileDirectory = this.MakeAbsoluteFromApplicationDir(logSettings.LogFileDirectory, this.ApplicationDir, isInstalled);
+            pathSettings.DefaultSequenceDirectory = this.MakeAbsoluteFromApplicationDir(pathSettings.DefaultSequenceDirectory, this.ApplicationDir, isInstalled);
+            pathSettings.UserFilesDirectory = this.MakeAbsoluteFromApplicationDir(pathSettings.UserFilesDirectory, this.ApplicationDir, isInstalled);
 
             %Clean the paths up, removing extra \\..\\.. loops etc
             pathSettings.DefaultDirectory = Palladium.Utilities.PathUtils.CleanPath(pathSettings.DefaultDirectory);
@@ -1692,6 +1679,40 @@ classdef Controller < handle
                     "Icon", "warning", "Interpreter", "html", "CloseFcn", @(~, evt) this.PythonSetupWarningClosed(evt));
             catch err
                 this.HandleError("Error showing the Python setup warning", err);
+            end
+        end
+
+    end
+
+    %% Methods (Static, Private)
+    methods(Static, Access = {?Palladium.Core.Controller, ?matlab.unittest.TestCase})    %Permission is Private, but also allow unit tests to see it
+
+        function path = MakeAbsoluteFromApplicationDir(path, applicationDir, isInstalled)
+            %Make a config folder path absolute, taking a relative one as relative to applicationDir.
+            %An absolute path (PathUtils.IsAbsolutePath) is returned as it
+            %is. In an installed copy (toolbox or compiled application),
+            %applicationDir is the installation folder - which may not be
+            %writable, and is replaced by each update - so a relative path
+            %gives a warning. The Logger is not set up yet when the config
+            %is loaded, so this is a MATLAB warning
+            %
+            %Inputs:
+            %   path           - a config folder path, e.g. "Data" or "C:\Data"
+            %   applicationDir - the folder Palladium.m is in
+            %   isInstalled    - true if this is not a source checkout (ConfigIO.IsSourceCheckout)
+            %
+            %Outputs:
+            %   path - the absolute path
+
+            if Palladium.Utilities.PathUtils.IsAbsolutePath(path)
+                return
+            end
+
+            relativePath = path;
+            path = fullfile(applicationDir, path);
+            if isInstalled
+                warning("LoadSettingsWarning:RelativePathInInstalledCopy", "%s", "The folder """ + relativePath + """ in the config file is a relative path, so it is inside Palladium DAQ's installation folder (" + ...
+                    Palladium.Utilities.PathUtils.CleanPath(path) + "). That folder may not be writable, and is replaced when Palladium DAQ is updated - set a full path for it in the config file instead.");
             end
         end
 
