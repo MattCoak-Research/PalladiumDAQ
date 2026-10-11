@@ -108,7 +108,7 @@ Config.json is created the first time Palladium DAQ runs, from the settings ente
 | `DefaultDescription` | The default data file description |
 | `DefaultSequenceDirectory` | The folder where [sequences](sequences.md) are saved |
 | `SequenceFileExtension` | The sequence file extension, normally `.seq` |
-Folders that don't exist are created. Each folder can be a full path, such as `C:/Data` or `/home/me/Data`, or one relative to the Palladium DAQ installation folder, such as `Data` or `../Data`. In the **Config Entry** window, the **Relative Path** checkbox next to a folder saves it in the relative form. Relative folders are meant for running from the source code: in an installed toolbox or application, the installation folder may not be writable and is replaced by updates, so a relative folder there gives a warning at start-up.
+Folders that don't exist are created. If one can't be - for example on a drive that isn't connected - Palladium DAQ warns and uses another until the config is changed: the data folder falls back to your Documents folder, and the log, sequence and user files folders to their default place in `Documents/Palladium DAQ`, or to Documents itself if that can't be made either. Each folder can be a full path, such as `C:/Data` or `/home/me/Data`, or one relative to the Palladium DAQ installation folder, such as `Data` or `../Data`. In the **Config Entry** window, the **Relative Path** checkbox next to a folder saves it in the relative form. Relative folders are meant for running from the source code: in an installed toolbox or application, the installation folder may not be writable and is replaced by updates, so a relative folder there gives a warning at start-up.
 
 ### LogSettings
 

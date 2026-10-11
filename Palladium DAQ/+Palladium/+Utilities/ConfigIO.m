@@ -168,6 +168,57 @@ classdef ConfigIO < handle
             end
         end
 
+        function s = GenerateDefaultConfigStruct(~)
+            %The default config settings, as a struct - used for a new config file, and to add missing settings to an old one.
+            %By default the data, log, sequence and user files folders are in
+            %Documents/Palladium DAQ, as full paths
+            %
+            %Outputs:
+            %   s - the config struct, with LogSettings, PathSettings etc. sections
+
+            %% ------- Edit default config values / add new ones here ----
+            %By default everything goes in a Palladium DAQ folder in the
+            %user's Documents folder (on Windows, Mac and Linux)
+            rootDir = fullfile(Palladium.Utilities.PathUtils.GetDocumentsDirectory(), "Palladium DAQ");
+
+            s.LogSettings.LogFileFileName = "<DATE>_Log.txt";
+            s.LogSettings.LogFileDirectory = fullfile(rootDir, "Logs");
+
+            s.LogSettings.CommandWindowMessageLevel = "Debug";
+            s.LogSettings.PrintStackTraceInCommandWindow = false;
+            s.LogSettings.GUIMessageLevel = "Warning";
+            s.LogSettings.LogFileMessageLevel = "Debug";
+            s.LogSettings.ErrorOnAllInstrumentErrors = false;
+ 
+            s.PathSettings.UserFilesDirectory = rootDir;
+            s.PathSettings.DefaultFileName = "<DATE>_Filename";
+            s.PathSettings.DefaultDirectory = fullfile(rootDir, "Data");
+            s.PathSettings.DefaultSequenceDirectory = fullfile(rootDir, "Sequences");
+
+            s.PathSettings.DataFileExtension = ".dat";
+            s.PathSettings.SequenceFileExtension = ".seq";
+            s.PathSettings.SaveFile = true;
+            s.PathSettings.FileWriteMode = "Increment File No.";
+            s.PathSettings.DefaultDescription = "";
+
+            s.WindowSettings.DefaultSize = [1200, 900];
+            s.WindowSettings.DefaultPosition = [];  %If empty, window will be centred
+            s.WindowSettings.Maximised = true;
+
+            s.PlotterSettings.Colours = [1 0 0, 0 0 1, 0 0.6 0, 1 0 1];
+            s.PlotterSettings.FontSize = 20;
+            s.PlotterSettings.LineStyles = ["None", "None", "None", "None"];
+            s.PlotterSettings.LineWidth = 1;
+            s.PlotterSettings.MarkerSize = 6;
+            s.PlotterSettings.Markers = ["o", "o", "+", "*"];
+            s.PlotterSettings.ShowLegends = true;
+
+            s.PythonSettings.PythonExecutable = "";     %Python to use for Python instruments. Blank: the one bundled with the standalone application, or else the one MATLAB finds (see pyenv)
+
+            s.WarningSettings.SuppressPythonSetupWarning = false;   %True to stop warning at startup that Python instruments are unavailable
+            % ------------------------------------------------------------
+        end
+
         function isSource = IsSourceCheckout(this, applicationDir)
             %Whether Palladium DAQ is running from a source checkout, rather than an installed copy.
             %A source checkout has the MATLAB Project in the folder above
@@ -211,51 +262,6 @@ classdef ConfigIO < handle
         function ConfigEntryComplete(this, ~, eventData)
             settingsStruct = eventData.Value;
             this.EnteredSettingsStruct = settingsStruct;
-        end
-
-        function s = GenerateDefaultConfigStruct(~)
-
-            %% ------- Edit default config values / add new ones here ----
-            %By default everything goes in a Palladium DAQ folder in the
-            %user's Documents folder (on Windows, Mac and Linux)
-            rootDir = fullfile(Palladium.Utilities.PathUtils.GetDocumentsDirectory(), "Palladium DAQ");
-
-            s.LogSettings.LogFileFileName = "<DATE>_Log.txt";
-            s.LogSettings.LogFileDirectory = fullfile(rootDir, "Logs");
-
-            s.LogSettings.CommandWindowMessageLevel = "Debug";
-            s.LogSettings.PrintStackTraceInCommandWindow = false;
-            s.LogSettings.GUIMessageLevel = "Warning";
-            s.LogSettings.LogFileMessageLevel = "Debug";
-            s.LogSettings.ErrorOnAllInstrumentErrors = false;
- 
-            s.PathSettings.UserFilesDirectory = rootDir;
-            s.PathSettings.DefaultFileName = "<DATE>_Filename";
-            s.PathSettings.DefaultDirectory = fullfile(rootDir, "Data");
-            s.PathSettings.DefaultSequenceDirectory = fullfile(rootDir, "Sequences");
-
-            s.PathSettings.DataFileExtension = ".dat";
-            s.PathSettings.SequenceFileExtension = ".seq";
-            s.PathSettings.SaveFile = true;
-            s.PathSettings.FileWriteMode = "Increment File No.";
-            s.PathSettings.DefaultDescription = "";
-
-            s.WindowSettings.DefaultSize = [1200, 900];
-            s.WindowSettings.DefaultPosition = [];  %If empty, window will be centred
-            s.WindowSettings.Maximised = true;
-
-            s.PlotterSettings.Colours = [1 0 0, 0 0 1, 0 0.6 0, 1 0 1];
-            s.PlotterSettings.FontSize = 20;
-            s.PlotterSettings.LineStyles = ["None", "None", "None", "None"];
-            s.PlotterSettings.LineWidth = 1;
-            s.PlotterSettings.MarkerSize = 6;
-            s.PlotterSettings.Markers = ["o", "o", "+", "*"];
-            s.PlotterSettings.ShowLegends = true;
-
-            s.PythonSettings.PythonExecutable = "";     %Python to use for Python instruments. Blank: the one bundled with the standalone application, or else the one MATLAB finds (see pyenv)
-
-            s.WarningSettings.SuppressPythonSetupWarning = false;   %True to stop warning at startup that Python instruments are unavailable
-            % ------------------------------------------------------------
         end
 
         function con = ShowConfigEntryGUI(this, initialConfig, applicationDir)

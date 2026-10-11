@@ -349,7 +349,7 @@ classdef test_ProgrammeLaunch < matlab.unittest.TestCase
             writestruct(cfg, configPath, FileType="json");
 
             pd = testCase.verifyWarning(@() Palladium(View=[], ConfigFilePath=configPath), ...
-                "LoadSettingsWarning:DefaultDirectoryCreationFailed");
+                "LoadSettingsWarning:FolderCreationFailed");
             testCase.addTeardown(@() pd.Close());   %Runs before the fixture removes the folder
 
             documents = Palladium.Utilities.PathUtils.CleanPath(Palladium.Utilities.PathUtils.GetDocumentsDirectory());

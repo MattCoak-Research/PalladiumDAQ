@@ -1484,9 +1484,12 @@ classdef Controller < handle
             %Remembers the config file's path in ConfigFilePath. Fixes a user
             %files path that ends in the user files folder itself (writing
             %the fix back to the config), makes relative paths absolute
-            %(relative to ApplicationDir), and creates the default data
-            %folder if needed - falling back to the user's Documents folder
-            %(PathUtils.GetDocumentsDirectory), with a warning, if it can't be made
+            %(relative to ApplicationDir), and creates the data, log,
+            %sequence and user files folders if needed. A folder that can't
+            %be made falls back, with a warning: the data folder to the
+            %user's Documents folder (PathUtils.GetDocumentsDirectory), the
+            %others to their default place in Documents/Palladium DAQ, then
+            %to Documents itself (see CreateFolderOrFallBack)
             %
             %Inputs:
             %   ConfigFilePath - (name-value) config file to load instead of the default one. Default []
@@ -1548,33 +1551,27 @@ classdef Controller < handle
             pathSettings.DefaultSequenceDirectory = Palladium.Utilities.PathUtils.CleanPath(pathSettings.DefaultSequenceDirectory);
             pathSettings.UserFilesDirectory = Palladium.Utilities.PathUtils.CleanPath(pathSettings.UserFilesDirectory);
 
-            %Verify that the DefaultDirectory exists - if it doesn't, try to make that folder. If that fails, set to a fallback
-            %and warn user.
-            if(~isfolder(pathSettings.DefaultDirectory))
-                %Show a warning in the command window
-                disp("Could not find directory " + pathSettings.DefaultDirectory + " specified in the config file. Creating new directory.");
+            %Make sure each folder exists, creating it if not. If it can't
+            %be made, fall back (with a warning): data to the user's
+            %Documents folder (or home folder if there is none), which
+            %always exists; logs, sequences and user files first to their
+            %default place in Documents/Palladium DAQ, so they don't clutter
+            %Documents, then to Documents itself
+            documentsDir = Palladium.Utilities.PathUtils.GetDocumentsDirectory();
+            defaults = configIO.GenerateDefaultConfigStruct();
+            pathSettings.DefaultDirectory = this.CreateFolderOrFallBack(...
+                [pathSettings.DefaultDirectory, documentsDir], "data");
+            logSettings.LogFileDirectory = this.CreateFolderOrFallBack(...
+                [logSettings.LogFileDirectory, defaults.LogSettings.LogFileDirectory, documentsDir], "log");
+            pathSettings.DefaultSequenceDirectory = this.CreateFolderOrFallBack(...
+                [pathSettings.DefaultSequenceDirectory, defaults.PathSettings.DefaultSequenceDirectory, documentsDir], "sequence");
 
-                try
-                    %Create the folder
-                    mkdir(pathSettings.DefaultDirectory);
-
-                    %Assert the creation was successful
-                    assert(isfolder(pathSettings.DefaultDirectory), "LoadSettingsError:FolderNotFound", "Folder not found at path");
-                catch exception
-                    %Fall back to the user's Documents folder (or their home
-                    %folder if there is none), on Windows, Mac and Linux - it
-                    %always exists, so nothing more has to be created
-                    fallbackDir = Palladium.Utilities.PathUtils.GetDocumentsDirectory();
-
-                    %Warn the user. A MATLAB warning, not the Logger, which is
-                    %not set up yet - in the standalone app it shows as a dialogue
-                    warning("LoadSettingsWarning:DefaultDirectoryCreationFailed", "%s", "Could not find directory " + pathSettings.DefaultDirectory + " specified in the config file, and hit an error while trying to create it. Saving data to " + fallbackDir + " instead. Error message: " + string(exception.message));
-
-                    %Set the Default Dir
-                    pathSettings.DefaultDirectory = fallbackDir;
-
-                end
-            end
+            %The config gives the folder that holds the user files folder -
+            %make the user files folder itself, which is the one that has to
+            %be writable
+            userFilesFolder = this.CreateFolderOrFallBack(...
+                fullfile([pathSettings.UserFilesDirectory, defaults.PathSettings.UserFilesDirectory, documentsDir], this.UserFolderName), "user files");
+            pathSettings.UserFilesDirectory = string(fileparts(userFilesFolder));
         end
 
         function PlotterAxesSelectionChange(this, pltr)
@@ -1686,6 +1683,46 @@ classdef Controller < handle
 
     %% Methods (Static, Private)
     methods(Static, Access = {?Palladium.Core.Controller, ?matlab.unittest.TestCase})    %Permission is Private, but also allow unit tests to see it
+
+        function folder = CreateFolderOrFallBack(folders, description)
+            %The first of a list of folders that exists or can be created - the config's folder, then fallbacks.
+            %If the first (the config's) can't be made and a fallback is
+            %used, warns (LoadSettingsWarning:FolderCreationFailed) - a MATLAB
+            %warning, as the Logger is not set up yet when the config is
+            %loaded. Errors (LoadSettingsError:FolderCreationFailed) if none
+            %can be made
+            %
+            %Inputs:
+            %   folders     - the config's folder, then the fallbacks in order (string array)
+            %   description - what the folder is for, for the messages, e.g. "log"
+            %
+            %Outputs:
+            %   folder - the folder used (string)
+
+            folders = unique(string(folders), "stable");
+            problems = strings(1, 0);
+            for k = 1:numel(folders)
+                folder = folders(k);
+                if ~isfolder(folder)
+                    if k == 1
+                        disp("[INFO] - The " + description + " folder " + folder + " in the config file doesn't exist - creating it.");
+                    end
+                    [~, msg] = mkdir(folder);
+                    if ~isfolder(folder)
+                        problems(end+1) = folder + " (" + string(msg) + ")"; %#ok<AGROW>
+                        continue
+                    end
+                end
+
+                if k > 1
+                    warning("LoadSettingsWarning:FolderCreationFailed", "%s", "Could not create the " + description + " folder given in the config file: " + problems(1) + ...
+                        ". Using " + folder + " instead - change it in the config file to stop this message.");
+                end
+                return
+            end
+
+            error("LoadSettingsError:FolderCreationFailed", "%s", "Could not create the " + description + " folder, or any fallback for it. Tried: " + join(problems, "; "));
+        end
 
         function path = MakeAbsoluteFromApplicationDir(path, applicationDir, isInstalled)
             %Make a config folder path absolute, taking a relative one as relative to applicationDir.
