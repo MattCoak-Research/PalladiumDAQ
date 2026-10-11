@@ -526,39 +526,6 @@ classdef PluginLoading
             classInstance = fnHandle(enumValueString);
         end
 
-        function presetFn = InstantiatePreset(namespace, presetName)
-            %A handle to a preset function from its name - for presets written as MATLAB functions, before JSON presets.
-            %
-            %Inputs:
-            %   namespace  - the namespace, or empty for none
-            %   presetName - the function's name
-            %
-            %Outputs:
-            %   presetFn - handle to the function
-
-            if(isempty(namespace))
-                presetPath = presetName;
-            else
-                presetPath = namespace + "." + presetName;
-            end
-
-            presetFn = str2func(presetPath);
-        end
-
-        function classNames = LoadPluginNames(directory)
-            %The names of the .m files in a folder, without the extension.
-            %
-            %Inputs:
-            %   directory - the folder
-            %
-            %Outputs:
-            %   classNames - the names (column string array)
-
-            classNames = dir(fullfile(directory, '*.m'));
-            classNames = string({classNames.name}');
-            classNames = classNames.extractBefore(".m");    %Remove the .m at the end
-        end
-
         function classNames = LoadClassNamesInNamespace(namespaceString)
             %The names of all the classes in a namespace, without the namespace.
             %For example "Palladium.Instruments" gives ["Keithley2000",

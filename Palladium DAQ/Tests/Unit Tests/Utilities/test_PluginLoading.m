@@ -8,7 +8,6 @@ classdef test_PluginLoading < matlab.unittest.TestCase
         ItemsData;
         NamespaceName = "TestNamespace";
         EmptyNamespaceName = "EmptyTestNamespace";
-        PresetsNamespace = "TestPresets";
     end
 
     %% Methods (TestClassSetup)
@@ -148,45 +147,6 @@ classdef test_PluginLoading < matlab.unittest.TestCase
             actualInstance = Palladium.Utilities.PluginLoading.InstantiateEnum(namespace, className, value);
 
             testCase.verifyInstanceOf(actualInstance, namespace + "." + className);
-        end
-
-        %% InstantiatePreset
-        function test_InstantiatePreset(testCase)
-            presetName = "Testing";
-
-            %Returns a function handle that can be invoked later to
-            %instantiate the Preset - check for that
-             actualInstance = Palladium.Utilities.PluginLoading.InstantiatePreset(testCase.PresetsNamespace, presetName);
-             testCase.verifyInstanceOf(actualInstance, "function_handle");
-        end
-
-        function test_InstantiatePreset_AndRun(testCase)
-            %Make sure the Preset loaded properly by taking additional step
-            %of running it, with dummy inputs
-            dummyPd = TestNamespace.TestClass1;
-            dummyGui = TestNamespace.TestClass2;
-            presetName = "Testing";
-
-            %Get handle to launch the Preset, then execute that to run the
-            %Preset function
-            functionHandle = Palladium.Utilities.PluginLoading.InstantiatePreset(testCase.PresetsNamespace, presetName);
-            functionHandle(dummyPd, dummyGui);
-
-            %Check that the preset did something - i.e. changed some
-            %properties of the classes passed into it
-            testCase.verifyEqual(dummyPd.Name, "Modified Name");
-            testCase.verifyEqual(dummyGui.Value, 747);
-        end
-
-
-        %% LoadPluginNames
-        function test_LoadPluginNames(testCase)
-            directory = fullfile(testCase.TestingDir, "+" + testCase.NamespaceName);
-            actualClassNames = Palladium.Utilities.PluginLoading.LoadPluginNames(directory);
-            expectedClassNames = ["TestClass1"; "TestClass2"];
-
-            testCase.verifyNotEmpty(actualClassNames);
-            testCase.verifyEqual(actualClassNames, expectedClassNames);
         end
 
     end

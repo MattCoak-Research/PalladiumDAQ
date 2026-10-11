@@ -28,7 +28,7 @@ classdef test_PythonUtils < matlab.unittest.TestCase
         end
 
         function test_CheckPythonSetup(testCase)
-            % Assumes Python is installed, as for test_VerifyPythonInstall
+            % Assumes Python is installed
             status = Palladium.Utilities.PythonUtils.CheckPythonSetup();
             testCase.verifyTrue(ismember(status.Status, ["OK", "PackagesMissing"]), "Python setup status was " + status.Status + ": " + status.ErrorMessage);
             testCase.verifyNotEqual(status.Version, "");
@@ -84,25 +84,6 @@ classdef test_PythonUtils < matlab.unittest.TestCase
             [success, message] = Palladium.Utilities.PythonUtils.UsePythonExecutable(fullfile(tempdir, "NoSuchFolder", "python.exe"));
             testCase.verifyFalse(success);
             testCase.verifyNotEqual(message, "");
-        end
-
-        function test_VerifyPythonInstall(testCase)
-            installed = Palladium.Utilities.PythonUtils.VerifyPythonInstall();
-            testCase.verifyTrue(installed);%Assuming that python IS in fact installed
-
-            installed = Palladium.Utilities.PythonUtils.VerifyPythonInstall(MinimumMainVersionNumber = 5);
-            testCase.verifyFalse(installed);%Assuming that python 5, which does not yet exist, is not in fact installed
-
-            installed = Palladium.Utilities.PythonUtils.VerifyPythonInstall(MinimumMainVersionNumber = 3, MinimumSubVersionNumber = 10);
-            testCase.verifyTrue(installed);%Assuming that python IS in fact installed
-        end
-
-        function test_VerifyPythonPackageInstalled(testCase)
-            installed = Palladium.Utilities.PythonUtils.VerifyPythonPackageInstalled("sys");
-            testCase.verifyTrue(installed);
-
-            installed = Palladium.Utilities.PythonUtils.VerifyPythonPackageInstalled("obviouslywrongpackagename");
-            testCase.verifyFalse(installed);
         end
 
     end
