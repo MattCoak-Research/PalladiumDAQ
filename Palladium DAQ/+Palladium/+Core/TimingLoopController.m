@@ -46,7 +46,7 @@ classdef TimingLoopController < handle
 
     %% Properties (Public, Private Set)
     properties(GetAccess = public, SetAccess = private)
-        State = categorical("Ready", ["Running", "Ready", "Pausing", "Stopping", "Paused"]);    %State of the measurement loop: Ready, Running, Pausing, Paused or Stopping
+        State Palladium.Enums.LoopState = "Ready";  %State of the measurement loop: Ready, Running, Pausing, Paused or Stopping (see LoopState) - assigned as text, e.g. "Running"
         TargetUpdateTime = 0.1;     %Target time between ticks (s) - the timer's period, set with SetUpdateTime
     end
 

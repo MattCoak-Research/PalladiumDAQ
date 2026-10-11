@@ -357,6 +357,13 @@
                             </Category>
                         </Info>
                     </File>
+                    <File Location="LoopState.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
                 </File>
                 <File Location="+Events">
                     <Info/>

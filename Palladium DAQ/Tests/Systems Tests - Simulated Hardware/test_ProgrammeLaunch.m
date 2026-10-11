@@ -302,7 +302,44 @@ classdef test_ProgrammeLaunch < matlab.unittest.TestCase
         end
     end
 
+    methods (Test)
+        function StateIsALoopStateThroughout(testCase)
+            %TimingLoopController.State is a Palladium.Enums.LoopState before
+            %starting and after every change (it used to start as a
+            %categorical and become a string, so strcmp on it gave false
+            %before the first start)
+            pd = Palladium(View=[], ConfigFilePath=testCase.ConfigPath);
+            testCase.addTeardown(@() pd.Close());
+            pd.AddInstrument("Keithley2000", ConnectionType="Debug");
+            pd.SetUpdateTime(0.1);
+            tlc = pd.Controller.TimingLoopController;
+
+            testCase.verifyState(tlc, "Ready");
+            pd.Start();
+            pause(0.5);
+            testCase.verifyState(tlc, "Running");
+            pd.Pause();
+            testCase.verifyState(tlc, "Pausing");
+            pause(0.5);
+            testCase.verifyState(tlc, "Paused");
+            pd.Resume();
+            pause(0.5);
+            testCase.verifyState(tlc, "Running");
+            pd.Stop();
+            testCase.verifyState(tlc, "Stopping");
+            pause(0.5);
+            testCase.verifyState(tlc, "Ready");
+        end
+    end
+
     methods (Access = private)
+        function verifyState(testCase, tlc, expected)
+            %Check the loop's state is the LoopState expected, and works with strcmp
+            testCase.verifyClass(tlc.State, "Palladium.Enums.LoopState");
+            testCase.verifyEqual(tlc.State, Palladium.Enums.LoopState(expected));
+            testCase.verifyTrue(strcmp(tlc.State, expected), "strcmp should work on the state");
+        end
+
         function recordConnectionWarning(~, message)
             %Record a status message about Connect or Disconnect being called in the wrong state
             if contains(message, ["Connect was called", "Disconnect was called"])
