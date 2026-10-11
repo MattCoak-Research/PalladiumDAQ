@@ -1,11 +1,31 @@
 classdef PluginLoading
-    %PluginLoading - Static class to expose helper methods for
+    %PluginLoading - Static functions for finding and creating instruments by name, and for presets.
+    %The InstrumentController finds the instrument classes
+    %(`LoadClassNamesInNamespace`), creates them by name
+    %(`InstantiateClass`) and gives each a unique name
+    %(`GetIncrementedInstrName`). The Sequence Editor lists the commands an
+    %instrument or Instrument Control offers (`GetInstrumentMethods`,
+    %`GetInstrumentControlMethods`). Presets - JSON files of instruments,
+    %their settings and plots - are saved with `SavePresetToJson` and
+    %loaded with `ApplyPresetFromJson`; see [Presets and config](../presets-and-config.md).
 
     %% Methods (Static, Public)
     methods (Static, Access = public)
 
         function ApplyPresetFromJson(controller, gui, jsonFilePath)
-            % Apply preset described in JSON file to palladium and gui objects.
+            %Apply a preset JSON file: add its instruments with their settings and Instrument Controls, and its plots.
+            %Instruments are added in order, with their Name set first so
+            %their Instrument Controls are named after it. Text settings
+            %are converted to the property's enumeration where one matches
+            %(e.g. Connection_Type to `Palladium.Enums.ConnectionType`).
+            %Plotting tabs and windows are only added if there is a GUI.
+            %Problems with one entry give a warning and that entry is
+            %skipped
+            %
+            %Inputs:
+            %   controller   - the Palladium.Core.Controller
+            %   gui          - the main GUI, or [] for none
+            %   jsonFilePath - the preset file
 
             if ~isfile(jsonFilePath)
                 error('ApplyPresetFromJsonError:FileNotFound', 'Preset file not found: %s', jsonFilePath);
@@ -136,7 +156,6 @@ classdef PluginLoading
                 end
             end
 
-
             % Plotting Tabs
             if isfield(data, 'PlottingTabs') && ~isempty(gui)
                 for ii = 1:numel(data.PlottingTabs)
@@ -179,7 +198,7 @@ classdef PluginLoading
                     listOfPlotters = gui.AddNewPlottingWindow(r, c);
 
                     %Apply plot settings
-                    applyPlotSettings(listOfPlotters, winSpec, r, c);                    
+                    applyPlotSettings(listOfPlotters, winSpec, r, c);
                 end
             end
 
@@ -293,15 +312,16 @@ classdef PluginLoading
 
 
         function exists = CheckClassExistsInNamespace(namespaceName, className)
-            % CHECKCLASSEXISTSINNAMESPACE - Check if a class exists in a namespace
+            %Check whether a namespace has a class of the given name.
+            %Errors if the namespace isn't on the path, or has no classes
             %
-            % Input arguments:
-            % namespaceName - namespace/package name (string or char scalar)
-            % className     - class name to check (string or char scalar)
+            %Inputs:
+            %   namespaceName - the namespace, e.g. "Palladium.Instruments"
+            %   className     - the class name without the namespace, e.g. "Keithley2000"
             %
-            % Output arguments:
-            % exists        - logical true if class exists in the given
-            % namespace
+            %Outputs:
+            %   exists - true if the class is there
+
             arguments
                 namespaceName   {mustBeTextScalar};
                 className       {mustBeTextScalar};
@@ -329,8 +349,14 @@ classdef PluginLoading
         end
 
         function existsAlready = CheckForExistingInstrName(newName, itemsData)
-            %Check the list itemsData - presumed to be a list of
-            %Instruments - and see if any have the Name newName
+            %Check whether any of a list of instruments already has a given Name.
+            %
+            %Inputs:
+            %   newName   - the name
+            %   itemsData - the instruments (cell array)
+            %
+            %Outputs:
+            %   existsAlready - true if one has that Name
 
             %Check if the instruments array is empty, that's an easy false
             if(isempty(itemsData))
@@ -354,13 +380,14 @@ classdef PluginLoading
         end
 
         function exists = CheckNamespaceExists(namespaceName)
-            % CHECKNAMESPACEEXISTS - Return true if a namespace with the name exists
+            %Check whether a namespace exists on the path.
             %
-            % Input arguments:
-            % namespaceName - name of the namespace (string or char scalar)
+            %Inputs:
+            %   namespaceName - the namespace, e.g. "Palladium.Instruments"
             %
-            % Output arguments:
-            % exists - logical true if namespaceName exists, false otherwise
+            %Outputs:
+            %   exists - true if it exists
+
             arguments
                 namespaceName {mustBeTextScalar};
             end
@@ -370,9 +397,16 @@ classdef PluginLoading
         end
 
         function NewName = GetIncrementedInstrName(instr, itemsData)
-            %Prevent duplicate instrument names by appending 1,2,3 to the end
-            %of them (can always be edited by user later) on instrument
-            %creation
+            %A unique name for a new instrument: its Name with the first free number added, e.g. K2000_1, K2000_2.
+            %The user can change it afterwards
+            %
+            %Inputs:
+            %   instr     - the new instrument
+            %   itemsData - the instruments already added (cell array)
+            %
+            %Outputs:
+            %   NewName - the name to give it
+
             %Preallocate name
             NewName = instr.Name;
 
@@ -402,47 +436,18 @@ classdef PluginLoading
             NewName = tmpName;
         end
 
-        function meths = GetClassMethodsClean(classRef, builtInNamesToExclude, extraNamesToExclude)
-            %Private shared functionality between
-            %GetInstrumentControlMethods and GetInstrumentMethods
-
-            methodNames = methods(classRef);
-            methodSigs = methods(classRef, "-full");
-
-            className = class(classRef);
-            parts = strsplit(className, '.');
-            constructorName = string(parts(end));
-
-            meths = [];
-
-            for i = 1 : length(methodNames)
-
-                mn = methodNames{i};
-                if ~isempty(mn)
-                    if ~any(strcmp(builtInNamesToExclude, mn)) && ~any(strcmp(extraNamesToExclude, mn))
-                        if ~ strcmp(mn, constructorName)
-                            meths = [meths, CleanMethodSignature(string(mn), string(methodSigs{i}))]; %#ok<AGROW>  %Can't know in advance how many will pass criteria
-                        end
-                    end
-                end
-            end
-
-            function cleanSig = CleanMethodSignature(mName, mSig)
-                %Remove output signature eg this = Keithley2000() ->
-                %Keithley2000()
-                cleanSig = mName + extractAfter(mSig, mName);
-
-                %Remove any 'this, ' or 'this'
-                cleanSig = strrep(cleanSig, '(this, ', '(');
-                cleanSig = strrep(cleanSig, '(this', '(');
-            end
-        end
-
         function meths = GetInstrumentControlMethods(instrRef, controlName)
-            %Retrieve all the methods/functions that can be called on a
-            %given instrument control, as a list of exectuable strings like
-            %"RunSweep(arg1, arg2)". Used to populate context
-            %menus in Sequence Editor
+            %The commands an Instrument Control offers to sequences, e.g. "SweepRun()" - for the Sequence Editor's menus.
+            %Its public methods, as signatures without `this` and outputs,
+            %leaving out MATLAB's handle methods and Palladium's internal
+            %ones (event handlers and the like)
+            %
+            %Inputs:
+            %   instrRef    - the instrument the control belongs to
+            %   controlName - the control's name
+            %
+            %Outputs:
+            %   meths - the method signatures (string array)
 
             controlRef = instrRef.GetRegisteredControlObjectsFromName(controlName);
 
@@ -458,10 +463,18 @@ classdef PluginLoading
         end
 
         function meths = GetInstrumentMethods(instrRef)
-            %Retrieve all the methods/functions that can be called on a
-            %given instrument, as a list of exectuable strings like
-            %"GetSourceLevel(level, enable)". Used to populate context
-            %menus in Sequence Editor
+            %The commands an instrument offers to sequences, e.g. "SetSourceLevel(level, enable)" - for the Sequence Editor's menus.
+            %Its public methods, as signatures without `this` and outputs,
+            %leaving out MATLAB's handle methods and the Instrument base
+            %class's internal ones (connecting, headers, Instrument Controls
+            %and the like)
+            %
+            %Inputs:
+            %   instrRef - the instrument
+            %
+            %Outputs:
+            %   meths - the method signatures (string array)
+
             builtInNamesToExclude = ["addlistener", "delete", "eq", "findobj", "findprop", "ge", "gt", "isvalid",...
                 "le", "listener", "lt", "ne", "notify"];
 
@@ -473,7 +486,14 @@ classdef PluginLoading
         end
 
         function classInstance = InstantiateClass(namespace, className)
-            %Instantiate an instance of the named class (empty constructor)
+            %Create an object of a class from its name, with no constructor arguments.
+            %
+            %Inputs:
+            %   namespace - the namespace, e.g. "Palladium.Instruments", or empty for none
+            %   className - the class name, e.g. "Keithley2000"
+            %
+            %Outputs:
+            %   classInstance - the new object
 
             if(isempty(namespace))
                 classPath = className;
@@ -486,7 +506,15 @@ classdef PluginLoading
         end
 
         function classInstance = InstantiateEnum(namespace, className, enumValueString)
-            %Instantiate an instance of the named enum
+            %Get an enumeration member from the enumeration's name and the member's name.
+            %
+            %Inputs:
+            %   namespace       - the namespace, e.g. "Palladium.Enums", or empty for none
+            %   className       - the enumeration, e.g. "ConnectionType"
+            %   enumValueString - the member, e.g. "GPIB"
+            %
+            %Outputs:
+            %   classInstance - the member
 
             if(isempty(namespace))
                 classPath = className;
@@ -499,7 +527,14 @@ classdef PluginLoading
         end
 
         function presetFn = InstantiatePreset(namespace, presetName)
-            %Instantiate an instance of the named Preset (matlab function file, not a class)
+            %A handle to a preset function from its name - for presets written as MATLAB functions, before JSON presets.
+            %
+            %Inputs:
+            %   namespace  - the namespace, or empty for none
+            %   presetName - the function's name
+            %
+            %Outputs:
+            %   presetFn - handle to the function
 
             if(isempty(namespace))
                 presetPath = presetName;
@@ -511,18 +546,31 @@ classdef PluginLoading
         end
 
         function classNames = LoadPluginNames(directory)
-            %Get the names of all the classes in a plugin directory
+            %The names of the .m files in a folder, without the extension.
+            %
+            %Inputs:
+            %   directory - the folder
+            %
+            %Outputs:
+            %   classNames - the names (column string array)
+
             classNames = dir(fullfile(directory, '*.m'));
             classNames = string({classNames.name}');
             classNames = classNames.extractBefore(".m");    %Remove the .m at the end
         end
 
         function classNames = LoadClassNamesInNamespace(namespaceString)
-            %Get a list (array of strings) of the names of all classes
-            %defined in a namespace. e.g. running this with
-            %"Palladium.Instruments" as the argument would give
-            %["Palladium.Instruments.Keithley2000",
-            %"Palladium.Instruments.Keithley2410",....
+            %The names of all the classes in a namespace, without the namespace.
+            %For example "Palladium.Instruments" gives ["Keithley2000",
+            %"Keithley2410", ...]. Warns and gives [] if the namespace has no
+            %classes (e.g. it isn't on the path)
+            %
+            %Inputs:
+            %   namespaceString - the namespace
+            %
+            %Outputs:
+            %   classNames - the class names (string array)
+
             arguments
                 namespaceString string {mustBeTextScalar};
             end
@@ -542,9 +590,18 @@ classdef PluginLoading
         end
 
         function SavePresetToJson(controller, instrController, gui, jsonFilePath)
-            % SavePresetToJson - Create a preset struct from runtime objects and write JSON.
-            %   SavePresetToJson(palladium, gui, jsonFilePath)
-            %   Produces JSON compatible with ApplyPresetFromJson.
+            %Save the instruments added, their settings and Instrument Controls, and the plots, as a preset JSON file.
+            %The file can be loaded with ApplyPresetFromJson. Each
+            %instrument's GUI-editable (public SetObservable) settings are
+            %saved, and the Instrument Controls added by hand - not those
+            %its driver adds by default. Plotting tabs and windows, with
+            %their default axes, are saved if there is a GUI
+            %
+            %Inputs:
+            %   controller      - the Palladium.Core.Controller, for the update time
+            %   instrController - its InstrumentController, for the instruments
+            %   gui             - the main GUI, or [] for none
+            %   jsonFilePath    - the file to write (".json" is added if missing)
 
             % Build top-level preset
             preset = struct();
@@ -639,7 +696,6 @@ classdef PluginLoading
             end
 
             %% Plotting Tabs and Windows
-            % ADAPT: modify to match your gui view APIs to enumerate plotting tabs/windows and their settings
             if ~isempty(gui)
                 [tabs, wins] = gui.GetPlottingWindowsAndTabs();
                 preset.PlottingTabs = [];
@@ -732,5 +788,53 @@ classdef PluginLoading
         end
 
     end
-end
 
+    %% Methods (Static, Private)
+    methods (Static, Access = private)
+
+        function meths = GetClassMethodsClean(classRef, builtInNamesToExclude, extraNamesToExclude)
+            %A class's method signatures, without `this`, outputs, the constructor and the names given.
+            %Shared by GetInstrumentMethods and GetInstrumentControlMethods
+            %
+            %Inputs:
+            %   classRef              - an object of the class
+            %   builtInNamesToExclude - MATLAB's methods to leave out (string array)
+            %   extraNamesToExclude   - Palladium's methods to leave out (string array)
+            %
+            %Outputs:
+            %   meths - the signatures, e.g. "SetField(field, rate)" (string array)
+
+            methodNames = methods(classRef);
+            methodSigs = methods(classRef, "-full");
+
+            className = class(classRef);
+            parts = strsplit(className, '.');
+            constructorName = string(parts(end));
+
+            meths = [];
+
+            for i = 1 : length(methodNames)
+
+                mn = methodNames{i};
+                if ~isempty(mn)
+                    if ~any(strcmp(builtInNamesToExclude, mn)) && ~any(strcmp(extraNamesToExclude, mn))
+                        if ~ strcmp(mn, constructorName)
+                            meths = [meths, CleanMethodSignature(string(mn), string(methodSigs{i}))]; %#ok<AGROW>  %Can't know in advance how many will pass criteria
+                        end
+                    end
+                end
+            end
+
+            function cleanSig = CleanMethodSignature(mName, mSig)
+                %Remove output signature eg this = Keithley2000() ->
+                %Keithley2000()
+                cleanSig = mName + extractAfter(mSig, mName);
+
+                %Remove any 'this, ' or 'this'
+                cleanSig = strrep(cleanSig, '(this, ', '(');
+                cleanSig = strrep(cleanSig, '(this', '(');
+            end
+        end
+
+    end
+end

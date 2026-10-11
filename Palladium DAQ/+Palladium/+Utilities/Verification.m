@@ -1,10 +1,19 @@
 classdef Verification
-    %Static class to expose methods for verification/checking of various things
-    
+    %Verification - Static functions for checks: duplicate names, and the MATLAB version and toolboxes needed.
+
     %% Methods (Static, Public)
     methods (Static, Access = public)
 
         function [duplicates, combinedString] = CheckForDuplicatesInCellArrayOfStrings(cellArrayOfStrings)
+            %Find the text that appears more than once in a cell array, e.g. repeated instrument names.
+            %
+            %Inputs:
+            %   cellArrayOfStrings - cell array of text (char or string)
+            %
+            %Outputs:
+            %   duplicates     - each repeated value once (string array), or [] if none
+            %   combinedString - the repeated values listed for a message, e.g. "K2000_1, PPMS_1"
+
             duplicates = [];
             combinedString = "";
 
@@ -40,6 +49,17 @@ classdef Verification
         end
 
         function [duplicates, combinedString] = CheckForDuplicatesInHeadersArray(headers)
+            %Find the data column headers that appear more than once.
+            %Used when measurements start (`InstrumentController.InitialiseHeaders`),
+            %as every column must have its own header
+            %
+            %Inputs:
+            %   headers - the column headers (string array or cell array)
+            %
+            %Outputs:
+            %   duplicates     - each repeated header once, or [] if none
+            %   combinedString - the repeated headers listed for a message, e.g. "Time (mins), Field (T)"
+
             combinedString = "";
             duplicates = [];
 
@@ -73,6 +93,15 @@ classdef Verification
         end
 
         function ValidateInstall(Settings)
+            %Check the MATLAB version and toolboxes Palladium DAQ needs, showing an error dialogue for any missing.
+            %Called first thing by `Palladium`, before the Logger exists, so
+            %problems are shown with `errordlg` rather than logged. Doesn't
+            %stop start-up itself
+            %
+            %Inputs (name-value):
+            %   MatlabVersion - the oldest release that will do. Default "R2026b"
+            %   ToolboxNames  - names of the toolboxes needed, as `ver` lists them. Default {"Instrument Control Toolbox"}
+
             arguments
                 Settings.MatlabVersion = "R2026b";
                 Settings.ToolboxNames = {"Instrument Control Toolbox"};
@@ -103,21 +132,24 @@ classdef Verification
         end
 
         function VerifyMatlabVersion(releaseStr)
-            %Throw an error if the installed Matlab version is lower than the
-            %specified release, eg "R2023b"
+            %Error if this MATLAB is older than the release given, e.g. "R2026b".
+
             if isMATLABReleaseOlderThan(releaseStr)
                 error("VerifyMatlabVersionError:UnsupportedVersion", "%s", "Unsupported Matlab version, please upgrade to at least version " + releaseStr);
             end
         end
-        
+
         function VerifyToolboxInstalled(toolboxName)
-            % Find the toolbox and give proper output
+            %Error if a toolbox isn't installed.
+            %
+            %Inputs:
+            %   toolboxName - its name, as `ver` lists it, e.g. "Instrument Control Toolbox"
+
             v_= ver;
             [installedToolboxes{1:length(v_)}] = deal(v_.Name);
             result = all(ismember(toolboxName,installedToolboxes));
             assert(result, "VerifyToolboxError:ToolboxNotInstalled", "%s", "Error! " + string(toolboxName) + " is not installed");
-        end       
-        
+        end
+
     end
 end
-
