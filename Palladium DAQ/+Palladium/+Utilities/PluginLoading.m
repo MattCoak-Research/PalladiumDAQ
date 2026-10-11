@@ -19,8 +19,8 @@ classdef PluginLoading
             %are converted to the property's enumeration where one matches
             %(e.g. Connection_Type to `Palladium.Enums.ConnectionType`).
             %Plotting tabs and windows are only added if there is a GUI.
-            %Problems with one entry give a warning and that entry is
-            %skipped
+            %Problems with one entry are logged as warnings and that entry
+            %is skipped
             %
             %Inputs:
             %   controller   - the Palladium.Core.Controller
@@ -39,7 +39,7 @@ classdef PluginLoading
                 try
                     controller.TimingLoopController.SetUpdateTime(data.UpdateTime);
                 catch
-                    warning('ApplyPresetFromJsonWarning:UpdateTimeFailed', 'Failed to set UpdateTime from preset.');
+                    Palladium.Logging.Logger.Log("Warning", "Preset: failed to set the update time from " + string(jsonFilePath));
                 end
             end
 
@@ -57,7 +57,7 @@ classdef PluginLoading
 
                     %Validate
                     if ~isfield(instSpec, 'Type')
-                        warning('ApplyPresetFromJsonWarning:MissingInstrumentType', 'Instrument entry %d missing Type. Skipping.', ii); continue;
+                        Palladium.Logging.Logger.Log("Warning", "Preset: instrument entry " + ii + " has no Type - skipping it"); continue;
                     end
 
                     %Grab the Name first, as we need to set that before any
@@ -72,7 +72,7 @@ classdef PluginLoading
 
                     %Warn and break if that has come back empty
                     if isempty(instr)
-                        warning("ApplyPresetFromJsonWarning:InstrumentCreationFailed", "%s", "Instrument instantiation failed: " + string(instSpec.Type));
+                        Palladium.Logging.Logger.Log("Warning", "Preset: could not add instrument " + string(instSpec.Type));
                         continue;
                     end
 
@@ -127,7 +127,7 @@ classdef PluginLoading
                                 elseif isstruct(ctrlSpec)
                                     % Expect field 'Name' (control option name) and optional ControlName/TabName
                                     if ~isfield(ctrlSpec, 'Name')
-                                        warning('ApplyPresetFromJsonWarning:MissingControlName', 'Control entry %d for instrument %s missing Name. Skipping.', ci, instSpec.Type);
+                                        Palladium.Logging.Logger.Log("Warning", "Preset: Instrument Control entry " + ci + " for instrument " + string(instSpec.Type) + " has no Name - skipping it");
                                         continue;
                                     end
                                     settings = struct();
@@ -146,10 +146,10 @@ classdef PluginLoading
                                         controller.InstrumentController.AddInstrumentControlFromName(instr, string(ctrlSpec.Name), gui);
                                     end
                                 else
-                                    warning('ApplyPresetFromJsonWarning:UnknownControlType', 'Unknown control specification type for instrument %s. Skipping.', instSpec.Type);
+                                    Palladium.Logging.Logger.Log("Warning", "Preset: unknown Instrument Control entry for instrument " + string(instSpec.Type) + " - skipping it");
                                 end
                             catch ex
-                                warning('ApplyPresetFromJsonWarning:ControlAddFailed', 'Failed to add control for instrument %s: %s', instSpec.Type, ex.message);
+                                Palladium.Logging.Logger.Log("Warning", "Preset: could not add an Instrument Control to instrument " + string(instSpec.Type) + ": " + string(ex.message));
                             end
                         end
                     end
@@ -291,7 +291,7 @@ classdef PluginLoading
 
                                     %Make sure we don't have more than 4 axes
                                     if kk > 4
-                                        warning("applyPlotSettingsWarning:TooManyYAxes", "More than 4 defined y axis options not supported");
+                                        Palladium.Logging.Logger.Log("Warning", "Preset: a plot has more than 4 y axes - only the first 4 are used");
                                         break;
                                     end
 
@@ -728,7 +728,7 @@ classdef PluginLoading
                 out.Col = length(g.ColumnWidth);
 
                 if isempty(pp)
-                    warning("buildPlotSpecsWarning:EmptyPlotterHolder", "Empty plotter holder");
+                    Palladium.Logging.Logger.Log("Warning", "Saving preset: a plotting tab or window has no plots in it");
                     return;
                 end
 
