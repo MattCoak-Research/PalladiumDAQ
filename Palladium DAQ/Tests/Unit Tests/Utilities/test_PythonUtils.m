@@ -7,8 +7,38 @@ classdef test_PythonUtils < matlab.unittest.TestCase
         TempDir = fullfile("..", "data", "Python Testing");
     end
 
+    %% Methods (TestClassSetup)
+    methods (TestClassSetup)
+        function HelpersPathSetup(testCase)
+            %Test helpers, which keep everything the tests write inside Testing Data Files
+            testCase.applyFixture(matlab.unittest.fixtures.PathFixture(fullfile(fileparts(mfilename("fullpath")), "..", "..", "Helpers")));
+        end
+    end
+
     %% Tests
     methods (Test)
+
+        function test_ImportPythonModulesInPackageFolder_ReloadsChanges(testCase)
+            %Importing a package again picks up changes to its modules
+            %(the reload check had its arguments the wrong way round, so an
+            %edited Python instrument needed a MATLAB restart)
+            fixture = testCase.applyFixture(TestHelpers.DataFolderFixture);
+            parentFolder = string(fixture.Folder);
+            [~, uniqueName] = fileparts(tempname);     %A new package name each run, as Python keeps modules for the whole MATLAB session
+            packageName = "ReloadTest_" + string(uniqueName);
+            mkdir(fullfile(parentFolder, packageName));
+            modulePath = fullfile(parentFolder, packageName, "ReloadModule.py");
+            testCase.addTeardown(@() testCase.removeFromPythonPath(parentFolder));
+
+            writelines(["def Value():", "    return 1"], modulePath);
+            [~, modules] = Palladium.Utilities.PythonUtils.ImportPythonModulesInPackageFolder(parentFolder, packageName);
+            testCase.verifyEqual(double(modules{1}.Value()), 1);
+
+            %A different size too, so Python can't mistake it for the cached version
+            writelines(["def Value():", "    return 2222"], modulePath);
+            [~, modules] = Palladium.Utilities.PythonUtils.ImportPythonModulesInPackageFolder(parentFolder, packageName);
+            testCase.verifyEqual(double(modules{1}.Value()), 2222, "The edited module should have been reloaded");
+        end
 
         function test_AppendFolderToPythonPath(testCase)
             % Test to verify that a directory is appended to the Python path
@@ -86,6 +116,17 @@ classdef test_PythonUtils < matlab.unittest.TestCase
             testCase.verifyNotEqual(message, "");
         end
 
+    end
+
+    %% Methods (Private)
+    methods (Access = private)
+        function removeFromPythonPath(~, folder)
+            %Take a folder the test added back off Python's sys.path
+            sysPath = py.sys.path;
+            while count(sysPath, folder) > 0
+                sysPath.remove(folder);
+            end
+        end
     end
 
 end

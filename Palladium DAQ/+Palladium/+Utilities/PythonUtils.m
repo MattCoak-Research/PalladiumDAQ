@@ -208,7 +208,9 @@ classdef PythonUtils
                     keys_string = string(keys_cell_char);
 
                     % If already imported, reload to pick up changes
-                    if ismember(keys_string, fullmod)
+                    % (fullmod first: the other way round gives one result
+                    % per loaded module, and the reload never happened)
+                    if ismember(fullmod, keys_string)
                         m = py.importlib.reload(py.importlib.import_module(fullmod));
                     else
                         m = py.importlib.import_module(fullmod);
