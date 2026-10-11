@@ -275,6 +275,51 @@ classdef PathUtils
             end
         end
 
+        function appDir = GetDeployedApplicationDirectory()
+            %The folder a compiled Palladium DAQ is installed in, on Windows, Mac and Linux.
+            %In a compiled application, Palladium.m runs from the MATLAB
+            %Runtime's extracted copy of the code, so mfilename doesn't give
+            %the installation folder. The installer puts the files read at
+            %run time (Graphics, Docs, ExamplesAndTemplates...) next to the
+            %executable - see deployTask in buildfile.m - so this finds the
+            %executable's folder:
+            %
+            % - Windows: the MATLAB Runtime puts it first on the PATH
+            % - Linux: from this process's executable, /proc/<pid>/exe
+            % - Mac: from this process's executable, given by ps. If that
+            %   is inside an app bundle (Name.app/Contents/MacOS), the
+            %   bundle's Contents/Resources and the folder holding the
+            %   bundle are tried as well
+            %
+            %UNTESTED on Linux and Mac: only the Windows way has been used
+            %in an installed application. The Linux and Mac ways are best
+            %guesses. A folder is only accepted if it holds the installed
+            %Graphics folder; if none does, this errors, listing the folders
+            %tried, rather than leaving each later file read to fail
+            %
+            %Outputs:
+            %   appDir - absolute path of the folder (string)
+
+            if ispc
+                [~, result] = system('path');
+                candidates = string(regexpi(result, 'Path=(.*?);', 'tokens', 'once'));
+            else
+                pid = feature("getpid");    %MATLAB's own process - not the shell's, as /proc/self would give in system()
+                if ismac
+                    [status, result] = system("ps -o comm= -p " + pid);
+                else
+                    [status, result] = system("readlink -f /proc/" + pid + "/exe");
+                end
+                exePath = "";
+                if status == 0
+                    exePath = strtrim(string(result));
+                end
+                candidates = Palladium.Utilities.PathUtils.ApplicationDirectoryCandidates(exePath);
+            end
+
+            appDir = Palladium.Utilities.PathUtils.FindInstalledApplicationDirectory(candidates);
+        end
+
         function documentsPath = GetDocumentsDirectory()
             %The current user's Documents folder, on Windows, Mac and Linux.
             %Falls back to the user's home folder if there is no Documents
@@ -510,6 +555,66 @@ classdef PathUtils
             %   newFileName - e.g. "run"
 
             [~, newFileName, ~] = fileparts(fileName);
+        end
+
+    end
+
+    %% Methods (Static, Private)
+    methods (Static, Access = {?Palladium.Utilities.PathUtils, ?matlab.unittest.TestCase})    %Permission is Private, but also allow unit tests to see it
+
+        function candidates = ApplicationDirectoryCandidates(exePath)
+            %Folders the compiled application may be installed in, given its executable's path.
+            %The executable's folder, then - if that is the MacOS folder of
+            %a Mac app bundle (Name.app/Contents/MacOS) - the bundle's
+            %Contents/Resources and the folder holding the bundle
+            %
+            %Inputs:
+            %   exePath - full path of the executable, or "" if unknown
+            %
+            %Outputs:
+            %   candidates - the folders, most likely first (string array, empty if exePath is "")
+
+            candidates = strings(1, 0);
+            if strlength(exePath) == 0
+                return
+            end
+
+            exeDir = string(fileparts(exePath));
+            candidates = exeDir;
+
+            [contentsDir, folderName] = fileparts(exeDir);
+            [bundleDir, contentsName] = fileparts(contentsDir);
+            if folderName == "MacOS" && contentsName == "Contents" && endsWith(bundleDir, ".app")
+                candidates = [candidates, fullfile(contentsDir, "Resources"), string(fileparts(bundleDir))];
+            end
+        end
+
+        function appDir = FindInstalledApplicationDirectory(candidates)
+            %The first of the candidate folders that holds the installed Graphics folder.
+            %Errors (Palladium:InstallationFolderNotFound), listing the
+            %folders tried, if none does
+            %
+            %Inputs:
+            %   candidates - folders to try, in order (string array)
+            %
+            %Outputs:
+            %   appDir - the folder found (string)
+
+            installedFolder = "Graphics";   %cfg.InstallGraphics in buildfile.m - always installed
+            for candidate = reshape(candidates, 1, [])
+                if strlength(candidate) > 0 && isfolder(fullfile(candidate, installedFolder))
+                    appDir = candidate;
+                    return
+                end
+            end
+
+            if isempty(candidates)
+                tried = "none found";
+            else
+                tried = join(candidates, ", ");
+            end
+            error("Palladium:InstallationFolderNotFound", "%s", "Could not find Palladium DAQ's installation folder - no folder with a " + installedFolder + ...
+                " folder in it was found. Folders tried: " + tried + ". Please report this, saying which operating system you are using.");
         end
 
     end

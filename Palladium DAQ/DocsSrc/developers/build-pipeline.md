@@ -131,9 +131,11 @@ To add a screenshot, add a scene function to `TakeDocScreenshots.m` and its name
 * `Docs` - the built HTML documentation, opened by the Help button
 * `PalladiumPythonCore` - the Python base class for [Python instruments](../python-instruments.md), which Python imports from there. Only its `.py` files are installed: they are copied into `Release/Build/PalladiumPythonCore` first, leaving out `__pycache__` and any MATLAB autosave files
 * `ExamplesAndTemplates/Presets` (`Example.json`), `ExamplesAndTemplates/PythonInstruments` (`TemplatePythonInstrument.py`, the template for new Python instruments) and `Instrument Drivers` (the PPMS's `QDInterface.dll`) - copied into the user files folder on first run, as they are when running in MATLAB (`Controller.Initialise`). The template for new MATLAB instrument drivers is left out: the standalone application can't load MATLAB drivers written after it is built. Both templates are kept out of the Instruments list by `InstrumentController.InstrumentClassesToIgnore`
-* `Graphics` - the Palladium icon, which `Controller` passes to the windows as `WindowSettings.PalladiumIconPath`
+* `Graphics` - the Palladium icon, which `Controller` passes to the windows as `WindowSettings.PalladiumIconPath`. The application also finds its installation folder by looking for `Graphics`, so it must always be installed (see below)
 
 The presets, Python template and icon are copied into `Release/Build` first, so that only those files are installed; `Docs` and `Instrument Drivers` are installed from the source.
+
+A compiled `Palladium.m` runs from the MATLAB Runtime's extracted copy of the code, so it can't use `mfilename` to find these folders. `PathUtils.GetDeployedApplicationDirectory` finds the executable's folder instead: on Windows it is the first folder on the `PATH`, which the MATLAB Runtime puts there; on Linux it comes from `/proc/<pid>/exe`; on Mac from `ps`, also trying the app bundle's `Contents/Resources` and the folder holding the bundle. The first of these with a `Graphics` folder in it is used, and if none has one Palladium DAQ stops with an error listing the folders tried. Only the Windows way has been tested in an installed application - the Linux and Mac ways are untested best guesses, so check them when an installer for those is first tried.
 
 On Windows, the installers also include a private copy of Python, installed as `application/Python`, so that [Python instruments](../python-instruments.md) work with nothing to set up. `PrepareBundledPython` builds it in `Release/Build/Python`:
 

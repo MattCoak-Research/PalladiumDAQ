@@ -108,9 +108,15 @@ classdef Palladium < handle
             %all paths relative to this, the filepath of the Palladium.m file
             %- if we don't do this they will be relative to the user's
             %current matlab open folder, which is a recipe for disaster
-            if isdeployed % Stand-alone mode.
-                [~, result] = system('path');
-                applicationDir = char(regexpi(result, 'Path=(.*?);', 'tokens', 'once'));
+            if isdeployed % Stand-alone mode: the installation folder, next to the executable
+                try
+                    applicationDir = char(Palladium.Utilities.PathUtils.GetDeployedApplicationDirectory());
+                catch err
+                    %No GUI or Logger yet - show the error in a dialogue, as
+                    %a compiled application has no Command Window
+                    uiwait(errordlg(err.message, "Palladium DAQ installation folder not found"));
+                    rethrow(err);
+                end
             else
                 applicationPath = mfilename('fullpath');
                 [applicationDir, ~, ~] = fileparts(applicationPath);

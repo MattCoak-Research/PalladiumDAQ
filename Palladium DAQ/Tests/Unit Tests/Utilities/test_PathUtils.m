@@ -374,6 +374,57 @@ classdef test_PathUtils < matlab.unittest.TestCase
             testCase.verifyTrue(isAbsolute);
         end
 
+        %% GetDeployedApplicationDirectory
+        function test_GetDeployedApplicationDirectory_FindsExecutable(testCase)
+            %Outside a compiled application the executable is MATLAB's own,
+            %whose folder has no installed Graphics folder - so this errors.
+            %But the error should list a folder tried, showing the
+            %executable was found (PATH on Windows, /proc on Linux, ps on Mac)
+            try
+                appDir = Palladium.Utilities.PathUtils.GetDeployedApplicationDirectory();
+                testCase.verifyFail("Expected no installation folder outside a compiled application, but got " + appDir);
+            catch err
+                testCase.verifyEqual(err.identifier, 'Palladium:InstallationFolderNotFound');
+                testCase.verifyFalse(contains(err.message, "none found"), "The executable's folder should have been found: " + err.message);
+            end
+        end
+
+        %% ApplicationDirectoryCandidates (private)
+        function test_ApplicationDirectoryCandidates(testCase)
+            %Windows/Linux layout: just the executable's folder
+            appDir = fullfile(testCase.TempDir, "application");
+            testCase.verifyEqual(Palladium.Utilities.PathUtils.ApplicationDirectoryCandidates(fullfile(appDir, "PalladiumDAQ")), appDir);
+
+            %Mac app bundle: then the bundle's Resources, and the folder holding the bundle
+            bundleDir = fullfile(appDir, "PalladiumDAQ.app");
+            exePath = fullfile(bundleDir, "Contents", "MacOS", "PalladiumDAQ");
+            expected = [fullfile(bundleDir, "Contents", "MacOS"), fullfile(bundleDir, "Contents", "Resources"), appDir];
+            testCase.verifyEqual(Palladium.Utilities.PathUtils.ApplicationDirectoryCandidates(exePath), expected);
+
+            %Executable not found
+            testCase.verifyEmpty(Palladium.Utilities.PathUtils.ApplicationDirectoryCandidates(""));
+        end
+
+        %% FindInstalledApplicationDirectory (private)
+        function test_FindInstalledApplicationDirectory(testCase)
+            %The first candidate with a Graphics folder is chosen
+            withoutGraphics = fullfile(testCase.TempDir, "Without");
+            withGraphics = fullfile(testCase.TempDir, "With");
+            mkdir(withoutGraphics);
+            mkdir(fullfile(withGraphics, "Graphics"));
+
+            appDir = Palladium.Utilities.PathUtils.FindInstalledApplicationDirectory([withoutGraphics, withGraphics, testCase.TempDir]);
+            testCase.verifyEqual(appDir, withGraphics);
+        end
+
+        function test_FindInstalledApplicationDirectory_NoneFound(testCase)
+            withoutGraphics = fullfile(testCase.TempDir, "Without");
+            mkdir(withoutGraphics);
+
+            testCase.verifyError(@() Palladium.Utilities.PathUtils.FindInstalledApplicationDirectory(withoutGraphics), "Palladium:InstallationFolderNotFound");
+            testCase.verifyError(@() Palladium.Utilities.PathUtils.FindInstalledApplicationDirectory(strings(1, 0)), "Palladium:InstallationFolderNotFound");
+        end
+
         %% GetDocumentsDirectory
         function test_GetDocumentsDirectory(testCase)
             %Note this, by design, gives different results on different
