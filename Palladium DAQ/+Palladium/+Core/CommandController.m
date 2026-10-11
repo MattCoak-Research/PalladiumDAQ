@@ -238,6 +238,36 @@ classdef CommandController < handle
         end
     end
 
+    %% Methods (Static, Public)
+    methods(Static, Access = public)
+
+        function methodName = ParseMethodName(commandStr)
+            %The method name a command calls, e.g. "SetTemperature" from "SetTemperature(300, 10)".
+            %Read the same way as when the command is run: spaces around
+            %it and a trailing ";" are ignored, and a command with no
+            %arguments needs no brackets ("SweepRun"). Not checked to be a
+            %valid name - ParseCommandString does that
+            %
+            %Inputs:
+            %   commandStr - the command
+            %
+            %Outputs:
+            %   methodName - the method name (string)
+
+            cmd = strtrim(string(commandStr));
+            if endsWith(cmd, ";")
+                cmd = strtrim(extractBefore(cmd, strlength(cmd)));
+            end
+
+            if contains(cmd, "(")
+                methodName = strtrim(extractBefore(cmd, "("));
+            else
+                methodName = cmd;
+            end
+        end
+
+    end
+
     %% Methods (Private)
     methods(Access = private)
 
@@ -283,20 +313,21 @@ classdef CommandController < handle
             %Split a command string into the method name and a cell array of its arguments.
             %For example SetTemperature(10, "Sample A"). The brackets are
             %optional with no arguments (e.g. ClearStatus), and a trailing ";"
-            %is ignored. Errors if the method name isn't a valid name
+            %is ignored. Errors if the method name isn't a valid name. The
+            %name is read by ParseMethodName, which Entity.GetCommandCompleteFn
+            %also uses, so both always agree on it
 
             cmd = strtrim(string(commandStr));
             if endsWith(cmd, ";")
                 cmd = strtrim(extractBefore(cmd, strlength(cmd)));
             end
 
+            methodName = Palladium.Core.CommandController.ParseMethodName(cmd);
             if contains(cmd, "(")
-                methodName = strtrim(extractBefore(cmd, "("));
                 assert(endsWith(cmd, ")"), "ParseCommandStringError:MissingBracket", "%s", "Command must end with ): " + cmd);
                 openIdx = strfind(cmd, "(");
                 argStr = extractBetween(cmd, openIdx(1) + 1, strlength(cmd) - 1);   %Between the first ( and the last )
             else
-                methodName = cmd;
                 argStr = "";
             end
 

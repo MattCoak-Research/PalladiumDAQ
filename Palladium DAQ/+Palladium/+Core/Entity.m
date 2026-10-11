@@ -23,8 +23,10 @@ classdef(Abstract) Entity < handle
         function commandCompleteFn = GetCommandCompleteFn(this, commandStr)
             %Get the function that reports when a sequence command has finished, if one is registered.
             %Called by InstrumentCommand. Looks up the method name of
-            %commandStr (the text before "(") among those registered with
-            %RegisterCommandCompleteQuery
+            %commandStr among those registered with
+            %RegisterCommandCompleteQuery. The name is read exactly as when
+            %the command is run (CommandController.ParseMethodName), so
+            %"SweepRun", "SweepRun()" and "SetField (1, 100);" all match
             %
             %Inputs:
             %   commandStr - the command, e.g. "SetTemperature(300, 10)"
@@ -40,13 +42,13 @@ classdef(Abstract) Entity < handle
                 return;
             end
 
-            %Strip out the () arguments bit and just have the name
-            commandStr = extractBefore(commandStr, '(');
+            %Just the method name, without the arguments
+            methodName = Palladium.Core.CommandController.ParseMethodName(commandStr);
 
             for i = 1 : length(this.RegisteredCommandCompleteQueryStructs)
                 s = this.RegisteredCommandCompleteQueryStructs(i);
 
-                if strcmp(s.CommandFunctionName, commandStr)
+                if strcmp(s.CommandFunctionName, methodName)
                     commandCompleteFn = s.FnHandle;
                     return;
                 end

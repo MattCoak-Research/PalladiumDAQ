@@ -71,6 +71,32 @@ classdef test_CommandController < matlab.unittest.TestCase
             testCase.verifyError(@() testCase.runCommand("disp('x'); Record(1)"), "MATLAB:class:UndefinedMethod");
             testCase.verifyEqual(testCase.Instrument.LastCall, "", "Record should not have been called");
         end
+
+        function MethodNameReadAsWhenRun(testCase)
+            %ParseMethodName reads the name as running the command does
+            names = arrayfun(@Palladium.Core.CommandController.ParseMethodName, ...
+                ["SweepRun", "SweepRun()", "  SweepRun ( ) ; ", "SetField(1, 100)", "SetField (1, 100);", " SetField(1,100)"]);
+            testCase.verifyEqual(names, ["SweepRun", "SweepRun", "SweepRun", "SetField", "SetField", "SetField"]);
+        end
+
+        function CompleteCheckFoundHoweverCommandIsWritten(testCase)
+            %A command's "has it finished?" check is found however the
+            %command is written - it used to need the name followed straight
+            %by "(", so "SweepRun" or "SetField (1, 100)" ran but the
+            %sequence didn't wait for them
+            isDone = @() true;
+            testCase.Instrument.RegisterCommandCompleteQuery("RecordNothing", isDone);
+            testCase.Instrument.RegisterCommandCompleteQuery("Record", isDone);
+
+            for cmd = ["RecordNothing", "RecordNothing()", " RecordNothing ( ) ;", "Record(1, 2)", "Record (1, 2);", " Record(1,2)"]
+                command = Palladium.Sequence.Commands.InstrumentCommand(testCase.Instrument, cmd);
+                testCase.verifyEqual(command.IsCompleteFn, isDone, cmd);
+            end
+
+            %A command with no check registered completes straight away
+            command = Palladium.Sequence.Commands.InstrumentCommand(testCase.Instrument, "RecordNothingElse");
+            testCase.verifyEmpty(command.IsCompleteFn);
+        end
     end
 
     %% Methods (Private)
