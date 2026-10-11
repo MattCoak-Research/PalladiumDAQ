@@ -319,14 +319,18 @@ classdef TimingLoopController < handle
 
         function AbortStart(this, msg, title)
             %Show a warning that starting failed, and return to the Ready state.
+            %No warning dialogue when msg is empty: the user has just seen
+            %(and answered) an error dialogue about it already
 
             %Display a status message in the logger
             this.Controller.Log("Info", "Initialisation aborted", "Red", "Initialisation aborted");
 
-            %Build out full string to print
-            msg = msg + newline + newline + "Initialisation has been aborted.";
+            if strlength(string(msg)) > 0
+                %Build out full string to print
+                msg = msg + newline + newline + "Initialisation has been aborted.";
 
-            this.Controller.HandleWarning(msg, title);
+                this.Controller.HandleWarning(msg, title);
+            end
 
             this.OnStopped();
         end

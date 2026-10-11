@@ -748,11 +748,16 @@ classdef Controller < handle
             %just restarts the loop). Shows a progress bar meanwhile. Clears
             %DataTable, connects and initialises the instruments, sets
             %Headers and Units, resets the plots, and writes the column
-            %headers and instruments' metadata lines to the data file
+            %headers and instruments' metadata lines to the data file. If
+            %setting up errors, shows the error dialogue and fails; if
+            %collecting the metadata errors, it fails only if the user
+            %chooses to stop there, and otherwise starts without the metadata
             %
             %Outputs:
             %   success - true if measurements are ready to start
-            %   msg     - if an instrument failed to connect, the details, else ""
+            %   msg     - if an instrument failed to connect, the details. ""
+            %             otherwise - including when the user has already seen
+            %             an error dialogue
             %   title   - if an instrument failed to connect, a short title for the warning, else ""
 
             success = false; msg = ""; title = "";
@@ -816,7 +821,16 @@ classdef Controller < handle
                 this.CloseProgress();
             catch e
                 this.CloseProgress();
-                this.HandleError("Error collecting instrument metadata", e);
+                halt = this.HandleError("Error collecting instrument metadata", e);
+                if halt
+                    %The user chose to stop in the error dialogue - don't start.
+                    %No message, as they have already seen the error (see
+                    %TimingLoopController.AbortStart)
+                    this.Log("Info", "Start cancelled from the error dialogue", "Yellow", "Start cancelled");
+                    success = false; msg = ""; title = "";
+                    return;
+                end
+                %Otherwise carry on, without the metadata lines
             end
 
             %Write the headers to file

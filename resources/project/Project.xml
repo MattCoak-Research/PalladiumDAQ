@@ -1136,6 +1136,44 @@
                             </Category>
                         </Info>
                     </File>
+                    <File Location="test_MetadataErrorOnStart.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="test"/>
+                            </Category>
+                        </Info>
+                    </File>
+                    <File Location="data">
+                        <Info/>
+                        <DIR_SIGNIFIER Location="1">
+                            <Info/>
+                        </DIR_SIGNIFIER>
+                        <File Location="MetadataError">
+                            <Info/>
+                            <DIR_SIGNIFIER Location="1">
+                                <Info/>
+                            </DIR_SIGNIFIER>
+                            <File Location="+Palladium">
+                                <Info/>
+                                <DIR_SIGNIFIER Location="1">
+                                    <Info/>
+                                </DIR_SIGNIFIER>
+                                <File Location="+Instruments">
+                                    <Info/>
+                                    <DIR_SIGNIFIER Location="1">
+                                        <Info/>
+                                    </DIR_SIGNIFIER>
+                                    <File Location="MetadataErrorInstrument.m">
+                                        <Info>
+                                            <Category UUID="FileClassCategory">
+                                                <Label UUID="design"/>
+                                            </Category>
+                                        </Info>
+                                    </File>
+                                </File>
+                            </File>
+                        </File>
+                    </File>
                 </File>
                 <File Location="Unit Tests">
                     <Info/>
