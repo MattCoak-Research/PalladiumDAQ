@@ -1060,43 +1060,6 @@ classdef Controller < handle
             this.UIFigureHandle = uiFigureHandle;
         end
 
-        function RemoveInstrument(this, instrRef)
-            %Remove an instrument, via the InstrumentController.
-
-            try
-                %Store this, as we won't be able to retrieve it after deleting
-                %the object
-                instName = instrRef.Name;
-
-                % Pass on to Instrument Controller
-                this.InstrumentController.RemoveInstrument(instrRef);
-
-                %Verbose/debug message printing
-                this.Log("Info", "Removed Instrument: " + instName, "Green", "Removed Instrument");
-
-            catch err
-                this.HandleError("Error removing instrument " + instrRef.Name, err);
-            end
-        end
-
-        function RemoveInstrumentControl(this, instrRef, controlDetailsStruct)
-            %Remove an Instrument Control from an instrument, via the InstrumentController.
-            %
-            %Inputs:
-            %   instrRef             - the instrument
-            %   controlDetailsStruct - the control's details struct, as from DefineInstrumentControl
-
-            try
-                %Pass on through to InstrumentController
-                this.InstrumentController.RemoveInstrumentControl(instrRef, controlDetailsStruct);
-
-                %Verbose/debug message printing
-                this.Log("Info", "Removed Instrument Control: " + controlDetailsStruct.Name, "Green", "Removed Instrument Control");
-            catch err
-                this.HandleError("Error removing instrument control " + controlDetailsStruct.Name, err);
-            end
-        end
-
         function LoadPreset(this, view)
             %Ask the user for a Preset .json file and apply it.
             %Called from the GUI's Settings menu. The file dialogue opens in

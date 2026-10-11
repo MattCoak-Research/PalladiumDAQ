@@ -530,7 +530,6 @@ classdef InstrumentController < handle
                     %Just show a warning, do not halt execution
                     reportStr = string(e.message);
                     Palladium.Logging.Logger.Log("Warning", "Last dataRow update call to instrument " + this.Instruments{i}.Name + " failed in CollectMeasurement. Error message: " + reportStr);
-
                 end
             end
         end
@@ -777,16 +776,20 @@ classdef InstrumentController < handle
             args = Palladium.Events.InstrumentsChangedEventData(this.SelectedInstruments);
             notify(this, "InstrumentsChanged", args);
 
-            %Remove the instrument class reference from memory
+            %Remove the instrument class reference from memory - keeping its
+            %name for the message, as it can't be read once deleted
+            instrumentName = instrumentRef.Name;
             delete(instrumentRef);
+
+            this.Controller.Log("Info", "Removed Instrument: " + instrumentName, "Green", "Removed Instrument");
         end
 
-        function RemoveInstrumentControl(~, instrRef, controlDetailsStruct)
+        function RemoveInstrumentControl(this, instrRef, controlDetailsStruct)
             %Remove an Instrument Control from its instrument, and delete it.
             %Unregisters it from the instrument, unsubscribes it from events,
-            %and calls its RemoveControl. Called by the GUI and
-            %`Controller.RemoveInstrumentControl`. Errors unless exactly one
-            %control of that name is found
+            %and calls its RemoveControl. Called by the GUI, which
+            %`Palladium.RemoveInstrumentControl` goes through. Errors unless
+            %exactly one control of that name is found
             %
             %Inputs:
             %   instrRef             - the instrument the control belongs to
@@ -813,6 +816,8 @@ classdef InstrumentController < handle
 
             %Delete the reference
             delete(controlClass);
+
+            this.Controller.Log("Info", "Removed Instrument Control: " + controlClassName + " from " + instrRef.Name, "Green", "Removed Instrument Control");
         end
     end
 

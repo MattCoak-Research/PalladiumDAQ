@@ -67,6 +67,22 @@ classdef test_InstrumentControls < matlab.unittest.TestCase
             testCase.verifyNumElements(instr.GetRegisteredControlObjectsFromName("Sweep Control"), 1);
         end
 
+        function RemovingIsLogged(testCase)
+            %Removing an Instrument Control, and an instrument, is logged
+            %as adding them is (TestingConfig.json logs everything to the
+            %Command Window)
+            pd = testCase.Programme;
+            instr = pd.AddInstrument("Keithley2410", ConnectionType="Debug");
+            instrName = instr.Name;
+            pd.AddInstrumentControl(instr, "Sweep Control");
+
+            output = evalc("pd.RemoveInstrumentControl(instr, ""Sweep Control"")");
+            testCase.verifySubstring(output, "Removed Instrument Control: Sweep Control from " + instrName);
+
+            output = evalc("pd.RemoveInstrument(instr)");
+            testCase.verifySubstring(output, "Removed Instrument: " + instrName);
+        end
+
         function SteppedSweepDefaultsAndKeptValues(testCase)
             %The stepped Sweep Control's start/middle/end values default to
             %10% of the way from the middle of the limits to each limit (not
