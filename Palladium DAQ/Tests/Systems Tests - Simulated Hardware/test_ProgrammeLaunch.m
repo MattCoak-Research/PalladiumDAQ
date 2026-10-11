@@ -188,6 +188,25 @@ classdef test_ProgrammeLaunch < matlab.unittest.TestCase
             testCase.verifyFalse(instr.IsConnected);
         end
 
+        function StoppingAfterTheTimerIsDeletedStillCloses(testCase)
+            %If the timer has already been deleted (CloseTimer, on an error
+            %while Palladium closes), stopping still disconnects the
+            %instruments and returns to Ready - it used to error on the
+            %deleted timer before getting that far
+            pd = Palladium(View=[], ConfigFilePath=testCase.ConfigPath);
+            testCase.addTeardown(@() pd.Close());
+            instr = pd.AddInstrument("Keithley2000", ConnectionType="Debug");
+            pd.SetUpdateTime(0.1);
+            pd.Start();
+            pause(0.5);
+            tlc = pd.Controller.TimingLoopController;
+
+            tlc.CloseTimer();
+            testCase.verifyWarningFree(@() tlc.OnStopped());
+            testCase.verifyFalse(instr.IsConnected);
+            testCase.verifyState(tlc, "Ready");
+        end
+
         function StopFromInstrumentErrorDialogueStopsCleanly(testCase)
             %With ErrorOnAllInstrumentErrors, choosing Stop Measurements in
             %the error dialogue stops at once: one dialogue, Stopped raised

@@ -155,9 +155,13 @@ classdef TimingLoopController < handle
             %Called by Update on the first tick after Stop, by Stop directly
             %when paused, when starting fails, and by the Controller when
             %the user stops measurements from an error dialogue. Closes the
-            %instruments through `Controller.OnMeasurementsStopped`
+            %instruments through `Controller.OnMeasurementsStopped`. The
+            %timer may already have been deleted (CloseTimer, on an error
+            %while Palladium closes) - the instruments are still closed
 
-            this.Timer.stop();
+            if ~isempty(this.Timer) && isvalid(this.Timer)
+                this.Timer.stop();
+            end
             this.Controller.OnMeasurementsStopped();
             this.State = "Ready";
 
