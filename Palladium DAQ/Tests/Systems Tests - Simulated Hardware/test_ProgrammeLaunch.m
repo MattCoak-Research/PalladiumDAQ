@@ -272,6 +272,36 @@ classdef test_ProgrammeLaunch < matlab.unittest.TestCase
         end
     end
 
+    methods (Test)
+        function InstrumentControlsWithoutGUIErrorClearly(testCase)
+            %Instrument Controls need the GUI - without one, adding or
+            %removing them gives a clear error (it used to be a raw
+            %"Dot indexing is not supported" from the missing View)
+            pd = Palladium(View=[], ConfigFilePath=testCase.ConfigPath);
+            testCase.addTeardown(@() pd.Close());
+            instr = pd.AddInstrument("Keithley2410", ConnectionType="Debug");
+
+            testCase.verifyError(@() pd.AddInstrumentControl(instr, "Sweep Control"), "Palladium:NoGUI");
+            testCase.verifyError(@() pd.RemoveInstrumentControl(instr, "Sweep Control"), "Palladium:NoGUI");
+        end
+
+        function AddInstrumentNeedsTheWholeClassName(testCase)
+            %Part of a class name is not enough; char is accepted, as the
+            %arguments block allows (it used to be rejected as not a string)
+            pd = Palladium(View=[], ConfigFilePath=testCase.ConfigPath);
+            testCase.addTeardown(@() pd.Close());
+            ic = pd.Controller.InstrumentController;
+
+            Palladium.Logging.Logger.TestDialogResponse("set", "Ignore");
+            testCase.addTeardown(@() Palladium.Logging.Logger.TestDialogResponse("set", ""));
+            testCase.verifyEmpty(ic.AddInstrument("Keithley"), "A partial class name should not add an instrument");
+            testCase.verifyEqual(Palladium.Logging.Logger.TestDialogResponse("count"), 1, "It should be reported in the error dialogue");
+
+            instr = ic.AddInstrument('Keithley2000');
+            testCase.verifyClass(instr, "Palladium.Instruments.Keithley2000");
+        end
+    end
+
     methods (Access = private)
         function recordConnectionWarning(~, message)
             %Record a status message about Connect or Disconnect being called in the wrong state

@@ -123,8 +123,8 @@ classdef InstrumentController < handle
             %default. Errors go to the Controller's error handling
             %
             %Inputs:
-            %   instrStringToAdd - the driver's class name, as a string, e.g.
-            %                      "Keithley2000"
+            %   instrStringToAdd - the driver's class name, e.g. "Keithley2000" -
+            %                      exactly, including case
             %   Name             - name for the instrument. Default "Auto",
             %                      the driver's Name with a number added
             %   ConnectionType   - name of a Palladium.Enums.ConnectionType to
@@ -149,12 +149,13 @@ classdef InstrumentController < handle
             if(isempty(instrStringToAdd))
                 return;
             end
+            instrStringToAdd = string(instrStringToAdd);     %Accept char too, as the arguments block does
 
             try
                 %Make sure the instrName is valid, and other error checking
-                assert(isstring(instrStringToAdd), "AddInstrumentError:InvalidInstrumentName", "Instrument name must be a string");
                 assert(~isempty(this.ListOfAvailableInstrumentClassNameStrings), "AddInstrumentError:NoInstrumentClasses", "List of loaded instrument classes to select from is empty - file paths messed up?");
-                assert(any(contains(this.ListOfAvailableInstrumentClassNameStrings, instrStringToAdd, "IgnoreCase", false)), "AddInstrumentError:InstrumentNotAvailable", "%s", string(instrStringToAdd) + " not found in list of avaliable Instruments");
+                %The whole class name must match - not just part of it (e.g. "Keithley")
+                assert(any(string(this.ListOfAvailableInstrumentClassNameStrings) == instrStringToAdd), "AddInstrumentError:InstrumentNotAvailable", "%s", instrStringToAdd + " not found in the list of available instruments");
 
                 %Make an instance of the selected datasource class
                 if ~isempty(this.PythonInstrumentController) && ~isempty(this.PythonInstrumentController.AvaialableInstrNames) && any(ismember(this.PythonInstrumentController.AvaialableInstrNames, instrStringToAdd))

@@ -190,6 +190,27 @@ classdef test_InstrumentControlBase < matlab.unittest.TestCase
             testCase.verifyEqual(string(writer.FileWriteDetails.FileName), "run at 4p20 K");
         end
 
+        function test_InitialiseDataWriter_TagMatchesTheWholeHeaderTest(testCase)
+            %With similar headers, the tag's exact header is the one used
+            testCase.Instrument.FullHeadersRow = ["Time (s)", "Temperature Setpoint (K)", "Temperature (K)"];
+            testCase.Instrument.LastFullDataRow = [10 5 4.2];
+
+            writer = testCase.Control.InitialiseDataWriterForTest(" at [Temperature (K)] K");
+
+            testCase.verifyEqual(string(writer.FileWriteDetails.FileName), "run at 4p20 K");
+        end
+
+        function test_InitialiseDataWriter_TagMatchingOnlyPartOfAHeaderIsMissingTest(testCase)
+            %Part of a header is not enough - it is marked missing (it used
+            %to pass the check, then give an empty value)
+            testCase.Instrument.FullHeadersRow = ["Time (s)", "Temperature Setpoint (K)", "Temperature (K)"];
+            testCase.Instrument.LastFullDataRow = [10 5 4.2];
+
+            evalc("writer = testCase.Control.InitialiseDataWriterForTest("" at [Temperature] K"");");
+
+            testCase.verifyEqual(string(writer.FileWriteDetails.FileName), "run at !!VAL-MISSING!! K");
+        end
+
     end
 
 end

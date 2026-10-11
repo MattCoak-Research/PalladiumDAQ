@@ -244,7 +244,7 @@ classdef Palladium < handle
         function cont = AddInstrumentControlFromStruct(this, instrRef, controlDetailsStruct)
             %Add an Instrument Control to the GUI from its full definition struct.
             %A lower-level version of `AddInstrumentControl`, which is easier
-            %to use as it needs only the control's name. Needs a GUI.
+            %to use as it needs only the control's name. Needs a GUI: errors (Palladium:NoGUI) without one.
             %
             %Inputs:
             %   instrRef             - the Palladium.Core.Instrument to add the control to
@@ -259,6 +259,8 @@ classdef Palladium < handle
                 instrRef (1,1) Palladium.Core.Instrument;
                 controlDetailsStruct (1,1) struct;
             end
+
+            this.AssertHasGUI("add an Instrument Control");
 
             %Pass on to the View
             cont = this.View.AddInstrumentControl(instrRef, controlDetailsStruct);
@@ -363,7 +365,7 @@ classdef Palladium < handle
         function RemoveInstrumentControl(this, instrRef, controlName)
             %Remove an Instrument Control, by name, from an instrument and the GUI.
             %Errors if the instrument does not offer a control of that name, or
-            %it has not been added. Needs a GUI.
+            %it has not been added. Needs a GUI: errors (Palladium:NoGUI) without one.
             %
             %Inputs:
             %   instrRef    - the Palladium.Core.Instrument the control belongs to
@@ -385,7 +387,7 @@ classdef Palladium < handle
         function RemoveInstrumentControlFromStruct(this, instrRef, controlDetailsStruct)
             %Remove an Instrument Control from an instrument and the GUI, given its definition struct.
             %A lower-level version of `RemoveInstrumentControl`, which is
-            %easier to use as it needs only the control's name. Needs a GUI.
+            %easier to use as it needs only the control's name. Needs a GUI: errors (Palladium:NoGUI) without one.
             %
             %Inputs:
             %   instrRef             - the Palladium.Core.Instrument the control belongs to
@@ -396,6 +398,8 @@ classdef Palladium < handle
                 instrRef (1,1) Palladium.Core.Instrument;
                 controlDetailsStruct (1,1) struct;
             end
+
+            this.AssertHasGUI("remove an Instrument Control");
             this.View.RemoveInstrumentControl(instrRef, controlDetailsStruct);
         end
 
@@ -531,6 +535,17 @@ classdef Palladium < handle
 
     %% Methods (Private)
     methods (Access = private)
+
+        function AssertHasGUI(this, action)
+            %Error clearly if there is no GUI, for methods that need one.
+            %Instrument Controls live in tabs of the GUI, so they can't be
+            %added or removed when Palladium was started with View=[]
+            %
+            %Inputs:
+            %   action - what was being attempted, e.g. "add an Instrument Control"
+
+            assert(~isempty(this.View), "Palladium:NoGUI", "%s", "Cannot " + action + ": Palladium was started without a GUI (View=[]). Instrument Controls are part of the GUI, so they need it.");
+        end
 
         function view = CreateView(~, viewFileName, applicationDir)
             %Create the View (GUI) from its class name in the Palladium.Views namespace.

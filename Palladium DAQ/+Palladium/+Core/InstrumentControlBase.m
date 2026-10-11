@@ -308,11 +308,11 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
         function stringVal = GetParameterValueFromLastMeasurementRow(this, parameterName, Settings)
             %Get the last value of a data column as text, e.g. the temperature for a sweep file name.
             %Reads the instrument's LastFullDataRow, so at least one tick
-            %must have run. Warns and returns "!!VAL-MISSING!!" if there is
-            %no data yet, or no column of that name
+            %must have run. Logs a warning and returns "!!VAL-MISSING!!" if
+            %there is no data yet, or no column of exactly that name
             %
             %Inputs:
-            %   parameterName - the column's header, e.g. "Temperature (K)"
+            %   parameterName - the column's full header, e.g. "Temperature (K)"
             %   Format        - num2str format of the value. Default "%03.2f"
             %
             %Outputs:
@@ -332,25 +332,28 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
             %Initialise to empty
             stringVal = "!!VAL-MISSING!!";
 
-            %Error checking
+            %Error checking - warnings go through the Logger, as MATLAB
+            %warnings show as error boxes in the standalone app
             if isempty(dataRow)
-                warning("GetParameterValueFromLastMeasurementRowWarning:EmptyDataRow", "%s", "Data row empty in " + this.Instrument.FullName + ", cannot GetParameterValueFromLastMeasurementRow");
+                Palladium.Logging.Logger.Log("Warning", "No data yet for " + this.Instrument.Name + ", so the value of " + parameterName + " is not known (GetParameterValueFromLastMeasurementRow)");
                 return;
             end
             if isempty(hdrsRow)
-                warning("GetParameterValueFromLastMeasurementRowWarning:EmptyDataRow", "%s", "Data row empty in "  + this.Instrument.FullName + ", cannot GetParameterValueFromLastMeasurementRow");
+                Palladium.Logging.Logger.Log("Warning", "No data column headers yet for " + this.Instrument.Name + ", so the value of " + parameterName + " is not known (GetParameterValueFromLastMeasurementRow)");
                 return;
             end
 
-            %Check the provided Parameter Name is indeed one of the headers
-            if ~any(contains(hdrsRow, parameterName))
-                warning("GetParameterValueFromLastMeasurementRowWarning:ParameterNotFound", "%s", "Could not find parameter " + parameterName + " in the measurement headers file (InstrumentControlBase.GetParameterValueFromLastMeasurementRow).");
+            %The whole header must match - not just part of it (e.g.
+            %"Temperature" would match "Temperature (K)" and "Temperature
+            %Setpoint (K)")
+            idx = string(hdrsRow) == string(parameterName);
+            if ~any(idx)
+                Palladium.Logging.Logger.Log("Warning", "Could not find a data column called " + parameterName + " (GetParameterValueFromLastMeasurementRow)");
                 return;
             end
 
             %Extract data
-            idx = ismember(hdrsRow, parameterName);
-            dat = dataRow(idx);
+            dat = dataRow(find(idx, 1));
             stringVal = num2str(dat, Settings.Format);
         end
 
