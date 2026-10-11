@@ -13,8 +13,8 @@ classdef Palladium < handle
     %  folder, without `.json`, to apply on launch, e.g. `Preset="Example"`.
     %* `View` - the GUI to use, from the `Palladium.Views` namespace.
     %  `View=[]` runs with no GUI.
-    %* `ConfigFilePath` - a Config.json to use instead of the usual one,
-    %  relative to the folder `Palladium.m` is in.
+    %* `ConfigFilePath` - a Config.json to use instead of the usual one: a
+    %  full path, or one relative to the folder `Palladium.m` is in.
     %* `DebugMode` - `true` to make instrument errors stop with a full stack
     %  trace, instead of being caught and logged. For developing drivers.
     %
@@ -72,8 +72,8 @@ classdef Palladium < handle
             %
             %Inputs (all optional name-value arguments):
             %   ConfigFilePath - path of a Config .json file to use instead of
-            %                    the usual Config.json, relative to the folder
-            %                    Palladium.m is in. ".json" is added if missing;
+            %                    the usual Config.json: a full path, or one relative
+            %                    to the folder Palladium.m is in. ".json" is added if missing;
             %                    errors if the file is not found. Default []
             %   DebugMode      - true to throw full errors on all instrument
             %                    errors, for debugging and development. Default false
@@ -145,8 +145,11 @@ classdef Palladium < handle
                 %Check the file extension, add if missing
                 Settings.ConfigFilePath = Palladium.Utilities.PathUtils.EnsureExtension(Settings.ConfigFilePath, ".json");
 
-                %Make an absolute path by adding the directory of this file
-                Settings.ConfigFilePath = fullfile(applicationDir, Settings.ConfigFilePath);
+                %Use an absolute path as it is; take a relative one as relative
+                %to the folder this file is in
+                if ~Palladium.Utilities.PathUtils.IsAbsolutePath(Settings.ConfigFilePath)
+                    Settings.ConfigFilePath = fullfile(applicationDir, Settings.ConfigFilePath);
+                end
                 Settings.ConfigFilePath = Palladium.Utilities.PathUtils.CleanPath(Settings.ConfigFilePath);
 
                 %Check the file exists

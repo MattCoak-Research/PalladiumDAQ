@@ -214,7 +214,6 @@ classdef ConfigIO < handle
 
             s.LogSettings.LogFileFileName = "<DATE>_Log.txt";
             s.LogSettings.LogFileDirectory = fullfile(rootDir, "Logs");
-            s.LogSettings.LogFileDirectoryIsRelativePath = false;
 
             s.LogSettings.CommandWindowMessageLevel = "Debug";
             s.LogSettings.PrintStackTraceInCommandWindow = false;
@@ -223,12 +222,9 @@ classdef ConfigIO < handle
             s.LogSettings.ErrorOnAllInstrumentErrors = false;
  
             s.PathSettings.UserFilesDirectory = rootDir;
-            s.PathSettings.UserFilesDirectoryIsRelativePath = false;
             s.PathSettings.DefaultFileName = "<DATE>_Filename";
             s.PathSettings.DefaultDirectory = fullfile(rootDir, "Data");
             s.PathSettings.DefaultSequenceDirectory = fullfile(rootDir, "Sequences");
-            s.PathSettings.DataDirectoryIsRelativePath = false;
-            s.PathSettings.SequenceDirectoryIsRelativePath = false;
 
             s.PathSettings.DataFileExtension = ".dat";
             s.PathSettings.SequenceFileExtension = ".seq";
@@ -260,14 +256,14 @@ classdef ConfigIO < handle
 
             c.SetInitialValues(...
                 "DefaultDataDirectory", initialConfig.PathSettings.DefaultDirectory,...
-                "DefaultDataDirectoryIsRelativePath", initialConfig.PathSettings.DataDirectoryIsRelativePath,...
+                "DefaultDataDirectoryIsRelativePath", ~Palladium.Utilities.PathUtils.IsAbsolutePath(initialConfig.PathSettings.DefaultDirectory),...
                 "DefaultLogFileDirectory", initialConfig.LogSettings.LogFileDirectory,...
-                "DefaultLogFileDirectoryIsRelativePath", initialConfig.LogSettings.LogFileDirectoryIsRelativePath,...
+                "DefaultLogFileDirectoryIsRelativePath", ~Palladium.Utilities.PathUtils.IsAbsolutePath(initialConfig.LogSettings.LogFileDirectory),...
                 "DefaultSequenceDirectory", initialConfig.PathSettings.DefaultSequenceDirectory,...
-                "DefaultSequenceDirectoryIsRelativePath", initialConfig.PathSettings.SequenceDirectoryIsRelativePath,...
+                "DefaultSequenceDirectoryIsRelativePath", ~Palladium.Utilities.PathUtils.IsAbsolutePath(initialConfig.PathSettings.DefaultSequenceDirectory),...
                 "DefaultFileName", initialConfig.PathSettings.DefaultFileName,...
                 "UserFilesDirectory", initialConfig.PathSettings.UserFilesDirectory,...
-                "UserFilesDirectoryIsRelativePath", initialConfig.PathSettings.UserFilesDirectoryIsRelativePath,...
+                "UserFilesDirectoryIsRelativePath", ~Palladium.Utilities.PathUtils.IsAbsolutePath(initialConfig.PathSettings.UserFilesDirectory),...
                 "WindowWidth", initialConfig.WindowSettings.DefaultSize(1),...
                 "WindowHeight", initialConfig.WindowSettings.DefaultSize(2),...
                 "WindowStartsMaximised", initialConfig.WindowSettings.Maximised);
@@ -282,59 +278,47 @@ classdef ConfigIO < handle
                 con.PathSettings.DefaultDirectory = s.DefaultDirectory;
                 con.LogSettings.LogFileDirectory = s.LogFileDirectory;
                 con.PathSettings.DefaultSequenceDirectory = s.DefaultSequenceDirectory;
-                con.PathSettings.SequenceDirectoryIsRelativePath = s.SequenceDirectoryIsRelativePath;
-                con.PathSettings.DataDirectoryIsRelativePath = s.DataDirectoryIsRelativePath;
-                con.LogSettings.LogFileDirectoryIsRelativePath = s.LogFileDirectoryIsRelativePath;
                 con.PathSettings.DefaultFileName = s.DefaultFileName;
                 con.PathSettings.UserFilesDirectory = s.UserFilesDirectory;
-                con.PathSettings.UserFilesDirectoryIsRelativePath = s.UserFilesDirectoryIsRelativePath;
                 con.WindowSettings.DefaultSize = s.DefaultSize;
                 con.WindowSettings.Maximised = s.WindowStartsMaximised;
 
-                %Clean up file paths and make desired ones relative instead
-                %of absolute
-                con.PathSettings.DefaultDirectory = Palladium.Utilities.PathUtils.CleanPath(con.PathSettings.DefaultDirectory);
-                con.PathSettings.DefaultSequenceDirectory = Palladium.Utilities.PathUtils.CleanPath(con.PathSettings.DefaultSequenceDirectory);
-                con.LogSettings.LogFileDirectory = Palladium.Utilities.PathUtils.CleanPath(con.LogSettings.LogFileDirectory);
-                con.PathSettings.UserFilesDirectory = Palladium.Utilities.PathUtils.CleanPath(con.PathSettings.UserFilesDirectory);
-
-                if con.PathSettings.DataDirectoryIsRelativePath
-                    [p, success] = Palladium.Utilities.PathUtils.MakeFilePathRelative(con.PathSettings.DefaultDirectory, RefDir=applicationDir);
-                    if success
-                        con.PathSettings.DefaultDirectory = p;
-                    else %Handle case of failing to find a relative path to extract - if the folder given was on a different drive for instance. Path remains absolute, and disable the relative toggle
-                        con.PathSettings.DataDirectoryIsRelativePath = false;
-                    end
-                end
-
-                if con.LogSettings.LogFileDirectoryIsRelativePath
-                    [p, success] = Palladium.Utilities.PathUtils.MakeFilePathRelative(con.LogSettings.LogFileDirectory, RefDir=applicationDir);
-                    if success
-                        con.LogSettings.LogFileDirectory = p;
-                    else
-                        con.LogSettings.LogFileDirectoryIsRelativePath = false;
-                    end
-                end
-
-                if con.PathSettings.SequenceDirectoryIsRelativePath
-                    [p, success] = Palladium.Utilities.PathUtils.MakeFilePathRelative(con.PathSettings.DefaultSequenceDirectory, RefDir=applicationDir);
-                    if success
-                        con.PathSettings.DefaultSequenceDirectory = p;
-                    else
-                        con.PathSettings.SequenceDirectoryIsRelativePath = false;
-                    end
-                end
-
-                if con.PathSettings.UserFilesDirectoryIsRelativePath
-                    [p, success] = Palladium.Utilities.PathUtils.MakeFilePathRelative(con.PathSettings.UserFilesDirectory, RefDir=applicationDir);
-                    if success
-                        con.PathSettings.UserFilesDirectory = p;
-                    else %Handle case of failing to find a relative path to extract - if the folder given was on a different drive for instance. Path remains absolute, and disable the relative toggle
-                        con.PathSettings.UserFilesDirectoryIsRelativePath = false;
-                    end
-                end
+                %Store each folder relative to applicationDir if its "relative"
+                %box was ticked, and absolute if not. The boxes are only used
+                %here - whether a stored path is relative is seen from the
+                %path itself (PathUtils.IsAbsolutePath)
+                con.PathSettings.DefaultDirectory = this.ApplyRelativeChoice(con.PathSettings.DefaultDirectory, s.DataDirectoryIsRelativePath, applicationDir);
+                con.LogSettings.LogFileDirectory = this.ApplyRelativeChoice(con.LogSettings.LogFileDirectory, s.LogFileDirectoryIsRelativePath, applicationDir);
+                con.PathSettings.DefaultSequenceDirectory = this.ApplyRelativeChoice(con.PathSettings.DefaultSequenceDirectory, s.SequenceDirectoryIsRelativePath, applicationDir);
+                con.PathSettings.UserFilesDirectory = this.ApplyRelativeChoice(con.PathSettings.UserFilesDirectory, s.UserFilesDirectoryIsRelativePath, applicationDir);
             end
         end
+
+        function path = ApplyRelativeChoice(~, path, makeRelative, applicationDir)
+            %Store a folder path relative to applicationDir, or absolute, as chosen in the Config Entry window.
+            %A folder that can't be made relative (e.g. on another drive)
+            %stays absolute
+            %
+            %Inputs:
+            %   path           - the folder, absolute or relative to applicationDir
+            %   makeRelative   - true to store it relative to applicationDir
+            %   applicationDir - the folder Palladium.m (or the app) is in
+            %
+            %Outputs:
+            %   path - the folder to store, tidied (PathUtils.CleanPath)
+
+            path = Palladium.Utilities.PathUtils.CleanPath(path);
+            isAbsolute = Palladium.Utilities.PathUtils.IsAbsolutePath(path);
+            if makeRelative && isAbsolute
+                [relativePath, success] = Palladium.Utilities.PathUtils.MakeFilePathRelative(path, RefDir=applicationDir);
+                if success
+                    path = relativePath;
+                end
+            elseif ~makeRelative && ~isAbsolute
+                path = Palladium.Utilities.PathUtils.CleanPath(fullfile(applicationDir, path));
+            end
+        end
+
 
         function [con, changesDetected, fieldsRemoved] = VerifyConfigStruct(this, con)
             %Add any settings missing from a loaded config, with default values, and remove any no longer used.

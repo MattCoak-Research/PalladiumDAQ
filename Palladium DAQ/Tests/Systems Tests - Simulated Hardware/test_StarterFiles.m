@@ -78,15 +78,12 @@ classdef test_StarterFiles < matlab.unittest.TestCase
             %folder, after this folder has gone
             cfg = readstruct(fullfile(appDir, "Tests", "TestingConfig.json"));
             cfg.PathSettings.UserFilesDirectory = fullfile(root, "UserFiles");
-            cfg.PathSettings.UserFilesDirectoryIsRelativePath = false;
             cfg.PathSettings.DefaultDirectory = fullfile(root, "Data");
-            cfg.PathSettings.DataDirectoryIsRelativePath = false;
             cfg.PathSettings.DefaultSequenceDirectory = fullfile(root, "Sequences");
-            cfg.PathSettings.SequenceDirectoryIsRelativePath = false;
             configPath = fullfile(root, "Config.json");
             writestruct(cfg, configPath, FileType="json");
 
-            pd = Palladium(View=[], ConfigFilePath=extractAfter(configPath, appDir + filesep));
+            pd = Palladium(View=[], ConfigFilePath=configPath);     %A full path
             testCase.addTeardown(@() pd.Close());   %Runs before the fixture removes the folder
 
             testCase.verifyTrue(any(string(pd.GetAllInstrumentClassNames()) == "MyTemplateCopy"), "The copy should be listed as an instrument");

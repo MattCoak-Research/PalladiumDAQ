@@ -345,11 +345,10 @@ classdef test_ProgrammeLaunch < matlab.unittest.TestCase
 
             cfg = readstruct(fullfile(appDir, "Tests", "TestingConfig.json"));
             cfg.PathSettings.DefaultDirectory = fullfile(root, "blocker.txt", "Data");
-            cfg.PathSettings.DataDirectoryIsRelativePath = false;
             configPath = fullfile(root, "Config.json");
             writestruct(cfg, configPath, FileType="json");
 
-            pd = testCase.verifyWarning(@() Palladium(View=[], ConfigFilePath=extractAfter(configPath, appDir + filesep)), ...
+            pd = testCase.verifyWarning(@() Palladium(View=[], ConfigFilePath=configPath), ...
                 "LoadSettingsWarning:DefaultDirectoryCreationFailed");
             testCase.addTeardown(@() pd.Close());   %Runs before the fixture removes the folder
 

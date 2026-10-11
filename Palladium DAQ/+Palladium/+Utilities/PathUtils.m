@@ -313,6 +313,26 @@ classdef PathUtils
             end
         end
 
+        function tf = IsAbsolutePath(path)
+            %Whether a path is absolute - starting from a drive, network share or root folder.
+            %Absolute if it starts with a drive letter (`C:\` or `C:/`), a
+            %network share (`\\server\...`) or `/`. Decided from the text
+            %alone, so the answer is the same on every OS. Anything else -
+            %e.g. `Data`, `..\Other`, or "" - is relative
+            %
+            %Inputs:
+            %   path - the path
+            %
+            %Outputs:
+            %   tf - true if it is absolute
+
+            arguments
+                path {mustBeTextScalar}
+            end
+
+            tf = ~isempty(regexp(char(path), '^([A-Za-z]:[\\/]|\\\\|/)', 'once'));
+        end
+
         function valid = IsDirectoryValid(directory)
             %Whether a folder path is given and the folder exists.
             %
@@ -377,8 +397,10 @@ classdef PathUtils
             %            folder Palladium.m is in
             %
             %Outputs:
-            %   newPath                  - the relative path, e.g. "../Data", or
-            %                              path itself if it is on a different drive
+            %   newPath                  - the relative path, with no leading
+            %                              separator - e.g. "Data", "../Data", or
+            %                              "" for RefDir itself - or path itself if
+            %                              it is on a different drive
             %   successfullyMadeRelative - true if a relative path was made
 
             arguments
@@ -409,7 +431,7 @@ classdef PathUtils
             %compared, so a sibling such as "Palladium DAQ Data" is not taken to be
             %inside "Palladium DAQ"
             if path == refPath || startsWith(path, refPath + filesep)
-                newPath = extractAfter(path, strlength(refPath));
+                newPath = strip(extractAfter(path, strlength(refPath)), "left", filesep);  %No leading separator - "/Data" would read as absolute on Linux and Mac
                 successfullyMadeRelative = true;
                 return;
             end
@@ -450,7 +472,7 @@ classdef PathUtils
                 end
 
                 % Stitch those two together to give something like "..\NewFolder"
-                newPath = refs + ps;
+                newPath = strip(refs + ps, "left", filesep);
                 successfullyMadeRelative = true;
                 return;
             end

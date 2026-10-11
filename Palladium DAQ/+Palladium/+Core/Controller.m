@@ -1479,6 +1479,21 @@ classdef Controller < handle
             end
         end
 
+        function path = MakeAbsoluteFromApplicationDir(this, path)
+            %Make a path absolute, taking a relative one as relative to ApplicationDir.
+            %An absolute path (PathUtils.IsAbsolutePath) is returned as it is
+            %
+            %Inputs:
+            %   path - a config path, e.g. "Data" or "C:\Data"
+            %
+            %Outputs:
+            %   path - the absolute path
+
+            if ~Palladium.Utilities.PathUtils.IsAbsolutePath(path)
+                path = fullfile(this.ApplicationDir, path);
+            end
+        end
+
         function [logSettings, pathSettings, windowSettings, plotterSettings, pythonSettings, warningSettings] = LoadSettings(this, Settings)
             %Load the config file and return its sections, with the paths tidied and made absolute.
             %Remembers the config file's path in ConfigFilePath. Fixes a user
@@ -1533,19 +1548,12 @@ classdef Controller < handle
             end
 
 
-            %Make relative path if specified
-            if(pathSettings.DataDirectoryIsRelativePath)
-                pathSettings.DefaultDirectory = fullfile(this.ApplicationDir, pathSettings.DefaultDirectory);
-            end
-            if(logSettings.LogFileDirectoryIsRelativePath)
-                logSettings.LogFileDirectory = fullfile(this.ApplicationDir, logSettings.LogFileDirectory);
-            end
-            if(pathSettings.SequenceDirectoryIsRelativePath)
-                pathSettings.DefaultSequenceDirectory = fullfile(this.ApplicationDir, pathSettings.DefaultSequenceDirectory);
-            end
-            if(pathSettings.UserFilesDirectoryIsRelativePath)
-                pathSettings.UserFilesDirectory = fullfile(this.ApplicationDir, pathSettings.UserFilesDirectory);
-            end
+            %Folders stored as relative paths are relative to ApplicationDir
+            %(the folder Palladium.m is in) - make them absolute
+            pathSettings.DefaultDirectory = this.MakeAbsoluteFromApplicationDir(pathSettings.DefaultDirectory);
+            logSettings.LogFileDirectory = this.MakeAbsoluteFromApplicationDir(logSettings.LogFileDirectory);
+            pathSettings.DefaultSequenceDirectory = this.MakeAbsoluteFromApplicationDir(pathSettings.DefaultSequenceDirectory);
+            pathSettings.UserFilesDirectory = this.MakeAbsoluteFromApplicationDir(pathSettings.UserFilesDirectory);
 
             %Clean the paths up, removing extra \\..\\.. loops etc
             pathSettings.DefaultDirectory = Palladium.Utilities.PathUtils.CleanPath(pathSettings.DefaultDirectory);

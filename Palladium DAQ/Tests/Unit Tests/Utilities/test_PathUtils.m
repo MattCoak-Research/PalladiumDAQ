@@ -386,6 +386,24 @@ classdef test_PathUtils < matlab.unittest.TestCase
             testCase.verifyTrue(isAbsolute);
         end
 
+        %% IsAbsolutePath
+        function test_IsAbsolutePath(testCase)
+            %Full paths start from a drive (either slash), a network share or the root folder
+            absolutePaths = ["C:\Data", "c:/Data", "D:\", "\\server\share\Data", "/home/user/Data", "/"];
+            for path = absolutePaths
+                testCase.verifyTrue(Palladium.Utilities.PathUtils.IsAbsolutePath(path), path + " should be absolute");
+            end
+
+            %Everything else is relative - including a bare drive letter with no slash
+            relativePaths = ["Tests/TestingConfig.json", "Tests\Logs", "..\Data", "../Data", "MyConfig", "", "C:Data"];
+            for path = relativePaths
+                testCase.verifyFalse(Palladium.Utilities.PathUtils.IsAbsolutePath(path), path + " should be relative");
+            end
+
+            %Char input works too
+            testCase.verifyTrue(Palladium.Utilities.PathUtils.IsAbsolutePath('C:\Data'));
+        end
+
         %% IsDirectoryValid
         function test_IsDirectoryValid(testCase)            
             try
@@ -417,7 +435,7 @@ classdef test_PathUtils < matlab.unittest.TestCase
         %% MakeFilePathRelative
         function test_MakeFilePathRelative(testCase)
             path = fullfile(testCase.ApplicationDir, testCase.TestDir2);
-            expectedPath = filesep + fullfile("Tests", "Unit Tests", "data", "PathUtils Testing", "Test Folder 2"); %This is the path to Test Folder 2 from the directory with Palladium.m in it
+            expectedPath = fullfile("Tests", "Unit Tests", "data", "PathUtils Testing", "Test Folder 2"); %This is the path to Test Folder 2 from the directory with Palladium.m in it
             expectedSuccessfullyMadeRelative = true;
 
             [actualNewPath, actualSuccessfullyMadeRelative] = Palladium.Utilities.PathUtils.MakeFilePathRelative(path);
@@ -429,7 +447,7 @@ classdef test_PathUtils < matlab.unittest.TestCase
         function test_MakeFilePathRelative_RefDirGiven(testCase)
             path = fullfile(testCase.ApplicationDir, testCase.TestDir2);
             refDir = testCase.ApplicationDir;
-            expectedPath = filesep + testCase.TestDir2; %This is the path to Test Folder 2 from the directory with Palladium.m in it
+            expectedPath = testCase.TestDir2; %This is the path to Test Folder 2 from the directory with Palladium.m in it
             expectedSuccessfullyMadeRelative = true;
 
             [actualNewPath, actualSuccessfullyMadeRelative] = Palladium.Utilities.PathUtils.MakeFilePathRelative(path, RefDir=refDir);
@@ -441,7 +459,7 @@ classdef test_PathUtils < matlab.unittest.TestCase
         function test_MakeFilePathRelative_SiblingWithLongerName(testCase)
             %A folder whose name starts with the reference folder's name is
             %a sibling, not inside it: relative to "...\Test Folder",
-            %"...\Test Folder 1" is "\..\Test Folder 1". This used to give
+            %"...\Test Folder 1" is "..\Test Folder 1". This used to give
             %" 1", because the paths were compared as text, not folders
             testingDir = fullfile(testCase.ApplicationDir, testCase.TestingDir);
             refDir = fullfile(testingDir, "Test Folder");
@@ -449,7 +467,7 @@ classdef test_PathUtils < matlab.unittest.TestCase
 
             [actualNewPath, actualSuccessfullyMadeRelative] = Palladium.Utilities.PathUtils.MakeFilePathRelative(path, RefDir=refDir);
 
-            testCase.verifyEqual(actualNewPath, filesep + fullfile("..", "Test Folder 1"));
+            testCase.verifyEqual(actualNewPath, fullfile("..", "Test Folder 1"));
             testCase.verifyTrue(actualSuccessfullyMadeRelative);
             testCase.verifyEqual(Palladium.Utilities.PathUtils.CleanPath(fullfile(refDir, actualNewPath)), Palladium.Utilities.PathUtils.CleanPath(path), "The relative path should lead back to the folder");
         end

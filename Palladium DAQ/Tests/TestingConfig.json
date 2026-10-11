@@ -2,7 +2,6 @@
     "LogSettings": {
         "LogFileDirectory": "Tests/Testing Data Files/Logs",
         "LogFileFileName": "<DATE>_Log.txt",
-        "LogFileDirectoryIsRelativePath": true,
         "CommandWindowMessageLevel": "Debug",
         "PrintStackTraceInCommandWindow": false,
         "GUIMessageLevel": "Debug",
@@ -13,15 +12,12 @@
         "DefaultFileName": "<DATE>_Filenametest",
         "DefaultDirectory": "Tests/Testing Data Files/Data",
         "DefaultSequenceDirectory": "Tests/Testing Data Files/Sequences",
-        "DataDirectoryIsRelativePath": true,
-        "SequenceDirectoryIsRelativePath": true,
         "DataFileExtension": ".dat",
         "SequenceFileExtension": ".seq",
         "SaveFile": true,
         "FileWriteMode": "Increment File No.",
         "DefaultDescription": "",
-        "UserFilesDirectory": "Tests/Testing User Files",
-        "UserFilesDirectoryIsRelativePath": true
+        "UserFilesDirectory": "Tests/Testing User Files"
     },
     "WindowSettings": {
         "DefaultSize": [

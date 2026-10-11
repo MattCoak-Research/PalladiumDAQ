@@ -93,7 +93,7 @@ Config.json is in a `Palladium DAQ` folder in your user settings folder, so that
 
 This is the same for the MATLAB toolbox and the standalone application. When running Palladium DAQ from a copy of its source code (with the MATLAB Project), Config.json is instead in the source folder, next to `Palladium.m`. Earlier versions kept Config.json in the installation folder; if one is there, it is copied to the new place the first time Palladium DAQ runs.
 
-Config.json is created the first time Palladium DAQ runs, from the settings entered in the **Config Entry** window. By default, data, logs, sequences and user files all go in a `Palladium DAQ` folder in your Documents folder. If settings are missing from it - for example after an update adds new ones - they are added with default values, and a message says so. To use a different file, start Palladium DAQ with `Palladium(ConfigFilePath="OtherConfig.json")`.
+Config.json is created the first time Palladium DAQ runs, from the settings entered in the **Config Entry** window. By default, data, logs, sequences and user files all go in a `Palladium DAQ` folder in your Documents folder. If settings are missing from it - for example after an update adds new ones - they are added with default values, and a message says so. To use a different file, start Palladium DAQ with `Palladium(ConfigFilePath="OtherConfig.json")` - a full path, or one relative to the Palladium DAQ installation folder.
 
 ### PathSettings
 
@@ -108,9 +108,7 @@ Config.json is created the first time Palladium DAQ runs, from the settings ente
 | `DefaultDescription` | The default data file description |
 | `DefaultSequenceDirectory` | The folder where [sequences](sequences.md) are saved |
 | `SequenceFileExtension` | The sequence file extension, normally `.seq` |
-| `UserFilesDirectoryIsRelativePath`, `DataDirectoryIsRelativePath`, `SequenceDirectoryIsRelativePath` | If `true`, that folder is relative to the Palladium DAQ installation folder |
-
-Folders that don't exist are created.
+Folders that don't exist are created. Each folder can be a full path, such as `C:/Data` or `/home/me/Data`, or one relative to the Palladium DAQ installation folder, such as `Data` or `../Data`. In the **Config Entry** window, the **Relative Path** checkbox next to a folder saves it in the relative form.
 
 ### LogSettings
 
@@ -121,7 +119,7 @@ Palladium DAQ's messages go to three places - the MATLAB Command Window, the GUI
 | `CommandWindowMessageLevel` | Level for the Command Window |
 | `GUIMessageLevel` | Level for the GUI |
 | `LogFileMessageLevel` | Level for the log file |
-| `LogFileDirectory`, `LogFileDirectoryIsRelativePath` | The folder for log files |
+| `LogFileDirectory` | The folder for log files - a full path, or one relative to the Palladium DAQ installation folder |
 | `LogFileFileName` | The log file name. `<DATE>` is replaced with today's date, giving one log file per day |
 | `PrintStackTraceInCommandWindow` | Whether to show the full stack trace of errors in the Command Window |
 | `ErrorOnAllInstrumentErrors` | If `false` (the default), an instrument that fails to give a reading logs a warning and its columns are filled with NaN for that measurement, and measuring carries on. If `true`, measuring stops |
