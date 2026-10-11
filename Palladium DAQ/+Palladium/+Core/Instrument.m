@@ -730,7 +730,8 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             %then each control's UpdateData with the new reading
             %
             %Inputs:
-            %   headers - the data column headers of this instrument
+            %   headers - the data column headers of all instruments, passed on
+            %             to the controls' UpdateData
             %
             %Outputs:
             %   dataRow - the reading from Measure

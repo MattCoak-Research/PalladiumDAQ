@@ -1,32 +1,80 @@
 classdef TimingLoopController < handle
-    %TIMINGLOOPCONTROLLER
+    %TimingLoopController - Runs the measurement loop on a timer, and starts, pauses, resumes and stops it.
+    %Created by the Controller, which holds it as `TimingLoopController`;
+    %`Controller.Initialise` calls `Initialise` to create the timer.
+    %`Start`, `Pause`, `Resume`, `Stop` and `SetUpdateTime` are called by
+    %the GUI's buttons and by the matching methods of `Palladium`.
+    %
+    %**Starting.** `Start` asks the Controller to set up data writing
+    %(`InitialiseDataWriting`) and checks `CanStart`, then:
+    %
+    %1. Sets `State` to Running and raises `Started`.
+    %2. Calls `Controller.InitialiseMeasurements`, which has the
+    %   InstrumentController connect every instrument
+    %   (`InitialiseInstruments`) and build the data column headers
+    %   (`InitialiseHeaders`), resets the plots, and writes the headers and
+    %   metadata to the data file.
+    %3. If that succeeds, raises `MeasurementsInitialised` with the headers,
+    %   and starts the timer. If an instrument could not connect, warns the
+    %   user and returns to Ready, raising `Stopped`.
+    %
+    %**Each tick.** The timer calls `Update` every `TargetUpdateTime`
+    %seconds. While Running, that calls `Controller.Measure`, which runs
+    %the CommandController's `Update` (queued sequence and instrument
+    %commands), then the InstrumentController's `CollectMeasurement` (one
+    %data row from all instruments), and writes and plots the row. `Update`
+    %then raises `UpdateTimeChanged` with the actual time since the last
+    %tick.
+    %
+    %**Pausing and stopping.** `Pause` and `Stop` only set `State` to
+    %Pausing or Stopping, so that a tick in progress finishes first. The
+    %next tick then calls `OnPaused` or `OnStopped`, which stop the timer
+    %and raise `Paused` or `Stopped`; `OnStopped` also has the Controller
+    %close all instruments. Stopping while paused calls `OnStopped` at
+    %once, as no ticks are running. `Resume` restarts the timer without
+    %connecting the instruments again, and raises `Resumed`. Each of
+    %`Start`, `Pause`, `Resume` and `Stop` checks the state first, and only
+    %logs a warning if it doesn't apply (e.g. `Start` while running, or
+    %`Pause` when not running). `Resume` while still Pausing cancels the
+    %pause.
+    %
+    %The GUI listens to `Started`, `Paused`, `Resumed`, `Stopped`,
+    %`TargetUpdateTimeChanged` and `UpdateTimeChanged`. Every Instrument
+    %Control listens to `Started`, `Paused`, `Resumed`, `Stopped`,
+    %`MeasurementsInitialised` and `TargetUpdateTimeChanged`, subscribed by
+    %`InstrumentController.AddInstrumentControl`.
 
     %% Properties (Public, Private Set)
     properties(GetAccess = public, SetAccess = private)
-        State = categorical("Ready", ["Running", "Ready", "Pausing", "Stopping", "Paused"]);
-        TargetUpdateTime = 0.1;
+        State = categorical("Ready", ["Running", "Ready", "Pausing", "Stopping", "Paused"]);    %State of the measurement loop: Ready, Running, Pausing, Paused or Stopping
+        TargetUpdateTime = 0.1;     %Target time between ticks (s) - the timer's period, set with SetUpdateTime
     end
 
     %% Properties (Private)
     properties(Access = private)
-        Timer;
-        Controller;
+        Timer;          %MATLAB timer that calls Update every TargetUpdateTime seconds, created by Initialise
+        Controller;     %The Palladium.Core.Controller that created this
     end
 
     %% Events
     events
-        MeasurementsInitialised;
-        Started;
-        Paused;
-        Resumed;
-        Stopped;
-        UpdateTimeChanged;          %Called every tick with the elapsed time info
-        TargetUpdateTimeChanged;    %Called when the target update time is changed in the GUI (or programmatically)
+        MeasurementsInitialised;    %Raised when measurements start, after the instruments connect and the headers are made, with a MeasurementsInitialisedEventData
+        Started;                    %Raised when Start begins starting measurements, before the instruments connect
+        Paused;                     %Raised when the loop has paused, at the first tick after Pause
+        Resumed;                    %Raised by OnResumed, when Resume restarts the loop after a pause
+        Stopped;                    %Raised when the loop has stopped and the instruments are closed - also when starting fails
+        UpdateTimeChanged;          %Raised every tick, with a ValueChangedEventData of the time since the last tick (s)
+        TargetUpdateTimeChanged;    %Raised when the target update time is changed in the GUI (or programmatically), with a ValueChangedEventData of the new time (s)
     end
 
     %% Constructor
     methods
         function this = TimingLoopController(controller)
+            %Create the timing loop controller - the timer itself is made by Initialise.
+            %
+            %Inputs:
+            %   controller - the Palladium.Core.Controller creating it
+
             this.Controller = controller;
         end
     end
@@ -35,8 +83,10 @@ classdef TimingLoopController < handle
     methods (Access = public)
 
         function CloseTimer(this)
-            %Safe to call more than once - can be reached from both the
+            %Stop and delete the timer, when Palladium closes.
+            %Safe to call more than once - it can be reached from both the
             %shutdown path and the timer error path
+
             if isempty(this.Timer) || ~isvalid(this.Timer)
                 return;
             end
@@ -45,24 +95,28 @@ classdef TimingLoopController < handle
         end
 
         function Initialise(this)
+            %Create the timer that runs the measurement loop - called by Controller.Initialise.
+            %The timer runs at a fixed rate, calling Update. Its period is set
+            %from TargetUpdateTime, raising TargetUpdateTimeChanged so the GUI
+            %shows it
+
             %Create a Timer object that will schedule all the
             %measurement loop calls
             %ErrorFcn is the last resort for an error escaping Update
             %entirely, which the timer would otherwise turn into a warning
             %and silently stop
             this.Timer = timer('TimerFcn', @this.Update, 'ErrorFcn', @this.HandleTimerError, 'ExecutionMode', 'fixedRate', 'Period', 0.1, 'ObjectVisibility','off');
-           
+
             %Cause an update/refresh of the GUI so it matches the
             %TargetUpdateTime property
             this.SetUpdateTime(this.TargetUpdateTime);
         end
 
         function OnPaused(this)
-            %Called from the main loop after "Pausing" state has been set
-            %by GUI event calls, and then the update loop has passed
-            %through again to here. Stop the timer and basically halt
-            %measurements - but we won't clear everything upon Resuming,
-            %unlike Stop/Start
+            %Stop the timer and raise Paused - called by Update on the first tick after Pause.
+            %The instruments stay connected, and nothing is reset, so Resume
+            %can carry on where the loop left off
+
             this.Timer.stop();
             this.State = "Paused";
 
@@ -74,6 +128,9 @@ classdef TimingLoopController < handle
         end
 
         function OnResumed(this)
+            %Set the state to Running, restart the timer and raise Resumed.
+            %Called by Resume
+
             %Log some information
             this.Controller.Log("Debug", "Measurements resumed", "Green", "Running");
 
@@ -85,6 +142,8 @@ classdef TimingLoopController < handle
         end
 
         function OnStarted(this)
+            %Set the state to Running and raise Started - called by Start.
+
             this.State = "Running";
 
             %Fire event
@@ -92,6 +151,12 @@ classdef TimingLoopController < handle
         end
 
         function OnStopped(this)
+            %Stop the timer, close all instruments, return to Ready and raise Stopped.
+            %Called by Update on the first tick after Stop, by Stop directly
+            %when paused, when starting fails, and by the Controller when
+            %the user stops measurements from an error dialogue. Closes the
+            %instruments through `Controller.OnMeasurementsStopped`
+
             this.Timer.stop();
             this.Controller.OnMeasurementsStopped();
             this.State = "Ready";
@@ -105,6 +170,17 @@ classdef TimingLoopController < handle
         end
 
         function Pause(this)
+            %Ask the loop to pause, by setting the state to Pausing.
+            %The tick in progress finishes, then the next tick calls
+            %OnPaused. Only when Running - otherwise warns and does nothing
+
+            switch string(this.State)
+                case "Running"     % Carry on below
+                case {"Pausing", "Paused"};     this.WarnInvalidStateChange("pause", "measurements are already paused"); return;
+                case "Ready";                   this.WarnInvalidStateChange("pause", "measurements are not running"); return;
+                case "Stopping";                this.WarnInvalidStateChange("pause", "measurements are stopping"); return;
+            end
+
             %Display a status message in the logger
             this.Controller.ShowStatus("Yellow", "Pausing");
 
@@ -112,13 +188,37 @@ classdef TimingLoopController < handle
         end
 
         function Resume(this)
-            %Similar to Start - but we don't clear anything first, just get
-            %the measurement loop running again
-            this.State = "Running";
-            this.RunMeasurementLoop();
+            %Restart the loop after a pause, without connecting the instruments again.
+            %Unlike Start, nothing is reset first. Raises Resumed (see
+            %OnResumed). Only when Paused - while Pausing (the pause has not
+            %taken effect yet) it cancels the pause instead, and otherwise
+            %it warns and does nothing
+
+            switch string(this.State)
+                case "Paused"      % Carry on below
+                case "Pausing"
+                    %The tick in progress hasn't finished yet, so the loop
+                    %never actually stopped - just cancel the pause
+                    this.State = "Running";
+                    this.Controller.Log("Info", "Pause cancelled", "Green", "Running");
+                    return;
+                case "Running";     this.WarnInvalidStateChange("resume", "measurements are already running"); return;
+                case "Ready";       this.WarnInvalidStateChange("resume", "measurements have not been started - use Start"); return;
+                case "Stopping";    this.WarnInvalidStateChange("resume", "measurements are stopping"); return;
+            end
+
+            this.OnResumed();
         end
 
         function SetUpdateTime(this, targetTime_s)
+            %Set the target time between ticks, and raise TargetUpdateTimeChanged.
+            %Can be called while the loop is running: the timer is stopped,
+            %its period changed and the timer restarted. Errors go to the
+            %Controller's error handling
+            %
+            %Inputs:
+            %   targetTime_s - the new period of the timer (s)
+
             try
                 %Need to stop the timer, change the period, then restart it -
                 %get an error if we try to change the period while it is
@@ -144,6 +244,20 @@ classdef TimingLoopController < handle
         end
 
         function Start(this)
+            %Begin measurements: set up the data file, connect the instruments, and start the timer.
+            %Raises Started, then MeasurementsInitialised once the instruments
+            %have connected. If the data file path is invalid or an
+            %instrument cannot connect, warns the user and returns to Ready
+            %instead. Only when Ready - otherwise warns and does nothing. See
+            %the class help for the steps
+
+            switch string(this.State)
+                case "Ready"       % Carry on below
+                case {"Running", "Pausing"};    this.WarnInvalidStateChange("start", "measurements are already running"); return;
+                case "Paused";                  this.WarnInvalidStateChange("start", "measurements are paused - use Resume, or Stop first"); return;
+                case "Stopping";                this.WarnInvalidStateChange("start", "measurements are still stopping"); return;
+            end
+
             %Set up the Data Writing
             this.Controller.InitialiseDataWriting();
 
@@ -172,9 +286,18 @@ classdef TimingLoopController < handle
         end
 
         function Stop(this)
-            %Pressing the stop button sets the State to 'Stopping' only. Current loop
-            %iteration will complete, then CloseAll will be called, and THERE
-            %all instruments can be stopped.
+            %Ask the loop to stop, by setting the state to Stopping.
+            %The tick in progress finishes, then the next tick calls
+            %OnStopped, which closes the instruments. When paused, there are
+            %no ticks, so OnStopped is called straight away. Only when
+            %Running, Pausing or Paused - otherwise warns and does nothing
+
+            switch string(this.State)
+                case {"Running", "Pausing", "Paused"}  % Carry on below
+                case "Ready";       this.WarnInvalidStateChange("stop", "measurements are already stopped"); return;
+                case "Stopping";    this.WarnInvalidStateChange("stop", "measurements are already stopping"); return;
+            end
+
             this.StopMeasurements();
         end
 
@@ -183,8 +306,19 @@ classdef TimingLoopController < handle
     %% Methods (Private)
     methods(Access=private)
 
+        function WarnInvalidStateChange(this, action, reason)
+            %Warn that Start, Pause, Resume or Stop was ignored, as it doesn't apply in the current state.
+            %Logged as a warning (Command Window, log file and status strip)
+            %
+            %Inputs:
+            %   action - what was asked for, e.g. "pause"
+            %   reason - why it was ignored, e.g. "measurements are not running"
+
+            this.Controller.Log("Warning", "Cannot " + action + ": " + reason + ". Ignored.", "Yellow", "Cannot " + action + " - " + reason);
+        end
+
         function AbortStart(this, msg, title)
-            %abort instead starting the measurement loop, show a warning, and return to the Ready state
+            %Show a warning that starting failed, and return to the Ready state.
 
             %Display a status message in the logger
             this.Controller.Log("Info", "Initialisation aborted", "Red", "Initialisation aborted");
@@ -198,11 +332,12 @@ classdef TimingLoopController < handle
         end
 
         function HandleTimerError(this, ~, evnt)
-            %Called by the timer when an error escapes Update. A fixedRate
-            %timer has already stopped itself by now. Deliberately do NOT
-            %restart it - the programme is in an unknown state, and
-            %auto-restarting risks an error-restart-error loop against real
-            %hardware. Log, return cleanly to Ready, and alert the user.
+            %Log an error that escaped Update, return to Ready, and warn the user.
+            %Called by the timer (its ErrorFcn). A fixedRate timer has already
+            %stopped itself by now. Deliberately do NOT restart it - the
+            %programme is in an unknown state, and auto-restarting risks an
+            %error-restart-error loop against real hardware
+
             try
                 msg = "Measurement loop timer error";
                 try
@@ -224,8 +359,7 @@ classdef TimingLoopController < handle
         end
 
         function OnMeasurementsInitialised(this, headers)
-            %Fired after successful connection to instruments, data column
-            %headers locked in.
+            %Raise MeasurementsInitialised, once the instruments have connected and the headers are fixed.
 
             %Fire event
             args = Palladium.Events.MeasurementsInitialisedEventData(headers);
@@ -233,6 +367,8 @@ classdef TimingLoopController < handle
         end
 
         function RunMeasurementLoop(this)
+            %Start the timer that calls Update each tick.
+
             %Display a status message in the logger
             this.Controller.Log("Info", "Measurement Loop started", "Green", "Running");
 
@@ -241,9 +377,7 @@ classdef TimingLoopController < handle
         end
 
         function StopMeasurements(this)
-            %Pressing the stop button sets the State to 'Stopping' only. Current loop
-            %iteration will complete, then CloseAll will be called, and THERE
-            %all instruments can be stopped.
+            %Set the state to Stopping, calling OnStopped at once if paused.
 
             %Display a status message in the logger
             this.Controller.Log("Info", "Measurement Loop Stopping...", "Yellow", "Stopping measurements");
@@ -263,10 +397,12 @@ classdef TimingLoopController < handle
         end
 
         function Update(this, ~, ~)
-            %Execute one 'tick' of the measurement loop - poll each
-            %instrument for one row of data, update all GUI and plots. This
-            %keeps running, triggered async off a Timer object, until state
-            %is changed to Pausing or Stopping by Pause or Stop events
+            %Run one tick of the measurement loop - the timer's callback.
+            %First acts on a Pause or Stop (calling OnPaused or OnStopped).
+            %Then, if Running, calls `Controller.Measure` - which runs queued
+            %commands, collects a data row from every instrument, and writes
+            %and plots it - and raises UpdateTimeChanged. Errors go to
+            %`Controller.HandleCallbackError`
 
             %Process GUI events like button presses and force the async
             %timer to check in with the GUI - get hangs without this if
@@ -277,10 +413,8 @@ classdef TimingLoopController < handle
                 %Check for exit conditions from the measurement loop - are we
                 %trying to Pause or Stop the loop?
                 switch(this.State)
-                    case("Stopping")
-                        this.OnStopped();
-                    case("Pausing")
-                        this.OnPaused();
+                    case("Stopping");   this.OnStopped();
+                    case("Pausing");    this.OnPaused();
                 end
             catch e
                 CatchMeasurementLoopError(this, e);
