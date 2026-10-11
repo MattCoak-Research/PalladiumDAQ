@@ -437,11 +437,19 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
             %                must have a SetNewSweepName method
             %   evt        - event data whose Value is the current file name
             %   controller - the Palladium.Core.Controller, for the headers
-            %                and window icon
+            %                (set when measurements start) and window icon
 
             controlGUIToSendDataBackTo = src;
             originalStr = evt.Value;
             newStr = originalStr;
+
+            %The headers are only known once measurements have started. The
+            %GUIs keep their tag button disabled until then, but if this is
+            %reached without them, say so rather than offer an empty list
+            if isempty(controller.Headers)
+                Palladium.Logging.Logger.Log("Warning", "No data columns to choose from yet - start measurements once, then insert the tag");
+                return;
+            end
 
             %Handle case of 1 header only
             if isscalar(controller.Headers)

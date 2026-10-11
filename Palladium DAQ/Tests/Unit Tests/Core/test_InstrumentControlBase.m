@@ -211,6 +211,37 @@ classdef test_InstrumentControlBase < matlab.unittest.TestCase
             testCase.verifyEqual(string(writer.FileWriteDetails.FileName), "run at !!VAL-MISSING!! K");
         end
 
+        %% InsertSmartTagRequest
+        function test_InsertSmartTagRequest_NoHeadersYetTest(testCase)
+            %Before measurements have started there are no headers. Rather
+            %than open the dialogue with an empty list (OK then inserted
+            %" [,%6.2f]"), it warns and opens nothing
+            testCase.logWarningsToCommandWindow();
+            controller = struct("Headers", {{}});
+            evt = Palladium.Events.ValueChangedEventData("Sweep");
+            figuresBefore = numel(findall(groot, "Type", "figure"));
+
+            output = evalc("testCase.Control.InsertSmartTagRequestForTest([], evt, controller)");
+
+            testCase.verifySubstring(output, "start measurements once");
+            testCase.verifyNumElements(findall(groot, "Type", "figure"), figuresBefore, "No dialogue should open");
+        end
+
+    end
+
+    %% Methods (Private)
+    methods (Access = private)
+        function logWarningsToCommandWindow(testCase)
+            %Set the (shared, persistent) Logger to print warnings to the
+            %Command Window, where evalc can see them, and nowhere else -
+            %other tests may have turned it off
+            Palladium.Logging.Logger.Log("Debug", "Logging to the Command Window for test", "Controller", true, ...
+                "LogFileDirectory", "", "LogFileFileName", "", ...
+                "CommandWindowMessageLevel", "Warning", "GUIMessageLevel", "Off", "LogFileMessageLevel", "Off");
+            testCase.addTeardown(@() Palladium.Logging.Logger.Log("Debug", "Logging stopped", "Controller", true, ...
+                "LogFileDirectory", "", "LogFileFileName", "", ...
+                "CommandWindowMessageLevel", "Off", "GUIMessageLevel", "Off", "LogFileMessageLevel", "Off"));
+        end
     end
 
 end

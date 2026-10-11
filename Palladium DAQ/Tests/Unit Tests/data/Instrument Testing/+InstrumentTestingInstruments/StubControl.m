@@ -39,6 +39,10 @@ classdef StubControl < Palladium.Core.InstrumentControlBase
         function dataWriter = InitialiseDataWriterForTest(this, fileNameSuffix, varargin)
             dataWriter = this.InitialiseDataWriter(fileNameSuffix, varargin{:});
         end
+
+        function InsertSmartTagRequestForTest(this, src, evt, controller)
+            this.InsertSmartTagRequest(src, evt, controller);
+        end
     end
 
     methods (Access = private)
