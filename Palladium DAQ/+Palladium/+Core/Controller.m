@@ -1485,8 +1485,8 @@ classdef Controller < handle
             %files path that ends in the user files folder itself (writing
             %the fix back to the config), makes relative paths absolute
             %(relative to ApplicationDir), and creates the default data
-            %folder if needed - falling back to the user's home folder if it
-            %can't be made
+            %folder if needed - falling back to the user's Documents folder
+            %(PathUtils.GetDocumentsDirectory), with a warning, if it can't be made
             %
             %Inputs:
             %   ConfigFilePath - (name-value) config file to load instead of the default one. Default []
@@ -1566,14 +1566,17 @@ classdef Controller < handle
                     %Assert the creation was successful
                     assert(isfolder(pathSettings.DefaultDirectory), "LoadSettingsError:FolderNotFound", "Folder not found at path");
                 catch exception
-                    %Warn the user
-                    warning("LoadSettingsWarning:DefaultDirectoryCreationFailed", "%s", "Could not find directory " + pathSettings.DefaultDirectory + " specified in the config file, and hit an error while trying to create it. Reverting to fallback for default directory. Error message: " + string(exception.message));
+                    %Fall back to the user's Documents folder (or their home
+                    %folder if there is none), on Windows, Mac and Linux - it
+                    %always exists, so nothing more has to be created
+                    fallbackDir = Palladium.Utilities.PathUtils.GetDocumentsDirectory();
 
-                    %User folder eg c:/Matt/
-                    userDir = fullfile(getenv('USERPROFILE'));
+                    %Warn the user. A MATLAB warning, not the Logger, which is
+                    %not set up yet - in the standalone app it shows as a dialogue
+                    warning("LoadSettingsWarning:DefaultDirectoryCreationFailed", "%s", "Could not find directory " + pathSettings.DefaultDirectory + " specified in the config file, and hit an error while trying to create it. Saving data to " + fallbackDir + " instead. Error message: " + string(exception.message));
 
                     %Set the Default Dir
-                    pathSettings.DefaultDirectory = userDir;
+                    pathSettings.DefaultDirectory = fallbackDir;
 
                 end
             end

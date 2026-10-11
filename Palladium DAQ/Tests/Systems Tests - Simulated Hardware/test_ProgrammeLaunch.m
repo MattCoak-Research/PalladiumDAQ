@@ -332,6 +332,33 @@ classdef test_ProgrammeLaunch < matlab.unittest.TestCase
         end
     end
 
+    methods (Test)
+        function UncreatableDataFolderFallsBackToDocuments(testCase)
+            %If the config's data folder doesn't exist and can't be created,
+            %Palladium warns and uses the user's Documents folder (it used
+            %USERPROFILE, which is Windows-only - empty on Linux and Mac).
+            %The data folder is "inside" a file, which no OS can create
+            fixture = testCase.applyFixture(TestHelpers.DataFolderFixture);
+            root = string(fixture.Folder);
+            writelines("Not a folder", fullfile(root, "blocker.txt"));
+            appDir = string(fileparts(which("Palladium")));
+
+            cfg = readstruct(fullfile(appDir, "Tests", "TestingConfig.json"));
+            cfg.PathSettings.DefaultDirectory = fullfile(root, "blocker.txt", "Data");
+            cfg.PathSettings.DataDirectoryIsRelativePath = false;
+            configPath = fullfile(root, "Config.json");
+            writestruct(cfg, configPath, FileType="json");
+
+            pd = testCase.verifyWarning(@() Palladium(View=[], ConfigFilePath=extractAfter(configPath, appDir + filesep)), ...
+                "LoadSettingsWarning:DefaultDirectoryCreationFailed");
+            testCase.addTeardown(@() pd.Close());   %Runs before the fixture removes the folder
+
+            documents = Palladium.Utilities.PathUtils.CleanPath(Palladium.Utilities.PathUtils.GetDocumentsDirectory());
+            testCase.verifyEqual(Palladium.Utilities.PathUtils.CleanPath(pd.Controller.PathSettings.DefaultDirectory), documents);
+            testCase.verifyTrue(isfolder(pd.Controller.PathSettings.DefaultDirectory), "The fallback folder should exist");
+        end
+    end
+
     methods (Access = private)
         function verifyState(testCase, tlc, expected)
             %Check the loop's state is the LoopState expected, and works with strcmp
