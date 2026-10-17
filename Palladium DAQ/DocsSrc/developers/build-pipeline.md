@@ -66,7 +66,7 @@ The hardware tests in `Tests/Connected Hardware` need a real instrument connecte
 * Methods inherited from documented classes are listed and linked; methods that override a base class method borrow its help if they have none; one-line Categoricals converters get a generated description.
 * Documented class names in the Type column link to their pages.
 
-The classes documented are set in `Settings` and assembled by `apidocTask` in `buildfile.m`: some individually (currently the `Palladium` class), whole namespaces (currently `Palladium.Core`, `Palladium.Enums`, `Palladium.Events`, `Palladium.Instruments.Events` and `Palladium.Utilities`, so new classes in them are picked up automatically), and every instrument driver file in `+Palladium/+Instruments` (`FolderClasses`, which reads the folder so that drivers in a user files folder on the path are not picked up). `TestInstrument`, a scratch driver for prototyping, is left out.
+The classes documented are set in `Settings` and assembled by `apidocTask` in `buildfile.m`: some individually (currently the `Palladium` class), whole namespaces (currently `Palladium.Core`, `Palladium.Enums`, `Palladium.Events`, `Palladium.Instruments.Events`, `Palladium.Utilities` and `Palladium.DataWriting`, so new classes in them are picked up automatically), and every instrument driver file in `+Palladium/+Instruments` (`FolderClasses`, which reads the folder so that drivers in a user files folder on the path are not picked up). `TestInstrument`, a scratch driver for prototyping, is left out.
 
 ### gettingStarted - the toolbox's Getting Started guide
 

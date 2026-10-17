@@ -1,21 +1,49 @@
 classdef DataWriter < handle
-    %DATAWRITER - Handles the writing of data files in Palladium DAQ
+    %DataWriter - Writes Palladium DAQ's tab-separated data files: a metadata header, the column headers, then the data.
+    %The Controller makes one for the main data file when measurements
+    %start, and Instrument Controls make their own for sweep and scan
+    %files (`InstrumentControlBase.InitialiseDataWriter`). The file
+    %settings come from a FileWriteDetails struct, as set in the GUI's file
+    %panel. `ValidateFilePath` picks the file name for the write mode,
+    %`WriteHeaders` starts the file, and `WriteLine` or `WriteData` add
+    %data. A file looks like:
+    %
+    %    <<< Palladium DAQ data file 3.0 >>>
+    %    Description text
+    %
+    %    <Instrument Settings and Metadata>
+    %    ...metadata lines...
+    %    <<< END METADATA LINES >>>
+    %
+    %    Time (mins)    Field (T)    ...
+    %    0.1            2.5          ...
+    %
+    %Nothing is written when FileWriteDetails.SaveFile is false.
+    %`DataReader` reads the files back. See [Data files](../data-files.md).
 
     %% Properties (Constant, Public)
     properties (Constant, Access = public)
-        END_METADATA_LINES_STRING = "<<< END METADATA LINES >>>";
+        END_METADATA_LINES_STRING = "<<< END METADATA LINES >>>";   %Line marking the end of the metadata, just before the column headers
     end
 
     %% Properties (Public)
     properties (Access = public)
-        FileWriteDetails;
-        FileInfo = "<<< Palladium DAQ data file 3.0 >>>";
+        FileWriteDetails;                                   %File settings struct: Directory, FileName, FileExtension, DescriptionText, WriteMode, SaveFile, and FilePath (set from the others)
+        FileInfo = "<<< Palladium DAQ data file 3.0 >>>";   %First line of every file, identifying the file format
     end
-
 
     %% Constructor
     methods
         function this = DataWriter(fileWriteDetails)
+            %Create a writer for the file described by a FileWriteDetails struct, setting its FilePath.
+            %
+            %Inputs:
+            %   fileWriteDetails - struct with Directory, FileName,
+            %                      FileExtension, DescriptionText,
+            %                      WriteMode ("Increment File No.",
+            %                      "Overwrite File" or "Append To File")
+            %                      and SaveFile
+
             this.FileWriteDetails = fileWriteDetails;
 
             this.ConstructPath();
@@ -24,16 +52,16 @@ classdef DataWriter < handle
 
     %% Methods (Public)
     methods (Access = public)
-        function ConstructPath(this)
-            this.FileWriteDetails.FilePath = fullfile(string(this.FileWriteDetails.Directory), string(this.FileWriteDetails.FileName) + string(this.FileWriteDetails.FileExtension));
-        end
 
         function InsertMetadataLines(this, stringLinesArray)
-            %Use at end of file writing, to insert an extra line of
-            %metadata into the header section of the file - inserts a new
-            %line before <<< END METADATA LINES >>>. stringLinesArray can
-            %be a singel string or an array of them (multilines) like
-            %["Walker", "747", "Holly"]
+            %Add lines to the end of the metadata section of a file already written, e.g. a sweep's end time.
+            %Rewrites the file with the new lines just before
+            %`<<< END METADATA LINES >>>`. Warns (and leaves the file as it
+            %is) if that marker isn't found
+            %
+            %Inputs:
+            %   stringLinesArray - the line, or lines as a string array, e.g. ["Ended at 10:31", "Final field = 2 T"]
+
             arguments
                 this;
                 stringLinesArray {mustBeText};
@@ -64,8 +92,7 @@ classdef DataWriter < handle
                     %Check how many lines to insert
                     linesToInsert = length(stringLinesArray);
 
-
-                    %Same file path - shoudl overwrite
+                    %Same file path - should overwrite
                     fid = fopen(this.FileWriteDetails.FilePath, 'w');
 
                     %Print the lines before the one to be inserted
@@ -96,7 +123,16 @@ classdef DataWriter < handle
         end
 
         function SaveFigure(~, figure, ax, directory, fileNameWithoutExtension, Settings)
-            %Save a figure as both a .fig and a .png in a folder
+            %Save a figure as both a .fig and a .png in a folder.
+            %Untitled axes are given the file name as their title.
+            %Otherwise, unless ExactFileName is true, the files are named
+            %after the axes' title, with "-Fig" and a number added so that
+            %nothing is overwritten
+            %
+            %Inputs:
+            %   figure, ax, directory, fileNameWithoutExtension - see the arguments block
+            %   ExactFileName - (name-value) true to use exactly the name given. Default false
+
             arguments
                 ~;
                 figure;                         %Figure to save
@@ -135,6 +171,16 @@ classdef DataWriter < handle
         end
 
         function newFileName = ValidateFilePath(this)
+            %Choose the file name to write to, for the write mode, and update FileName and FilePath.
+            %For "Increment File No." the name is numbered so that no file
+            %is overwritten (see `PathUtils.GetIncrementedFileName`).
+            %"Overwrite File" and "Append To File" keep the name. Nothing
+            %is deleted here - this also runs whenever the file settings are
+            %edited in the GUI
+            %
+            %Outputs:
+            %   newFileName - the file name, without folder or extension
+
             newFileName = this.FileWriteDetails.FileName;
             if(this.FileWriteDetails.SaveFile)
                 switch(string(this.FileWriteDetails.WriteMode))
@@ -159,6 +205,15 @@ classdef DataWriter < handle
         end
 
         function WriteHeaders(this, headers, Settings)
+            %Start the file: write the file-format line, description, metadata lines and column headers.
+            %Replaces any existing file - except in "Append To File" mode,
+            %where an existing file is added to and nothing is written here
+            %
+            %Inputs:
+            %   headers       - the column headers, as one tab-separated line
+            %   MetadataLines - (name-value) lines of instrument settings and
+            %                   metadata (string array). Default []
+
             arguments
                 this;
                 headers;
@@ -202,35 +257,44 @@ classdef DataWriter < handle
         end
 
         function WriteData(this, data)
-            %Write multiple lines of data in a matrix all in one go
-            %Right now this is actually identical to WriteLine...
+            %Add several rows of data to the file at once, e.g. a whole sweep - tab-separated.
+            %Retries a few times if the file can't be written (e.g. it is
+            %briefly locked), then logs a warning that the data were lost
+            %
+            %Inputs:
+            %   data - the rows (numeric matrix)
 
-            %Nothing to write if saving is switched off (Write to File unticked)
-            if ~this.FileWriteDetails.SaveFile
-                return;
-            end
-
-            numRetries = 3; %Have seen in testing that (due to copying across of files?) we can get 'Permission denied' errors on the data file. These are infrequent. If we get them, just pause a short time, try writing again, and return if we fail after this many attempts
-            errMess = [];
-
-            for i = 1 : numRetries
-                try
-                    writematrix(data, this.FileWriteDetails.FilePath, 'WriteMode', 'append', 'delimiter', '\t');
-                    return;
-                catch err
-                    warning("WriteDataWarning:WriteFailed", "%s", "Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying...");
-                    errMess = string(err.message);
-                    warning("WriteDataWarning:WriteErrorMessage", "%s", errMess);
-                    Palladium.Logging.Logger.Log("Info", "Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying..." + " Error message: " + errMess);
-                end
-            end
-
-            %If we got here, we tried N times to write to the file and it
-            %didn't work - warn
-            Palladium.Logging.Logger.Log("Warning", "Writing of file to " + this.FileWriteDetails.FilePath + " failed after " + num2str(numRetries) + " attempts. Data have been lost." + " Last error: " + errMess);
+            this.AppendRows(data, "WriteDataWarning");
         end
 
         function WriteLine(this, data)
+            %Add one row of data to the file - tab-separated.
+            %Retries a few times if the file can't be written (e.g. it is
+            %briefly locked), then logs a warning that the data were lost
+            %
+            %Inputs:
+            %   data - the row (numeric row vector)
+
+            this.AppendRows(data, "WriteLineWarning");
+        end
+    end
+
+    %% Methods (Private)
+    methods (Access = {?Palladium.DataWriting.DataWriter, ?matlab.unittest.TestCase})    %Permission is Private, but also allow unit tests to see it
+
+        function ConstructPath(this)
+            %Set FileWriteDetails.FilePath from its Directory, FileName and FileExtension.
+
+            this.FileWriteDetails.FilePath = fullfile(string(this.FileWriteDetails.Directory), string(this.FileWriteDetails.FileName) + string(this.FileWriteDetails.FileExtension));
+        end
+
+        function AppendRows(this, data, warningIdPrefix)
+            %Append rows of data to the file, tab-separated, retrying if the write fails - for WriteData and WriteLine.
+            %
+            %Inputs:
+            %   data            - the rows (numeric)
+            %   warningIdPrefix - start of the warning IDs, e.g. "WriteLineWarning"
+
             %Nothing to write if saving is switched off (Write to File unticked)
             if ~this.FileWriteDetails.SaveFile
                 return;
@@ -244,9 +308,9 @@ classdef DataWriter < handle
                     writematrix(data, this.FileWriteDetails.FilePath, 'WriteMode', 'append', 'delimiter', '\t');
                     return;
                 catch err
-                    warning("WriteLineWarning:WriteFailed", "%s", "Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying...");
+                    warning(warningIdPrefix + ":WriteFailed", "%s", "Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying...");
                     errMess = string(err.message);
-                    warning("WriteLineWarning:WriteErrorMessage", "%s", errMess);
+                    warning(warningIdPrefix + ":WriteErrorMessage", "%s", errMess);
                     Palladium.Logging.Logger.Log("Info", "Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying..." + " Error message: " + errMess);
                 end
             end
@@ -261,9 +325,18 @@ classdef DataWriter < handle
     methods (Static, Access = public)
 
         function stringLine = BuildMetadataLineStringFromStruct(initialString, strct)
-            %Take a struct of parameters and turn into a nicely formatted
-            %single line of text that can be written to file as
-            %human-readable metadata
+            %Turn a struct of settings into one metadata line, e.g. "K2000_1: Range = 10 || NPLC = 1".
+            %Numbers are written with all their digits (see
+            %FormatMetadataValue); arrays are joined with spaces, and an
+            %empty value is written as "[]"
+            %
+            %Inputs:
+            %   initialString - text to start the line with, e.g. the instrument's name
+            %   strct         - the settings
+            %
+            %Outputs:
+            %   stringLine - the line
+
             stringLine = initialString;
 
             %Get the field names of the struct
@@ -286,7 +359,7 @@ classdef DataWriter < handle
 
                 stringLine = stringLine + string(f) + " = " + string(propValAsStr);
 
-                %Add a seperator if this is not the last property
+                %Add a separator if this is not the last property
                 if i ~= length(flds)
                     stringLine = stringLine + " || ";
                 end
@@ -294,8 +367,19 @@ classdef DataWriter < handle
         end
 
         function stringLine = BuildMetadataLineStringFromHeaderValuePair(initialString, headerRow, dataRow)
-            %Take a row of header strings and a row of data, and make into
-            %a nicely formatted string to log as a metadata line
+            %Turn column headers and a row of values into one metadata line, e.g. "Start: Field (T) = 2.5 || ...".
+            %Used to record the latest measurements in a sweep file's
+            %metadata. Warns and gives just initialString if either row is
+            %empty; errors if they differ in length
+            %
+            %Inputs:
+            %   initialString - text to start the line with
+            %   headerRow     - the column headers (cell array)
+            %   dataRow       - the values, one per header
+            %
+            %Outputs:
+            %   stringLine - the line
+
             stringLine = initialString;
 
             %Error checking
@@ -316,7 +400,7 @@ classdef DataWriter < handle
 
                 stringLine = stringLine + string(h) + " = " + Palladium.DataWriting.DataWriter.FormatMetadataValue(prop);
 
-                %Add a seperator if this is not the last property
+                %Add a separator if this is not the last property
                 if i ~= length(headerRow)
                     stringLine = stringLine + " || ";
                 end
@@ -328,12 +412,13 @@ classdef DataWriter < handle
     methods (Static, Access = private)
 
         function str = FormatMetadataValue(value)
-            %Convert a value to text for a metadata line. Floating point
-            %numbers are written with as many digits as it takes to read
-            %back as exactly the same number (string() would keep only 5
-            %significant digits, and turns NaN into a missing string,
-            %which would blank the whole line). Everything else is
+            %Convert a value to text for a metadata line, keeping every digit of floating point numbers.
+            %Floating point numbers are written with as many digits as it
+            %takes to read back as exactly the same number (string() would
+            %keep only 5 significant digits, and turns NaN into a missing
+            %string, which would blank the whole line). Everything else is
             %converted by string(), as before.
+
             if isfloat(value) && isreal(value) && ~isempty(value)
                 str = strings(1, numel(value));
                 for k = 1 : numel(value)
@@ -345,8 +430,8 @@ classdef DataWriter < handle
         end
 
         function str = FormatFloatingPointNumber(x)
-            %The shortest text that reads back as exactly x, trying 15 to 17
-            %significant digits (6 to 9 for single precision)
+            %The shortest text that reads back as exactly x, trying 15 to 17 significant digits (6 to 9 for single precision).
+
             if ~isfinite(x)
                 str = string(sprintf("%g", x));    %NaN, Inf or -Inf
                 return;
@@ -370,4 +455,3 @@ classdef DataWriter < handle
 
     end
 end
-
