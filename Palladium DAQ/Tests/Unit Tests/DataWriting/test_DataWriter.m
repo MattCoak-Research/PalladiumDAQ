@@ -184,6 +184,21 @@ classdef test_DataWriter < matlab.unittest.TestCase
             testCase.verifyEqual(lines(5), tricky);
         end
 
+        function test_WriteHeaders_UncreatableFileErrorsClearlyTest(testCase)
+            %A file that can't be created (here in a folder that doesn't
+            %exist) gives a clear error naming it - it used to fail on the
+            %first write with "Invalid file identifier"
+            details = testCase.makeDetails("acq", Directory=fullfile(testCase.TempDir, "no", "such", "folder"));
+            writer = Palladium.DataWriting.DataWriter(details);
+
+            testCase.verifyError(@() writer.WriteHeaders("a"), "WriteHeadersError:OpenFailed");
+            try
+                writer.WriteHeaders("a");
+            catch err
+                testCase.verifySubstring(err.message, writer.FileWriteDetails.FilePath);
+            end
+        end
+
         %% WriteLine and WriteData
         function test_WriteLine_AppendsTabDelimitedRowsTest(testCase)
             writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("acq"));

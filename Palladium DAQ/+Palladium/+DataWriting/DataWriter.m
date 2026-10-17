@@ -213,7 +213,8 @@ classdef DataWriter < handle
         function WriteHeaders(this, headers, Settings)
             %Start the file: write the file-format line, description, metadata lines and column headers.
             %Replaces any existing file - except in "Append To File" mode,
-            %where an existing file is added to and nothing is written here
+            %where an existing file is added to and nothing is written here.
+            %Errors (WriteHeadersError:OpenFailed) if the file can't be created
             %
             %Inputs:
             %   headers       - the column headers, as one tab-separated line
@@ -237,8 +238,13 @@ classdef DataWriter < handle
                 return;
             end
 
-            %Otherwise, write away
-            fid = fopen(this.FileWriteDetails.FilePath, 'w');
+            %Otherwise, write away. Say clearly if the file can't be
+            %created (e.g. the folder is missing or read-only), rather than
+            %failing on the first write with "Invalid file identifier"
+            [fid, openMessage] = fopen(this.FileWriteDetails.FilePath, 'w');
+            if fid == -1
+                error("WriteHeadersError:OpenFailed", "%s", "Could not create the data file " + string(this.FileWriteDetails.FilePath) + ": " + string(openMessage));
+            end
             fprintf(fid, '%s\r\n', this.FileInfo);
             fprintf(fid, '%s\r\n', this.FileWriteDetails.DescriptionText);
             fprintf(fid, '%s\r\n', "");
