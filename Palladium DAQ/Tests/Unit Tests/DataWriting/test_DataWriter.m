@@ -280,6 +280,23 @@ classdef test_DataWriter < matlab.unittest.TestCase
             testCase.verifySubstring(fileread(logPath), "failed after 3 attempts. Data have been lost.");
         end
 
+        function test_WriteLine_WaitsBetweenAttemptsTest(testCase)
+            %Each failed attempt is followed by a pause, so a briefly locked
+            %file has time to be released - the attempts used to follow each
+            %other at once, so all failed within microseconds
+            testCase.initialiseLogger();
+            details = testCase.makeDetails("acq", Directory=fullfile(testCase.TempDir, "no", "such", "folder"));
+            writer = Palladium.DataWriting.DataWriter(details);
+            minimumTime = (Palladium.DataWriting.DataWriter.WriteAttempts - 1) * Palladium.DataWriting.DataWriter.WriteRetryPause;
+
+            state = warning("off", "WriteLineWarning:WriteFailed");
+            testCase.addTeardown(@() warning(state));
+            warning("off", "WriteLineWarning:WriteErrorMessage");
+            timer = tic;
+            testCase.runQuietly(@() writer.WriteLine([1 2 3]));
+            testCase.verifyGreaterThanOrEqual(toc(timer), minimumTime);
+        end
+
         %% InsertMetadataLines
         function test_InsertMetadataLines_InsertsSingleLineBeforeEndMarkerTest(testCase)
             writer = testCase.writerWithData("acq", MetadataLines=["m1", "m2"]);

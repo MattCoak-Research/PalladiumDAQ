@@ -26,6 +26,12 @@ classdef DataWriter < handle
         END_METADATA_LINES_STRING = "<<< END METADATA LINES >>>";   %Line marking the end of the metadata, just before the column headers
     end
 
+    %% Properties (Constant, Private)
+    properties (Constant, Access = {?Palladium.DataWriting.DataWriter, ?matlab.unittest.TestCase})    %Permission is Private, but also allow unit tests to see it
+        WriteAttempts = 3;          %Times to try writing data before giving up
+        WriteRetryPause = 0.2;      %Seconds to wait between attempts, for a file that is briefly locked
+    end
+
     %% Properties (Public)
     properties (Access = public)
         FileWriteDetails;                                   %File settings struct: Directory, FileName, FileExtension, DescriptionText, WriteMode, SaveFile, and FilePath (set from the others)
@@ -300,7 +306,11 @@ classdef DataWriter < handle
                 return;
             end
 
-            numRetries = 3; %Have seen in testing that (due to copying across of files?) we can get 'Permission denied' errors on the data file. These are infrequent. If we get them, just pause a short time, try writing again, and return if we fail after this many attempts
+            %Have seen in testing that (due to copying across of files?) we
+            %can get 'Permission denied' errors on the data file. These are
+            %infrequent. If we get them, pause a short time, try writing
+            %again, and give up after WriteAttempts attempts
+            numRetries = Palladium.DataWriting.DataWriter.WriteAttempts;
             errMess = [];
 
             for i = 1 : numRetries
@@ -312,6 +322,12 @@ classdef DataWriter < handle
                     errMess = string(err.message);
                     warning(warningIdPrefix + ":WriteErrorMessage", "%s", errMess);
                     Palladium.Logging.Logger.Log("Info", "Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying..." + " Error message: " + errMess);
+
+                    %Give a briefly locked file time to be released (the
+                    %attempts used to follow each other at once)
+                    if i < numRetries
+                        pause(Palladium.DataWriting.DataWriter.WriteRetryPause);
+                    end
                 end
             end
 
