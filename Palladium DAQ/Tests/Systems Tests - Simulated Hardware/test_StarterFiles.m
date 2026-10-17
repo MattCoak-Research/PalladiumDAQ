@@ -51,7 +51,7 @@ classdef test_StarterFiles < matlab.unittest.TestCase
             %import, that keeps it out of the list) - needs a usable Python
             pyc = testCase.Programme.Controller.InstrumentController.PythonInstrumentController;
             testCase.assumeNotEmpty(pyc, "Python isn't usable here, so Python instruments aren't loaded");
-            testCase.verifyTrue(any(string(pyc.AvaialableInstrNames) == "TemplatePythonInstrument"));
+            testCase.verifyTrue(any(string(pyc.AvailableInstrNames) == "TemplatePythonInstrument"));
         end
 
         function CopiedPythonTemplateRunsAsInstrument(testCase)
