@@ -279,9 +279,11 @@ classdef test_DataWriter < matlab.unittest.TestCase
             details = testCase.makeDetails("acq", Directory=fullfile(testCase.TempDir, "no", "such", "folder"));
             writer = Palladium.DataWriting.DataWriter(details);
 
-            testCase.verifyWarning(@() testCase.runQuietly(@() writer.WriteLine([1 2 3])), "WriteLineWarning:WriteFailed");
+            %Logged, not MATLAB warnings - the compiled app shows those as error boxes
+            testCase.verifyWarningFree(@() testCase.runQuietly(@() writer.WriteLine([1 2 3])));
 
             logText = fileread(logPath);
+            testCase.verifySubstring(logText, "failed (attempt 1 of 3)");
             testCase.verifySubstring(logText, "failed after 3 attempts. Data have been lost.");
         end
 
@@ -290,7 +292,7 @@ classdef test_DataWriter < matlab.unittest.TestCase
             details = testCase.makeDetails("acq", Directory=fullfile(testCase.TempDir, "no", "such", "folder"));
             writer = Palladium.DataWriting.DataWriter(details);
 
-            testCase.verifyWarning(@() testCase.runQuietly(@() writer.WriteData([1 2; 3 4])), "WriteDataWarning:WriteFailed");
+            testCase.verifyWarningFree(@() testCase.runQuietly(@() writer.WriteData([1 2; 3 4])));
 
             testCase.verifySubstring(fileread(logPath), "failed after 3 attempts. Data have been lost.");
         end
@@ -304,9 +306,6 @@ classdef test_DataWriter < matlab.unittest.TestCase
             writer = Palladium.DataWriting.DataWriter(details);
             minimumTime = (Palladium.DataWriting.DataWriter.WriteAttempts - 1) * Palladium.DataWriting.DataWriter.WriteRetryPause;
 
-            state = warning("off", "WriteLineWarning:WriteFailed");
-            testCase.addTeardown(@() warning(state));
-            warning("off", "WriteLineWarning:WriteErrorMessage");
             timer = tic;
             testCase.runQuietly(@() writer.WriteLine([1 2 3]));
             testCase.verifyGreaterThanOrEqual(toc(timer), minimumTime);
@@ -363,23 +362,25 @@ classdef test_DataWriter < matlab.unittest.TestCase
         end
 
         function test_InsertMetadataLines_NoEndMarkerWarnsAndLeavesFileUnchangedTest(testCase)
-            logPath = testCase.initialiseLogger(); %#ok<NASGU>
+            logPath = testCase.initialiseLogger();
             writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("plain"));
             fid = fopen(writer.FileWriteDetails.FilePath, "w");
             fprintf(fid, "line one\nline two\n");
             fclose(fid);
             before = fileread(writer.FileWriteDetails.FilePath);
 
-            testCase.verifyWarning(@() testCase.runQuietly(@() writer.InsertMetadataLines("x")), "InsertMetadataLinesWarning:MetadataMarkerNotFound");
+            testCase.verifyWarningFree(@() testCase.runQuietly(@() writer.InsertMetadataLines("x")));
+            testCase.verifySubstring(fileread(logPath), "its end-of-metadata line (<<< END METADATA LINES >>>) was not found");
 
             testCase.verifyEqual(fileread(writer.FileWriteDetails.FilePath), before);
         end
 
         function test_InsertMetadataLines_MissingFileWarnsInsteadOfThrowingTest(testCase)
-            testCase.initialiseLogger();
+            logPath = testCase.initialiseLogger();
             writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("never_written"));
 
-            testCase.verifyWarning(@() testCase.runQuietly(@() writer.InsertMetadataLines("x")), "InsertMetadataLinesWarning:WriteFailed");
+            testCase.verifyWarningFree(@() testCase.runQuietly(@() writer.InsertMetadataLines("x")));
+            testCase.verifySubstring(fileread(logPath), "Could not add metadata lines to " + writer.FileWriteDetails.FilePath);
             testCase.verifyFalse(isfile(writer.FileWriteDetails.FilePath), "Must not create the file");
         end
 
@@ -839,9 +840,11 @@ classdef test_DataWriter < matlab.unittest.TestCase
         end
 
         function test_BuildMetadataLineFromHeaderValuePair_EmptyDataRowWarnsAndReturnsPrefixTest(testCase)
+            logPath = testCase.initialiseLogger();
             line = [];
-            testCase.verifyWarning(@() assignOutput(), "BuildMetadataLineStringFromHeaderValuePairWarning:EmptyDataRow");
+            testCase.verifyWarningFree(@() assignOutput());
             testCase.verifyEqual(line, "Prefix: ");
+            testCase.verifySubstring(fileread(logPath), "No data values for the metadata line starting ""Prefix: """);
 
             function assignOutput()
                 line = Palladium.DataWriting.DataWriter.BuildMetadataLineStringFromHeaderValuePair("Prefix: ", ["a", "b"], []);
@@ -849,10 +852,12 @@ classdef test_DataWriter < matlab.unittest.TestCase
         end
 
         function test_BuildMetadataLineFromHeaderValuePair_EmptyHeaderRowWarnsAndReturnsPrefixTest(testCase)
-            %Its own warning - it used to be reported as an empty data row
+            %Its own message - it used to be reported as an empty data row
+            logPath = testCase.initialiseLogger();
             line = [];
-            testCase.verifyWarning(@() assignOutput(), "BuildMetadataLineStringFromHeaderValuePairWarning:EmptyHeaderRow");
+            testCase.verifyWarningFree(@() assignOutput());
             testCase.verifyEqual(line, "Prefix: ");
+            testCase.verifySubstring(fileread(logPath), "No column headers for the metadata line starting ""Prefix: """);
 
             function assignOutput()
                 line = Palladium.DataWriting.DataWriter.BuildMetadataLineStringFromHeaderValuePair("Prefix: ", [], [1 2]);

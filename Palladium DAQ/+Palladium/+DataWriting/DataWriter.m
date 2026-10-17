@@ -62,8 +62,9 @@ classdef DataWriter < handle
         function InsertMetadataLines(this, stringLinesArray)
             %Add lines to the end of the metadata section of a file already written, e.g. a sweep's end time.
             %Rewrites the file with the new lines just before
-            %`<<< END METADATA LINES >>>`. Warns (and leaves the file as it
-            %is) if that marker isn't found
+            %`<<< END METADATA LINES >>>`. Logs a warning (and leaves the
+            %file as it is) if that marker isn't found, or if the file can't
+            %be rewritten - the data already written are kept either way
             %
             %Inputs:
             %   stringLinesArray - the line, or lines as a string array, e.g. ["Ended at 10:31", "Final field = 2 T"]
@@ -93,7 +94,7 @@ classdef DataWriter < handle
 
                 %Error checking
                 if isempty(endLineIdx)
-                    warning("InsertMetadataLinesWarning:MetadataMarkerNotFound", "Could not find end-of-metadata string in file");   %Don't throw full error and prevent file writing entirely
+                    Palladium.Logging.Logger.Log("Warning", "Could not add metadata lines to " + this.FileWriteDetails.FilePath + ": its end-of-metadata line (" + Palladium.DataWriting.DataWriter.END_METADATA_LINES_STRING + ") was not found");   %Don't throw full error and prevent file writing entirely
                 else
                     %Check how many lines to insert
                     linesToInsert = length(stringLinesArray);
@@ -121,10 +122,7 @@ classdef DataWriter < handle
                 fclose(fid);
 
             catch err
-                warning("InsertMetadataLinesWarning:WriteFailed", "%s", "Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying...");
-                errMess = string(err.message);
-                warning("InsertMetadataLinesWarning:WriteErrorMessage", "%s", errMess);
-                Palladium.Logging.Logger.Log("Info", "Writing of file to " + this.FileWriteDetails.FilePath + " failed." + " Error message: " + errMess);
+                Palladium.Logging.Logger.Log("Warning", "Could not add metadata lines to " + this.FileWriteDetails.FilePath + ". Error message: " + string(err.message));
             end
         end
 
@@ -285,7 +283,7 @@ classdef DataWriter < handle
             %Inputs:
             %   data - the rows (numeric matrix)
 
-            this.AppendRows(data, "WriteDataWarning");
+            this.AppendRows(data);
         end
 
         function WriteLine(this, data)
@@ -296,7 +294,7 @@ classdef DataWriter < handle
             %Inputs:
             %   data - the row (numeric row vector)
 
-            this.AppendRows(data, "WriteLineWarning");
+            this.AppendRows(data);
         end
     end
 
@@ -309,12 +307,14 @@ classdef DataWriter < handle
             this.FileWriteDetails.FilePath = fullfile(string(this.FileWriteDetails.Directory), string(this.FileWriteDetails.FileName) + string(this.FileWriteDetails.FileExtension));
         end
 
-        function AppendRows(this, data, warningIdPrefix)
+        function AppendRows(this, data)
             %Append rows of data to the file, tab-separated, retrying if the write fails - for WriteData and WriteLine.
+            %Each failed attempt is logged (Info); if every attempt fails, a
+            %warning is logged that the data were lost. Nothing is thrown, so
+            %measuring carries on
             %
             %Inputs:
-            %   data            - the rows (numeric)
-            %   warningIdPrefix - start of the warning IDs, e.g. "WriteLineWarning"
+            %   data - the rows (numeric)
 
             %Nothing to write if saving is switched off (Write to File unticked)
             if ~this.FileWriteDetails.SaveFile
@@ -333,10 +333,10 @@ classdef DataWriter < handle
                     writematrix(data, this.FileWriteDetails.FilePath, 'WriteMode', 'append', 'delimiter', '\t');
                     return;
                 catch err
-                    warning(warningIdPrefix + ":WriteFailed", "%s", "Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying...");
+                    %Logged, not a MATLAB warning: these come mid-measurement,
+                    %and the compiled app shows MATLAB warnings as error boxes
                     errMess = string(err.message);
-                    warning(warningIdPrefix + ":WriteErrorMessage", "%s", errMess);
-                    Palladium.Logging.Logger.Log("Info", "Writing of file to " + this.FileWriteDetails.FilePath + " failed, retrying..." + " Error message: " + errMess);
+                    Palladium.Logging.Logger.Log("Info", "Writing of file to " + this.FileWriteDetails.FilePath + " failed (attempt " + i + " of " + numRetries + "). Error message: " + errMess);
 
                     %Give a briefly locked file time to be released (the
                     %attempts used to follow each other at once)
@@ -400,8 +400,8 @@ classdef DataWriter < handle
         function stringLine = BuildMetadataLineStringFromHeaderValuePair(initialString, headerRow, dataRow)
             %Turn column headers and a row of values into one metadata line, e.g. "Start: Field (T) = 2.5 || ...".
             %Used to record the latest measurements in a sweep file's
-            %metadata. Warns and gives just initialString if either row is
-            %empty; errors if they differ in length
+            %metadata. Logs a warning and gives just initialString if either
+            %row is empty; errors if they differ in length
             %
             %Inputs:
             %   initialString - text to start the line with
@@ -415,11 +415,11 @@ classdef DataWriter < handle
 
             %Error checking
             if isempty(dataRow)
-                warning("BuildMetadataLineStringFromHeaderValuePairWarning:EmptyDataRow", "Data row empty in BuildMetadataLineStringFromHeaderValuePair, cannot log to file");
+                Palladium.Logging.Logger.Log("Warning", "No data values for the metadata line starting """ + initialString + """ - it is left without them (BuildMetadataLineStringFromHeaderValuePair)");
                 return;
             end
             if isempty(headerRow)
-                warning("BuildMetadataLineStringFromHeaderValuePairWarning:EmptyHeaderRow", "Header row empty in BuildMetadataLineStringFromHeaderValuePair, cannot log to file");
+                Palladium.Logging.Logger.Log("Warning", "No column headers for the metadata line starting """ + initialString + """ - it is left without values (BuildMetadataLineStringFromHeaderValuePair)");
                 return;
             end
             assert(length(dataRow) == length(headerRow), "BuildMetadataLineStringFromHeaderValuePairError:LengthMismatch", "Header and data row length not equal");
