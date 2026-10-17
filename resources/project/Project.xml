@@ -150,13 +150,6 @@
                     <DIR_SIGNIFIER Location="1">
                         <Info/>
                     </DIR_SIGNIFIER>
-                    <File Location="BigNumberDisplay.mlapp">
-                        <Info>
-                            <Category UUID="FileClassCategory">
-                                <Label UUID="design"/>
-                            </Category>
-                        </Info>
-                    </File>
                     <File Location="ConfigInputWindow.mlapp">
                         <Info>
                             <Category UUID="FileClassCategory">
@@ -246,6 +239,13 @@
                         </Info>
                     </File>
                     <File Location="StatusPanel.mlapp">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
+                    <File Location="BigNumberDisplay.m">
                         <Info>
                             <Category UUID="FileClassCategory">
                                 <Label UUID="design"/>
@@ -1181,6 +1181,13 @@
                             </File>
                         </File>
                     </File>
+                    <File Location="test_BigNumberDisplays.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="test"/>
+                            </Category>
+                        </Info>
+                    </File>
                 </File>
                 <File Location="Unit Tests">
                     <Info/>
@@ -1623,6 +1630,19 @@
                             <Info/>
                         </DIR_SIGNIFIER>
                         <File Location="test_Logger.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                    </File>
+                    <File Location="Components">
+                        <Info/>
+                        <DIR_SIGNIFIER Location="1">
+                            <Info/>
+                        </DIR_SIGNIFIER>
+                        <File Location="test_BigNumberDisplay.m">
                             <Info>
                                 <Category UUID="FileClassCategory">
                                     <Label UUID="test"/>

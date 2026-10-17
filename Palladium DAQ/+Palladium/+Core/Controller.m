@@ -97,6 +97,7 @@ classdef Controller < handle
         DefaultDataDir;             %Folder the Data Viewer opens in: PathSettings.DefaultDirectory
 
         Closing = false;            %Set by OnFigureClosed when the GUI closes, so errors no longer go to the now-invalid GUI
+        BigNumberDisplays = Palladium.Components.BigNumberDisplay.empty(1, 0);   %Open Big Number Display windows, updated each tick (see OpenBigNumberDisplay)
 
         SuppressedErrorMessages = {};   %Error messages the user chose to suppress in the error dialogue, until Palladium DAQ is restarted
         ErrorDialogOpen = false;    %True while an error dialogue is showing, so further errors get logged without stacking more dialogues
@@ -105,7 +106,7 @@ classdef Controller < handle
 
     %% Events
     events
-        DataRowUpdated;             %Raised each tick with the new data row and the headers (DataRowAddedEventData), e.g. for Big Number Displays
+        DataRowUpdated;             %Raised each tick with the new data row and the headers (DataRowAddedEventData), for anything that needs each new row, e.g. a script
         FileWriteOptionsChanged;    %Raised when FileWriteDetails changes, with the new details (ValueChangedEventData), for the View to show
         FinalisePreset;             %Raised by Palladium.LoadPreset once a Preset has been applied, for the View to update to match
         GreenStatus;                %Status message for the GUI's status strip, with a green light: all is well (MessageEventData)
@@ -880,7 +881,8 @@ classdef Controller < handle
             %Called by the TimingLoopController's timer every tick. In order:
             %runs queued commands (CommandController.Update), collects a data
             %row from the instruments, writes it to the data file, adds it
-            %to DataTable, updates the plots and raises DataRowUpdated. Each
+            %to DataTable, updates the plots and Big Number Displays, and raises
+            %DataRowUpdated. Each
             %step catches its own errors (see HandleCallbackError), so the
             %rest still run if the user chooses to carry on; a failed data
             %collection gives a row of NaNs. If the user chooses to stop while
@@ -925,6 +927,7 @@ classdef Controller < handle
             try
                 %Update data plots & Update any Big Number Display windows
                 this.PlottingController.PlotData(dataRow, this.DataTable);
+                this.UpdateBigNumberDisplays(dataRow);
                 args = Palladium.Events.DataRowAddedEventData(dataRow, this.Headers);
                 notify(this, "DataRowUpdated", args);
             catch e
@@ -956,6 +959,10 @@ classdef Controller < handle
             %Sequence Editor windows (not DataViewer ones though, by
             %design)
             this.SequenceEditorController.Close();
+
+            %Close any Big Number Display windows - they show this session's data
+            delete(this.BigNumberDisplays(isvalid(this.BigNumberDisplays)));
+            this.BigNumberDisplays = Palladium.Components.BigNumberDisplay.empty(1, 0);
         end
 
         function OnLoaded(this)
@@ -983,6 +990,64 @@ classdef Controller < handle
             %Called by `TimingLoopController.OnStopped`
 
             this.InstrumentController.CloseAll();
+        end
+
+        function display = OpenBigNumberDisplay(this, column)
+            %Open a Big Number Display window for a data column, updated each measurement tick.
+            %Called by the main window's **New Display** button, which asks
+            %which column to show. A script can give the column instead. The
+            %data columns are only known once measurements have started, so
+            %before then this says so and opens nothing. The display closes
+            %with Palladium DAQ
+            %
+            %Inputs:
+            %   column - (optional) the column's number, or its exact header,
+            %            e.g. "K2000_1 - Voltage (V)". Asked for in a list if not given
+            %
+            %Outputs:
+            %   display - the Palladium.Components.BigNumberDisplay, or [] if none was opened
+
+            arguments
+                this;
+                column = [];
+            end
+
+            display = [];
+            headers = string(this.Headers);
+            if isempty(headers)
+                this.Log("Info", "Start measurements before opening a Big Number Display - the data columns aren't known until then", "Yellow", "Start measurements first");
+                return;
+            end
+
+            try
+                %Which column: asked for, or as given
+                if isempty(column)
+                    [index, chosen] = listdlg("Name", "Select value", "PromptString", "Select value to be displayed in Big Number Window.", ...
+                        "SelectionMode", "single", "ListString", headers, "ListSize", [250, 350]);
+                    if ~chosen
+                        return;
+                    end
+                elseif isnumeric(column)
+                    index = column;
+                    assert(isscalar(index) && index >= 1 && index <= numel(headers) && index == round(index), ...
+                        "OpenBigNumberDisplay:NoSuchColumn", "%s", "There is no data column " + string(column) + " - there are " + numel(headers));
+                else
+                    index = find(headers == string(column), 1);
+                    assert(~isempty(index), "OpenBigNumberDisplay:NoSuchColumn", "%s", "There is no data column called " + string(column));
+                end
+
+                %Its units, if known (Units matches Headers)
+                units = "";
+                if index <= numel(this.Units)
+                    units = string(this.Units(index));
+                end
+
+                display = Palladium.Components.BigNumberDisplay(headers(index), units, index);
+                this.BigNumberDisplays(end+1) = display;
+            catch err
+                this.HandleError("Error opening a Big Number Display", err);
+                display = [];
+            end
         end
 
         function OpenDataViewer(this)
@@ -1536,6 +1601,16 @@ classdef Controller < handle
             userFilesFolder = this.CreateFolderOrFallBack(...
                 fullfile([pathSettings.UserFilesDirectory, defaults.PathSettings.UserFilesDirectory, documentsDir], this.UserFolderName), "user files");
             pathSettings.UserFilesDirectory = string(fileparts(userFilesFolder));
+        end
+
+        function UpdateBigNumberDisplays(this, dataRow)
+            %Show a new data row in each open Big Number Display - called each tick by Measure.
+            %Displays whose windows have been closed are dropped from the list
+
+            this.BigNumberDisplays = this.BigNumberDisplays(isvalid(this.BigNumberDisplays));
+            for k = 1 : numel(this.BigNumberDisplays)
+                this.BigNumberDisplays(k).UpdateValue(dataRow);
+            end
         end
 
         function PlotterAxesSelectionChange(this, pltr)

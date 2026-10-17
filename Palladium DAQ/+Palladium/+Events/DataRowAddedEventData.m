@@ -1,8 +1,8 @@
 classdef (ConstructOnLoad) DataRowAddedEventData < event.EventData
     %DataRowAddedEventData - Event data for one measurement tick's row of data.
     %Sent each tick with the InstrumentController's DataRowCollected event
-    %and the Controller's DataRowUpdated event, which update the plots,
-    %displays and Instrument Controls.
+    %(to the Instrument Controls) and the Controller's DataRowUpdated event
+    %(for anything else that needs each new row, e.g. a script).
 
     %% Properties (Public)
     properties
