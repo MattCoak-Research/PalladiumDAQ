@@ -57,6 +57,19 @@ classdef test_PythonUtils < matlab.unittest.TestCase
             testCase.verifyEqual(convertedVal, expectedVal);
         end
 
+        function test_AppendFolderToPythonPath_AddsOnlyOnce(testCase)
+            %Adding the same folder again leaves one entry - each Palladium
+            %start in a MATLAB session used to add another
+            fixture = testCase.applyFixture(TestHelpers.DataFolderFixture);
+            folder = char(fixture.Folder);
+            testCase.addTeardown(@() pyrun("import sys" + newline + "while folder in sys.path: sys.path.remove(folder)", folder=folder));
+
+            Palladium.Utilities.PythonUtils.AppendFolderToPythonPath(folder);
+            Palladium.Utilities.PythonUtils.AppendFolderToPythonPath(folder);
+
+            testCase.verifyEqual(double(count(py.sys.path, folder)), 1);
+        end
+
         function test_CheckPythonSetup(testCase)
             % Assumes Python is installed
             status = Palladium.Utilities.PythonUtils.CheckPythonSetup();

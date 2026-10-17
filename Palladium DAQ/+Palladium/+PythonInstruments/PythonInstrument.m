@@ -229,7 +229,7 @@ classdef PythonInstrument < Palladium.Core.Instrument
                 case(Palladium.Enums.ConnectionType.VISA)
                     this.PyInstr.connectVISA(py.str(char(this.VISA_Address)));
                 case(Palladium.Enums.ConnectionType.USB)
-                    this.PyInstr.connectUSB();
+                    this.PyInstr.connectUSB(py.str(char(this.VISA_Address)));     %USB instruments are opened by their VISA address
                 case(Palladium.Enums.ConnectionType.Serial)
                     this.PyInstr.connectSerial(py.str(char(this.Serial_Address)));
                 otherwise
@@ -244,7 +244,7 @@ classdef PythonInstrument < Palladium.Core.Instrument
             %Close the Python instrument's connection (its close method) - called by Disconnect.
 
             if isempty(this.PyInstr)
-                warning("CloseWarning:PyInstrEmpty", "Python Instrument assignment empty, cannot call Close until it is assigned");
+                Palladium.Logging.Logger.Log("Warning", "Python Instrument assignment empty, cannot call Close until it is assigned");
                 return;
             end
 

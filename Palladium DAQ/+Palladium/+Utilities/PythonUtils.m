@@ -19,7 +19,8 @@ classdef PythonUtils
 
         function AppendFolderToPythonPath(directoryPath)
             %Add a folder to the end of Python's module search path (sys.path), so Python can import from it.
-            %Errors if the folder doesn't exist
+            %Does nothing if it is there already. Errors if the folder
+            %doesn't exist
             %
             %Inputs:
             %   directoryPath - the folder
@@ -31,9 +32,11 @@ classdef PythonUtils
             %Check the path exists first
             assert(exist(directoryPath, 'dir')==7, "PythonPathError:NoSuchDirectory", "%s", "Directory " + directoryPath + " not found, could not add to Python path in PythonUtils");
 
-            %Add to python search path inside MATLAB
-            pyrun("import sys");
-            pyrun("sys.path.append(r""" + directoryPath + """)");
+            %Add to python search path inside MATLAB - only once (each
+            %Palladium start in a MATLAB session used to add it again). The
+            %folder is passed in as a variable, not written into the code,
+            %so any character in it is safe
+            pyrun("import sys" + newline + "if folder not in sys.path: sys.path.append(folder)", folder=char(directoryPath));
         end
 
         function status = CheckPythonSetup()

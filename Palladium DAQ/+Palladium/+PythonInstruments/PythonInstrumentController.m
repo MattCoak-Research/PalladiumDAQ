@@ -103,8 +103,10 @@ classdef PythonInstrumentController < handle
                 instrName {mustBeTextScalar};
             end
 
+            %No instruments loaded: say so in the error (this used to be a
+            %MATLAB warning, followed by the not-found error anyway)
             if isempty(this.AvailableInstrNames)
-                warning("InstantiateInstrumentWarning:NoInstrumentsAvailable", "Available Python instruments not yet populated");
+                error("InstantiateInstrumentError:NoInstrumentsLoaded", "%s", "Cannot create Python instrument '" + string(instrName) + "': no Python instruments have been loaded (see LoadInstrumentClasses)");
             end
 
             index = find(ismember(this.AvailableInstrNames, instrName));

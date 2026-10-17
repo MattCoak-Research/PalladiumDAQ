@@ -26,27 +26,36 @@ def _require_package(module_name: str, pip_name: str, purpose: str):
 class Instrument(ABC):
     """
     Abstract base class mirroring the MATLAB Instrument interface.
-    Subclasses must implement the abstract properties Name and FullName,
-    and the abstract methods GetHeaders() and Measure().
+    Subclasses must implement the abstract property FullName and the
+    abstract methods GetHeaders() and Measure(), and should set Name (by
+    default the class name).
     """
 
     def __init__(self, *args, **kwargs):
         self._simulation_mode = False
+        # Short name, used to name the instrument and its data columns - the
+        # class name until a subclass sets it (reading it used to fail until then)
+        self._name = type(self).__name__
         self.DeviceHandle: Optional[Any] = None
         self.OverrideConnectMethod = False
         # Line endings added to commands, and expected at the end of replies, on Ethernet
         # (socket) and serial connections. pyvisa resources use their own settings
         self.WriteTermination = "\n"
         self.ReadTermination = "\n"
-
+        # Connection settings, which a driver sets in its own __init__ (after calling
+        # super().__init__()) - Palladium never changes them. Any left out use the defaults:
+        #   "SerialSettings": {"BaudRate": 9600, "DataBits": 8, "Parity": "N", "StopBits": 1}
+        #       - Parity "N", "E", "O", "M" or "S"; StopBits 1, 1.5 or 2
+        #   "GPIB_Terminators": [read, write], e.g. ["\n", "\n"] - for GPIB, VISA and USB;
+        #       pyvisa's own if not set
+        #   "GPIB_Timeout": seconds (10) - for every connection type; for GPIB,
+        #       Palladium passes its own (10 s) if this isn't set
+        self.ConnectionSettings = {}
+        # VISA resource name for a USB connection, if connectUSB isn't given one (Palladium
+        # passes the address set in the Instrument Settings panel)
+        self.VISA_Address = None
 
     # Abstract properties (read-only)
-    @property
-    @abstractmethod
-    def Name(self) -> str:
-        """Short name of the instrument (must be implemented by subclass)."""
-        raise NotImplementedError
-
     @property
     @abstractmethod
     def FullName(self) -> str:
@@ -105,7 +114,7 @@ class Instrument(ABC):
         host = str(ip)
         port = int(port)
         try:
-            timeout = float(getattr(self, "ConnectionSettings", {}).get("GPIB_Timeout", 10))
+            timeout = float(self._setting("GPIB_Timeout", 10))
         except Exception:
             timeout = 10.0
         try:
@@ -127,26 +136,12 @@ class Instrument(ABC):
         resource = f"GPIB{board}::{addr}::INSTR"
         try:
             inst = rm.open_resource(resource)
-            # apply terminators/timeouts if ConnectionSettings available
-            cs = getattr(self, "ConnectionSettings", None)
-            if cs:
-                terms = None
-                try:
-                    terms = cs.get("GPIB_Terminators") if isinstance(cs, dict) else getattr(cs, "GPIB_Terminators", None)
-                except Exception:
-                    terms = None
-                if terms:
-                    inst.read_termination = terms[0]
-                    inst.write_termination = terms[1] if len(terms) > 1 else terms[0]
-                try:
-                    t = float(timeout)
-                    inst.timeout = int(t * 1000)  # pyvisa timeout in ms
-                except Exception:
-                    pass
+            # The driver's own timeout if it set one, else the one Palladium passed
+            self._apply_visa_settings(inst, self._setting("GPIB_Timeout", timeout))
             self.DeviceHandle = inst
         except Exception as e:
             raise RuntimeError(f"GPIB connection failed ({resource}): {e}")
-            
+
     def close(self):
         """Close device handle (complementary to MATLAB Close)."""
         if self.DeviceHandle is None:
@@ -166,62 +161,64 @@ class Instrument(ABC):
         resource = str(visa_address)
         try:
             inst = rm.open_resource(resource)
-            # apply optional settings
-            cs = getattr(self, "ConnectionSettings", None)
-            if cs:
-                terms = None
-                try:
-                    terms = cs.get("GPIB_Terminators") if isinstance(cs, dict) else getattr(cs, "GPIB_Terminators", None)
-                except Exception:
-                    terms = None
-                if terms:
-                    inst.read_termination = terms[0]
-                    inst.write_termination = terms[1] if len(terms) > 1 else terms[0]
-                try:
-                    timeout = getattr(cs, "GPIB_Timeout") if not isinstance(cs, dict) else cs.get("GPIB_Timeout", None)
-                    if timeout is not None:
-                        inst.timeout = int(float(timeout) * 1000)
-                except Exception:
-                    pass
+            self._apply_visa_settings(inst, self._setting("GPIB_Timeout"))
             self.DeviceHandle = inst
         except Exception as e:
             raise RuntimeError(f"VISA connection failed ({resource}): {e}")
 
-    def connectUSB(self):
-        """Default USB -> treat as VISA resource if self.VISA_Address present."""
-        va = getattr(self, "VISA_Address", None)
+    def connectUSB(self, visa_address=None):
+        """Called from MATLAB with (py.str(visaAddress)): a USB instrument, opened as a VISA resource.
+        Without an address, uses self.VISA_Address (it always failed before Palladium passed one)."""
+        va = visa_address if visa_address else self.VISA_Address
         if va:
             return self.connectVISA(str(va))
         raise RuntimeError("connectUSB: No VISA_Address available to open USB device.")
 
     def connectSerial(self, port):
-        """Called from MATLAB with (py.str(port))."""
+        """Called from MATLAB with (py.str(port)). Uses ConnectionSettings["SerialSettings"]
+        (9600 baud, 8 data bits, no parity, 1 stop bit if it isn't set)."""
         serial = _require_package("serial", "pyserial", "A serial connection")
         port_str = str(port)
-        cs = getattr(self, "ConnectionSettings", {})
-        # support both dict-style or object-style ConnectionSettings
-        def get_cs(key, default=None):
-            if isinstance(cs, dict):
-                return cs.get(key, default)
-            return getattr(cs, key, default)
-        serial_settings = get_cs("SerialSettings", {})
-        try:
+        serial_settings = self._setting("SerialSettings", {})
+        def get_ss(key, default):
             if isinstance(serial_settings, dict):
-                baud = int(serial_settings.get("BaudRate", 9600))
-                bytesize = int(serial_settings.get("DataBits", 8))
-                parity = serial_settings.get("Parity", "N")
-                stopbits = serial_settings.get("StopBits", 1)
-            else:
-                baud = int(getattr(serial_settings, "BaudRate", 9600))
-                bytesize = int(getattr(serial_settings, "DataBits", 8))
-                parity = getattr(serial_settings, "Parity", "N")
-                stopbits = getattr(serial_settings, "StopBits", 1)
-            timeout = float(get_cs("GPIB_Timeout", 10))
+                return serial_settings.get(key, default)
+            return getattr(serial_settings, key, default)
+        try:
+            baud = int(get_ss("BaudRate", 9600))
+            bytesize = int(get_ss("DataBits", 8))
+            parity = str(get_ss("Parity", "N"))
+            stopbits = float(get_ss("StopBits", 1))
+            if stopbits == int(stopbits):
+                stopbits = int(stopbits)     # pyserial takes 1, 1.5 or 2
+            timeout = float(self._setting("GPIB_Timeout", 10))
             ser = serial.Serial(port=port_str, baudrate=baud, bytesize=bytesize, parity=parity, stopbits=stopbits, timeout=timeout)
             self.DeviceHandle = ser
         except Exception as e:
             raise RuntimeError(f"Serial connection failed ({port_str}): {e}")
 
+    def _setting(self, key: str, default=None):
+        """A value from ConnectionSettings (a dict, or an object with attributes), or default if it isn't there."""
+        cs = getattr(self, "ConnectionSettings", None)
+        if not cs:
+            return default
+        if isinstance(cs, dict):
+            return cs.get(key, default)
+        return getattr(cs, key, default)
+
+    def _apply_visa_settings(self, inst, timeout):
+        """Set a pyvisa resource's timeout (s) and read/write terminators, from ConnectionSettings.
+        The timeout is applied even when there are no other settings - it used to be skipped then."""
+        terms = self._setting("GPIB_Terminators")
+        if terms:
+            terms = list(terms)
+            inst.read_termination = terms[0]
+            inst.write_termination = terms[1] if len(terms) > 1 else terms[0]
+        if timeout is not None:
+            try:
+                inst.timeout = int(float(timeout) * 1000)  # pyvisa timeout in ms
+            except Exception:
+                pass
 
     def write_command(self, command: str) -> None:
         """Send a command to the instrument (nothing is sent in simulation mode)."""

@@ -74,6 +74,20 @@ The base class has methods for talking to the instrument, which work with every 
 
 Replies are returned without their line ending. On Ethernet and serial connections, commands are sent with a line ending, `self.WriteTermination`, and replies are read up to one, `self.ReadTermination` - both `"\n"` by default. If your instrument uses another, such as `"\r\n"`, set them in your class's `__init__`, after calling `super().__init__()`. GPIB, VISA and USB connections use pyvisa's own line-ending settings. For anything these methods don't cover - such as reading a large block of data - use `self.DeviceHandle` directly.
 
+Other connection settings are your class's, set in `self.ConnectionSettings` in its `__init__`, after calling `super().__init__()`. Any you leave out take the defaults below. You mostly need this for **serial** instruments, whose baud rate and parity must match the instrument's:
+
+```python
+self.ConnectionSettings = {"SerialSettings": {"BaudRate": 115200, "Parity": "E"}}
+```
+
+| Setting | Used for | Default |
+| --- | --- | --- |
+| `"SerialSettings"`: `"BaudRate"`, `"DataBits"`, `"Parity"`, `"StopBits"` | Serial. Parity is `"N"`, `"E"`, `"O"`, `"M"` or `"S"`; stop bits 1, 1.5 or 2 | 9600 baud, 8 data bits, `"N"`, 1 stop bit |
+| `"GPIB_Terminators"`: `[read, write]`, e.g. `["\n", "\n"]` | GPIB, VISA and USB | pyvisa's own |
+| `"GPIB_Timeout"`: seconds | All connection types | 10 |
+
+The address - GPIB address, IP address and port, serial port, or VISA address (also used for USB) - is the one set in the Instrument Settings panel.
+
 With the connection type set to **Debug**, `self.SimulationMode` is `True` and no connection is made. `Measure` should then return realistic made-up readings, as above, so the instrument can be tried without hardware.
 
 ### Recording the setup
