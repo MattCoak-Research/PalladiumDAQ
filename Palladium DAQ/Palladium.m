@@ -357,6 +357,27 @@ classdef Palladium < handle
             instRef = this.Controller.GetInstrumentFromName(instName);
         end
 
+        function display = OpenBigNumberDisplay(this, column)
+            %Open a Big Number Display window, showing a data column's latest value in large type.
+            %Updated each measurement tick, and closed with Palladium DAQ.
+            %Measurements must have started, so the data columns are known.
+            %Without a column, a list is shown to choose one; scripts can give it.
+            %
+            %Inputs:
+            %   column - (optional) the column's number, or its exact header,
+            %            e.g. "K2000_1 - Voltage (V)"
+            %
+            %Outputs:
+            %   display - the Palladium.Components.BigNumberDisplay, or [] if none was opened
+
+            arguments
+                this;
+                column = [];
+            end
+
+            display = this.Controller.OpenBigNumberDisplay(column);
+        end
+
         function Pause(this)
             %Hold the measurement loop until Resume is called, as the GUI's Pause button does.
 

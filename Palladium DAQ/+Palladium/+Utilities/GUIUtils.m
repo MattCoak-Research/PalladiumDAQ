@@ -3,10 +3,83 @@ classdef GUIUtils
     %The Instrument Options panel builds a field for each property that
     %`ComputePropertyList` returns, shows its value with `ToScalarString`,
     %and reads typed number lists back with `ToDoubleArrayFromScalarString`.
-    %`MessageToHTML` formats messages for dialogue boxes.
+    %`MessageToHTML` formats messages for dialogue boxes, and
+    %`ChooseFromList` asks the user to pick one item from a list.
 
     %% Methods (Static, Public)
     methods (Static, Access = public)
+
+        function index = ChooseFromList(items, Settings)
+            %Ask the user to pick one item from a list, in a small modal window - like listdlg, but a uifigure.
+            %listdlg is an old-style figure: when it closes, the system can
+            %hand focus to some other window, sending Palladium's (uifigure)
+            %windows to the back. This keeps the exchange in uifigures.
+            %Double-clicking an item chooses it. Blocks until the user
+            %chooses or cancels
+            %
+            %Inputs:
+            %   items     - the items to show (string array or cell array of text)
+            %   Title     - (name-value) window title. Default "Select"
+            %   Prompt    - (name-value) text above the list. Default ""
+            %   Reference - (name-value) a window to centre on, e.g. the main window. Default: none
+            %   Icon      - (name-value) window icon file, e.g. Palladium's. Default: none
+            %
+            %Outputs:
+            %   index - the number of the item chosen, or [] if cancelled
+
+            arguments
+                items {mustBeText};
+                Settings.Title {mustBeTextScalar} = "Select";
+                Settings.Prompt {mustBeTextScalar} = "";
+                Settings.Reference = [];
+                Settings.Icon = [];
+            end
+
+            items = string(items(:))';
+            index = [];
+            if isempty(items)
+                return;
+            end
+
+            %Centred on the reference window if there is one
+            dialogSize = [300, 400];
+            position = [100, 100, dialogSize];
+            ref = Settings.Reference;
+            if ~isempty(ref) && isvalid(ref)
+                refPos = ref.Position;
+                position(1:2) = refPos(1:2) + (refPos(3:4) - dialogSize) / 2;
+            end
+
+            fig = uifigure("Name", Settings.Title, "WindowStyle", "modal", "Position", position, "Resize", "off");
+            if ~isempty(Settings.Icon) && isfile(Settings.Icon)
+                fig.Icon = Settings.Icon;
+            end
+            grid = uigridlayout(fig, [3, 1], "RowHeight", {"fit", "1x", 30});
+            if strlength(Settings.Prompt) > 0
+                prompt = uilabel(grid, "Text", Settings.Prompt, "WordWrap", "on", "FontWeight", "bold");
+                prompt.Layout.Row = 1;
+            end
+            list = uilistbox(grid, "Items", items, "ItemsData", 1 : numel(items), "Value", 1, ...
+                "DoubleClickedFcn", @(~, ~) choose());
+            list.Layout.Row = 2;
+            buttons = uigridlayout(grid, [1, 3], "ColumnWidth", {"1x", 80, 80}, "Padding", [0 0 0 0]);
+            buttons.Layout.Row = 3;
+            ok = uibutton(buttons, "Text", "OK", "ButtonPushedFcn", @(~, ~) choose());
+            ok.Layout.Column = 2;
+            cancel = uibutton(buttons, "Text", "Cancel", "ButtonPushedFcn", @(~, ~) uiresume(fig));
+            cancel.Layout.Column = 3;
+            fig.CloseRequestFcn = @(~, ~) uiresume(fig);    %Closing the window cancels
+
+            uiwait(fig);
+            if isvalid(fig)
+                delete(fig);
+            end
+
+            function choose()
+                index = list.Value;
+                uiresume(fig);
+            end
+        end
 
         function propertyList = ComputePropertyList(instrument, exposeSubClassProperties)
             %The names of an instrument's GUI-editable properties: public, SetObservable and not hidden.

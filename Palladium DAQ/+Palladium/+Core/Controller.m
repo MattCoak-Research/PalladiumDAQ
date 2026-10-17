@@ -1022,9 +1022,11 @@ classdef Controller < handle
             try
                 %Which column: asked for, or as given
                 if isempty(column)
-                    [index, chosen] = listdlg("Name", "Select value", "PromptString", "Select value to be displayed in Big Number Window.", ...
-                        "SelectionMode", "single", "ListString", headers, "ListSize", [250, 350]);
-                    if ~chosen
+                    %A uifigure dialogue, not listdlg - closing listdlg sent the
+                    %main window to the back
+                    index = Palladium.Utilities.GUIUtils.ChooseFromList(headers, Title="New Big Number Display", ...
+                        Prompt="Choose the data column to show:", Reference=this.UIFigureHandle, Icon=this.WindowSettings.PalladiumIconPath);
+                    if isempty(index)
                         return;
                     end
                 elseif isnumeric(column)
