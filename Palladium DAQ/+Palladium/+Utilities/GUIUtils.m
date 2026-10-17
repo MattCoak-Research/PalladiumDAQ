@@ -4,11 +4,71 @@ classdef GUIUtils
     %`ComputePropertyList` returns, shows its value with `ToScalarString`,
     %and reads typed number lists back with `ToDoubleArrayFromScalarString`.
     %`MessageToHTML` formats messages for dialogue boxes,
-    %`ChooseFromList` asks the user to pick one item from a list, and
-    %`ShowWarning` shows a warning in the window it concerns.
+    %`ChooseFromList` asks the user to pick one item from a list,
+    %`ChooseFile` asks for a file or folder, and `ShowWarning` shows a
+    %warning in the window it concerns.
 
     %% Methods (Static, Public)
     methods (Static, Access = public)
+
+        function BringToFront(owner)
+            %Bring the window holding owner back to the front, and give it focus.
+            %For after a dialogue such as uigetfile, which can leave
+            %Palladium's window behind others. Uses figure(fig), which brings
+            %a uifigure forward. Does nothing if there is no window showing
+            %
+            %Inputs:
+            %   owner - anything in the window: a figure, a component in it, or an App Designer app
+
+            fig = Palladium.Utilities.GUIUtils.FindUIFigure(owner);
+            if isempty(fig)
+                return;
+            end
+            figure(fig);
+        end
+
+        function path = ChooseFile(mode, Settings)
+            %Ask the user for a file to open or save, or a folder, then bring the window back to the front.
+            %Uses the system's dialogues (uigetfile, uiputfile and uigetdir),
+            %which can leave Palladium's window behind others when they close
+            %- the Reference window is brought back with BringToFront
+            %
+            %Inputs:
+            %   mode      - "open" (a file to open), "save" (a file to save to) or "folder"
+            %   Filter    - (name-value) file types for "open" and "save", e.g.
+            %               {'*.json', 'JSON files'}. Default: all files
+            %   Title     - (name-value) the dialogue's title. Default ""
+            %   Default   - (name-value) the file or folder it starts at. Default ""
+            %   Reference - (name-value) the window to bring back afterwards, e.g. the main window. Default: none
+            %
+            %Outputs:
+            %   path - the full path chosen, or "" if cancelled
+
+            arguments
+                mode {mustBeMember(mode, ["open", "save", "folder"])};
+                Settings.Filter = {'*.*', 'All Files'};
+                Settings.Title {mustBeTextScalar} = "";
+                Settings.Default {mustBeTextScalar} = "";
+                Settings.Reference = [];
+            end
+
+            title = char(Settings.Title);
+            default = char(Settings.Default);
+            switch mode
+                case "open";    [file, location] = uigetfile(Settings.Filter, title, default);
+                case "save";    [file, location] = uiputfile(Settings.Filter, title, default);
+                case "folder";  file = "";  location = uigetdir(default, title);
+            end
+
+            Palladium.Utilities.GUIUtils.BringToFront(Settings.Reference);
+
+            %0 when cancelled
+            if isequal(location, 0) || isequal(file, 0)
+                path = "";
+            else
+                path = string(fullfile(location, file));
+            end
+        end
 
         function ShowWarning(owner, message, title)
             %Show a warning box in the window holding owner (a uialert) - or log it if there is no window.

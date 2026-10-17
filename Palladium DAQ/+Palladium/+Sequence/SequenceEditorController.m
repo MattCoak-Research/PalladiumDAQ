@@ -85,7 +85,7 @@ classdef SequenceEditorController < handle
                 Settings.IconPath;
             end
 
-            %If it exists already, just bring it to the fron
+            %If it exists already, just bring it to the front
             if this.ViewExists
                 this.View.SeizeFocus();
                 this.View.RefreshInstrumentNames(this.Instruments);
@@ -291,19 +291,16 @@ classdef SequenceEditorController < handle
         end
 
         function SaveSequenceButtonPushed(this, sequenceLines)
-            this.SelectedDir
             seqExt = "*" + string(this.FileWriteDetails.FileExtension);
-            filter = {seqExt, "Palladium Sequence Files"};
+            filter = {char(seqExt), 'Palladium Sequence Files'};
             defaultpath = fullfile(this.SelectedDir, this.FileWriteDetails.FileName);
             title = "Save Sequence As..";
 
-            %Open a save as file dialogue
-            [file,location] = uiputfile(filter, title, defaultpath);
-            if isequal(file,0) || isequal(location,0)
+            %Open a save as file dialogue, then bring the Sequence Editor back to the front
+            path = Palladium.Utilities.GUIUtils.ChooseFile("save", Filter=filter, Title=title, Default=defaultpath, Reference=this.View);
+            if path == ""
                 return;
             end
-
-            path = fullfile(location,file);
 
             this.SaveSequenceToFile(sequenceLines, path);
 

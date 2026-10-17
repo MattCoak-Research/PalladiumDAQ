@@ -1141,13 +1141,13 @@ classdef Controller < handle
 
             % Open file dialog in defaultFilePath and filter to .json
             filter = {'*.json','JSON files'; '*.*','All Files'};
-            [file, location] = uigetfile(filter, "Load Preset", fullfile(defaultFilePath, '*.json'));
+            jsonFilePath = Palladium.Utilities.GUIUtils.ChooseFile("open", Filter=filter, Title="Load Preset", ...
+                Default=fullfile(defaultFilePath, '*.json'), Reference=this.UIFigureHandle);
 
             %Cancel if it was cancelled
-            if file == 0
+            if jsonFilePath == ""
                 return;
             end
-            jsonFilePath = fullfile(location, file);
 
             %Load the present in and apply all the settings
             Palladium.Utilities.PluginLoading.ApplyPresetFromJson(this, view, jsonFilePath);
@@ -1166,13 +1166,13 @@ classdef Controller < handle
             defaultFilePath = Palladium.Utilities.PathUtils.CleanPath(defaultFilePath);
 
             %Open a file browse dialog window
-            [file, location] = uiputfile(defaultFilePath, "Save Preset");
+            jsonFilePath = Palladium.Utilities.GUIUtils.ChooseFile("save", Filter={'*.json', 'JSON files'}, Title="Save Preset", ...
+                Default=defaultFilePath, Reference=this.UIFigureHandle);
 
             %Cancel if it was cancelled
-            if file == 0
+            if jsonFilePath == ""
                 return;
             end
-            jsonFilePath = fullfile(location, file);
 
             Palladium.Utilities.PluginLoading.SavePresetToJson(this, this.InstrumentController, view, jsonFilePath);
         end
