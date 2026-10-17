@@ -1,30 +1,57 @@
 classdef Logger < handle
-    %Logger - Singleton static instance class for handling logging to
-    %command line / file / GUI in Palladium
-    %Create an instance of this from Controller initialisation
+    %Logger - Sends Palladium DAQ's messages to the Command Window, the GUI's status bar and a log file.
+    %Use it through its static methods: `Logger.Log(level, message)` from
+    %anywhere, with level "Debug", "Info", "Warning" or "Error". Each
+    %place has its own level, from the config's LogSettings (see
+    %[Presets and config](../presets-and-config.md)), and shows a message
+    %only if it is at least that serious; "Off" shows nothing.
+    %
+    %The Controller creates the one Logger at start-up, which sets those
+    %levels and the log file. MATLAB has no static properties, so the
+    %settings are kept as persistent variables in `Log`, and the object
+    %itself is not needed afterwards. Before that - e.g. an instrument used
+    %on its own from the Command Window - messages go to the Command Window
+    %only.
+    %
+    %`LogError` logs an error with its full stack in the log file, and
+    %`HandleError` shows the dialogue that asks the user what to do about
+    %an error (see `Controller.HandleError`).
 
     %% Properties (Private)
     properties (Access = private)
-        Controller;
+        Controller;     %The Palladium.Core.Controller, which shows messages in the GUI
     end
 
     %% Constructor
     methods
         function this = Logger(controller, LogFileDirectory, LogFileFileName, Settings)
+            %Set up logging for a Palladium DAQ session - called by Controller.Initialise.
+            %Replaces any earlier settings. Levels are "Off", "Debug",
+            %"Info", "Warning" or "Error"
+            %
+            %Inputs:
+            %   controller       - the Palladium.Core.Controller, for messages in the GUI
+            %   LogFileDirectory - folder for log files
+            %   LogFileFileName  - log file name; <DATE> is replaced with today's date
+            %   CommandWindowMessageLevel, GUIMessageLevel, LogFileMessageLevel
+            %                    - (name-value) the least serious message each place shows
+            %   PrintStackTraceInCommandWindow - (name-value) true to show where warnings and errors were logged from
+
             arguments
                 controller                                          (1,1) Palladium.Core.Controller;
                 LogFileDirectory                                    {mustBeTextScalar};
                 LogFileFileName                                     {mustBeTextScalar};
                 Settings.CommandWindowMessageLevel                  {mustBeTextScalar, mustBeMember(Settings.CommandWindowMessageLevel, ["Off", "Debug", "Info", "Warning", "Error"])}  = "Debug";      %Messages at or above this severity level will be passed on to Command Window
                 Settings.GUIMessageLevel                            {mustBeTextScalar, mustBeMember(Settings.GUIMessageLevel, ["Off", "Debug", "Info", "Warning", "Error"])}            = "Warning";    %Messages at or above this severity level will be passed on to GUI
-                Settings.LogFileMessageLevel                        {mustBeTextScalar, mustBeMember(Settings.LogFileMessageLevel, ["Off", "Debug", "Info", "Warning", "Error"])}        = "Debug";
-                Settings.PrintStackTraceInCommandWindow             (1,1) logical = false;
+                Settings.LogFileMessageLevel                        {mustBeTextScalar, mustBeMember(Settings.LogFileMessageLevel, ["Off", "Debug", "Info", "Warning", "Error"])}        = "Debug";      %Messages at or above this severity level will be written to the log file
+                Settings.PrintStackTraceInCommandWindow             (1,1) logical = false;  %True to show where warnings and errors were logged from
             end
 
             this.Controller = controller;
 
             %This slightly clumsy pass-through boilerplate allows choosing
-            %Logger settings on constructing it, then those options
+            %Logger settings on constructing it, then those options are
+            %kept by Log for every later call
             Palladium.Logging.Logger.Log("Debug", "Logger created",...
                 "Controller", controller,...
                 "LogFileDirectory", LogFileDirectory,...
@@ -39,7 +66,7 @@ classdef Logger < handle
 
     %% Methods (Static, Public)
     methods (Static, Access = public)
-        
+
         function [Halt, suppressError] = HandleError(message, err, uiFigureHandle, Settings)
             %Show the error dialogue and return what the user chose.
             %By default (an error in the measurement loop or something that
@@ -48,7 +75,19 @@ classdef Logger < handle
             %window that does not interact with the measurement loop, e.g.
             %the Data Viewer - there is nothing to stop, so the options are
             %OK, Go to Code, Suppress Error and Ignore, and Halt is always
-            %false.
+            %false. Go to Code options are left out of a compiled app, which
+            %has no editor. Doesn't log the error - the caller does
+            %
+            %Inputs:
+            %   message        - what was happening, e.g. "Error in main measurement loop"
+            %   err            - the MException
+            %   uiFigureHandle - window to show the dialogue in, or [] for a separate dialogue
+            %   Standalone     - (name-value) true for an error in a window that doesn't affect measuring. Default false
+            %
+            %Outputs:
+            %   Halt          - true if the user chose to stop measurements
+            %   suppressError - true if the user chose not to be shown this error again
+
             arguments
                 message;
                 err;
@@ -168,9 +207,20 @@ classdef Logger < handle
         end
 
         function Log(level, message, Settings)
-            %Print a message to a combination of command window, GUI and
-            %log file on disk, depending on selected options and level of
-            %severity of the message
+            %Show a message in the Command Window, GUI and log file, as far as each place's level allows.
+            %Warnings and errors are shown in red in the Command Window, and
+            %log file lines are timestamped. The Controller, log file and
+            %level name-value arguments are only used when the Logger is
+            %created (and by tests): the settings are then kept for every
+            %later call
+            %
+            %Inputs:
+            %   level       - "Debug", "Info", "Warning" or "Error"
+            %   message     - the message
+            %   FullMessage - (name-value) a longer version for the log file only, e.g. with a stack trace
+            %   SkipGUI     - (name-value) true to leave it out of the GUI, e.g. for an error in a window
+            %                 that doesn't affect measuring
+
             arguments
                 level {mustBeTextScalar, mustBeMember(level, ["Debug", "Info", "Warning", "Error"])};
                 message {mustBeTextScalar};
@@ -253,7 +303,12 @@ classdef Logger < handle
 
         function LogError(err, message, Settings)
             %Log an error, with its full stack in the log file.
-            %Pass SkipGUI = true to keep it out of the GUI status light and message area.
+            %
+            %Inputs:
+            %   err     - the MException
+            %   message - what was happening, added after the error's own message
+            %   SkipGUI - (name-value) true to keep it out of the GUI status light and message area
+
             arguments
                 err;
                 message = [];
@@ -312,9 +367,11 @@ classdef Logger < handle
     methods(Static, Access = private)
 
         function path = ConstructFilePath(logFileDirectory, logFileFileName)
-            fileName = Palladium.Logging.Logger.ReplaceDateTag(logFileFileName);
+            %The log file's path, with <DATE> in its name replaced by today's date, creating the folder if needed.
 
-            %Make the config folder if it doesn't exist already
+            fileName = Palladium.Utilities.PathUtils.ReplaceDateTag(logFileFileName);
+
+            %Make the log folder if it doesn't exist already
             if ~exist(logFileDirectory, 'dir')
                 mkdir(logFileDirectory);
             end
@@ -324,6 +381,7 @@ classdef Logger < handle
         end
 
         function suppressError = ShowStandaloneErrorDialogue(errorString, err, uiFigureHandle, files, lines, names)
+            %Show the error dialogue for an error in a window that doesn't affect measuring, and return whether to suppress it.
             %Dialogue for an error in a window that does not interact with
             %the measurement loop: nothing to stop, so the options are OK,
             %Go to Code (not in a deployed app, which has no editor),
@@ -331,6 +389,7 @@ classdef Logger < handle
             %suppress this error from now on.
             %files, lines and names hold the top stack frame, then the
             %first user-code frame, for Go to Code.
+
             suppressError = false;
 
             title = "Error";
@@ -394,70 +453,42 @@ classdef Logger < handle
         end
 
         function str = GetLevelText(level)
-            %Get a string to put on the front of the message to indicate
-            %its severity
+            %The tag put in front of a message to show its severity, e.g. "[WARNING] ".
+
             switch(level)
-                case("Debug")
-                    str = "[DEBUG]   ";
-                case("Info")
-                    str = "[INFO]    ";
-                case("Warning")
-                    str = "[WARNING] ";
-                case("Error")
-                    str = "[ERROR]   ";
+                case("Debug");     str = "[DEBUG]   ";
+                case("Info");      str = "[INFO]    ";
+                case("Warning");   str = "[WARNING] ";
+                case("Error");     str = "[ERROR]   ";
                 otherwise
                     error("GetLevelTextError:UnsupportedLevel", "%s", "Unsupported level in Logger: " + level);
             end
         end
 
         function str = GetTimeStamp()
-            %Return the string that will be printed in front of logfile
-            %entries to give the time
+            %The time put in front of log file entries, as HH:mm:ss.
+
             d = datetime;
             format = 'HH:mm:ss';
-            str = string(d, format);  %Today's date
+            str = string(d, format);  %The time now
         end
 
         function tf = IsSeverityLevelAboveCutoff(level, cutoff)
-            switch(cutoff)
-                case("Off")
-                    tf = false;
-                case("Debug")
-                    switch(level)
-                        case{"Debug", "Info", "Warning", "Error"}
-                            tf = true;
-                        otherwise
-                            tf = false;
-                    end
-                case("Info")
-                    switch(level)
-                        case{"Info", "Warning", "Error"}
-                            tf = true;
-                        otherwise
-                            tf = false;
-                    end
-                case("Warning")
-                    switch(level)
-                        case{"Warning", "Error"}
-                            tf = true;
-                        otherwise
-                            tf = false;
-                    end
-                case("Error")
-                    switch(level)
-                        case{"Error"}
-                            tf = true;
-                        otherwise
-                            tf = false;
-                    end
-                otherwise
-                    error("IsSeverityLevelAboveCutoffError:UnsupportedLevel", "%s", "Unsupported level in Logger: " + cutoff);
+            %Whether a message of this level is serious enough to show where the cutoff level is set; never for "Off".
+            %Errors for an unknown cutoff
+
+            levels = ["Debug", "Info", "Warning", "Error"];     %Least to most serious
+            if cutoff == "Off"
+                tf = false;
+            elseif any(levels == cutoff)
+                tf = find(levels == level, 1) >= find(levels == cutoff, 1);
+            else
+                error("IsSeverityLevelAboveCutoffError:UnsupportedLevel", "%s", "Unsupported level in Logger: " + cutoff);
             end
         end
 
         function LogToCommandWindow(level, message, printStackTraceInCommandWindow, hasGUIWindow)
-            %Write the message to the command window - make it scary orange
-            %warning text for warnings and errors
+            %Show the message in the Command Window - warnings and errors in red, with a severity tag.
 
             switch(level)
                 case{"Debug", "Info"}
@@ -501,7 +532,8 @@ classdef Logger < handle
         end
 
         function tf = HasGUIWindow(controller)
-            %True if Palladium's main window is open, to show messages in
+            %Whether Palladium's main window is open, to show messages in.
+
             try
                 tf = ~isempty(controller) && isvalid(controller) && controller.HasGUIWindow();
             catch
@@ -510,16 +542,13 @@ classdef Logger < handle
         end
 
         function LogToGUI(level, message, controller)
-            %Write the message to the main GUI
+            %Show the message in the main GUI's status bar, coloured by severity.
+
             switch(level)
-                case("Debug")
-                    colour = "Green";
-                case("Info")
-                    colour = "Green";
-                case("Warning")
-                    colour = "Yellow";
-                case("Error")
-                    colour = "Red";
+                case("Debug");     colour = "Green";
+                case("Info");      colour = "Green";
+                case("Warning");   colour = "Yellow";
+                case("Error");     colour = "Red";
                 otherwise
                     error("LogToGUIError:UnsupportedLevel", "%s", "Unsupported level in Logger: " + level);
             end
@@ -534,7 +563,7 @@ classdef Logger < handle
         end
 
         function LogToFile(level, message, path)
-            %Write the message to the log file .txt on disk
+            %Add the message to the log file, tagged with its severity and the time, trying up to 3 times.
 
             %Add a bit of text before the message to indicate its severity
             %ie [INFO] : "Here is some info"
@@ -560,14 +589,5 @@ classdef Logger < handle
             end
         end
 
-        function outstr = ReplaceDateTag(str)
-            %If a string has '<DATE>' in it, let's replace that with today's
-            %date for convenience
-            d = datetime;
-            format = 'yyyy-MM-dd';
-            dateStr = string(d, format);  %Today's date
-
-            outstr = strrep(str, '<DATE>', dateStr);
-        end
     end
 end
