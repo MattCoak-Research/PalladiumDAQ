@@ -147,6 +147,22 @@ classdef test_GUIUtils < matlab.unittest.TestCase
             testCase.verifyEqual(html, "See <a href=""https://www.qdusa.com/pharos/"">https://www.qdusa.com/pharos/</a>.");
         end
 
+        %% ShowWarning
+        function test_ShowWarning_WithNoWindowIsLogged(testCase)
+            %Without a window (e.g. no GUI) the warning is logged - no dialogue, no error
+            figuresBefore = numel(findall(groot, "Type", "figure"));
+            testCase.verifyWarningFree(@() evalc("Palladium.Utilities.GUIUtils.ShowWarning([], ""Test warning"")"));
+            testCase.verifyNumElements(findall(groot, "Type", "figure"), figuresBefore);
+        end
+
+        function test_ShowWarning_InAHiddenWindowIsLogged(testCase)
+            %A hidden window can't show the warning box (uialert errors) - logged instead
+            fig = uifigure("Visible", "off");
+            testCase.addTeardown(@() delete(fig));
+            label = uilabel(uigridlayout(fig, [1 1]));
+            testCase.verifyWarningFree(@() Palladium.Utilities.GUIUtils.ShowWarning(label, "Test warning", "Test"));
+        end
+
     end
 
 end

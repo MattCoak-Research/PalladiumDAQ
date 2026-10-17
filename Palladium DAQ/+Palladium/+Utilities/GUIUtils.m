@@ -3,11 +3,39 @@ classdef GUIUtils
     %The Instrument Options panel builds a field for each property that
     %`ComputePropertyList` returns, shows its value with `ToScalarString`,
     %and reads typed number lists back with `ToDoubleArrayFromScalarString`.
-    %`MessageToHTML` formats messages for dialogue boxes, and
-    %`ChooseFromList` asks the user to pick one item from a list.
+    %`MessageToHTML` formats messages for dialogue boxes,
+    %`ChooseFromList` asks the user to pick one item from a list, and
+    %`ShowWarning` shows a warning in the window it concerns.
 
     %% Methods (Static, Public)
     methods (Static, Access = public)
+
+        function ShowWarning(owner, message, title)
+            %Show a warning box in the window holding owner (a uialert) - or log it if there is no window.
+            %Use in place of warndlg: that is an old-style figure, which can
+            %send Palladium's (uifigure) windows to the back when it closes.
+            %With no window to show it in - e.g. running without a GUI, or a
+            %hidden window - the warning is logged instead
+            %
+            %Inputs:
+            %   owner   - anything in the window: a figure, a component in
+            %             it, or an App Designer app; or [] for none
+            %   message - the warning
+            %   title   - (optional) the warning box's title. Default "Warning"
+
+            arguments
+                owner;
+                message {mustBeTextScalar};
+                title {mustBeTextScalar} = "Warning";
+            end
+
+            fig = Palladium.Utilities.GUIUtils.FindUIFigure(owner);
+            if isempty(fig)
+                Palladium.Logging.Logger.Log("Warning", message);
+            else
+                uialert(fig, message, title, "Icon", "warning");
+            end
+        end
 
         function index = ChooseFromList(items, Settings)
             %Ask the user to pick one item from a list, in a small modal window - like listdlg, but a uifigure.
@@ -245,5 +273,37 @@ classdef GUIUtils
             html = regexprep(html, "(https?://[^\s<]*[^\s<.,;:)])", "<a href=""$1"">$1</a>");
             html = replace(html, [sprintf("\r\n"), newline], "<br>");
         end
+    end
+
+    %% Methods (Static, Private)
+    methods (Static, Access = private)
+
+        function fig = FindUIFigure(owner)
+            %The uifigure holding owner - a figure, a component in one, or an App Designer app's window - or [] if none showing.
+
+            fig = [];
+            if isempty(owner) || (isobject(owner) && ~all(isvalid(owner)))
+                return;
+            end
+
+            if isgraphics(owner)
+                fig = ancestor(owner, "figure");
+            elseif isobject(owner)
+                %An App Designer app: its window is one of its properties
+                for name = string(properties(owner))'
+                    value = owner.(name);
+                    if isa(value, "matlab.ui.Figure") && isscalar(value) && isvalid(value)
+                        fig = value;
+                        break;
+                    end
+                end
+            end
+
+            %uialert needs a uifigure, still open and showing
+            if isempty(fig) || ~isvalid(fig) || ~matlab.ui.internal.isUIFigure(fig) || fig.Visible ~= "on"
+                fig = [];
+            end
+        end
+
     end
 end

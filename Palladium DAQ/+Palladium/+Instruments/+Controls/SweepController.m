@@ -124,7 +124,7 @@ classdef SweepController < Palladium.Core.InstrumentControlBase
 
         function SetSweepDetailsValue(this, value, name)
             if this.Running
-                warndlg("Cannot change sweep details while running");
+                Palladium.Utilities.GUIUtils.ShowWarning(this.GUIView, "Cannot change sweep details while running", "Sweep running");
                 return;
             end
 

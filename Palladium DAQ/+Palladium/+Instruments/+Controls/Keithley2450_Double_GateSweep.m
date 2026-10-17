@@ -1015,7 +1015,7 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             %filter out the rest
 
             if isempty(listOfAllInstrs)
-                warndlg("No additional instruments added. Double Gate Sweep requires two Keithleys to be live, or it cannot run");
+                Palladium.Utilities.GUIUtils.ShowWarning(this.GUIView, "No additional instruments added. Double Gate Sweep requires two Keithleys to be live, or it cannot run", "Double Gate Sweep");
                 return;
             end
 

@@ -232,7 +232,7 @@ classdef SequenceEditorController < handle
             result = this.CommandEncoder.ParseSequenceText(seqTextStrArray, this.Instruments);
 
             if isempty(result)
-                warndlg("Empty sequence, cannot run");
+                Palladium.Utilities.GUIUtils.ShowWarning(this.View, "Empty sequence, cannot run", "Sequence");
                 if ~isempty(this.View)
                     disp("Sequence Aborted");
                     this.View.OnSequenceAbort();
@@ -327,18 +327,18 @@ classdef SequenceEditorController < handle
     %% Methods (Private)
     methods(Access=private)
 
-        function sequenceLines = LoadSequenceFromFile(~, filePath)
+        function sequenceLines = LoadSequenceFromFile(this, filePath)
 
             lnes = readlines(filePath);
 
             if isempty(lnes)
-                warndlg("Empty or invalid sequence file");
+                Palladium.Utilities.GUIUtils.ShowWarning(this.View, "Empty or invalid sequence file", "Sequence");
                 sequenceLines = [];
                 return;
             end
 
             if length(lnes) < 2
-                warndlg("Empty or invalid sequence file");
+                Palladium.Utilities.GUIUtils.ShowWarning(this.View, "Empty or invalid sequence file", "Sequence");
                 sequenceLines = [];
                 return;
             end
