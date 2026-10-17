@@ -87,11 +87,15 @@ classdef DataReader < handle
         function [headersStrArray] = ReadHeadersLine(fileID)
             %Read the next line of an open file as the tab-separated column headers.
             %Empty fields are skipped. Errors if a header is a number
-            %(probably a data row, from a file with no headers) or there are
-            %none
+            %(probably a data row, from a file with no headers), or there are
+            %none - including when the file has ended
 
-            %Read one line
+            %Read one line. At the end of the file fgetl gives -1, not text -
+            %say so clearly, rather than failing in strsplit
             line = fgetl(fileID);
+            if ~ischar(line)
+                error('DataReader:NoHeaderString', "No headers row - the file ends before it");
+            end
 
             headersStrArray = [];
 
