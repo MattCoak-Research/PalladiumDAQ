@@ -310,17 +310,6 @@ classdef TimingLoopController < handle
     %% Methods (Private)
     methods(Access=private)
 
-        function WarnInvalidStateChange(this, action, reason)
-            %Warn that Start, Pause, Resume or Stop was ignored, as it doesn't apply in the current state.
-            %Logged as a warning (Command Window, log file and status strip)
-            %
-            %Inputs:
-            %   action - what was asked for, e.g. "pause"
-            %   reason - why it was ignored, e.g. "measurements are not running"
-
-            this.Controller.Log("Warning", "Cannot " + action + ": " + reason + ". Ignored.", "Yellow", "Cannot " + action + " - " + reason);
-        end
-
         function AbortStart(this, msg, title)
             %Show a warning that starting failed, and return to the Ready state.
             %No warning dialogue when msg is empty: the user has just seen
@@ -457,6 +446,17 @@ classdef TimingLoopController < handle
                 %Show error message and ask if we want to stop measurements
                 this.Controller.HandleCallbackError("Error in main measurement loop", e);
             end
+        end
+
+        function WarnInvalidStateChange(this, action, reason)
+            %Warn that Start, Pause, Resume or Stop was ignored, as it doesn't apply in the current state.
+            %Logged as a warning (Command Window, log file and status strip)
+            %
+            %Inputs:
+            %   action - what was asked for, e.g. "pause"
+            %   reason - why it was ignored, e.g. "measurements are not running"
+
+            this.Controller.Log("Warning", "Cannot " + action + ": " + reason + ". Ignored.", "Yellow", "Cannot " + action + " - " + reason);
         end
     end
 
