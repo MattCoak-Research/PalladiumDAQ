@@ -8,6 +8,14 @@ classdef Lakeshore331 < Palladium.Core.Instrument
     %
     %The Model 331 has GPIB and RS-232 interfaces. Loop 2 (the 1 W analog
     %voltage output) is not used by this driver.
+    %
+    %**Reading resolution.** The 331 sends readings with about five
+    %significant figures, as on its display: temperatures to 0.001 K below
+    %100 K, but only 0.01 K from 100 K to 999.99 K (and 0.1 K above). So
+    %above 100 K the scatter in the data is mostly that 0.01 K step rather
+    %than noise, and it looks ten times smaller once the temperature drops
+    %below 100 K. This is the instrument - Palladium keeps every digit it
+    %sends. Sensor readings (`SRDG?`) are similarly limited to five digits.
 
     %% Properties (Constant, Private)
     properties(Constant, Access = private)
@@ -295,7 +303,9 @@ classdef Lakeshore331 < Palladium.Core.Instrument
         end
 
         function temp = GetTemperature(this, channel)
-            %Read a sensor input in kelvin
+            %Read a sensor input in kelvin.
+            %The 331 replies with about five significant figures: 0.001 K
+            %resolution below 100 K, 0.01 K from 100 K (see the class help)
             %
             %Inputs:
             %   channel - Channel categorical, A or B
