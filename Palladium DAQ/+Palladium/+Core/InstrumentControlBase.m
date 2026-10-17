@@ -294,11 +294,11 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
             %a sweep started before the first measurement tick
             stringLine = "";
             if isempty(dataRow)
-                warning("CreateDataRowHeaderStringWarning:EmptyDataRow", "%s", "Data row empty in " + this.Instrument.FullName + ", cannot log to file");
+                Palladium.Logging.Logger.Log("Warning", "Data row empty in " + this.Instrument.FullName + ", cannot log to file");
                 return;
             end
             if isempty(hdrsRow)
-                warning("CreateDataRowHeaderStringWarning:EmptyHeadersRow", "%s", "Headers row empty in "  + this.Instrument.FullName + ", cannot log to file");
+                Palladium.Logging.Logger.Log("Warning", "Headers row empty in "  + this.Instrument.FullName + ", cannot log to file");
                 return;
             end
 

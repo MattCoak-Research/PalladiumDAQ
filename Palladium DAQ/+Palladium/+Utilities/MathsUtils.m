@@ -40,7 +40,7 @@ classdef MathsUtils
                 case(30);   prefixStr = 'Q';
                 otherwise
                     prefixStr = '';
-                    warning("MathsUtilsWarning:InvalidExponent", "%s", "Cannot convert value to SI prefix, value not supported: 10^" + num2str(log103Max));
+                    Palladium.Logging.Logger.Log("Warning", "Cannot convert value to SI prefix, value not supported: 10^" + num2str(log103Max));
             end
         end
     end

@@ -259,7 +259,7 @@ classdef Mercury120_IPS < Palladium.Core.Instrument
                 while length(statusString) ~= 15
                     %Empty the buffer with a read
                     this.QueryString("X");
-                    warning("Mercury120_IPSWarning:UnexpectedStatusLength", "%s", "Status string of unexpected length read on IPS120, retrying: " + string(statusString));
+                    Palladium.Logging.Logger.Log("Warning", "Status string of unexpected length read on IPS120, retrying: " + string(statusString));
                     pause(0.1);
                     statusString = char(deblank(this.QueryString("X")));
                 end

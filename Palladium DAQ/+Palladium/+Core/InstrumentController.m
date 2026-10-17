@@ -225,7 +225,7 @@ classdef InstrumentController < handle
                         safeName = genvarname(instRef.Name);
                         assignin("base", safeName, instRef);
                     catch err
-                        warning("AddInstrumentWarning:WorkspaceAssignFailed", "%s", "Failed to assign Instrument " + instRef.Name + " into the workspace. Message: " + err.message);
+                        Palladium.Logging.Logger.Log("Warning", "Failed to assign Instrument " + instRef.Name + " into the workspace. Message: " + err.message);
                     end
                 end
 

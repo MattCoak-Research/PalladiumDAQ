@@ -539,12 +539,13 @@ classdef Controller < handle
                     %shows as a Windows error box)
                     uialert(uifg, Palladium.Utilities.GUIUtils.MessageToHTML(msg), title, "Icon", "warning", "Interpreter", "HTML");
                 else
-                    %Our view is not a ui figure - just show a warning in the
-                    %console
-                    warning("HandleWarningWarning:Message", "%s", msg);
+                    %No GUI window - log it (Command Window, status bar and
+                    %log file), as a MATLAB warning would miss the log file
+                    %and show as an error box in the standalone app
+                    Palladium.Logging.Logger.Log("Warning", string(msg));
                 end
             catch
-                warning("HandleWarningWarning:Message", "%s", msg);
+                Palladium.Logging.Logger.Log("Warning", string(msg));
             end
         end
 

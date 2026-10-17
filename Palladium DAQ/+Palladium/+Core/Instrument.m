@@ -454,7 +454,7 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             %Inputs:
             %   value - the new value, in the units of GetSweepUnitsString
 
-            warning("SetNewSweepStepValueWarning:NotOverridden", "An override method for SetNewSweepStepValue has not been defined for this Instrument. A SweepController_Stepped is probably trying to tell this Instrument to go to the next step in its sweep but the Instrument doesn't have a function written to tell it how. Look at the Keithley2410 class for an example");
+            Palladium.Logging.Logger.Log("Warning", "An override method for SetNewSweepStepValue has not been defined for this Instrument. A SweepController_Stepped is probably trying to tell this Instrument to go to the next step in its sweep but the Instrument doesn't have a function written to tell it how. Look at the Keithley2410 class for an example");
         end
 
         function SetRampingToTarget(this, target, rate, settings) %#ok<INUSD>

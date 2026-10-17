@@ -65,7 +65,7 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
 
             %Check for an empty sweep being entered
             if(isempty(extremalPoints) || length(extremalPoints) < 2)
-                warning("SweepController_SteppedWarning:EmptySweep", "Empty sweep");
+                Palladium.Logging.Logger.Log("Warning", "Empty sweep");
                 sweepDetails = [];
                 return;
             end

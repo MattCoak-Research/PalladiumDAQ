@@ -219,7 +219,7 @@ classdef PythonUtils
                         m = py.importlib.import_module(fullmod);
                     end
                 catch ME
-                    warning('ImportPythonModulesInPackageFolderWarning:ImportFailed', 'Failed to import %s: %s', fullmod, ME.message);
+                    Palladium.Logging.Logger.Log("Warning", "Failed to import Python module " + fullmod + ": " + string(ME.message));
                     continue
                 end
 

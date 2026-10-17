@@ -211,7 +211,7 @@ classdef SweepController < Palladium.Core.InstrumentControlBase
             if(isempty(numberOfSteps))
                 %Error checking and validation
                 if(abs(step) > abs(startPt - endPt))
-                    warning('SweepControllerWarning:StepTooLarge', 'Step is larger than difference between start and end points in MathsUtils.GenerateSweepPoints. Only the start point will be returned.');
+                    Palladium.Logging.Logger.Log("Warning", "Step is larger than difference between start and end points in MathsUtils.GenerateSweepPoints. Only the start point will be returned.");
                 end
 
                 if(step == 0)

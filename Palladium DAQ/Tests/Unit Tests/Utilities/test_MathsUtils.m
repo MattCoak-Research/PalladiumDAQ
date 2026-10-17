@@ -31,12 +31,35 @@ classdef test_MathsUtils < matlab.unittest.TestCase
         end
 
         function test_ConvertExponentToSIPrefix_InvalidPrefixTest(testCase)
-            expectedWarningID = "MathsUtilsWarning:InvalidExponent";
-            %Note this actually stops the warning being printed in the console, which
-            %is nice - it means when we see a warning while testing it is unexpected
-            testCase.verifyWarning(@() testCase.verifyEqual(Palladium.Utilities.MathsUtils.ConvertExponentToSIPrefix(-10), ''), expectedWarningID);
+            %Gives '' and a logged warning - not a MATLAB warning, which the
+            %standalone app shows as an error box
+            testCase.logWarningsToCommandWindow();
+            prefix = [];
+            output = "";
+            testCase.verifyWarningFree(@() convert());
+            testCase.verifyEqual(prefix, '');
+            testCase.verifySubstring(output, "Cannot convert value to SI prefix");
+
+            function convert()
+                output = evalc("prefix = Palladium.Utilities.MathsUtils.ConvertExponentToSIPrefix(-10)");
+            end
         end
 
+    end
+
+    %% Methods (Private)
+    methods (Access = private)
+        function logWarningsToCommandWindow(testCase)
+            %Set the (shared, persistent) Logger to print warnings to the
+            %Command Window, where evalc can see them, and nowhere else -
+            %other tests may have turned it off
+            Palladium.Logging.Logger.Log("Debug", "Logging to the Command Window for test", "Controller", true, ...
+                "LogFileDirectory", "", "LogFileFileName", "", ...
+                "CommandWindowMessageLevel", "Warning", "GUIMessageLevel", "Off", "LogFileMessageLevel", "Off");
+            testCase.addTeardown(@() Palladium.Logging.Logger.Log("Debug", "Logging stopped", "Controller", true, ...
+                "LogFileDirectory", "", "LogFileFileName", "", ...
+                "CommandWindowMessageLevel", "Off", "GUIMessageLevel", "Off", "LogFileMessageLevel", "Off"));
+        end
     end
 
 end

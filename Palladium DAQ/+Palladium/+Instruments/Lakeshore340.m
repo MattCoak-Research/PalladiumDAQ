@@ -452,7 +452,7 @@ classdef Lakeshore340 < Palladium.Core.Instrument
                 case(4);    this.MaxHeaterCurrent = 2;
                 otherwise
                     this.MaxHeaterCurrent = NaN;
-                    warning("Lakeshore340:UnknownMaxCurrent", "%s", this.Name + ": the heater's maximum current is set to User (or could not be read), so the heater power cannot be calculated and is recorded as NaN. Choose 0.25, 0.5, 1 or 2 A on the instrument to record it.");
+                    Palladium.Logging.Logger.Log("Warning", this.Name + ": the heater's maximum current is set to User (or could not be read), so the heater power cannot be calculated and is recorded as NaN. Choose 0.25, 0.5, 1 or 2 A on the instrument to record it.");
             end
 
             %Reply is "<number of loops>,<resistance>,<current/power>,<large output enable>",

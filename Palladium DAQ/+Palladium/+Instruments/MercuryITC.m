@@ -199,7 +199,7 @@ classdef MercuryITC < Palladium.Core.Instrument
             %   Units   - matching units, from the device type: "K", "W", "%" or "mbar"
 
             if isempty(this.DeviceCatalogue)
-                warning("MercuryITCWarning:EmptyDeviceCatalogue", "Device Catalogue empty in Mercury ITC - no modules found or GetDeviceCatalogue not yet called");
+                Palladium.Logging.Logger.Log("Warning", "Device Catalogue empty in Mercury ITC - no modules found or GetDeviceCatalogue not yet called");
             end
 
             addresses = this.GetChannelAddresses();

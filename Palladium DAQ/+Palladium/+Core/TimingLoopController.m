@@ -430,7 +430,7 @@ classdef TimingLoopController < handle
                         args = Palladium.Events.ValueChangedEventData(elapsedTimeSinceLastTick_s);
                         notify(this, "UpdateTimeChanged", args);
                     catch e
-                        warning("UpdateWarning:TimeUpdateFailed", "%s", "Measurement time update failed: " + string(e.message));
+                        Palladium.Logging.Logger.Log("Warning", "Measurement time update failed: " + string(e.message));
                     end
                 otherwise
                     %Do nothing if not Running

@@ -545,7 +545,7 @@ classdef PluginLoading
             classData = namespaceClasses(namespaceString);
 
             if isempty(classData)
-                warning("LoadClassNamesInNamespaceWarning:EmptyNamespace", "%s", "Namespace " + namespaceString + " is empty, no classes found. Not on the path?");
+                Palladium.Logging.Logger.Log("Warning", "Namespace " + namespaceString + " is empty, no classes found. Not on the path?");
                 classNames = [];
                 return;
             end

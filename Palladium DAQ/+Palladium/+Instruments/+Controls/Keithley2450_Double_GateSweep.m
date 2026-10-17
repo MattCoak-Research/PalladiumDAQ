@@ -716,14 +716,9 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
         end
 
         function LogWarning(this, message)
-            %Warnings go through the central Logger when running within
-            %Palladium (the Logger needs the app's setup), otherwise as a
-            %MATLAB warning so this Control also works headless
-            if ~isempty(this.ParentController)
-                Palladium.Logging.Logger.Log("Warning", message);
-            else
-                warning("Keithley2450_Double_GateSweep:Warning", "%s", message);
-            end
+            %Through the central Logger - which, without Palladium running,
+            %shows it in the Command Window
+            Palladium.Logging.Logger.Log("Warning", message);
         end
 
         function OnMeasurementsInitialised(this, headers)

@@ -1006,7 +1006,17 @@ classdef test_Instrument < matlab.unittest.TestCase
 
         %% Default behaviours that implementations can override
         function test_SetNewSweepStepValue_WarnsWhenNotOverriddenTest(testCase)
-            testCase.verifyWarning(@() testCase.Instrument.SetNewSweepStepValue(1), "SetNewSweepStepValueWarning:NotOverridden");
+            %A logged warning, not a MATLAB warning (which the standalone app
+            %shows as an error box)
+            testCase.logWarningsToCommandWindow();
+            output = "";
+            testCase.verifyWarningFree(@() step());
+            testCase.verifySubstring(output, "WARNING");
+            testCase.verifySubstring(output, "SetNewSweepStepValue has not been defined");
+
+            function step()
+                output = evalc("testCase.Instrument.SetNewSweepStepValue(1)");
+            end
         end
 
         function test_RampMethods_DoNothingByDefaultTest(testCase)
