@@ -352,6 +352,37 @@ classdef test_DataWriter < matlab.unittest.TestCase
             testCase.verifyEqual(after(endIdx+1:end), before(endIdx:end), "End marker, blank line, headers and data");
         end
 
+        function test_InsertMetadataLines_ChangesNothingButTheInsertedLinesTest(testCase)
+            %Byte for byte: indented lines keep their leading spaces, and
+            %the CRLF line endings stay CRLF - the file used to be read with
+            %textscan, which stripped leading spaces, and written back with LF
+            details = testCase.makeDetails("acq", Description="  indented description");
+            writer = Palladium.DataWriting.DataWriter(details);
+            writer.WriteHeaders(sprintf("a\tb"), MetadataLines=["  indented", "", sprintf("\ttabbed")]);
+            writer.WriteLine([1 2]);
+            before = string(fileread(writer.FileWriteDetails.FilePath));
+            marker = Palladium.DataWriting.DataWriter.END_METADATA_LINES_STRING;
+
+            writer.InsertMetadataLines(["  new one", "new two"]);
+
+            expected = replace(before, marker + sprintf("\r\n"), sprintf("  new one\r\nnew two\r\n") + marker + sprintf("\r\n"));
+            testCase.verifyEqual(string(fileread(writer.FileWriteDetails.FilePath)), expected);
+        end
+
+        function test_InsertMetadataLines_KeepsLFLineEndingsTest(testCase)
+            %A file with LF line endings gets LF on the inserted lines too
+            writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("lf"));
+            marker = Palladium.DataWriting.DataWriter.END_METADATA_LINES_STRING;
+            before = "info" + newline + marker + newline + newline + "a" + char(9) + "b" + newline;
+            fid = fopen(writer.FileWriteDetails.FilePath, "w");
+            fprintf(fid, "%s", before);
+            fclose(fid);
+
+            writer.InsertMetadataLines("new");
+
+            testCase.verifyEqual(string(fileread(writer.FileWriteDetails.FilePath)), replace(before, marker, "new" + newline + marker));
+        end
+
         function test_InsertMetadataLines_KeepsFormatCharactersLiteralTest(testCase)
             writer = testCase.writerWithData("acq");
             tricky = "50% done C:\new\table %s %d";

@@ -80,46 +80,40 @@ classdef DataWriter < handle
             end
 
             try
-                %This is the way to insert a line (??) - open the file,
-                %turn to a string array, then write those one by one, with
-                %the new one inserted into that array
-                fid = fopen(this.FileWriteDetails.FilePath);
-                scan = textscan(fid, '%s', 'Delimiter', '\n', 'CollectOutput', true);
-                lines = scan{1};
-                fclose(fid);
+                %Read the whole file as text, and insert the new lines just
+                %before the end-of-metadata line, leaving every other
+                %character as it was. (It used to be read line by line with
+                %textscan, which stripped leading spaces from every line,
+                %and written back with LF line endings in place of CRLF)
+                filePath = this.FileWriteDetails.FilePath;
+                text = string(fileread(filePath, Encoding="UTF-8"));
 
-                %Find which line is the END METADATA line
-                mask = strcmp(lines, Palladium.DataWriting.DataWriter.END_METADATA_LINES_STRING);
-                endLineIdx = find(mask);
+                %The marker must be a whole line, as DataReader expects
+                marker = Palladium.DataWriting.DataWriter.END_METADATA_LINES_STRING;
+                markerIdx = regexp(text, "^" + regexptranslate("escape", marker) + "\r?$", "once", "lineanchors");
 
                 %Error checking
-                if isempty(endLineIdx)
-                    Palladium.Logging.Logger.Log("Warning", "Could not add metadata lines to " + this.FileWriteDetails.FilePath + ": its end-of-metadata line (" + Palladium.DataWriting.DataWriter.END_METADATA_LINES_STRING + ") was not found");   %Don't throw full error and prevent file writing entirely
+                if isempty(markerIdx)
+                    Palladium.Logging.Logger.Log("Warning", "Could not add metadata lines to " + filePath + ": its end-of-metadata line (" + marker + ") was not found");   %Don't throw full error and prevent file writing entirely
                 else
-                    %Check how many lines to insert
-                    linesToInsert = length(stringLinesArray);
-
-                    %Same file path - should overwrite
-                    fid = fopen(this.FileWriteDetails.FilePath, 'w');
-
-                    %Print the lines before the one to be inserted
-                    for i = 1 : endLineIdx - 1
-                        fprintf(fid, '%s\n', lines{i});
+                    %End the new lines as the file's own lines end - CRLF for
+                    %files WriteHeaders wrote
+                    if contains(text, sprintf("\r\n"))
+                        lineEnd = sprintf("\r\n");
+                    else
+                        lineEnd = newline;
                     end
+                    newLines = string(stringLinesArray(:))';
+                    newLines(ismissing(newLines)) = "";
+                    textChars = char(text);
+                    text = string(textChars(1 : markerIdx - 1)) + join(newLines + lineEnd, "") + string(textChars(markerIdx : end));
 
-                    %Print the new line(s)
-                    for i = 1 : linesToInsert
-                        fprintf( fid, '%s\n', stringLinesArray(i));
-                    end
+                    %Same file path - overwrite it
+                    fid = fopen(filePath, 'w', 'n', 'UTF-8');
+                    fprintf(fid, '%s', text);
 
-                    %Print the lines after
-                    for i = endLineIdx : length(lines)
-                        fprintf(fid, '%s\n', lines{i});
-                    end
-
-                    %Close the file - only here, where it was reopened for
-                    %writing (it used to be closed again after a missing
-                    %marker too, failing with "Invalid file identifier")
+                    %Close the file - only here, where it was opened for
+                    %writing
                     fclose(fid);
                 end
 
