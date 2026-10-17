@@ -307,7 +307,12 @@ classdef Palladium < handle
             %Shut down Palladium DAQ, deleting its View and Controller.
             %Closes the GUI, or with no GUI, stops the measurement timer and
             %closes the instruments' connections. The object can't be used
-            %afterwards.
+            %afterwards. Closing again does nothing.
+
+            %Already closed - nothing left to shut down (this used to error)
+            if isempty(this.Controller)
+                return;
+            end
 
             if ~isempty(this.View)
                 this.View.Close();

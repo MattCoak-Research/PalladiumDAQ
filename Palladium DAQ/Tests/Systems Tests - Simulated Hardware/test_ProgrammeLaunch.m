@@ -41,6 +41,14 @@ classdef test_ProgrammeLaunch < matlab.unittest.TestCase
             pd.Close();
         end
 
+        function CloseTwiceIsSafe(testCase)
+            %Closing again does nothing - it used to error, as the
+            %Controller was already gone
+            pd = Palladium(View=[], ConfigFilePath=testCase.ConfigPath);
+            pd.Close();
+            testCase.verifyWarningFree(@() pd.Close());
+        end
+
         function TestMeasurementLoop(testCase)
             % Warning doesn't seem to generate identifier so can't test for
             % that
