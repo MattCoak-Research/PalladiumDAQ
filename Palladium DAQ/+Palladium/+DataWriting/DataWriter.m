@@ -404,7 +404,7 @@ classdef DataWriter < handle
                 return;
             end
             if isempty(headerRow)
-                warning("BuildMetadataLineStringFromHeaderValuePairWarning:EmptyDataRow", "Data row empty in BuildMetadataLineStringFromHeaderValuePair, cannot log to file");
+                warning("BuildMetadataLineStringFromHeaderValuePairWarning:EmptyHeaderRow", "Header row empty in BuildMetadataLineStringFromHeaderValuePair, cannot log to file");
                 return;
             end
             assert(length(dataRow) == length(headerRow), "BuildMetadataLineStringFromHeaderValuePairError:LengthMismatch", "Header and data row length not equal");

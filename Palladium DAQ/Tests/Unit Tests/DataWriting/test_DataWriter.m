@@ -798,8 +798,9 @@ classdef test_DataWriter < matlab.unittest.TestCase
         end
 
         function test_BuildMetadataLineFromHeaderValuePair_EmptyHeaderRowWarnsAndReturnsPrefixTest(testCase)
+            %Its own warning - it used to be reported as an empty data row
             line = [];
-            testCase.verifyWarning(@() assignOutput(), "BuildMetadataLineStringFromHeaderValuePairWarning:EmptyDataRow");
+            testCase.verifyWarning(@() assignOutput(), "BuildMetadataLineStringFromHeaderValuePairWarning:EmptyHeaderRow");
             testCase.verifyEqual(line, "Prefix: ");
 
             function assignOutput()
