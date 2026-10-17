@@ -98,31 +98,44 @@ classdef Logger < handle
             Halt = false;
             suppressError = false;
 
+            %An error that was created but never thrown has no stack - say
+            %so, rather than fail on err.stack(1) (it used to crash with
+            %"Index exceeds array bounds")
+            stack = err.stack;
+            if isempty(stack)
+                stack = struct("file", "", "name", "(not known - the error was never thrown)", "line", 0);
+            end
+
             %Last error thrown; could be a MATLAB builtin.
-            TopErrorFile = err.stack(1).file;
-            TopErrorName = string(err.stack(1).name);
-            TopErrorLine = err.stack(1).line;
+            TopErrorFile = stack(1).file;
+            TopErrorName = string(stack(1).name);
+            TopErrorLine = stack(1).line;
 
             %Get last user error; this has an exist type of 0;
-            for i = 1:length(err.stack)
-                ExistsType(i,1) = exist(err.stack(i,1).name); %#ok<EXIST,AGROW>
+            ExistsType = zeros(numel(stack), 1);
+            for i = 1:numel(stack)
+                ExistsType(i) = exist(stack(i).name); %#ok<EXIST>
             end
 
             %Get the details of the first function erroring which isn't a
-            %builtin.
-            IndexOfFirstUserFuncError = find(ExistsType(:,1) == 0, 1);
-            UserErrorFile = err.stack(IndexOfFirstUserFuncError).file;
-            UserErrorName = err.stack(IndexOfFirstUserFuncError).name;
-            UserErrorLine = err.stack(IndexOfFirstUserFuncError).line;
+            %builtin - or the top one, if they all are
+            IndexOfFirstUserFuncError = find(ExistsType == 0, 1);
+            if isempty(IndexOfFirstUserFuncError)
+                IndexOfFirstUserFuncError = 1;
+            end
+            UserErrorFile = stack(IndexOfFirstUserFuncError).file;
+            UserErrorName = stack(IndexOfFirstUserFuncError).name;
+            UserErrorLine = stack(IndexOfFirstUserFuncError).line;
 
             %If the first function is a user function, error string can be
             %simpler. Otherwise, show both the builtin's error and the
-            %user's error.
+            %user's error. (Built by joining, not sprintf, so a % or \ in a
+            %name is shown as it is)
             message = string(message) + ": " + string(err.message);
             if(strcmp(UserErrorFile, TopErrorFile))
-                ErrorString = string(sprintf("Error in " + TopErrorName + " - line " + num2str(TopErrorLine) + "\n\n")) + string(message);
+                ErrorString = "Error in " + TopErrorName + " - line " + TopErrorLine + newline + newline + message;
             else
-                ErrorString = string(sprintf("Error in Matlab function " + TopErrorName + " - line " + num2str(TopErrorLine) + ":\n\n")) + string(message) + string(sprintf("\n\nError in user function " + UserErrorName + " - line " + num2str(UserErrorLine) + "."));
+                ErrorString = "Error in Matlab function " + TopErrorName + " - line " + TopErrorLine + ":" + newline + newline + message + newline + newline + "Error in user function " + UserErrorName + " - line " + UserErrorLine + ".";
             end
 
             %No logging here - the caller (Controller.HandleError) has
@@ -243,60 +256,57 @@ classdef Logger < handle
                 fullMessage = Settings.FullMessage;
             end
 
-            %Annoying boilerplate to essentially hack in static properties,
-            %which Matlab does not allow
-            persistent Controller;
-            if isempty(Controller) || ~isempty(Settings.Controller) %Second argument is basically a code for 'is this being called from the constructor?'
-                Controller = Settings.Controller;
-            end
-
-            persistent LogFileDirectory;
-            if isempty(LogFileDirectory) || ~isempty(Settings.Controller) %Second argument is basically a code for 'is this being called from the constructor?'
-                LogFileDirectory = Settings.LogFileDirectory;
-            end
-
-            persistent LogFileFileName;
-            if isempty(LogFileFileName) || ~isempty(Settings.Controller)
-                LogFileFileName = Settings.LogFileFileName;
-            end
-
-            persistent CommandWindowMessageLevel;
-            if isempty(CommandWindowMessageLevel) || ~isempty(Settings.Controller)
-                CommandWindowMessageLevel = Settings.CommandWindowMessageLevel;
-            end
-
-            persistent GUIMessageLevel;
-            if isempty(GUIMessageLevel) || ~isempty(Settings.Controller)
-                GUIMessageLevel = Settings.GUIMessageLevel;
-            end
-
-            persistent LogFileMessageLevel;
-            if isempty(LogFileMessageLevel) || ~isempty(Settings.Controller)
-                LogFileMessageLevel = Settings.LogFileMessageLevel;
-            end
-
-            persistent PrintStackTraceInCommandWindow;
-            if isempty(PrintStackTraceInCommandWindow) || ~isempty(Settings.Controller)
-                PrintStackTraceInCommandWindow = Settings.PrintStackTraceInCommandWindow;
+            %MATLAB has no static properties, so the settings are kept by
+            %Store. Passing a Controller (the constructor does) sets them;
+            %any other call uses them as they are - or the defaults, if the
+            %Logger hasn't been created. (Every call's arguments used to be
+            %kept by the very first call, so a LogError before Palladium
+            %started hid all later messages below Error)
+            if ~isempty(Settings.Controller)
+                state = Palladium.Logging.Logger.Store("get");
+                state.Controller = Settings.Controller;
+                state.LogFileDirectory = Settings.LogFileDirectory;
+                state.LogFileFileName = Settings.LogFileFileName;
+                state.CommandWindowMessageLevel = Settings.CommandWindowMessageLevel;
+                state.GUIMessageLevel = Settings.GUIMessageLevel;
+                state.LogFileMessageLevel = Settings.LogFileMessageLevel;
+                state.PrintStackTraceInCommandWindow = Settings.PrintStackTraceInCommandWindow;
+                state.LogFileFailureReported = false;
+                Palladium.Logging.Logger.Store("set", state);
+            else
+                state = Palladium.Logging.Logger.Store("get");
             end
 
             %Logging to CommandWindow
-            if Palladium.Logging.Logger.IsSeverityLevelAboveCutoff(level, CommandWindowMessageLevel)
-                Palladium.Logging.Logger.LogToCommandWindow(level, string(message), PrintStackTraceInCommandWindow, Palladium.Logging.Logger.HasGUIWindow(Controller));
+            if Palladium.Logging.Logger.IsSeverityLevelAboveCutoff(level, state.CommandWindowMessageLevel)
+                Palladium.Logging.Logger.LogToCommandWindow(level, string(message), state.PrintStackTraceInCommandWindow, Palladium.Logging.Logger.HasGUIWindow(state.Controller));
             end
 
             %Logging to GUI
-            if ~Settings.SkipGUI && Palladium.Logging.Logger.IsSeverityLevelAboveCutoff(level, GUIMessageLevel)
-                Palladium.Logging.Logger.LogToGUI(level, string(message), Controller);
+            if ~Settings.SkipGUI && Palladium.Logging.Logger.IsSeverityLevelAboveCutoff(level, state.GUIMessageLevel)
+                Palladium.Logging.Logger.LogToGUI(level, string(message), state.Controller);
             end
 
             %Logging to File - note that this will use FullMessage, others
             %will not. There is no log file until Palladium has set one up -
             %e.g. for an instrument used from the Command Window on its own
-            hasLogFile = ~isempty(LogFileDirectory) && strlength(string(LogFileDirectory)) > 0;
-            if hasLogFile && Palladium.Logging.Logger.IsSeverityLevelAboveCutoff(level, LogFileMessageLevel)
-                filePath = Palladium.Logging.Logger.ConstructFilePath(LogFileDirectory, LogFileFileName);
-                Palladium.Logging.Logger.LogToFile(level, string(fullMessage), filePath);
+            hasLogFile = ~isempty(state.LogFileDirectory) && strlength(string(state.LogFileDirectory)) > 0;
+            if hasLogFile && Palladium.Logging.Logger.IsSeverityLevelAboveCutoff(level, state.LogFileMessageLevel)
+                %Never throw from here: logging is used while handling errors,
+                %and a log folder that can't be made (e.g. a drive gone
+                %mid-run) used to make every Log call throw
+                failure = "";
+                try
+                    filePath = Palladium.Logging.Logger.ConstructFilePath(state.LogFileDirectory, state.LogFileFileName);
+                    if ~Palladium.Logging.Logger.LogToFile(level, string(fullMessage), filePath)
+                        failure = "could not write to " + filePath;
+                    end
+                catch e
+                    failure = string(e.message);
+                end
+                if failure ~= ""
+                    Palladium.Logging.Logger.ReportLogFileFailure(failure, state);
+                end
             end
 
         end
@@ -306,20 +316,28 @@ classdef Logger < handle
             %
             %Inputs:
             %   err     - the MException
-            %   message - what was happening, added after the error's own message
+            %   message - (optional) what was happening, added after the error's own message
             %   SkipGUI - (name-value) true to keep it out of the GUI status light and message area
 
             arguments
                 err;
-                message = [];
+                message = "";
                 Settings.SkipGUI (1,1) logical = false;
             end
             try
                 report = string(getReport(err, 'extended'));
-                msg = string(err.message) + " : " + message;
-                Palladium.Logging.Logger.Log("Error", msg, "FullMessage", report, "LogFileMessageLevel", "Error", "CommandWindowMessageLevel", "Error", "GUIMessageLevel", "Error", "SkipGUI", Settings.SkipGUI);
+
+                %The message is optional - with none given, nothing used to
+                %be logged at all ("text" + [] is an empty string array)
+                msg = string(err.message);
+                if strlength(string(message)) > 0
+                    msg = msg + " : " + string(message);
+                end
+                %The log file gets the message as well as the full report -
+                %it used to get only the report, without what was happening
+                Palladium.Logging.Logger.Log("Error", msg, "FullMessage", msg + newline + report, "SkipGUI", Settings.SkipGUI);
             catch err
-                warning("LogErrorWarning:LoggingFailed", "Error thrown while attempting to log.. another error");
+                warning("LogErrorWarning:LoggingFailed", "%s", "Error thrown while attempting to log another error: " + string(err.message));
             end
         end
 
@@ -327,6 +345,13 @@ classdef Logger < handle
 
     %% Methods (Static, Public, Hidden) - for tests
     methods (Static, Access = public, Hidden)
+
+        function ResetForTest()
+            %Forget the settings, as if the Logger had never been created - for tests.
+            %(clear doesn't reset them)
+
+            Palladium.Logging.Logger.Store("reset");
+        end
 
         function out = TestDialogResponse(action, response)
             %Answer the error dialogue in place of a person, for tests - it is modal, so would block them.
@@ -365,6 +390,51 @@ classdef Logger < handle
 
     %% Methods (Static, Private)
     methods(Static, Access = private)
+
+        function state = Store(action, newState)
+            %Keep the Logger's settings between calls, as MATLAB has no static properties.
+            %"get" returns them - the defaults until the Logger is created;
+            %"set" replaces them; "reset" goes back to the defaults
+
+            arguments
+                action {mustBeMember(action, ["get", "set", "reset"])}
+                newState = []
+            end
+
+            persistent stored
+            if isempty(stored) || action == "reset"
+                %Before Palladium sets the Logger up: Command Window only
+                stored = struct("Controller", [], "LogFileDirectory", "", "LogFileFileName", "", ...
+                    "CommandWindowMessageLevel", "Debug", "GUIMessageLevel", "Warning", "LogFileMessageLevel", "Debug", ...
+                    "PrintStackTraceInCommandWindow", false, "LogFileFailureReported", false);
+            end
+            if action == "set"
+                stored = newState;
+            end
+            state = stored;
+        end
+
+        function ReportLogFileFailure(reason, state)
+            %Say - once, until the Logger is set up again - that messages can't be written to the log file.
+            %Shown in the Command Window and the GUI directly, not through
+            %Log, which would try the file again
+
+            if state.LogFileFailureReported
+                return;
+            end
+            state.LogFileFailureReported = true;
+            Palladium.Logging.Logger.Store("set", state);
+
+            msg = "Messages can't be written to the log file (" + reason + "). They are still shown here; check the log folder in the config (LogSettings.LogFileDirectory).";
+            try
+                Palladium.Logging.Logger.LogToCommandWindow("Warning", msg, false, Palladium.Logging.Logger.HasGUIWindow(state.Controller));
+                if Palladium.Logging.Logger.IsSeverityLevelAboveCutoff("Warning", state.GUIMessageLevel)
+                    Palladium.Logging.Logger.LogToGUI("Warning", msg, state.Controller);
+                end
+            catch
+                %Nowhere left to report it
+            end
+        end
 
         function path = ConstructFilePath(logFileDirectory, logFileFileName)
             %The log file's path, with <DATE> in its name replaced by today's date, creating the folder if needed.
@@ -433,6 +503,9 @@ classdef Logger < handle
             %function and line number are printed to find the spot in Code
             %View - the line number matches the one shown there. Never
             %throws: failing to open the editor must not break error handling.
+            if strlength(string(file)) == 0
+                return;     %No file to go to - the error was never thrown
+            end
             try
                 [~, ~, ext] = fileparts(file);
                 if strcmpi(ext, ".mlapp")
@@ -562,28 +635,24 @@ classdef Logger < handle
             end
         end
 
-        function LogToFile(level, message, path)
+        function success = LogToFile(level, message, path)
             %Add the message to the log file, tagged with its severity and the time, trying up to 3 times.
+            %Returns false if every attempt failed
 
             %Add a bit of text before the message to indicate its severity
             %ie [INFO] : "Here is some info"
             fullMessage = Palladium.Logging.Logger.GetLevelText(level) + "(" + Palladium.Logging.Logger.GetTimeStamp() + ") : " + string(message);
 
+            success = false;
             for i = 1 : 3   %try 3 times to open the file
                 try
-                    %Write the message string to file
-                    writelines(fullMessage, path, WriteMode = "append");
-
-                    %Write an empty line below it to give some spacing and increase readability
-                    writelines("", path, WriteMode = "append");
+                    %The message and an empty line below it (for
+                    %readability) in one write - written separately, a
+                    %failure of the second wrote the message again on retry
+                    writelines([fullMessage; ""], path, WriteMode = "append");
                     success = true;
-                catch
-                    success = false;
-                end
-
-                if success
                     break;
-                else
+                catch
                     pause(0.2);
                 end
             end
