@@ -648,6 +648,42 @@ classdef test_DataWriter < matlab.unittest.TestCase
             testCase.verifyError(@() writer.SaveFigure(fig, ax, fullfile(testCase.TempDir, "nope"), "myplot"), "SaveFigureError:SaveFailed");
         end
 
+        function test_SaveFigure_ErrorMessageSeparatesCauseTest(testCase)
+            %The cause follows a ": " - it used to run straight on
+            [fig, ax] = testCase.makeFigure();
+            writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("acq"));
+
+            try
+                writer.SaveFigure(fig, ax, fullfile(testCase.TempDir, "nope"), "myplot");
+                testCase.verifyFail("Expected an error");
+            catch err
+                testCase.verifySubstring(err.message, "Error saving figure in DataWriter: ");
+            end
+        end
+
+        function test_SaveFigure_TitleWithCharactersNotAllowedInFileNamesTest(testCase)
+            %A title such as "Field / Temperature: 4 K" is saved with those
+            %characters replaced - saving used to fail
+            [fig, ax] = testCase.makeFigure();
+            title(ax, "Field (T) / Temperature: 4 K?");
+            writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("acq"));
+
+            writer.SaveFigure(fig, ax, testCase.TempDir, "ignored_name");
+
+            testCase.verifyTrue(isfile(fullfile(testCase.TempDir, "Field (T) - Temperature- 4 K--Fig-00001.png")));
+        end
+
+        function test_SaveFigure_TitleWithNoUsableCharactersKeepsGivenNameTest(testCase)
+            %A title of only spaces: nothing usable is left for a file name
+            [fig, ax] = testCase.makeFigure();
+            title(ax, "   ");
+            writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("acq"));
+
+            writer.SaveFigure(fig, ax, testCase.TempDir, "given_name");
+
+            testCase.verifyTrue(isfile(fullfile(testCase.TempDir, "given_name-Fig-00001.png")));
+        end
+
         function test_SaveFigure_ExactFileNameUsesNameAsGivenTest(testCase)
             %As from a Save As dialog: no -Fig, no number, and a title doesn't replace the name
             [fig, ax] = testCase.makeFigure();

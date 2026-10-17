@@ -132,7 +132,8 @@ classdef DataWriter < handle
             %Save a figure as both a .fig and a .png in a folder.
             %Untitled axes are given the file name as their title.
             %Otherwise, unless ExactFileName is true, the files are named
-            %after the axes' title, with "-Fig" and a number added so that
+            %after the axes' title (with any characters not allowed in file
+            %names replaced by "-"), with "-Fig" and a number added so that
             %nothing is overwritten
             %
             %Inputs:
@@ -155,9 +156,17 @@ classdef DataWriter < handle
                     title(ax, strrep(fileNameWithoutExtension, '_', ' '));
                 elseif ~Settings.ExactFileName
                     if iscell(ax.Title.String)
-                        fileNameWithoutExtension = ax.Title.String{1};
+                        titleText = string(ax.Title.String{1});
                     else
-                        fileNameWithoutExtension = string(ax.Title.String);
+                        titleText = string(ax.Title.String);
+                    end
+
+                    %A title can hold characters a file name can't (e.g.
+                    %"Field / Temperature") - replace them, and keep the
+                    %name given if nothing usable is left
+                    titleName = strtrim(regexprep(titleText(1), '[\\/:*?"<>|\x00-\x1F]', '-'));
+                    if strlength(titleName) > 0
+                        fileNameWithoutExtension = titleName;
                     end
                 end
 
@@ -172,7 +181,7 @@ classdef DataWriter < handle
                 saveas(figure, fullfile(directory, fileNameWithoutExtension + ".fig"));
                 saveas(figure, fullfile(directory, fileNameWithoutExtension + ".png"));
             catch e
-                error("SaveFigureError:SaveFailed", "%s", "Error saving figure in DataWriter" + string(e.message));
+                error("SaveFigureError:SaveFailed", "%s", "Error saving figure in DataWriter: " + string(e.message));
             end
         end
 
