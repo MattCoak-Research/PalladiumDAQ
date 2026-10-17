@@ -116,10 +116,12 @@ classdef DataWriter < handle
                     for i = endLineIdx : length(lines)
                         fprintf(fid, '%s\n', lines{i});
                     end
-                end
 
-                %Close the file
-                fclose(fid);
+                    %Close the file - only here, where it was reopened for
+                    %writing (it used to be closed again after a missing
+                    %marker too, failing with "Invalid file identifier")
+                    fclose(fid);
+                end
 
             catch err
                 Palladium.Logging.Logger.Log("Warning", "Could not add metadata lines to " + this.FileWriteDetails.FilePath + ". Error message: " + string(err.message));

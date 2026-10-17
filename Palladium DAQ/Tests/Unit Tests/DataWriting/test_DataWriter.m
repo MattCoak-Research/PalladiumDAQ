@@ -369,10 +369,27 @@ classdef test_DataWriter < matlab.unittest.TestCase
             fclose(fid);
             before = fileread(writer.FileWriteDetails.FilePath);
 
+            openBefore = testCase.openFileIds();
             testCase.verifyWarningFree(@() testCase.runQuietly(@() writer.InsertMetadataLines("x")));
-            testCase.verifySubstring(fileread(logPath), "its end-of-metadata line (<<< END METADATA LINES >>>) was not found");
+            logText = fileread(logPath);
+            testCase.verifySubstring(logText, "its end-of-metadata line (<<< END METADATA LINES >>>) was not found");
 
+            %Only that message - the file used to be closed a second time,
+            %adding "Could not add metadata lines ... Invalid file identifier"
+            testCase.verifyEqual(count(logText, "Could not add metadata lines"), 1, logText);
             testCase.verifyEqual(fileread(writer.FileWriteDetails.FilePath), before);
+            testCase.verifyEqual(testCase.openFileIds(), openBefore, "No file should be left open");
+        end
+
+        function test_InsertMetadataLines_ClosesTheFileTest(testCase)
+            %After inserting, the file is closed again (not left open and
+            %locked on Windows)
+            writer = testCase.writerWithData("acq", MetadataLines="m1");
+            openBefore = testCase.openFileIds();
+
+            writer.InsertMetadataLines("inserted");
+
+            testCase.verifyEqual(testCase.openFileIds(), openBefore);
         end
 
         function test_InsertMetadataLines_MissingFileWarnsInsteadOfThrowingTest(testCase)
@@ -995,6 +1012,16 @@ classdef test_DataWriter < matlab.unittest.TestCase
             testCase.addTeardown(@() Palladium.Logging.Logger.Log("Debug", "Logging stopped", "Controller", true, ...
                 "LogFileDirectory", testCase.LogDir, "LogFileFileName", "unit.log", ...
                 "CommandWindowMessageLevel", "Off", "GUIMessageLevel", "Off", "LogFileMessageLevel", "Off"));
+        end
+
+        function ids = openFileIds(~)
+            %Identifiers of all files currently open. openedFiles replaces
+            %the deprecated fopen('all') in newer releases
+            if ~isempty(which("openedFiles"))
+                ids = openedFiles();
+            else
+                ids = fopen('all');
+            end
         end
 
         function runQuietly(~, fcn) %#ok<INUSD>
