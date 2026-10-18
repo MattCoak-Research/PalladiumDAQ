@@ -427,6 +427,32 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             end
         end
 
+        function tf = IsReplyWaiting(this)
+            %Check, without blocking, whether the instrument has a reply waiting to be read.
+            %Over GPIB/VISA this is a serial poll (the status byte's message
+            %available bit), which works even while the instrument is busy -
+            %e.g. running a Keithley 2450 TSP script, or an HP 8722ES sweep
+            %started with OPC?;SING; - so it can be used to wait for a reply
+            %while staying responsive (e.g. to an Abort button). Over Ethernet,
+            %checks MATLAB's receive buffer instead. True in SimulationMode
+            %
+            %Outputs:
+            %   tf - true if a reply is waiting
+
+            if (this.SimulationMode)
+                tf = true;
+                return;
+            end
+
+            try
+                tf = visastatus(this.DeviceHandle);
+            catch
+                %No serial poll for Ethernet (tcpclient) - check MATLAB's
+                %receive buffer instead
+                tf = this.DeviceHandle.NumBytesAvailable > 0;
+            end
+        end
+
         function data = ReadString(this)
             %Read a reply from the instrument without sending anything first.
             %For instruments that send data on their own, or replies to an

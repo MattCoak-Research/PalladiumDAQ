@@ -14,6 +14,7 @@ classdef FakeDeviceHandle < handle
         ReadCount = 0;
         Terminators (1,:) string = strings(1, 0);   %What configureTerminator was last given (read, then write)
         FlushCount = 0;                             %How many times the input was flushed
+        ClearCount = 0;                             %How many device clears (clrdevice) were sent
     end
 
     properties (Dependent)
@@ -53,6 +54,10 @@ classdef FakeDeviceHandle < handle
 
         function configureTerminator(this, varargin)
             this.Terminators = string(varargin);
+        end
+
+        function clrdevice(this)
+            this.ClearCount = this.ClearCount + 1;
         end
 
         function flush(this, ~)

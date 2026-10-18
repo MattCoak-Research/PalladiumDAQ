@@ -1516,6 +1516,13 @@
                                         </Category>
                                     </Info>
                                 </File>
+                                <File Location="RecordingHP8722ES.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
                             </File>
                         </File>
                         <File Location="ZI Testing">
@@ -1792,6 +1799,13 @@
                             </Info>
                         </File>
                         <File Location="test_Keithley6220.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_HP8722ES.m">
                             <Info>
                                 <Category UUID="FileClassCategory">
                                     <Label UUID="test"/>

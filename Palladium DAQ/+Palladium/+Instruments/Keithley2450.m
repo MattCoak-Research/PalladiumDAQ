@@ -707,30 +707,6 @@ classdef Keithley2450 < Palladium.Core.Instrument
             end
         end
 
-        function tf = IsReplyWaiting(this)
-            %Check, without blocking, whether the instrument has a reply waiting to be read.
-            %Over GPIB/VISA this is a serial poll, which works even while a TSP
-            %script is running - so it can be used to wait for a script to print
-            %its result while staying responsive (e.g. to an Abort button). An
-            %error in the event log does not count as a reply
-            %
-            %Outputs:
-            %   tf - true if a reply is waiting
-
-            if (this.SimulationMode)
-                tf = true;
-                return;
-            end
-
-            try
-                tf = visastatus(this.DeviceHandle);
-            catch
-                %No serial poll for Ethernet (tcpclient) - check MATLAB's
-                %receive buffer instead
-                tf = this.DeviceHandle.NumBytesAvailable > 0;
-            end
-        end
-
         function [dataRow] = Measure(this)
             %Take a reading, and return it with the source value and compliance flag.
             %Any errors the instrument has logged are reported as warnings (and
