@@ -1418,6 +1418,27 @@
                                         </Category>
                                     </Info>
                                 </File>
+                                <File Location="RecordingKeithley2450.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                                <File Location="RecordingKeithley2410.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                                <File Location="RecordingKeithley6430.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
                             </File>
                         </File>
                     </File>
@@ -1604,6 +1625,13 @@
                             </File>
                         </File>
                         <File Location="test_AllInstruments_SimulationMode.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_KeithleySourceLevelOrder.m">
                             <Info>
                                 <Category UUID="FileClassCategory">
                                     <Label UUID="test"/>

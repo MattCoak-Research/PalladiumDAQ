@@ -46,8 +46,8 @@ classdef Keithley2450 < Palladium.Core.Instrument
         Language;                                               %Command set to use, TSP or SCPI. Must match the command set selected on the instrument, which only changes after a reboot.
     end
 
-    %% Properties (Public, Private Set)
-    properties(GetAccess = public, SetAccess = private)
+    %% Properties (Public, Protected Set)
+    properties(GetAccess = public, SetAccess = protected)
         SourceMode;                                             %Source function, Voltage or Current, read from the instrument when connecting
         MeasMode;                                               %Quantity measured - Current, Voltage, Resistance or Power - from the measure function and units read when connecting
     end
@@ -812,7 +812,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
         end
 
         function SetSourceLevel(this, level, enableOutput)
-            %Turn the output on or off, and set the source level.
+            %Set the source level and turn the output on or off - in the order that never sources the wrong level.
             %
             %Inputs:
             %   level        - source level, in V or A depending on SourceMode
@@ -826,37 +826,16 @@ classdef Keithley2450 < Palladium.Core.Instrument
                 return;
             end
 
-            %Turn output on or off
-            switch(this.Language)
-                case(this.LanguageType("SCPI"))
-                    if(enableOutput)
-                        this.WriteCommand("OUTP ON");
-                    else
-                        this.WriteCommand("OUTP OFF");
-                    end
-                case(this.LanguageType("TSP"))
-                    if(enableOutput)
-                        this.WriteCommand("smu.source.output = smu.ON");
-                    else
-                        this.WriteCommand("smu.source.output = smu.OFF");
-                    end
-                otherwise
-                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
-            end
-
-            %Set the output level
-            switch(this.Language)
-                case(this.LanguageType("SCPI"))
-                    switch(this.SourceMode)
-                        case(this.SourceType("Voltage"));   this.WriteCommand("SOUR:VOLT:LEV " + num2str(level));
-                        case(this.SourceType("Current"));   this.WriteCommand("SOUR:CURR:LEV " + num2str(level));
-                        otherwise
-                            error("Keithley2450:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
-                    end
-                case(this.LanguageType("TSP"))
-                    this.WriteCommand("smu.source.level = " + num2str(level));
-                otherwise
-                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
+            %The output is never on at a level it shouldn't be: turning it
+            %on, the level is set first (the output used to come on at the
+            %old level, then jump); turning it off, it goes off first (the
+            %new level was briefly sourced)
+            if enableOutput
+                this.WriteSourceLevel(level);
+                this.WriteOutputState(true);
+            else
+                this.WriteOutputState(false);
+                this.WriteSourceLevel(level);
             end
         end
 
@@ -904,6 +883,45 @@ classdef Keithley2450 < Palladium.Core.Instrument
 
     %% Methods (Protected)
     methods (Access = protected)
+        function WriteSourceLevel(this, level)
+            %Send the source level, in V or A depending on SourceMode (see SetSourceLevel).
+
+            switch(this.Language)
+                case(this.LanguageType("SCPI"))
+                    switch(this.SourceMode)
+                        case(this.SourceType("Voltage"));   this.WriteCommand("SOUR:VOLT:LEV " + num2str(level));
+                        case(this.SourceType("Current"));   this.WriteCommand("SOUR:CURR:LEV " + num2str(level));
+                        otherwise
+                            error("Keithley2450:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                    end
+                case(this.LanguageType("TSP"))
+                    this.WriteCommand("smu.source.level = " + num2str(level));
+                otherwise
+                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
+            end
+        end
+
+        function WriteOutputState(this, enableOutput)
+            %Turn the output on (true) or off (false) (see SetSourceLevel).
+
+            switch(this.Language)
+                case(this.LanguageType("SCPI"))
+                    if(enableOutput)
+                        this.WriteCommand("OUTP ON");
+                    else
+                        this.WriteCommand("OUTP OFF");
+                    end
+                case(this.LanguageType("TSP"))
+                    if(enableOutput)
+                        this.WriteCommand("smu.source.output = smu.ON");
+                    else
+                        this.WriteCommand("smu.source.output = smu.OFF");
+                    end
+                otherwise
+                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
+            end
+        end
+
 
         function OpenConnection(this)
             %Open the connection, check the command set, and read the source and measure settings.

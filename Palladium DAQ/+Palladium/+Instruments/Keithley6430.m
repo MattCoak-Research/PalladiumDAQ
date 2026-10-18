@@ -139,7 +139,7 @@ classdef Keithley6430 < Palladium.Core.Instrument
         end
 
         function SetSourceLevel(this, level, enableOutput)
-            %Set the source level, and turn the output on or off.
+            %Set the source level and turn the output on or off - in the order that never sources the wrong level.
             %
             %Inputs:
             %   level        - source level, in V or A (see SourceMode)
@@ -150,12 +150,25 @@ classdef Keithley6430 < Palladium.Core.Instrument
                 return;
             end
 
-            %Turn output on or off
-            if(enableOutput)
-                this.WriteCommand("OUTP ON");
+            %The output is never on at a level it shouldn't be: turning it
+            %on, the level is set first (the output used to come on at the
+            %old level, then jump); turning it off, it goes off first (the
+            %new level was briefly sourced)
+            if enableOutput
+                this.WriteSourceLevel(level);
+                this.WriteOutputState(true);
             else
-                this.WriteCommand("OUTP OFF");
+                this.WriteOutputState(false);
+                this.WriteSourceLevel(level);
             end
+        end
+
+    end
+
+    %% Methods (Protected)
+    methods (Access = protected)
+        function WriteSourceLevel(this, level)
+            %Send the source level, in V or A depending on SourceMode (see SetSourceLevel).
 
             switch(this.SourceMode)
                 case(this.SourceType("Voltage"));   this.WriteCommand("SOUR:VOLT:LEV " + num2str(level));
@@ -165,10 +178,16 @@ classdef Keithley6430 < Palladium.Core.Instrument
             end
         end
 
-    end
+        function WriteOutputState(this, enableOutput)
+            %Turn the output on (true) or off (false) (see SetSourceLevel).
 
-    %% Methods (Protected)
-    methods (Access = protected)
+            if(enableOutput)
+                this.WriteCommand("OUTP ON");
+            else
+                this.WriteCommand("OUTP OFF");
+            end
+        end
+
 
         function OpenConnection(this)
             %Open the connection and set the data elements returned by readings.
