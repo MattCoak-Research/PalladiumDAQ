@@ -114,8 +114,69 @@ classdef GUIUtils
             end
         end
 
+        function fig = OpenDialog(title, dialogSize, Settings)
+            %Open a dialogue window, on top of the others and centred on the window it is opened from - or bring it forward if it is already open.
+            %Not modal: when a modal uifigure closed, MATLAB sometimes put
+            %its desktop window at the top of the stack, above the window
+            %the dialogue was opened from - seen in a log of the window
+            %order, whenever another program's window had come between
+            %them. Instead the dialogue stays on top ("alwaysontop"), and
+            %only one with the same Tag can be open at a time. Close it with
+            %CloseDialog
+            %
+            %Inputs:
+            %   title      - the window's title
+            %   dialogSize - [width, height] in pixels
+            %   Reference  - (name-value) the window to centre on, e.g. the main window. Default: none
+            %   Icon       - (name-value) window icon file. Default: none
+            %   Tag        - (name-value) identifies the dialogue, so only one is open at a time. Default "": no limit
+            %
+            %Outputs:
+            %   fig - the new uifigure, or [] if one with this Tag was already open (it is brought to the front instead)
+
+            arguments
+                title {mustBeTextScalar};
+                dialogSize (1,2) double;
+                Settings.Reference = [];
+                Settings.Icon = [];
+                Settings.Tag {mustBeTextScalar} = "";
+            end
+
+            if strlength(Settings.Tag) > 0
+                existing = findall(groot, "Type", "figure", "Tag", Settings.Tag);
+                if ~isempty(existing)
+                    figure(existing(1));
+                    fig = [];
+                    return;
+                end
+            end
+
+            fig = uifigure("Name", title, "WindowStyle", "alwaysontop", "Resize", "off", "Tag", Settings.Tag, ...
+                "Position", Palladium.Utilities.GUIUtils.CentredPosition(dialogSize, Settings.Reference));
+            if ~isempty(Settings.Icon) && isfile(Settings.Icon)
+                fig.Icon = Settings.Icon;
+            end
+        end
+
+        function CloseDialog(fig, reference)
+            %Close a dialogue window opened with OpenDialog, and bring the window it was opened from back to the front.
+            %When a window closes, Windows picks the next window to be the
+            %front one, which may be another program's - so the window it
+            %was opened from is brought back explicitly
+            %
+            %Inputs:
+            %   fig       - the dialogue's uifigure (already deleted is fine)
+            %   reference - the window it was opened from; or [] for none
+
+            if isvalid(fig)
+                delete(fig);
+            end
+            drawnow;
+            Palladium.Utilities.GUIUtils.BringToFront(reference);
+        end
+
         function index = ChooseFromList(items, Settings)
-            %Ask the user to pick one item from a list, in a small modal window - like listdlg, but a uifigure.
+            %Ask the user to pick one item from a list, in a small window - like listdlg, but a uifigure.
             %listdlg is an old-style figure: when it closes, the system can
             %hand focus to some other window, sending Palladium's (uifigure)
             %windows to the back. This keeps the exchange in uifigures.
@@ -146,10 +207,10 @@ classdef GUIUtils
                 return;
             end
 
-            fig = uifigure("Name", Settings.Title, "WindowStyle", "modal", "Resize", "off", ...
-                "Position", Palladium.Utilities.GUIUtils.CentredPosition([300, 400], Settings.Reference));
-            if ~isempty(Settings.Icon) && isfile(Settings.Icon)
-                fig.Icon = Settings.Icon;
+            fig = Palladium.Utilities.GUIUtils.OpenDialog(Settings.Title, [300, 400], ...
+                Reference=Settings.Reference, Icon=Settings.Icon, Tag="Palladium.ChooseFromList." + Settings.Title);
+            if isempty(fig)
+                return;
             end
             grid = uigridlayout(fig, [3, 1], "RowHeight", {"fit", "1x", 30});
             if strlength(Settings.Prompt) > 0
@@ -168,9 +229,7 @@ classdef GUIUtils
             fig.CloseRequestFcn = @(~, ~) uiresume(fig);    %Closing the window cancels
 
             uiwait(fig);
-            if isvalid(fig)
-                delete(fig);
-            end
+            Palladium.Utilities.GUIUtils.CloseDialog(fig, Settings.Reference);
 
             function choose()
                 index = list.Value;

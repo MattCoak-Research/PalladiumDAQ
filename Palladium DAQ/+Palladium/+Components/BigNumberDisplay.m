@@ -345,8 +345,9 @@ classdef BigNumberDisplay < handle
     methods (Static, Access = public)
 
         function choice = ChooseColumn(headers, Settings)
-            %Ask the user which data column to show, and how to show its value, in a small modal window.
-            %A uifigure, like GUIUtils.ChooseFromList, with the list of
+            %Ask the user which data column to show, and how to show its value, in a small window.
+            %A uifigure on top of the others (see GUIUtils.OpenDialog), like
+            %GUIUtils.ChooseFromList, with the list of
             %columns, the significant figures, and a number format to use
             %instead - previewed on example values as they are changed.
             %Double-clicking a column chooses it. Blocks until the user
@@ -373,10 +374,11 @@ classdef BigNumberDisplay < handle
                 return;
             end
 
-            fig = uifigure("Name", "New Big Number Display", "WindowStyle", "modal", "Resize", "off", ...
-                "Position", Palladium.Utilities.GUIUtils.CentredPosition([360, 520], Settings.Reference));
-            if ~isempty(Settings.Icon) && isfile(Settings.Icon)
-                fig.Icon = Settings.Icon;
+            %Only one at a time - clicking New Display again brings it forward
+            fig = Palladium.Utilities.GUIUtils.OpenDialog("New Big Number Display", [360, 520], ...
+                Reference=Settings.Reference, Icon=Settings.Icon, Tag="Palladium.BigNumberDisplay.ChooseColumn");
+            if isempty(fig)
+                return;
             end
             grid = uigridlayout(fig, [6, 2], "RowHeight", {"fit", "1x", 22, 22, 40, 30}, "ColumnWidth", {"fit", "1x"});
 
@@ -409,9 +411,7 @@ classdef BigNumberDisplay < handle
 
             preview();
             uiwait(fig);
-            if isvalid(fig)
-                delete(fig);
-            end
+            Palladium.Utilities.GUIUtils.CloseDialog(fig, Settings.Reference);
 
             function place(component, row, column)
                 component.Layout.Row = row;
