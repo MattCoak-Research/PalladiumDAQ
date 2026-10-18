@@ -437,7 +437,7 @@ classdef PluginLoading
         end
 
         function meths = GetInstrumentControlMethods(instrRef, controlName)
-            %The commands an Instrument Control offers to sequences, e.g. "SweepRun()" - for the Sequence Editor's menus.
+            %The commands an Instrument Control offers to sequences, e.g. "SweepRun" - for the Sequence Editor's menus.
             %Its public methods, as signatures without `this` and outputs,
             %leaving out MATLAB's handle methods and Palladium's internal
             %ones (event handlers and the like)
@@ -793,13 +793,29 @@ classdef PluginLoading
             end
 
             function cleanSig = CleanMethodSignature(mName, mSig)
-                %Remove output signature eg this = Keithley2000() ->
-                %Keithley2000()
-                cleanSig = mName + extractAfter(mSig, mName);
+                %The signature as a command: the name and its arguments,
+                %without the output (eg this = Keithley2000()), 'this' or
+                %trailing unused (~) arguments, eg ScanAbort(this, ~, ~) ->
+                %ScanAbort. A ~ before a used argument stays, as it holds
+                %that argument's place. With no arguments left, no brackets
+                %either - a command needs none
+                argStr = extractAfter(mSig, mName);
+                if ~startsWith(strtrim(argStr), "(")
+                    cleanSig = mName;
+                    return;
+                end
 
-                %Remove any 'this, ' or 'this'
-                cleanSig = strrep(cleanSig, '(this, ', '(');
-                cleanSig = strrep(cleanSig, '(this', '(');
+                args = strtrim(split(extractBetween(argStr, "(", ")"), ","));
+                args = args(args ~= "" & args ~= "this");
+                while ~isempty(args) && args(end) == "~"
+                    args(end) = [];
+                end
+
+                if isempty(args)
+                    cleanSig = mName;
+                else
+                    cleanSig = mName + "(" + join(args, ", ") + ")";
+                end
             end
         end
 

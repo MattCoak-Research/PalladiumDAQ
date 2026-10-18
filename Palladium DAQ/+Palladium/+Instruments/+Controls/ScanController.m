@@ -226,7 +226,7 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             this.GUIView.OnScanDataChanged(this.ControlDetailsStruct.SweepDetails);
         end
 
-        function ScanRun(this, src, evnt) %#ok<INUSD>
+        function ScanRun(this, ~, ~)
             this.Running = true;
             this.TimeElapsed_s = 0;
             this.timerVal = tic();
