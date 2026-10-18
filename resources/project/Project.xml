@@ -1188,6 +1188,13 @@
                             </Category>
                         </Info>
                     </File>
+                    <File Location="test_DoubleGateSweepInstrumentList.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="test"/>
+                            </Category>
+                        </Info>
+                    </File>
                 </File>
                 <File Location="Unit Tests">
                     <Info/>

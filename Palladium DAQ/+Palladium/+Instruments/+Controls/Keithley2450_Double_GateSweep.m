@@ -147,10 +147,14 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             %Store the reference to this View as a property
             this.GUIView = comp;
 
-            %Update the instrument selection dropdown in the View, get from
-            %Controller
-            instrsList = controller.InstrumentController.GetInstruments();
-            this.SetInstrumentList(instrsList);
+            %Fill the Gate instrument drop-down, and keep it up to date as
+            %instruments are added and removed - it used to be filled only
+            %here, so a Gate added after the control never appeared. It may
+            %be empty until then: a Gate is only needed to Run (RequestRun)
+            instrController = controller.InstrumentController;
+            this.SetInstrumentList(instrController.GetInstruments());
+            ltr = this.AddGuardedListener(instrController, 'InstrumentsChanged', @(src,evnt)this.SetInstrumentList(evnt.Instruments));
+            this.RegisterEventListener(ltr);
 
             %Subscribe to events
             this.AddGuardedListener(comp, 'Run', @(src,evnt)this.RequestRun(evnt.SweepDetails));
@@ -228,6 +232,15 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             arguments
                 this;
                 sweepDetails = [];
+            end
+
+            %A Gate is only needed now, so it is checked here rather than
+            %when the control is added - the second 2450 may be added later
+            if ~isempty(sweepDetails) && ~Palladium.Instruments.Controls.Keithley2450_Double_GateSweep.IsUsableGate(sweepDetails.GateInstr)
+                Palladium.Utilities.GUIUtils.ShowWarning(this.GUIView, "Choose the Gate instrument first. The sweep pulses the gate with a second Keithley 2450 - " + ...
+                    "add one to Palladium, and it will appear in the Gate instrument list.", "No Gate instrument");
+                this.GUIView.SweepComplete();     %Back to ready to Run
+                return;
             end
 
             if this.IsMeasurementLoopRunning()
@@ -1010,33 +1023,38 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
 
 
         function SetInstrumentList(this, listOfAllInstrs)
+            %Fill the GUI's Gate instrument drop-down with the Keithley 2450s that can be the Gate (see GateCandidates).
+            %Called when the control is created, and whenever an instrument
+            %is added or removed (the InstrumentController's
+            %InstrumentsChanged event). The Gate chosen is kept if it is
+            %still there. An empty list is fine until Run (see RequestRun)
+            %
+            %Inputs:
+            %   listOfAllInstrs - cell array of all the instruments added
 
-            %Only add Keithley 2450 instances that are not the parent -
-            %filter out the rest
-
-            if isempty(listOfAllInstrs)
-                Palladium.Utilities.GUIUtils.ShowWarning(this.GUIView, "No additional instruments added. Double Gate Sweep requires two Keithleys to be live, or it cannot run", "Double Gate Sweep");
+            if isempty(this.GUIView) || ~isvalid(this.GUIView)
                 return;
             end
 
-            kInstrs = [];
-            for i = 1 : length(listOfAllInstrs)
+            this.GUIView.SetInstrumentList(this.GateCandidates(listOfAllInstrs));
+        end
+
+        function gates = GateCandidates(this, listOfAllInstrs)
+            %The instruments that can be the Gate: the Keithley 2450s added, other than this control's own (the Main).
+            %
+            %Inputs:
+            %   listOfAllInstrs - cell array of all the instruments added
+            %
+            %Outputs:
+            %   gates - 1-by-N array of Keithley2450 (empty 1-by-0 if none)
+
+            gates = Palladium.Instruments.Keithley2450.empty(1, 0);
+            for i = 1 : numel(listOfAllInstrs)
                 instr = listOfAllInstrs{i};
-
-                if isa(instr, "Palladium.Instruments.Keithley2450")
-                    if~strcmp(instr.Name, this.Instrument.Name)
-
-                        if isempty(kInstrs)
-                            kInstrs = instr;
-                        else
-                            kInstrs(end+1) = instr; %#ok<AGROW>
-                        end
-                    end
+                if isa(instr, "Palladium.Instruments.Keithley2450") && isvalid(instr) && instr ~= this.Instrument
+                    gates(end+1) = instr; %#ok<AGROW>
                 end
             end
-
-            %Pass on to update the drop-down in the GUI
-            this.GUIView.SetInstrumentList(kInstrs);
         end
 
         function UpdatePlotterSavedPlotTitle(this)
@@ -1054,6 +1072,17 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
                 this.InsertEndMetadataIntoFile(this.DataWriter);
             end
         end
+    end
+
+    %% Methods (Static, Private)
+    methods (Static, Access = private)
+
+        function tf = IsUsableGate(gate)
+            %True if gate is a Keithley 2450 that still exists - e.g. the GUI's Gate choice, which is empty when the list is.
+
+            tf = isscalar(gate) && isa(gate, "Palladium.Instruments.Keithley2450") && isvalid(gate);
+        end
+
     end
 
     %% Methods (Static, Protected)
