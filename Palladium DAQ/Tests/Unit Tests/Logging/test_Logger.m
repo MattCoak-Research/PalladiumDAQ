@@ -176,6 +176,29 @@ classdef test_Logger < matlab.unittest.TestCase
             testCase.verifyTrue(suppress);
         end
 
+        function TestAnsweredErrorPrintsWhereItWasTest(testCase)
+            %When a test answers the error dialogue, the full report is
+            %printed - the dialogue would have shown where the error was,
+            %and the log has only the message, so intermittent failures in
+            %test runs left no clue where they happened
+            testCase.configure(CommandWindow="Off", LogFile="Off");
+            try
+                throwFromHere();
+            catch err
+            end
+            Palladium.Logging.Logger.TestDialogResponse("set", "Ignore");
+
+            output = evalc("Palladium.Logging.Logger.HandleError(""Testing"", err, [])");
+
+            testCase.verifySubstring(output, "Error dialogue answered by the test (""Ignore"")");
+            testCase.verifySubstring(output, "thrown from here");
+            testCase.verifySubstring(output, "throwFromHere", "The function it was thrown in");
+
+            function throwFromHere()
+                error("Test:Thrown", "thrown from here");
+            end
+        end
+
     end
 
     %% Methods (Private)

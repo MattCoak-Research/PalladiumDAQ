@@ -151,7 +151,12 @@ classdef Logger < handle
             testResponse = Palladium.Logging.Logger.TestDialogResponse("use");
             if testResponse ~= ""
                 %A test is answering the dialogue (it is modal, so would
-                %block the test) - see TestDialogResponse
+                %block the test) - see TestDialogResponse. Print the full
+                %error report: the dialogue would have shown where the error
+                %was, but the log only has the message, so an intermittent
+                %failure in a test run would leave no clue where it happened
+                fprintf(2, "%s\n", "Error dialogue answered by the test (""" + testResponse + """). Full report:" + newline + ...
+                    string(getReport(err, "extended", "hyperlinks", "off")));
                 ErrorQuestResult = testResponse;
             elseif isempty(uiFigureHandle)  %If we do not have a uiFigure GUI to create modal dialogue boses in..
                 %Show a normal dialogue box asking the user what they want
