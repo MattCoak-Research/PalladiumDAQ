@@ -196,6 +196,19 @@ classdef test_Instrument < matlab.unittest.TestCase
             end
         end
 
+        %% GPIBResourceName
+        function test_GPIBResourceName_VISAFormTest(testCase)
+            %VISA's form is GPIB<board>::<primary>[::<secondary>]::INSTR - the
+            %board index used to be put where the secondary address goes
+            name = @Palladium.Core.Instrument.GPIBResourceName;
+
+            testCase.verifyEqual(name(0, 18), "GPIB0::18::INSTR");
+            testCase.verifyEqual(name(1, 18), "GPIB1::18::INSTR", "Second interface board");
+            testCase.verifyEqual(name(0, 5, 1), "GPIB0::5::1::INSTR", "Secondary address");
+            testCase.verifyEqual(name(0, 5, []), "GPIB0::5::INSTR", "No secondary address");
+            testCase.verifyError(@() name(0, 31), "MATLAB:validators:mustBeInRange");
+        end
+
         %% NumberToCommandString
         function test_NumberToCommandString_KeepsTheValueTest(testCase)
             %15 significant figures - num2str, used before, kept only about

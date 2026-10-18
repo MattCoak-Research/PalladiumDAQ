@@ -1530,6 +1530,13 @@
                                         </Category>
                                     </Info>
                                 </File>
+                                <File Location="RecordingMercuryITC.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
                             </File>
                         </File>
                         <File Location="ZI Testing">
@@ -1820,6 +1827,13 @@
                             </Info>
                         </File>
                         <File Location="test_PNA_L.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_MercuryITC.m">
                             <Info>
                                 <Category UUID="FileClassCategory">
                                     <Label UUID="test"/>

@@ -70,10 +70,12 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
         SimulatedData = [];             %Struct of values a driver stores for its simulated data, e.g. SimulatedData.SourceLevel - see RetrieveSimulatedDataValue
 
         %Connection settings - drivers override individual fields in their
-        %constructors: GPIB_BoardIndex, Port (TCP, for Ethernet),
-        %GPIB_Terminators (read and write), GPIB_Timeout (s) and SerialSettings
-        %(BaudRate, DataBits, Parity, StopBits, Terminator)
+        %constructors: GPIB_BoardIndex, GPIB_SecondaryAddress ([] for
+        %none), Port (TCP, for Ethernet), GPIB_Terminators (read and
+        %write), GPIB_Timeout (s) and SerialSettings (BaudRate, DataBits,
+        %Parity, StopBits, Terminator)
         ConnectionSettings = struct('GPIB_BoardIndex', 0,...
+            'GPIB_SecondaryAddress', [],...
             'Port', 5025,...
             'GPIB_Terminators', ["CR/LF", "CR/LF"],...
             'GPIB_Timeout', 10,...
@@ -816,9 +818,12 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
 
         function OpenGPIBConnection(this)
             %Open a GPIB connection, using GPIB_Address and ConnectionSettings.
-            %Uses GPIB_BoardIndex, GPIB_Terminators and GPIB_Timeout
+            %Uses GPIB_BoardIndex, GPIB_SecondaryAddress, GPIB_Terminators
+            %and GPIB_Timeout. The VISA resource name is built by
+            %GPIBResourceName
 
-            this.DeviceHandle = visadev("GPIB::" + num2str(this.GPIB_Address) + "::" + num2str(this.ConnectionSettings.GPIB_BoardIndex) + "::INSTR");
+            this.DeviceHandle = visadev(Palladium.Core.Instrument.GPIBResourceName(this.ConnectionSettings.GPIB_BoardIndex, ...
+                this.GPIB_Address, this.ConnectionSettings.GPIB_SecondaryAddress));
             configureTerminator(this.DeviceHandle, this.ConnectionSettings.GPIB_Terminators(1), this.ConnectionSettings.GPIB_Terminators(2));
             this.DeviceHandle.Timeout = this.ConnectionSettings.GPIB_Timeout;%In seconds
         end
@@ -1033,6 +1038,33 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
 
     %% Methods (Static, Public)
     methods (Static, Access = public)
+
+        function name = GPIBResourceName(boardIndex, primaryAddress, secondaryAddress)
+            %The VISA resource name of a GPIB instrument, e.g. "GPIB0::18::INSTR".
+            %VISA's form is GPIB<board>::<primary>[::<secondary>]::INSTR. Most
+            %instruments have no secondary address; some need one, e.g. the
+            %Mercury iTC uses secondary address 1 for SCPI commands
+            %
+            %Inputs:
+            %   boardIndex       - the GPIB interface board, usually 0
+            %   primaryAddress   - the instrument's GPIB address (0-30)
+            %   secondaryAddress - (optional) its secondary address (0-30), or [] for none. Default []
+            %
+            %Outputs:
+            %   name - the resource name (string)
+
+            arguments
+                boardIndex (1,1) double {mustBeInteger, mustBeNonnegative};
+                primaryAddress (1,1) double {mustBeInteger, mustBeInRange(primaryAddress, 0, 30)};
+                secondaryAddress double {mustBeInteger, mustBeInRange(secondaryAddress, 0, 30)} = [];
+            end
+
+            name = "GPIB" + boardIndex + "::" + primaryAddress;
+            if ~isempty(secondaryAddress)
+                name = name + "::" + secondaryAddress;
+            end
+            name = name + "::INSTR";
+        end
 
         function str = NumberToCommandString(value, Settings)
             %A number as text for an instrument command, to 15 significant figures (as much as a double reliably holds), or fewer.

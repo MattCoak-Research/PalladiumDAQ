@@ -77,7 +77,8 @@ The constructor sets the driver's defaults. It must work with no arguments and w
 
 | Setting | Default | Used for |
 | --- | --- | --- |
-| `GPIB_BoardIndex` | 0 | GPIB |
+| `GPIB_BoardIndex` | 0 | GPIB interface board |
+| `GPIB_SecondaryAddress` | `[]` (none) | GPIB secondary address, for the few instruments that need one (e.g. 1 for the Mercury iTC) |
 | `GPIB_Terminators` | `["CR/LF", "CR/LF"]` | GPIB read and write terminators |
 | `GPIB_Timeout` | 10 | GPIB timeout, in seconds |
 | `Port` | 5025 | Ethernet (TCP/IP) port |
