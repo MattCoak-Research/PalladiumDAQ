@@ -6,6 +6,11 @@ classdef RecordingKeithley6430 < Palladium.Instruments.Keithley6430
             this.DeviceHandle = handle;
         end
 
+        function ConfigureReadingsForTest(this)
+            %What connecting sets on the instrument (ConfigureReadings is protected)
+            this.ConfigureReadings();
+        end
+
         function SetSourceModeForTest(this, mode)
             %Set SourceMode, e.g. "Voltage" - on some drivers it is read from the instrument, and can't be set directly
             this.SourceMode = this.SourceType(mode);

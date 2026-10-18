@@ -14,14 +14,18 @@ classdef Keithley2410 < Palladium.Core.Instrument
     %if it is off, as `:READ?` needs it on. Connecting sets the data elements
     %to voltage, current and resistance (`:FORMat:ELEMents VOLT,CURR,RES`).
     %
-    %The 2400 series has GPIB and RS-232 interfaces. Setting `OffsetComp` makes
-    %offset-compensated resistance measurements, by measuring at the source
-    %level and at zero.
+    %The 2400 series has GPIB and RS-232 interfaces. `OffsetComp` turns the
+    %instrument's offset-compensated ohms on or off when connecting
+    %(`:SENS:RES:OCOM`): each reading is then taken at the source level and
+    %at zero, and the resistance is the difference in voltage over the
+    %difference in current - cancelling thermal EMFs. Resistance MeasMode only.
+    %
+    %The Keithley6430 driver is this one, with the 6430's limits.
 
-    %% Properties (Constant, Private)
-    properties(Constant, Access = private)
-        MaxSourceVoltage_V = 1100;                              %Most the 2410 can source, in V (21 mA at 1100 V) - the Sweep Control limit when the protection limit can't be read
-        MaxSourceCurrent_A = 1.05;                              %Most the 2410 can source, in A (at up to 21 V) - the Sweep Control limit
+    %% Properties (Protected)
+    properties(Access = protected)
+        MaxSourceVoltage_V = 1100;                              %Most the instrument can source, in V (the 2410: 21 mA at 1100 V) - the Sweep Control limit when the protection limit can't be read
+        MaxSourceCurrent_A = 1.05;                              %Most the instrument can source, in A (the 2410: at up to 21 V) - the Sweep Control limit
     end
 
     %% Properties (Public)
@@ -36,7 +40,7 @@ classdef Keithley2410 < Palladium.Core.Instrument
         Connection_Type = Palladium.Enums.ConnectionType.GPIB;  %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         MeasMode;                                               %Which columns to record: Resistance (R, I, V), Voltage (V, I) or Current (I, V), each followed by the source level and compliance flag
         SourceMode;                                             %Source function, Voltage or Current - must match the source function set on the instrument
-        OffsetComp (1,1) logical = false;                       %Make offset-compensated resistance measurements, subtracting a reading at zero source level (Resistance MeasMode only)
+        OffsetComp (1,1) logical = false;                       %Turn the instrument's offset-compensated ohms on (or off) when connecting - each reading also measures at zero source level, cancelling thermal EMFs (Resistance MeasMode only)
     end
 
     %% Categoricals
@@ -324,8 +328,8 @@ classdef Keithley2410 < Palladium.Core.Instrument
 
         function [dataRow] = Measure(this)
             %Take one reading, and record it with the source level and compliance flag.
-            %With OffsetComp on, the resistance is offset-compensated: readings
-            %are taken at zero and at the source level, and R = dV/dI
+            %With OffsetComp on, the instrument offset-compensates the
+            %resistance itself (set when connecting)
             %
             %Outputs:
             %   dataRow - the values, in the order of GetHeaders
@@ -337,27 +341,7 @@ classdef Keithley2410 < Palladium.Core.Instrument
                 this.WriteCommand("OUTP ON");
             end
 
-            if(this.OffsetComp)
-                %Error if not in Ohms mode
-                if(this.MeasMode ~= this.MeasType("Resistance"))
-                    error("Keithley2410:OffsetCompNotResistanceMode", "OffsetComp only functions in Resistance Mode");
-                end
-
-                %Set to zero source level and measure
-                this.SetSourceLevel(0, true);
-                [voltage1, current1] = this.ReadData();
-
-                %Set to initial source level and measure
-                this.SetSourceLevel(sourceLvl, true);
-                [voltage2, current2] = this.ReadData();
-
-                %Offset-compensated ohms = dV/dI between the two source levels
-                resistance = (voltage2 - voltage1) / (current2 - current1);
-                voltage = voltage2; %Maybe should do something a bit more clever with these? Depending on source mode?
-                current = current2;
-            else
-                [voltage, current, resistance] = this.ReadData();
-            end
+            [voltage, current, resistance] = this.ReadData();
 
             %Check if we have hit compliance, save that (1 or 0) as a data column
             complianceLimited = this.IsAtComplianceLimit();
@@ -492,16 +476,39 @@ classdef Keithley2410 < Palladium.Core.Instrument
 
 
         function OpenConnection(this)
-            %Open the connection, set the data elements and check SourceMode.
+            %Open the connection, set the data elements and offset compensation, and check SourceMode.
             %Sets :READ? replies to voltage, current and resistance, in that
-            %order. Errors if the source function set on the instrument is not
-            %SourceMode
+            %order, and the instrument's offset-compensated ohms to OffsetComp.
+            %Errors if OffsetComp is on outside Resistance MeasMode, or if the
+            %source function set on the instrument is not SourceMode
+
+            if this.OffsetComp && this.MeasMode ~= this.MeasType("Resistance")
+                error("Keithley2410:OffsetCompNotResistanceMode", "%s", this.Name + ": OffsetComp only works in Resistance MeasMode - turn it off, or measure resistance.");
+            end
 
             OpenConnection@Palladium.Core.Instrument(this);
             if ~this.SimulationMode
-                this.WriteCommand(":FORM:ELEM VOLT,CURR,RES");
+                this.ConfigureReadings();
             end
             this.VerifyConnectionSettings();
+        end
+
+        function ConfigureReadings(this)
+            %Set the data elements readings return, and the offset compensation - called by OpenConnection.
+
+            this.WriteCommand(":FORM:ELEM VOLT,CURR,RES");
+
+            %The instrument's own offset compensation: each reading is
+            %taken at the source level and at zero (2400 Series manual,
+            %Offset-compensated ohms). Sent either way, so turning
+            %OffsetComp off also turns it off on the instrument
+            if this.MeasMode == this.MeasType("Resistance")
+                if this.OffsetComp
+                    this.WriteCommand(":SENS:RES:OCOM ON");
+                else
+                    this.WriteCommand(":SENS:RES:OCOM OFF");
+                end
+            end
         end
 
         function CloseConnection(this)
