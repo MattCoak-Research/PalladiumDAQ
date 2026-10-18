@@ -68,6 +68,27 @@ classdef test_BigNumberDisplay < matlab.unittest.TestCase
             testCase.verifyEqual(testCase.Display.DisplayedValue, "1.235e+07\_\{x\}");
         end
 
+        function NumberFormatMustFormatOneNumberTest(testCase)
+            %So a typo can't leave the display showing nonsense, or erroring each tick
+            isFormat = @Palladium.Components.BigNumberDisplay.IsNumberFormat;
+            for good = ["", "%.3f", "%#.6g", "%.4e V", "%+08.2f", "%d", "100%% %.1f"]
+                testCase.verifyTrue(isFormat(good), good);
+                testCase.verifyWarningFree(@() testCase.setNumberFormat(good), good);
+            end
+            for bad = ["abc", "%s", "%c", "%.3f %.3f", "%", "%.3", "%%"]
+                testCase.verifyFalse(isFormat(bad), bad);
+                testCase.verifyError(@() testCase.setNumberFormat(bad), "BigNumberDisplay:InvalidNumberFormat", bad);
+            end
+        end
+
+        function FormatWithoutADisplayTest(testCase)
+            %As the column-choosing window previews values
+            format = @Palladium.Components.BigNumberDisplay.Format;
+            testCase.verifyEqual(format(1.2345e7, 6, ""), "12.3450\times10^{6}");
+            testCase.verifyEqual(format(pi, 3, ""), "3.14");
+            testCase.verifyEqual(format(pi, 3, "%.1f mV"), "3.1 mV");
+        end
+
         function NaNAndMissingColumnTest(testCase)
             testCase.Display.UpdateValue([1 NaN 7]);
             testCase.verifyEqual(testCase.Display.DisplayedValue, "NaN");
@@ -179,6 +200,10 @@ classdef test_BigNumberDisplay < matlab.unittest.TestCase
 
     %% Methods (Private)
     methods (Access = private)
+        function setNumberFormat(testCase, numberFormat)
+            testCase.Display.NumberFormat = numberFormat;
+        end
+
         function resizeTo(testCase, widthHeight)
             %Resize the window and refit. A hidden window in a batch MATLAB
             %takes a moment to report its new size, so wait for it

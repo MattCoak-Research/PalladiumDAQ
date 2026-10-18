@@ -70,6 +70,22 @@ classdef test_BigNumberDisplays < matlab.unittest.TestCase
             testCase.verifyEqual(display.Title, string(controller.Headers(2)));
         end
 
+        function SignificantFiguresAndNumberFormatTest(testCase)
+            %Given as the column-choosing window would give them
+            testCase.startMeasuring();
+
+            display = testCase.Programme.OpenBigNumberDisplay(2, SignificantFigures=3);
+            testCase.addTeardown(@() delete(display));
+            testCase.verifyEqual(display.SignificantFigures, 3);
+            testCase.verifyEqual(display.NumberFormat, "");
+
+            formatted = testCase.Programme.OpenBigNumberDisplay(2, NumberFormat="%.2f");
+            testCase.addTeardown(@() delete(formatted));
+            testCase.verifyEqual(formatted.NumberFormat, "%.2f");
+            pause(0.5);
+            testCase.verifyMatches(formatted.DisplayedValue, "^-?\d+\.\d\d$", "Updated with the format");
+        end
+
         function NoSuchColumnShowsAnErrorTest(testCase)
             controller = testCase.startMeasuring();
             Palladium.Logging.Logger.TestDialogResponse("set", "Ignore");

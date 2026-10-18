@@ -40,11 +40,16 @@ classdef BigNumberDisplay < handle
         ValueFont = "FixedWidth";   %Font of the value - fixed-width, so each character takes the same space
     end
 
+    %% Properties (Constant, Public)
+    properties (Constant, Access = public)
+        DefaultSignificantFigures = 6;  %Significant figures values are shown to, unless set otherwise
+    end
+
     %% Properties (Public)
     properties (Access = public)
         ColumnIndex (1,1) double {mustBeInteger, mustBePositive} = 1;  %Which column of each data row to show
-        SignificantFigures (1,1) double {mustBeInteger, mustBePositive} = 6;   %Significant figures the value is shown to, trailing zeros included
-        NumberFormat (1,1) string = "";                                 %sprintf format of the value, e.g. "%.3f", used instead of SignificantFigures and engineering notation. "" (the default) for those
+        SignificantFigures (1,1) double {mustBeInteger, mustBePositive} = Palladium.Components.BigNumberDisplay.DefaultSignificantFigures;  %Significant figures the value is shown to, trailing zeros included
+        NumberFormat (1,1) string {Palladium.Components.BigNumberDisplay.mustBeNumberFormat} = "";  %sprintf format of the value, e.g. "%.3f", used instead of SignificantFigures and engineering notation. "" (the default) for those
     end
 
     %% Properties (Public, Private Set)
@@ -194,54 +199,9 @@ classdef BigNumberDisplay < handle
     methods (Access = {?Palladium.Components.BigNumberDisplay, ?matlab.unittest.TestCase})    %Permission is Private, but also allow unit tests to see it
 
         function str = FormatValue(this, value)
-            %A value as text (in TeX, for the value's text object).
-            %With NumberFormat empty: SignificantFigures significant figures,
-            %trailing zeros kept, in engineering notation where "%g" would
-            %use e-notation - "12.3450\times10^{6}" for 1.2345e7. Otherwise
-            %with NumberFormat. A trailing decimal point is removed either way
+            %A value as text, with this display's SignificantFigures and NumberFormat (see Format).
 
-            if strlength(this.NumberFormat) > 0
-                %TeX's special characters shown as themselves
-                str = regexprep(string(sprintf(this.NumberFormat, value)), "([\\{}_^])", "\\$1");
-            elseif ~isfinite(value)
-                str = string(sprintf("%g", value));    %NaN, Inf, -Inf
-            else
-                str = this.FormatSignificant(value);
-            end
-            if endsWith(str, ".")
-                str = extractBefore(str, strlength(str));
-            end
-        end
-
-        function str = FormatSignificant(this, value)
-            %A finite value to SignificantFigures significant figures - in engineering notation where "%g" would use e-notation.
-            %Worked from sprintf's e-notation of the value, so the digits and
-            %exponent are rounded as sprintf rounds them (999999.7 to
-            %1.00000e+06), with no arithmetic to add rounding errors
-
-            sf = this.SignificantFigures;
-            parts = regexp(sprintf('%.*e', sf - 1, abs(value)), '^(\d)\.?(\d*)e([+-]\d+)$', 'tokens', 'once');
-            digits = [parts{1}, parts{2}];
-            exponent = str2double(parts{3});
-
-            if exponent >= -4 && exponent < sf
-                str = string(sprintf('%#.*g', sf, value));
-                return;
-            end
-
-            %Engineering notation: a power of ten that is a multiple of 3,
-            %with 1 to 3 digits before the decimal point
-            power = 3 * floor(exponent / 3);
-            leading = exponent - power + 1;
-            digits = [digits, repmat('0', 1, leading - numel(digits))];    %Fewer significant figures than leading digits
-            mantissa = string(digits(1:leading));
-            if numel(digits) > leading
-                mantissa = mantissa + "." + digits(leading+1:end);
-            end
-            if value < 0
-                mantissa = "-" + mantissa;
-            end
-            str = mantissa + "\times10^{" + power + "}";
+            str = Palladium.Components.BigNumberDisplay.Format(value, this.SignificantFigures, this.NumberFormat);
         end
 
         function SetDisplayedValue(this, str)
@@ -381,8 +341,203 @@ classdef BigNumberDisplay < handle
 
     end
 
+    %% Methods (Static, Public)
+    methods (Static, Access = public)
+
+        function choice = ChooseColumn(headers, Settings)
+            %Ask the user which data column to show, and how to show its value, in a small modal window.
+            %A uifigure, like GUIUtils.ChooseFromList, with the list of
+            %columns, the significant figures, and a number format to use
+            %instead - previewed on example values as they are changed.
+            %Double-clicking a column chooses it. Blocks until the user
+            %chooses or cancels
+            %
+            %Inputs:
+            %   headers   - the data columns' headers
+            %   Reference - (name-value) a window to centre on, e.g. the main window. Default: none
+            %   Icon      - (name-value) window icon file, e.g. Palladium's. Default: none
+            %
+            %Outputs:
+            %   choice - struct with fields Column (its number), SignificantFigures
+            %            and NumberFormat ("" for automatic); or [] if cancelled
+
+            arguments
+                headers {mustBeText};
+                Settings.Reference = [];
+                Settings.Icon = [];
+            end
+
+            headers = string(headers(:))';
+            choice = [];
+            if isempty(headers)
+                return;
+            end
+
+            fig = uifigure("Name", "New Big Number Display", "WindowStyle", "modal", "Resize", "off", ...
+                "Position", Palladium.Utilities.GUIUtils.CentredPosition([360, 520], Settings.Reference));
+            if ~isempty(Settings.Icon) && isfile(Settings.Icon)
+                fig.Icon = Settings.Icon;
+            end
+            grid = uigridlayout(fig, [6, 2], "RowHeight", {"fit", "1x", 22, 22, 40, 30}, "ColumnWidth", {"fit", "1x"});
+
+            prompt = uilabel(grid, "Text", "Choose the data column to show:", "FontWeight", "bold");
+            place(prompt, 1, [1 2]);
+            list = uilistbox(grid, "Items", headers, "ItemsData", 1 : numel(headers), "Value", 1, ...
+                "DoubleClickedFcn", @(~, ~) choose());
+            place(list, 2, [1 2]);
+
+            place(uilabel(grid, "Text", "Significant figures:"), 3, 1);
+            figures = uispinner(grid, "Limits", [1 15], "RoundFractionalValues", "on", "Step", 1, ...
+                "Value", Palladium.Components.BigNumberDisplay.DefaultSignificantFigures, ...
+                "ValueChangedFcn", @(~, ~) preview());
+            place(figures, 3, 2);
+            place(uilabel(grid, "Text", "Number format:"), 4, 1);
+            formatField = uieditfield(grid, "text", "Placeholder", "Automatic - or e.g. %.3f", ...
+                "Tooltip", "An sprintf format for the value, used instead of the significant figures - e.g. %.3f or %.4e. Leave empty for automatic", ...
+                "ValueChangingFcn", @(~, event) preview(event.Value), "ValueChangedFcn", @(~, ~) preview());
+            place(formatField, 4, 2);
+            example = uilabel(grid, "Interpreter", "tex", "WordWrap", "on", "VerticalAlignment", "top");
+            place(example, 5, [1 2]);
+
+            buttons = uigridlayout(grid, [1, 3], "ColumnWidth", {"1x", 80, 80}, "Padding", [0 0 0 0]);
+            place(buttons, 6, [1 2]);
+            ok = uibutton(buttons, "Text", "OK", "ButtonPushedFcn", @(~, ~) choose());
+            ok.Layout.Column = 2;
+            cancel = uibutton(buttons, "Text", "Cancel", "ButtonPushedFcn", @(~, ~) uiresume(fig));
+            cancel.Layout.Column = 3;
+            fig.CloseRequestFcn = @(~, ~) uiresume(fig);    %Closing the window cancels
+
+            preview();
+            uiwait(fig);
+            if isvalid(fig)
+                delete(fig);
+            end
+
+            function place(component, row, column)
+                component.Layout.Row = row;
+                component.Layout.Column = column;
+            end
+
+            function preview(numberFormat)
+                %Show example values as they would be shown - or why the format can't be used.
+                %Given the format while it is being typed; otherwise reads the
+                %box. (The callbacks call this rather than reading the box
+                %themselves: an anonymous function only sees variables that
+                %existed when it was made, and the box is made after the spinner)
+                if nargin < 1
+                    numberFormat = formatField.Value;
+                end
+                numberFormat = string(numberFormat);
+                figures.Enable = strlength(numberFormat) == 0;     %Not used with a format
+                if Palladium.Components.BigNumberDisplay.IsNumberFormat(numberFormat)
+                    examples = arrayfun(@(v) Palladium.Components.BigNumberDisplay.Format(v, figures.Value, numberFormat), ...
+                        [pi, -0.00123456789, 12345678.9]);
+                    example.Text = "Shown as:   " + join(examples, ",   ");
+                    example.FontColor = [0 0 0];
+                    ok.Enable = "on";
+                else
+                    example.Text = "Not a number format - it needs one number, e.g. %.3f or %.4e V";
+                    example.FontColor = [0.8 0 0];
+                    ok.Enable = "off";
+                end
+            end
+
+            function choose()
+                if ok.Enable == "off"
+                    return;     %Double-clicked a column with an unusable format
+                end
+                choice = struct("Column", list.Value, "SignificantFigures", figures.Value, "NumberFormat", string(formatField.Value));
+                uiresume(fig);
+            end
+        end
+
+        function str = Format(value, significantFigures, numberFormat)
+            %A value as text, as a Big Number Display shows it - in TeX, for its text object.
+            %With numberFormat "": to significantFigures significant
+            %figures, trailing zeros kept, in engineering notation where
+            %"%g" would use e-notation - "12.3450\times10^{6}" for 1.2345e7.
+            %Otherwise with sprintf(numberFormat, value), any TeX special
+            %characters shown as themselves. A trailing decimal point is
+            %removed either way
+            %
+            %Inputs:
+            %   value              - the number
+            %   significantFigures - significant figures, for automatic formatting
+            %   numberFormat       - an sprintf format, or "" for automatic
+
+            arguments
+                value (1,1) double;
+                significantFigures (1,1) double {mustBeInteger, mustBePositive};
+                numberFormat {mustBeTextScalar};
+            end
+
+            if strlength(numberFormat) > 0
+                str = regexprep(string(sprintf(numberFormat, value)), "([\\{}_^])", "\\$1");
+            elseif ~isfinite(value)
+                str = string(sprintf("%g", value));    %NaN, Inf, -Inf
+            else
+                str = Palladium.Components.BigNumberDisplay.FormatSignificant(value, significantFigures);
+            end
+            if endsWith(str, ".")
+                str = extractBefore(str, strlength(str));
+            end
+        end
+
+        function tf = IsNumberFormat(numberFormat)
+            %True if numberFormat is "" (automatic) or an sprintf format for one number, e.g. "%.3f" or "%.4e V".
+            %One conversion, of a number (d i u f e E g G x X o) - "%%" for
+            %a % sign aside. Not %s or %c, or more than one value
+
+            numberFormat = string(numberFormat);
+            rest = erase(numberFormat, "%%");
+            tf = strlength(numberFormat) == 0 || ...
+                (count(rest, "%") == 1 && ~isempty(regexp(rest, "%[-+ #0]*\d*(\.\d+)?[diufeEgGxXo]", "once")));
+        end
+
+        function mustBeNumberFormat(numberFormat)
+            %Validate that numberFormat is "" or an sprintf format for one number (see IsNumberFormat).
+
+            if ~Palladium.Components.BigNumberDisplay.IsNumberFormat(numberFormat)
+                error("BigNumberDisplay:InvalidNumberFormat", "%s", ...
+                    """" + numberFormat + """ is not a format for one number - use e.g. ""%.3f"" or ""%.4e"", or """" for automatic");
+            end
+        end
+
+    end
+
     %% Methods (Static, Private)
     methods (Static, Access = private)
+
+        function str = FormatSignificant(value, significantFigures)
+            %A finite value to significantFigures significant figures - in engineering notation where "%g" would use e-notation.
+            %Worked from sprintf's e-notation of the value, so the digits and
+            %exponent are rounded as sprintf rounds them (999999.7 to
+            %1.00000e+06), with no arithmetic to add rounding errors
+
+            sf = significantFigures;
+            parts = regexp(sprintf('%.*e', sf - 1, abs(value)), '^(\d)\.?(\d*)e([+-]\d+)$', 'tokens', 'once');
+            digits = [parts{1}, parts{2}];
+            exponent = str2double(parts{3});
+
+            if exponent >= -4 && exponent < sf
+                str = string(sprintf('%#.*g', sf, value));
+                return;
+            end
+
+            %Engineering notation: a power of ten that is a multiple of 3,
+            %with 1 to 3 digits before the decimal point
+            power = 3 * floor(exponent / 3);
+            leading = exponent - power + 1;
+            digits = [digits, repmat('0', 1, leading - numel(digits))];    %Fewer significant figures than leading digits
+            mantissa = string(digits(1:leading));
+            if numel(digits) > leading
+                mantissa = mantissa + "." + digits(leading+1:end);
+            end
+            if value < 0
+                mantissa = "-" + mantissa;
+            end
+            str = mantissa + "\times10^{" + power + "}";
+        end
 
         function iconPath = DefaultIconPath()
             %The Big Number icon in the Graphics folder next to this file, or "" if it isn't there.

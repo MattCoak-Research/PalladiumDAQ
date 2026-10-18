@@ -97,6 +97,23 @@ classdef GUIUtils
             end
         end
 
+        function position = CentredPosition(dialogSize, reference)
+            %The Position for a dialogue window of a size, centred on a reference window - or near the screen's corner without one.
+            %
+            %Inputs:
+            %   dialogSize - [width, height] of the dialogue, in pixels
+            %   reference  - the window to centre on, e.g. the main window; or [] for none
+            %
+            %Outputs:
+            %   position - [left, bottom, width, height]
+
+            position = [100, 100, dialogSize];
+            if ~isempty(reference) && isvalid(reference)
+                refPos = reference.Position;
+                position(1:2) = refPos(1:2) + (refPos(3:4) - dialogSize) / 2;
+            end
+        end
+
         function index = ChooseFromList(items, Settings)
             %Ask the user to pick one item from a list, in a small modal window - like listdlg, but a uifigure.
             %listdlg is an old-style figure: when it closes, the system can
@@ -129,16 +146,8 @@ classdef GUIUtils
                 return;
             end
 
-            %Centred on the reference window if there is one
-            dialogSize = [300, 400];
-            position = [100, 100, dialogSize];
-            ref = Settings.Reference;
-            if ~isempty(ref) && isvalid(ref)
-                refPos = ref.Position;
-                position(1:2) = refPos(1:2) + (refPos(3:4) - dialogSize) / 2;
-            end
-
-            fig = uifigure("Name", Settings.Title, "WindowStyle", "modal", "Position", position, "Resize", "off");
+            fig = uifigure("Name", Settings.Title, "WindowStyle", "modal", "Resize", "off", ...
+                "Position", Palladium.Utilities.GUIUtils.CentredPosition([300, 400], Settings.Reference));
             if ~isempty(Settings.Icon) && isfile(Settings.Icon)
                 fig.Icon = Settings.Icon;
             end

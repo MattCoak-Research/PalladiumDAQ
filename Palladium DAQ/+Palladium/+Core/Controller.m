@@ -992,7 +992,7 @@ classdef Controller < handle
             this.InstrumentController.CloseAll();
         end
 
-        function display = OpenBigNumberDisplay(this, column)
+        function display = OpenBigNumberDisplay(this, column, Settings)
             %Open a Big Number Display window for a data column, updated each measurement tick.
             %Called by the main window's **New Display** button, which asks
             %which column to show. A script can give the column instead. The
@@ -1001,15 +1001,23 @@ classdef Controller < handle
             %with Palladium DAQ
             %
             %Inputs:
-            %   column - (optional) the column's number, or its exact header,
-            %            e.g. "K2000_1 - Voltage (V)". Asked for in a list if not given
+            %   column             - (optional) the column's number, or its exact header,
+            %                        e.g. "K2000_1 - Voltage (V)". Asked for if not given,
+            %                        along with the significant figures and number format
+            %   SignificantFigures - (name-value) significant figures to show. Default 6
+            %   NumberFormat       - (name-value) sprintf format for the value, e.g. "%.3f",
+            %                        used instead of SignificantFigures. Default "" (automatic)
             %
             %Outputs:
             %   display - the Palladium.Components.BigNumberDisplay, or [] if none was opened
 
+            %column is the last positional argument, so a header that starts
+            %like an option's name can't be read as that option
             arguments
                 this;
                 column = [];
+                Settings.SignificantFigures (1,1) double {mustBeInteger, mustBePositive} = Palladium.Components.BigNumberDisplay.DefaultSignificantFigures;
+                Settings.NumberFormat {Palladium.Components.BigNumberDisplay.mustBeNumberFormat} = "";
             end
 
             display = [];
@@ -1020,15 +1028,18 @@ classdef Controller < handle
             end
 
             try
-                %Which column: asked for, or as given
+                %Which column, and how to show it: asked for, or as given
                 if isempty(column)
                     %A uifigure dialogue, not listdlg - closing listdlg sent the
                     %main window to the back
-                    index = Palladium.Utilities.GUIUtils.ChooseFromList(headers, Title="New Big Number Display", ...
-                        Prompt="Choose the data column to show:", Reference=this.UIFigureHandle, Icon=this.WindowSettings.PalladiumIconPath);
-                    if isempty(index)
+                    choice = Palladium.Components.BigNumberDisplay.ChooseColumn(headers, ...
+                        Reference=this.UIFigureHandle, Icon=this.WindowSettings.PalladiumIconPath);
+                    if isempty(choice)
                         return;
                     end
+                    index = choice.Column;
+                    Settings.SignificantFigures = choice.SignificantFigures;
+                    Settings.NumberFormat = choice.NumberFormat;
                 elseif isnumeric(column)
                     index = column;
                     assert(isscalar(index) && index >= 1 && index <= numel(headers) && index == round(index), ...
@@ -1045,6 +1056,8 @@ classdef Controller < handle
                 end
 
                 display = Palladium.Components.BigNumberDisplay(headers(index), units, index);
+                display.SignificantFigures = Settings.SignificantFigures;
+                display.NumberFormat = Settings.NumberFormat;
                 this.BigNumberDisplays(end+1) = display;
             catch err
                 this.HandleError("Error opening a Big Number Display", err);

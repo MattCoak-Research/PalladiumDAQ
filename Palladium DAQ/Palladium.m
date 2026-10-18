@@ -357,15 +357,19 @@ classdef Palladium < handle
             instRef = this.Controller.GetInstrumentFromName(instName);
         end
 
-        function display = OpenBigNumberDisplay(this, column)
+        function display = OpenBigNumberDisplay(this, column, Settings)
             %Open a Big Number Display window, showing a data column's latest value in large type.
             %Updated each measurement tick, and closed with Palladium DAQ.
             %Measurements must have started, so the data columns are known.
-            %Without a column, a list is shown to choose one; scripts can give it.
+            %Without a column, a window asks for it, and how to show the
+            %value; scripts can give them.
             %
             %Inputs:
-            %   column - (optional) the column's number, or its exact header,
-            %            e.g. "K2000_1 - Voltage (V)"
+            %   column             - (optional) the column's number, or its exact header,
+            %                        e.g. "K2000_1 - Voltage (V)"
+            %   SignificantFigures - (name-value) significant figures to show. Default 6
+            %   NumberFormat       - (name-value) sprintf format for the value, e.g. "%.3f",
+            %                        used instead of SignificantFigures. Default "" (automatic)
             %
             %Outputs:
             %   display - the Palladium.Components.BigNumberDisplay, or [] if none was opened
@@ -373,9 +377,12 @@ classdef Palladium < handle
             arguments
                 this;
                 column = [];
+                Settings.SignificantFigures = Palladium.Components.BigNumberDisplay.DefaultSignificantFigures;
+                Settings.NumberFormat = "";
             end
 
-            display = this.Controller.OpenBigNumberDisplay(column);
+            display = this.Controller.OpenBigNumberDisplay(column, SignificantFigures=Settings.SignificantFigures, ...
+                NumberFormat=Settings.NumberFormat);
         end
 
         function Pause(this)
