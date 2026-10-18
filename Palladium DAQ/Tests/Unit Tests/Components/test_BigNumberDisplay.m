@@ -34,10 +34,38 @@ classdef test_BigNumberDisplay < matlab.unittest.TestCase
             testCase.verifyEqual(testCase.Display.DisplayedValue, "123457");
         end
 
+        function EngineeringNotationTest(testCase)
+            %Where %g would use e-notation: a power of ten that is a
+            %multiple of 3, as a TeX superscript, keeping 6 significant figures
+            values   = [1.2345e7, -1.2345e7, 1.23456e-5, -1.23456e-12, 123456789, 999999.7, 1e-5, 0];
+            expected = ["12.3450\times10^{6}", "-12.3450\times10^{6}", "12.3456\times10^{-6}", "-1.23456\times10^{-12}", ...
+                "123.457\times10^{6}", "1.00000\times10^{6}", "10.0000\times10^{-6}", "0.00000"];
+            for i = 1:numel(values)
+                testCase.Display.UpdateValue([1 values(i)]);
+                testCase.verifyEqual(testCase.Display.DisplayedValue, expected(i), sprintf("%g", values(i)));
+            end
+            testCase.verifyEqual(string(testCase.valueText().Interpreter), "tex");
+
+            %Fewer significant figures; Inf
+            testCase.Display.SignificantFigures = 2;
+            testCase.Display.UpdateValue([1 1.2345e7]);
+            testCase.verifyEqual(testCase.Display.DisplayedValue, "12\times10^{6}");
+            testCase.Display.SignificantFigures = 1;
+            testCase.Display.UpdateValue([1 1.2345e7]);
+            testCase.verifyEqual(testCase.Display.DisplayedValue, "10\times10^{6}");
+            testCase.Display.UpdateValue([1 -Inf]);
+            testCase.verifyEqual(testCase.Display.DisplayedValue, "-Inf");
+        end
+
         function NumberFormatTest(testCase)
             testCase.Display.NumberFormat = "%.2f";
             testCase.Display.UpdateValue([1 4.25678 7]);
             testCase.verifyEqual(testCase.Display.DisplayedValue, "4.26");
+
+            %Used instead of engineering notation - shown as written, not as TeX
+            testCase.Display.NumberFormat = "%.3e_{x}";
+            testCase.Display.UpdateValue([1 1.2346e7]);
+            testCase.verifyEqual(testCase.Display.DisplayedValue, "1.235e+07\_\{x\}");
         end
 
         function NaNAndMissingColumnTest(testCase)

@@ -6,12 +6,18 @@ classdef BigNumberDisplay < handle
     %the value, with its units in smaller type, fills the rest - never cut
     %off at the sides.
     %
-    %To keep the text steady from tick to tick, values are shown to a fixed
-    %number of significant figures (trailing zeros kept), in a fixed-width
-    %font, right-aligned against the units. The text is sized to fit the
-    %longest value shown since the window was last resized, so it only
-    %shrinks when a longer value arrives, and is refitted to the current
-    %value when the window is resized.
+    %Values are shown to SignificantFigures significant figures. Very large
+    %or small values (those sprintf's "%g" would show as e.g. 1.23450e+07)
+    %are shown in engineering notation instead - a power of ten that is a
+    %multiple of 3, written as a superscript: 12.3450×10⁶. Set NumberFormat
+    %to format values with sprintf instead.
+    %
+    %To keep the text steady from tick to tick, trailing zeros are kept,
+    %the value is in a fixed-width font, and it is right-aligned against
+    %the units. The text is sized to fit the widest value shown since the
+    %window was last resized, so it only shrinks when a wider value
+    %arrives, and is refitted to the current value when the window is
+    %resized.
     %
     %Closing the window deletes the object, so `isvalid` shows whether it
     %is still open.
@@ -37,7 +43,8 @@ classdef BigNumberDisplay < handle
     %% Properties (Public)
     properties (Access = public)
         ColumnIndex (1,1) double {mustBeInteger, mustBePositive} = 1;  %Which column of each data row to show
-        NumberFormat (1,1) string = "%#.6g";                           %sprintf format of the value, e.g. "%.3f". The default keeps 6 significant figures, trailing zeros included
+        SignificantFigures (1,1) double {mustBeInteger, mustBePositive} = 6;   %Significant figures the value is shown to, trailing zeros included
+        NumberFormat (1,1) string = "";                                 %sprintf format of the value, e.g. "%.3f", used instead of SignificantFigures and engineering notation. "" (the default) for those
     end
 
     %% Properties (Public, Private Set)
@@ -55,7 +62,9 @@ classdef BigNumberDisplay < handle
         ValueText;
         UnitsText;
         Ruler;                      %Hidden text object used to measure text, so the visible text isn't changed while measuring
-        FitLength = 1;              %Number of characters the value's size is fitted for - the longest since the last resize
+        FitWidth = 1;               %Size (pixels, at ReferenceFontSize) the value's text is fitted for - the widest and tallest since the last resize
+        FitHeight = 1;
+        FitShape = "";              %The last value measured, with its digits as 0s - in the fixed-width font, values of the same shape take the same space
     end
 
     %% Constructor
@@ -108,7 +117,7 @@ classdef BigNumberDisplay < handle
                 "Clipping", "off", "HitTest", "off"};
             this.TitleText = text(0, 0, this.Title, textStyle{:}, "FontWeight", "bold", "Color", [0.25 0.25 0.25], ...
                 "HorizontalAlignment", "center", "VerticalAlignment", "top");
-            this.ValueText = text(0, 0, this.DisplayedValue, textStyle{:}, "FontName", this.ValueFont, "Color", [0 0 0], ...
+            this.ValueText = text(0, 0, this.DisplayedValue, textStyle{:}, "Interpreter", "tex", "FontName", this.ValueFont, "Color", [0 0 0], ...
                 "HorizontalAlignment", "right", "VerticalAlignment", "bottom");
             this.UnitsText = text(0, 0, this.Units, textStyle{:}, "Color", [0.25 0.25 0.25], ...
                 "HorizontalAlignment", "left", "VerticalAlignment", "bottom");
@@ -117,7 +126,7 @@ classdef BigNumberDisplay < handle
             %Let the new window settle first - text measured in it straight
             %away can come out at the default font size
             drawnow;
-            this.Layout();
+            this.OnResize();
             this.Figure.Visible = Settings.Visible;
         end
 
@@ -185,23 +194,64 @@ classdef BigNumberDisplay < handle
     methods (Access = {?Palladium.Components.BigNumberDisplay, ?matlab.unittest.TestCase})    %Permission is Private, but also allow unit tests to see it
 
         function str = FormatValue(this, value)
-            %A value as text, with NumberFormat - a trailing decimal point removed (e.g. "123457." from "%#.6g").
+            %A value as text (in TeX, for the value's text object).
+            %With NumberFormat empty: SignificantFigures significant figures,
+            %trailing zeros kept, in engineering notation where "%g" would
+            %use e-notation - "12.3450\times10^{6}" for 1.2345e7. Otherwise
+            %with NumberFormat. A trailing decimal point is removed either way
 
-            str = string(sprintf(this.NumberFormat, value));
+            if strlength(this.NumberFormat) > 0
+                %TeX's special characters shown as themselves
+                str = regexprep(string(sprintf(this.NumberFormat, value)), "([\\{}_^])", "\\$1");
+            elseif ~isfinite(value)
+                str = string(sprintf("%g", value));    %NaN, Inf, -Inf
+            else
+                str = this.FormatSignificant(value);
+            end
             if endsWith(str, ".")
                 str = extractBefore(str, strlength(str));
             end
         end
 
+        function str = FormatSignificant(this, value)
+            %A finite value to SignificantFigures significant figures - in engineering notation where "%g" would use e-notation.
+            %Worked from sprintf's e-notation of the value, so the digits and
+            %exponent are rounded as sprintf rounds them (999999.7 to
+            %1.00000e+06), with no arithmetic to add rounding errors
+
+            sf = this.SignificantFigures;
+            parts = regexp(sprintf('%.*e', sf - 1, abs(value)), '^(\d)\.?(\d*)e([+-]\d+)$', 'tokens', 'once');
+            digits = [parts{1}, parts{2}];
+            exponent = str2double(parts{3});
+
+            if exponent >= -4 && exponent < sf
+                str = string(sprintf('%#.*g', sf, value));
+                return;
+            end
+
+            %Engineering notation: a power of ten that is a multiple of 3,
+            %with 1 to 3 digits before the decimal point
+            power = 3 * floor(exponent / 3);
+            leading = exponent - power + 1;
+            digits = [digits, repmat('0', 1, leading - numel(digits))];    %Fewer significant figures than leading digits
+            mantissa = string(digits(1:leading));
+            if numel(digits) > leading
+                mantissa = mantissa + "." + digits(leading+1:end);
+            end
+            if value < 0
+                mantissa = "-" + mantissa;
+            end
+            str = mantissa + "\times10^{" + power + "}";
+        end
+
         function SetDisplayedValue(this, str)
-            %Show a new value, refitting the text only if it is longer than any shown since the last resize.
-            %Shorter values keep the same size (right-aligned, so the digits
+            %Show a new value, refitting the text only if it is wider or taller than any shown since the last resize.
+            %Smaller values keep the same size (right-aligned, so the digits
             %stay put) - refitting for them made the text jump about
 
             this.DisplayedValue = str;
             this.ValueText.String = str;
-            if strlength(str) > this.FitLength
-                this.FitLength = strlength(str);
+            if this.MeasureValue()
                 this.Layout();
             end
         end
@@ -209,13 +259,36 @@ classdef BigNumberDisplay < handle
         function OnResize(this)
             %Refit to the current value when the window is resized.
 
-            this.FitLength = max(strlength(this.DisplayedValue), 1);
+            this.FitWidth = 0;
+            this.FitHeight = 0;
+            this.FitShape = "";
+            this.MeasureValue();
             this.Layout();
+        end
+
+        function grown = MeasureValue(this)
+            %Measure the displayed value, growing the size the value is fitted for to take it - true if it grew.
+            %In the fixed-width font, every digit takes the same space, so
+            %a value of the same shape as the last one measured (the same
+            %with its digits as 0s) isn't measured again
+
+            shape = regexprep(this.DisplayedValue, "\d", "0");
+            grown = false;
+            if shape == this.FitShape
+                return;
+            end
+            this.FitShape = shape;
+            [w, h] = this.Measure(this.DisplayedValue, this.ReferenceFontSize, "normal", this.ValueFont, "tex");
+            if w > this.FitWidth || h > this.FitHeight
+                this.FitWidth = max(w, this.FitWidth);
+                this.FitHeight = max(h, this.FitHeight);
+                grown = true;
+            end
         end
 
         function Layout(this)
             %Size and place the title, value and units to fill the window without being cut off.
-            %The value is sized for FitLength characters
+            %The value is sized for FitWidth and FitHeight
 
             if isempty(this.Figure) || ~isvalid(this.Figure)
                 return;
@@ -244,11 +317,10 @@ classdef BigNumberDisplay < handle
                 titleBottom = H - pad - titleH * titleSize / ref - pad;
             end
 
-            %Value and units: as large as fits in the rest, side by side.
-            %The value is measured as FitLength characters - in the
-            %fixed-width font, any characters take the same space
+            %Value and units: as large as fits in the rest, side by side
             valueHeight = max(titleBottom - pad, 1);
-            [valueW, valueH] = this.Measure(string(repmat('0', 1, this.FitLength)), ref, "normal", this.ValueFont);
+            valueW = this.FitWidth;
+            valueH = this.FitHeight;
             unitsW = 0;
             gap = 0;
             if strlength(this.Units) > 0
@@ -270,13 +342,23 @@ classdef BigNumberDisplay < handle
             this.UnitsText.Position = [valueRight + scale * gap, bottom, 0];
         end
 
-        function [w, h] = Measure(this, str, fontSize, fontWeight, fontName)
+        function [w, h] = Measure(this, str, fontSize, fontWeight, fontName, interpreter)
             %The width and height (pixels) of text at a font size, measured on the hidden Ruler.
             %Extent isn't updated by a change of FontSize or String alone -
             %it would give the size before - but setting Position makes it
             %measure again
 
+            arguments
+                this;
+                str;
+                fontSize;
+                fontWeight;
+                fontName;
+                interpreter = "none";
+            end
+
             ruler = this.Ruler;
+            ruler.Interpreter = interpreter;
             ruler.String = str;
             ruler.FontName = fontName;
             ruler.FontWeight = fontWeight;
