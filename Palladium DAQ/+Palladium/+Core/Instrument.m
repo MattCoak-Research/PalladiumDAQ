@@ -1005,6 +1005,30 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
 
     end
 
+    %% Methods (Static, Public)
+    methods (Static, Access = public)
+
+        function str = NumberToCommandString(value)
+            %A number as text for an instrument command, to 10 significant figures.
+            %Use in place of num2str, which keeps only about 5 (1.23456789
+            %becomes "1.2346"), so set values were silently rounded. Whole
+            %numbers are written without a decimal point, e.g. "5"
+            %
+            %Inputs:
+            %   value - the number
+            %
+            %Outputs:
+            %   str - e.g. "1.23456789", "-0.0025", "1.2345678e-07"
+
+            arguments
+                value (1,1) double {mustBeReal};
+            end
+
+            str = string(sprintf("%.10g", value));
+        end
+
+    end
+
     %% Methods (Private)
     methods (Access = private)
 

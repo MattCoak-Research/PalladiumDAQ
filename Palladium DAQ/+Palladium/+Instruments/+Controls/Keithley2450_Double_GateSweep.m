@@ -483,8 +483,8 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             %MATLAB/GPIB round-trip per point for speed. Everything it
             %references (measBuffer, digio mode, smu settings) was already
             %configured via individual commands in ConfigureMainInstrument.
-            nStr = num2str(numMeasurements);
-            lineStr = num2str(this.DigioLine);
+            nStr = Palladium.Core.Instrument.NumberToCommandString(numMeasurements);
+            lineStr = Palladium.Core.Instrument.NumberToCommandString(this.DigioLine);
             nl = newline;
 
             %After the last reading, either leave the output on (the level
@@ -511,9 +511,9 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             %the original: each pulse steps further from Baseline_V by
             %PulseVoltage_V, alternating sign every other pulse. Reads into
             %gateBuffer, made in ConfigureSecondInstrument.
-            lineStr = num2str(this.DigioLine);
-            baselineStr = num2str(this.Baseline_V);
-            pulseVStr = num2str(this.PulseVoltage_V);
+            lineStr = Palladium.Core.Instrument.NumberToCommandString(this.DigioLine);
+            baselineStr = Palladium.Core.Instrument.NumberToCommandString(this.Baseline_V);
+            pulseVStr = Palladium.Core.Instrument.NumberToCommandString(this.PulseVoltage_V);
             nl = newline;
 
             %After the last point (a pulse, not the baseline), either return
@@ -529,18 +529,18 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             %  -- measure or trigger the other 2450
             script = "local function do_point(v, take_measurement)" + nl + ...
                 "    smu.source.level = v" + nl + ...
-                "    delay(" + num2str(this.PulseWidth_s) + ")" + nl + ...
+                "    delay(" + Palladium.Core.Instrument.NumberToCommandString(this.PulseWidth_s) + ")" + nl + ...
                 "    if take_measurement then" + nl +...
                 "       digio.line[" + lineStr + "].state = digio." + pulseState + nl + ...
                 "       smu.measure.read(gateBuffer)" + nl + ...
-                "       delay(" + num2str(this.OffTime_s) + ")" + nl + ...
+                "       delay(" + Palladium.Core.Instrument.NumberToCommandString(this.OffTime_s) + ")" + nl + ...
                 "       digio.line[" + lineStr + "].state = digio." + idleState + nl + ...
                 "    else" + nl +...
-                "       delay(" + num2str(this.OffTime_s) + ")" + nl + ...
+                "       delay(" + Palladium.Core.Instrument.NumberToCommandString(this.OffTime_s) + ")" + nl + ...
                 "    end" + nl +...
                 "end" + nl + ...
                 nl + ...
-                "for i = 0, " + num2str(this.NumPulses) + " - 1 do" + nl + ...
+                "for i = 0, " + Palladium.Core.Instrument.NumberToCommandString(this.NumPulses) + " - 1 do" + nl + ...
                 "    do_point(" + baselineStr + ", i == 0)" + nl + ...
                 nl + ...
                 "    local half = math.floor(i / 2) + 1" + nl + ...
@@ -622,14 +622,14 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             instr.WriteCommand("smu.source.func = smu.FUNC_DC_VOLTAGE");
             instr.SetVoltageSourceOVP(this.MainOVPSetting);
             instr.WriteCommand("smu.source.autorange = smu.OFF");
-            instr.WriteCommand("smu.source.range = " + num2str(Palladium.Instruments.Controls.Keithley2450_Double_GateSweep.SourceRangeFor(this.Bias_V)));
-            instr.WriteCommand("smu.source.level = " + num2str(this.Bias_V));
-            instr.WriteCommand("smu.source.ilimit.level = " + num2str(this.Compliance2450_A));
+            instr.WriteCommand("smu.source.range = " + Palladium.Core.Instrument.NumberToCommandString(Palladium.Instruments.Controls.Keithley2450_Double_GateSweep.SourceRangeFor(this.Bias_V)));
+            instr.WriteCommand("smu.source.level = " + Palladium.Core.Instrument.NumberToCommandString(this.Bias_V));
+            instr.WriteCommand("smu.source.ilimit.level = " + Palladium.Core.Instrument.NumberToCommandString(this.Compliance2450_A));
 
             instr.WriteCommand("smu.measure.func = smu.FUNC_DC_CURRENT");
             instr.WriteCommand("smu.measure.autorange = smu.OFF");
-            instr.WriteCommand("smu.measure.range = " + num2str(this.Compliance2450_A));
-            instr.WriteCommand("smu.measure.nplc = " + num2str(this.NPLC));
+            instr.WriteCommand("smu.measure.range = " + Palladium.Core.Instrument.NumberToCommandString(this.Compliance2450_A));
+            instr.WriteCommand("smu.measure.nplc = " + Palladium.Core.Instrument.NumberToCommandString(this.NPLC));
             this.ApplySpeedSettings(instr);
 
             %Sense mode is stored per measure function, so set it after
@@ -641,10 +641,10 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
                 instr.WriteCommand("smu.measure.sense = smu.SENSE_2WIRE");
             end
 
-            instr.WriteCommand("digio.line[" + num2str(this.DigioLine) + "].mode = digio.MODE_DIGITAL_IN");
+            instr.WriteCommand("digio.line[" + Palladium.Core.Instrument.NumberToCommandString(this.DigioLine) + "].mode = digio.MODE_DIGITAL_IN");
 
             instr.WriteCommand("smu.source.output = smu.ON");
-            instr.WriteCommand("measBuffer = buffer.make(" + num2str(numMeasurements) + ")");
+            instr.WriteCommand("measBuffer = buffer.make(" + Palladium.Core.Instrument.NumberToCommandString(numMeasurements) + ")");
         end
 
         function ConfigureSecondInstrument(this, numMeasurements, idleState)
@@ -663,21 +663,21 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             instr.WriteCommand("smu.source.func = smu.FUNC_DC_VOLTAGE");
             instr.SetVoltageSourceOVP(this.GateOVPSetting);
             instr.WriteCommand("smu.source.autorange = smu.OFF");
-            instr.WriteCommand("smu.source.range = " + num2str(Palladium.Instruments.Controls.Keithley2450_Double_GateSweep.SourceRangeFor(this.GetGateVoltageExtremes())));
-            instr.WriteCommand("smu.source.ilimit.level = " + num2str(this.Compliance2450_Gate_A));
+            instr.WriteCommand("smu.source.range = " + Palladium.Core.Instrument.NumberToCommandString(Palladium.Instruments.Controls.Keithley2450_Double_GateSweep.SourceRangeFor(this.GetGateVoltageExtremes())));
+            instr.WriteCommand("smu.source.ilimit.level = " + Palladium.Core.Instrument.NumberToCommandString(this.Compliance2450_Gate_A));
             instr.WriteCommand("smu.source.autodelay = smu.OFF");
 
             instr.WriteCommand("smu.measure.func = smu.FUNC_DC_CURRENT");
             instr.WriteCommand("smu.measure.autorange = smu.OFF");
-            instr.WriteCommand("smu.measure.range = " + num2str(this.Compliance2450_Gate_A));
-            instr.WriteCommand("smu.measure.nplc = " + num2str(this.NPLC));
+            instr.WriteCommand("smu.measure.range = " + Palladium.Core.Instrument.NumberToCommandString(this.Compliance2450_Gate_A));
+            instr.WriteCommand("smu.measure.nplc = " + Palladium.Core.Instrument.NumberToCommandString(this.NPLC));
             this.ApplySpeedSettings(instr);
 
-            instr.WriteCommand("digio.line[" + num2str(this.DigioLine) + "].mode = digio.MODE_DIGITAL_OUT");
-            instr.WriteCommand("digio.line[" + num2str(this.DigioLine) + "].state = digio." + idleState);
+            instr.WriteCommand("digio.line[" + Palladium.Core.Instrument.NumberToCommandString(this.DigioLine) + "].mode = digio.MODE_DIGITAL_OUT");
+            instr.WriteCommand("digio.line[" + Palladium.Core.Instrument.NumberToCommandString(this.DigioLine) + "].state = digio." + idleState);
 
             instr.WriteCommand("smu.source.output = smu.ON");
-            instr.WriteCommand("gateBuffer = buffer.make(" + num2str(numMeasurements) + ")");
+            instr.WriteCommand("gateBuffer = buffer.make(" + Palladium.Core.Instrument.NumberToCommandString(numMeasurements) + ")");
         end
 
         function maxWait_s = EstimateMaxRunTime(this, numMeasurements)
@@ -757,7 +757,7 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             %with several columns interleaves them point by point
             %(src1, reading1, time1, src2, reading2, time2, ...)
             this.Log("Pulling buffer data back from both SMUs...");
-            nStr = num2str(numMeasurements);
+            nStr = Palladium.Core.Instrument.NumberToCommandString(numMeasurements);
 
             
 

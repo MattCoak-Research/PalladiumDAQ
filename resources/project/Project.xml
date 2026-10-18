@@ -1686,6 +1686,13 @@
                                 </Category>
                             </Info>
                         </File>
+                        <File Location="test_Keithley2450.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
                     </File>
                     <File Location="PythonInstruments">
                         <Info/>

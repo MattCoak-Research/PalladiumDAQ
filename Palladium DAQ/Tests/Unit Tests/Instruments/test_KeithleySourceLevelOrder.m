@@ -39,6 +39,16 @@ classdef test_KeithleySourceLevelOrder < matlab.unittest.TestCase
 
             testCase.verifyEqual(connection.WrittenCommands, [Driver.Off, Driver.Level]);
         end
+
+        function LevelIsSentInFullTest(testCase, Driver)
+            %Not rounded to about 5 significant figures, as num2str did
+            %(1.23456789 was sent as 1.2346)
+            [instr, connection] = testCase.makeInstrument(Driver);
+
+            instr.SetSourceLevel(1.23456789, true);
+
+            testCase.verifyEqual(connection.WrittenCommands(1), replace(Driver.Level, "2.5", "1.23456789"));
+        end
     end
 
     %% Methods (Private)

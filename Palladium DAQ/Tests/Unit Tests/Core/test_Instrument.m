@@ -196,6 +196,19 @@ classdef test_Instrument < matlab.unittest.TestCase
             end
         end
 
+        %% NumberToCommandString
+        function test_NumberToCommandString_KeepsTheValueTest(testCase)
+            %10 significant figures - num2str, used before, kept only about
+            %5, so set values were silently rounded
+            toText = @Palladium.Core.Instrument.NumberToCommandString;
+            testCase.verifyEqual(toText(1.23456789), "1.23456789");
+            testCase.verifyEqual(toText(1.2345678e-7), "1.2345678e-07");
+            testCase.verifyEqual(toText(-0.0025), "-0.0025");
+            testCase.verifyEqual(toText(5), "5", "Whole numbers without a decimal point");
+            testCase.verifyEqual(toText(100000), "100000");
+            testCase.verifyEqual(str2double(toText(pi)), round(pi, 9), AbsTol=1e-12);
+        end
+
         %% Connect
         function test_Connect_DebugEntersSimulationModeTest(testCase)
             testCase.Instrument.Connection_Type = Palladium.Enums.ConnectionType.Debug;

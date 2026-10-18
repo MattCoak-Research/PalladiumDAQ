@@ -473,8 +473,8 @@ classdef Keithley2410 < Palladium.Core.Instrument
             %Send the source level, in V or A depending on SourceMode (see SetSourceLevel).
 
             switch(this.SourceMode)
-                case(this.SourceType("Voltage"));   this.WriteCommand("SOUR:VOLT:LEV " + num2str(level));
-                case(this.SourceType("Current"));   this.WriteCommand("SOUR:CURR:LEV " + num2str(level));
+                case(this.SourceType("Voltage"));   this.WriteCommand("SOUR:VOLT:LEV " + Palladium.Core.Instrument.NumberToCommandString(level));
+                case(this.SourceType("Current"));   this.WriteCommand("SOUR:CURR:LEV " + Palladium.Core.Instrument.NumberToCommandString(level));
                 otherwise
                     error("Keithley2410:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
             end

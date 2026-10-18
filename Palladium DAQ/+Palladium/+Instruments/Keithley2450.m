@@ -33,6 +33,13 @@ classdef Keithley2450 < Palladium.Core.Instrument
         ABORT_PAUSE_S = 0.05;
     end
 
+    %% Properties (Constant, Private)
+    properties(Constant, Access = private)
+        MaxSourceVoltage_V = 210;                               %Most the 2450 can source, in V (5% over the 200 V range) - the Sweep Control limit with no protection or interlock limit
+        MaxSourceCurrent_A = 1.05;                              %Most the 2450 can source, in A (5% over the 1 A range) - the Sweep Control limit
+        NoInterlockMaxVoltage_V = 42;                           %Most the 2450 outputs while its interlock isn't engaged, in V
+    end
+
     %% Properties (Public)
     properties(Access = public)
         FullName = "Keithley 2450 Src Meter";                   %Full name, displayed in the GUI
@@ -73,7 +80,9 @@ classdef Keithley2450 < Palladium.Core.Instrument
             this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "USB", "VISA"]);
             this.GPIB_Address = 18;     %Factory default
             this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];
-            this.VISA_Address = 'USB0::0x05E6::0x2450::04602266::0::INSTR';
+            %The 2450's USB address pattern - replace SERIALNUMBER with the
+            %instrument's own (on its rear panel, or in MENU > System > Info)
+            this.VISA_Address = 'USB0::0x05E6::0x2450::SERIALNUMBER::0::INSTR';
 
             %Define the Instrument Controls that can be added to the
             %Instrument
@@ -464,11 +473,14 @@ classdef Keithley2450 < Palladium.Core.Instrument
         function [str, limits, xlabelStr, ylabelStr] = GetSweepUnitsString(this)
             %Units, limits and plot labels of the swept source level, for a Sweep Control.
             %Before connecting, when the source function is not yet known, the
-            %units and x label are empty
+            %units and x label are empty. When sourcing voltage and connected,
+            %the limits are the most the instrument will output (see
+            %GetSourceVoltageLimit); otherwise the most the 2450 can source:
+            %210 V, or 1.05 A
             %
             %Outputs:
             %   str       - units of the source level, "V" or "A"
-            %   limits    - default lowest and highest sweep values, [min, max]
+            %   limits    - lowest and highest source levels allowed in the Sweep Control, [min, max]
             %   xlabelStr - label for the source level on plots, e.g. "Source Voltage (V)"
             %   ylabelStr - label for the measured value on plots (the first data column header)
 
@@ -482,11 +494,9 @@ classdef Keithley2450 < Palladium.Core.Instrument
                 return;
             end
 
-            %The 2450 can source up to +/-210 V and +/-1.05 A - these
-            %narrower limits also set the Sweep Control's starting values
             switch(this.SourceMode)
-                case(this.SourceType("Voltage"));   xlabelStr = "Source Voltage (V)";   str = "V";  limits = [-50, 50];
-                case(this.SourceType("Current"));   xlabelStr = "Source Current (A)";   str = "A";  limits = [-1, 1];
+                case(this.SourceType("Voltage"));   xlabelStr = "Source Voltage (V)";   str = "V";  limits = this.GetSourceVoltageLimit() * [-1, 1];
+                case(this.SourceType("Current"));   xlabelStr = "Source Current (A)";   str = "A";  limits = this.MaxSourceCurrent_A * [-1, 1];
                 otherwise
                     error("Keithley2450:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
             end
@@ -596,6 +606,31 @@ classdef Keithley2450 < Palladium.Core.Instrument
                 if isnan(ovp_V)
                     error("Keithley2450:UnexpectedOVPSetting", "%s", "Unexpected overvoltage protection setting: " + ovpSetting);
                 end
+            end
+        end
+
+        function limit_V = GetSourceVoltageLimit(this)
+            %The most voltage the instrument will output, in V - the Sweep Control's limit.
+            %The lowest of: 210 V; the overvoltage protection level set on the
+            %instrument (GetVoltageSourceOVP); and 42 V if the rear interlock
+            %isn't engaged, as the 2450 then limits its output to that,
+            %silently. 210 V when not connected (or in Debug mode), or if
+            %either can't be read
+            %
+            %Outputs:
+            %   limit_V - the limit, as a positive voltage
+
+            limit_V = this.MaxSourceVoltage_V;
+            if this.SimulationMode || isempty(this.DeviceHandle)
+                return;
+            end
+            try
+                limit_V = min(limit_V, this.GetVoltageSourceOVP());
+                if ~this.IsInterlockEngaged()
+                    limit_V = min(limit_V, this.NoInterlockMaxVoltage_V);
+                end
+            catch err
+                Palladium.Logging.Logger.Log("Warning", this.Name + " could not read its voltage protection or interlock, so the Sweep Control allows up to " + limit_V + " V: " + err.message);
             end
         end
 
@@ -889,13 +924,13 @@ classdef Keithley2450 < Palladium.Core.Instrument
             switch(this.Language)
                 case(this.LanguageType("SCPI"))
                     switch(this.SourceMode)
-                        case(this.SourceType("Voltage"));   this.WriteCommand("SOUR:VOLT:LEV " + num2str(level));
-                        case(this.SourceType("Current"));   this.WriteCommand("SOUR:CURR:LEV " + num2str(level));
+                        case(this.SourceType("Voltage"));   this.WriteCommand("SOUR:VOLT:LEV " + Palladium.Core.Instrument.NumberToCommandString(level));
+                        case(this.SourceType("Current"));   this.WriteCommand("SOUR:CURR:LEV " + Palladium.Core.Instrument.NumberToCommandString(level));
                         otherwise
                             error("Keithley2450:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
                     end
                 case(this.LanguageType("TSP"))
-                    this.WriteCommand("smu.source.level = " + num2str(level));
+                    this.WriteCommand("smu.source.level = " + Palladium.Core.Instrument.NumberToCommandString(level));
                 otherwise
                     error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
             end
