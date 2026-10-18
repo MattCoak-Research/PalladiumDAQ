@@ -327,13 +327,13 @@ classdef Keithley2450 < Palladium.Core.Instrument
             %current), it is prefixed "Source" so the two columns differ
             %
             %Outputs:
-            %   Headers - e.g. ["K2450_SrcMtr - Resistance_Ohms", "K2450_SrcMtr - Current_A",
+            %   Headers - e.g. ["K2450_SrcMtr - Resistance_Ω", "K2450_SrcMtr - Current_A",
             %             "K2450_SrcMtr - Compliance Limited"], or with
             %             "K2450_SrcMtr - Source Current_A" as the second
-            %   Units   - matching units, e.g. ["Ohms", "A", ""]
+            %   Units   - matching units, e.g. ["Ω", "A", ""]
 
             switch(this.MeasMode)
-                case(this.MeasType("Resistance"));  measHeader = "Resistance_Ohms";     measUnits = "Ohms";
+                case(this.MeasType("Resistance"));  measHeader = "Resistance_Ω";        measUnits = "Ω";
                 case(this.MeasType("Current"));     measHeader = "Current_A";           measUnits = "A";
                 case(this.MeasType("Voltage"));     measHeader = "Voltage_V";           measUnits = "V";
                 case(this.MeasType("Power"));       measHeader = "Power_W";             measUnits = "W";

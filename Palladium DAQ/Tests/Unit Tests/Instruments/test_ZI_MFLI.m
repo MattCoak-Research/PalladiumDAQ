@@ -83,15 +83,15 @@ classdef test_ZI_MFLI < matlab.unittest.TestCase
             testCase.verifySize(dataRow, [1 4], "One value per column");
         end
 
-        function ResistanceUnitsAreOhmsTest(testCase)
-            %As every other driver names them (it was "Ohm")
+        function ResistanceUnitsAreOhmSymbolTest(testCase)
+            %As every other driver names them (it was "Ohm", then "Ohms")
             mfli = Palladium.Instruments.ZI_MFLI();
             mfli.ConnectedCurrentSource = mfli.CurrentSource("200 uA/V");
 
             [headers, units] = mfli.GetHeaders();
 
-            testCase.verifyEqual(headers(end), "ZI MFLI - Resistance (Ohms)");
-            testCase.verifyEqual(units(end), "Ohms");
+            testCase.verifyEqual(headers(end), "ZI MFLI - Resistance (Ω)");
+            testCase.verifyEqual(units(end), "Ω");
         end
 
         function ScopeBandwidthLimitIsOnTest(testCase)

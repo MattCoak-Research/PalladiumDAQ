@@ -19,12 +19,12 @@ classdef test_SR830 < matlab.unittest.TestCase
 
     %% Methods (Test)
     methods (Test)
-        function ResistanceUnitsAreOhmsTest(testCase)
-            %As every other driver names them (it was "Ohm")
+        function ResistanceUnitsAreOhmSymbolTest(testCase)
+            %As every other driver names them (it was "Ohm", then "Ohms")
             [headers, units] = testCase.Instrument.GetHeaders();
 
-            testCase.verifyEqual(headers(end), "SR830 - Resistance (Ohms)");
-            testCase.verifyEqual(units, ["V", "V", "A", "Ohms"]);
+            testCase.verifyEqual(headers(end), "SR830 - Resistance (Ω)");
+            testCase.verifyEqual(units, ["V", "V", "A", "Ω"]);
         end
 
         function AmplifierGainDividesXAndYTest(testCase)

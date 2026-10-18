@@ -41,7 +41,7 @@ class TemplatePythonInstrument(Instrument):
     def GetHeaders(self):
         """Column headers and their units - one each, in the same order as Measure's values.
         Palladium DAQ adds the instrument's name in front of each header."""
-        return (["Resistance_Ohms", "Current_A"], ["Ohms", "A"])
+        return (["Resistance_Ω", "Current_A"], ["Ω", "A"])
 
     def Measure(self):
         """Take one reading of each column: realistic made-up values in simulation (Debug) mode."""

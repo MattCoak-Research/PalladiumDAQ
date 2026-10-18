@@ -168,7 +168,7 @@ classdef test_DataWriteAndRead < matlab.unittest.TestCase
 
         %% Headers
         function test_RoundTrip_HeadersWithSpacesUnitsAndSymbolsTest(testCase)
-            headers = ["Time (mins)", "Resistance (Ohms)", "dV/dI [a.u.]", "T_sample_1", "50% load", "B || H", "x = 1"];
+            headers = ["Time (mins)", "Resistance (Ω)", "dV/dI [a.u.]", "T_sample_1", "50% load", "B || H", "x = 1"];
 
             readBack = testCase.roundTrip(rand(2, numel(headers)), Headers=headers);
 
@@ -460,7 +460,7 @@ classdef test_DataWriteAndRead < matlab.unittest.TestCase
             %Start a file with instrument and sweep metadata, write one
             %row per step, then add the end-of-sweep data row, as
             %SweepController_Stepped does
-            headers = ["Sweep Value (V)", "Keithley - Resistance_Ohms", "Keithley - Current_A", "Sample Temperature (K)"];
+            headers = ["Sweep Value (V)", "Keithley - Resistance_Ω", "Keithley - Current_A", "Sample Temperature (K)"];
             instrumentSettings = Palladium.DataWriting.DataWriter.BuildMetadataLineStringFromStruct("Keithley Settings: ", struct("MeasMode", "Resistance", "SourceMode", "Current", "Range", 100));
             sweepSettings = Palladium.DataWriting.DataWriter.BuildMetadataLineStringFromStruct("", struct("MinVal", -1, "MaxVal", 1, "TargetNumSteps", 21, "SettleTime", 0.5));
             startRow = Palladium.DataWriting.DataWriter.BuildMetadataLineStringFromHeaderValuePair("", headers, [0 1000 1e-5 4.2]);

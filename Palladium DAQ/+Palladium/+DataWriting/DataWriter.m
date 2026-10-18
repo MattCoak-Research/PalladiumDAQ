@@ -244,7 +244,9 @@ classdef DataWriter < handle
             %Otherwise, write away. Say clearly if the file can't be
             %created (e.g. the folder is missing or read-only), rather than
             %failing on the first write with "Invalid file identifier"
-            [fid, openMessage] = fopen(this.FileWriteDetails.FilePath, 'w');
+            %UTF-8 named explicitly, so headers with symbols (e.g. Ω) are
+            %written the same on every system, whatever its default encoding
+            [fid, openMessage] = fopen(this.FileWriteDetails.FilePath, 'w', 'n', 'UTF-8');
             if fid == -1
                 error("WriteHeadersError:OpenFailed", "%s", "Could not create the data file " + string(this.FileWriteDetails.FilePath) + ": " + string(openMessage));
             end
@@ -326,7 +328,7 @@ classdef DataWriter < handle
 
             for i = 1 : numRetries
                 try
-                    writematrix(data, this.FileWriteDetails.FilePath, 'WriteMode', 'append', 'delimiter', '\t');
+                    writematrix(data, this.FileWriteDetails.FilePath, 'WriteMode', 'append', 'delimiter', '\t', 'Encoding', 'UTF-8');
                     return;
                 catch err
                     %Logged, not a MATLAB warning: these come mid-measurement,

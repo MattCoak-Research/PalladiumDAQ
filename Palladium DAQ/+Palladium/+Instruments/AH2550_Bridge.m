@@ -48,7 +48,7 @@ classdef AH2550_Bridge < Palladium.Core.Instrument
 
     %% Properties (Dependent, Private)
     properties(Dependent, Access = private)
-        LossUnit;                                                   %Units string of the loss column, from Loss_Units: e.g. "" for TanDelta, "kOhm" for kOhm
+        LossUnit;                                                   %Units string of the loss column, from Loss_Units: e.g. "" for TanDelta, "kΩ" for kOhm
         LossLabel;                                                  %The bridge's label for Loss_Units on a result line: NS, DS, KO, GO or GW
     end
 
@@ -57,9 +57,9 @@ classdef AH2550_Bridge < Palladium.Core.Instrument
         function unitStr = get.LossUnit(this)
             switch(this.Loss_Units)
                 case(this.LossUnitsType("TanDelta"));   unitStr = "";
-                case(this.LossUnitsType("kOhm"));       unitStr = "kOhm";
+                case(this.LossUnitsType("kOhm"));       unitStr = "kΩ";
                 case(this.LossUnitsType("nS"));         unitStr = "nS";
-                case(this.LossUnitsType("GOhm"));       unitStr = "GOhm";
+                case(this.LossUnitsType("GOhm"));       unitStr = "GΩ";
                 case(this.LossUnitsType("jpF"));        unitStr = "jpF";
                 otherwise
                     error("AH2550_Bridge:UnsupportedLossUnits", 'Unsupported Loss Units');
@@ -112,8 +112,8 @@ classdef AH2550_Bridge < Palladium.Core.Instrument
             %Record_Times is on
             %
             %Outputs:
-            %   Headers - e.g. ["AH_Br - Cap (pF)", "AH_Br - Loss (kOhm)", "AH_Br - Voltage (V)"]
-            %   Units   - matching units, e.g. ["pF", "kOhm", "V"]
+            %   Headers - e.g. ["AH_Br - Cap (pF)", "AH_Br - Loss (kΩ)", "AH_Br - Voltage (V)"]
+            %   Units   - matching units, e.g. ["pF", "kΩ", "V"]
 
             Headers = [this.Name + " - Cap (pF)", this.Name + " - Loss (" + this.LossUnit + ")", this.Name + " - Voltage (V)"];
             Units = ["pF", this.LossUnit, "V"];

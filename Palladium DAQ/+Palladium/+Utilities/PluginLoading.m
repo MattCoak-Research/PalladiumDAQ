@@ -31,7 +31,7 @@ classdef PluginLoading
                 error('ApplyPresetFromJsonError:FileNotFound', 'Preset file not found: %s', jsonFilePath);
             end
 
-            txt = fileread(jsonFilePath);
+            txt = fileread(jsonFilePath, Encoding = "UTF-8");
             data = jsondecode(txt);
 
             % Top-level preset fields
@@ -701,7 +701,7 @@ classdef PluginLoading
 
             %% Write JSON
             jsonText = jsonencode(preset, PrettyPrint=true);
-            fid = fopen(jsonFilePath, 'w');
+            fid = fopen(jsonFilePath, 'w', 'n', 'UTF-8');
             if fid == -1
                 error('SavePresetToJson:FileOpen', 'Unable to open %s for writing', jsonFilePath);
             end

@@ -78,8 +78,8 @@ classdef SR830_Lockin < Palladium.Core.Instrument
             %
             %Outputs:
             %   Headers - e.g. ["SR830 - Vx (V)", "SR830 - Vy (V)", "SR830 - Output Current (A)",
-            %             "SR830 - Resistance (Ohms)"]
-            %   Units   - matching units, e.g. ["V", "V", "A", "Ohms"]
+            %             "SR830 - Resistance (Ω)"]
+            %   Units   - matching units, e.g. ["V", "V", "A", "Ω"]
 
             Headers = [this.Name + " - Vx (V)", this.Name + " - Vy (V)"];
             Units = ["V", "V"];
@@ -103,8 +103,8 @@ classdef SR830_Lockin < Palladium.Core.Instrument
             %With a current source, add a calculated resistance too - just
             %for convenience
             if calculateResistance
-                Headers = [Headers, this.Name + " - Resistance (Ohms)"];
-                Units = [Units "Ohms"];
+                Headers = [Headers, this.Name + " - Resistance (Ω)"];
+                Units = [Units "Ω"];
             end
         end
 

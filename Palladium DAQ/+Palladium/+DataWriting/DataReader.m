@@ -44,8 +44,8 @@ classdef DataReader < handle
             %   headerMetadataLines - the lines before the end-of-metadata marker (string array)
             %   numTotalHeaderLines - the number of lines before the data
 
-            % Open the text file.
-            fileID = fopen(filePath, 'r');
+            % Open the text file - as UTF-8, as DataWriter writes it
+            fileID = fopen(filePath, 'r', 'n', 'UTF-8');
             if fileID == -1
                 error('DataReader:OpenFileFailure','Failed to open data file');
             end
@@ -81,7 +81,7 @@ classdef DataReader < handle
             %fail on files with only a few data rows or with NaN/Inf in the
             %first row, silently returning a column of NaN
 
-            dataArray = readmatrix(filePath, 'FileType', 'text', 'NumHeaderLines', numHeaderLines, 'Delimiter', '\t', 'OutputType', 'double');
+            dataArray = readmatrix(filePath, 'FileType', 'text', 'NumHeaderLines', numHeaderLines, 'Delimiter', '\t', 'OutputType', 'double', 'Encoding', 'UTF-8');
         end
 
         function [headersStrArray] = ReadHeadersLine(fileID)

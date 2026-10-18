@@ -147,10 +147,10 @@ classdef Lakeshore350 < Palladium.Core.Instrument
             %Outputs:
             %   Headers - Ch_A_Name, "ResChA", Ch_B_Name, "ResChB", and so on
             %             to "ResChD", then e.g. "Ls350 Heater Power (W)"
-            %   Units   - matching units: "K" and "Ohms" for each input, then "W"
+            %   Units   - matching units: "K" and "Ω" for each input, then "W"
 
             Headers = [string(this.Ch_A_Name), "ResChA", string(this.Ch_B_Name), "ResChB", string(this.Ch_C_Name), "ResChC", string(this.Ch_D_Name), "ResChD"];
-            Units = ["K", "Ohms", "K", "Ohms", "K", "Ohms", "K", "Ohms"];
+            Units = ["K", "Ω", "K", "Ω", "K", "Ω", "K", "Ω"];
 
             %The heater power is always recorded
             Headers = [Headers, this.Name + " Heater Power (W)"];

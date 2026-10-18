@@ -29,7 +29,7 @@ classdef Lakeshore372 < Palladium.Core.Instrument
         Name = "Ls372";                                         %Instrument name, used as the prefix of its resistance and heater power column headers
         Connection_Type = Palladium.Enums.ConnectionType.GPIB;  %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         Ch_Name = "Sample Temperature (K)";                     %Data column header for the temperature reading, e.g. "Mixing Chamber Temp (K)"
-        Reading;                                                %What to read: Temperature (K, plus the resistance) or Resistance (Ohms) only
+        Reading;                                                %What to read: Temperature (K, plus the resistance) or Resistance (Ω) only
         HeaterResistance = 100;                                 %Resistance of the heater connected to the sample heater output, in Ohms - used to calculate heater power
     end
 
@@ -125,13 +125,13 @@ classdef Lakeshore372 < Palladium.Core.Instrument
             %heater power
             %
             %Outputs:
-            %   Headers - e.g. ["Sample Temperature (K)", "Ls372 - Resistance (Ohms)",
+            %   Headers - e.g. ["Sample Temperature (K)", "Ls372 - Resistance (Ω)",
             %             "Ls372 Heater Power (W)"]. The temperature column uses Ch_Name
-            %   Units   - matching units, e.g. ["K", "Ohms", "W"]
+            %   Units   - matching units, e.g. ["K", "Ω", "W"]
 
             switch(this.Reading)
-                case(this.MeasType("Temperature"));     Headers = [string(this.Ch_Name), this.Name + " - Resistance (Ohms)"];   Units = ["K" "Ohms"];
-                case(this.MeasType("Resistance"));      Headers = this.Name + " - Resistance (Ohms)";                           Units = "Ohms";
+                case(this.MeasType("Temperature"));     Headers = [string(this.Ch_Name), this.Name + " - Resistance (Ω)"];      Units = ["K" "Ω"];
+                case(this.MeasType("Resistance"));      Headers = this.Name + " - Resistance (Ω)";                              Units = "Ω";
                 otherwise
                     error("Lakeshore372:UnsupportedMeasurementType", "%s", "Unsupported measurement type " + string(this.Reading));
             end

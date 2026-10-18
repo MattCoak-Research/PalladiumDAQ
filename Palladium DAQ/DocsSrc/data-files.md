@@ -11,10 +11,10 @@ Data files are tab-separated text with the extension `.dat` (set by `DataFileExt
 Sample 1, after annealing, 2 K base temperature
 
 <Instrument Settings and Metadata>
-K2000_1 Settings: MeasurementMode = Resistance || Units = Ohms || Range = 1000 || AutoRange = false || NPLC = 1
+K2000_1 Settings: MeasurementMode = Resistance || Units = Ω || Range = 1000 || AutoRange = false || NPLC = 1
 <<< END METADATA LINES >>>
 
-Time (mins)	Channel A Temperature (K)	Channel B Temperature (K)	Ls331_1 Heater Power (W)	K2000_1 - Resistance_Ohms
+Time (mins)	Channel A Temperature (K)	Channel B Temperature (K)	Ls331_1 Heater Power (W)	K2000_1 - Resistance_Ω
 29545432.2083213	100.814723686393	100.905791937076	0.452857203366604	17.0213
 29545432.2142851	100.913375856139	100.632359246225	0.452194659112487	16.9874
 ```
@@ -74,7 +74,7 @@ reader = Palladium.DataWriting.DataReader();
 % data        - the readings, as a numeric matrix with one column per header
 
 time_mins = data(:, 1) - data(1, 1);    % time since the start of the run
-plot(time_mins, data(:, headers == "K2000_1 - Resistance_Ohms")); 
+plot(time_mins, data(:, headers == "K2000_1 - Resistance_Ω")); 
 ```
 
 As the files are tab-separated text, they can also be read with MATLAB's own functions - for example `readtable(file, "FileType", "text", "Delimiter", "\t", "NumHeaderLines", n)`, where `n` is the number of lines before the column headers.

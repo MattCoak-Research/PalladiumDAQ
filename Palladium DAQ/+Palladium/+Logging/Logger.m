@@ -654,7 +654,7 @@ classdef Logger < handle
                     %The message and an empty line below it (for
                     %readability) in one write - written separately, a
                     %failure of the second wrote the message again on retry
-                    writelines([fullMessage; ""], path, WriteMode = "append");
+                    writelines([fullMessage; ""], path, WriteMode = "append", Encoding = "UTF-8");
                     success = true;
                     break;
                 catch

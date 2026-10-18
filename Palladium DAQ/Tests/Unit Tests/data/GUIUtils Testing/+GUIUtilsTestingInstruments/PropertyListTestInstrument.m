@@ -34,8 +34,8 @@ classdef PropertyListTestInstrument < Palladium.Core.Instrument
         function [headers, units] = GetHeaders(this)
             %Two columns, matching Measure
 
-            headers = [this.Name + " - Resistance_Ohms", this.Name + " - Current_A"];
-            units = ["Ohms", "A"];
+            headers = [this.Name + " - Resistance_Ω", this.Name + " - Current_A"];
+            units = ["Ω", "A"];
         end
 
         function dataRow = Measure(~)

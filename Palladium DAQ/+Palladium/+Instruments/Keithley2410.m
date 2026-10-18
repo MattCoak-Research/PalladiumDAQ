@@ -180,9 +180,9 @@ classdef Keithley2410 < Palladium.Core.Instrument
             %compliance flag
             %
             %Outputs:
-            %   Headers - e.g. ["K2410_SrcMtr - Resistance (Ohms)", ..., "K2410_SrcMtr - Compliance Limited"].
+            %   Headers - e.g. ["K2410_SrcMtr - Resistance (Ω)", ..., "K2410_SrcMtr - Compliance Limited"].
             %             The quantity MeasMode names is always first
-            %   Units   - matching units, e.g. ["Ohms", "A", "V", "A", ""]
+            %   Units   - matching units, e.g. ["Ω", "A", "V", "A", ""]
 
             switch(this.SourceMode)
                 case(this.SourceType("Voltage"));   sourceStr = "Source Voltage (V)";   unitsstr = "V";
@@ -193,8 +193,8 @@ classdef Keithley2410 < Palladium.Core.Instrument
 
             switch(this.MeasMode)
                 case(this.MeasType("Resistance"))
-                    Headers = [this.Name + " - Resistance (Ohms)", this.Name + " - Current (A)", this.Name + " - Voltage (V)", this.Name + " - " + sourceStr, this.Name + " - Compliance Limited"];
-                    Units = ["Ohms", "A", "V", unitsstr, ""];
+                    Headers = [this.Name + " - Resistance (Ω)", this.Name + " - Current (A)", this.Name + " - Voltage (V)", this.Name + " - " + sourceStr, this.Name + " - Compliance Limited"];
+                    Units = ["Ω", "A", "V", unitsstr, ""];
                 case(this.MeasType("Voltage"))
                     Headers = [this.Name + " - Voltage (V)", this.Name + " - Current (A)", this.Name + " - " + sourceStr, this.Name + " - Compliance Limited"];
                     Units = ["V", "A", unitsstr, ""];

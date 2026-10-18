@@ -75,8 +75,8 @@ classdef Keithley6220 < Palladium.Core.Instrument
             %DeltaMode
             %
             %Outputs:
-            %   Headers - one header, e.g. "K6220 - Resistance (Ohms)"
-            %   Units   - its units, e.g. "Ohms"
+            %   Headers - one header, e.g. "K6220 - Resistance (Ω)"
+            %   Units   - its units, e.g. "Ω"
 
             if ~this.DeltaMode
                 Headers = this.Name + " - Source Current (A)";
@@ -86,7 +86,7 @@ classdef Keithley6220 < Palladium.Core.Instrument
 
             switch(this.Units)
                 case(this.UnitsType("Volts"));      Headers = this.Name + " - Volts (V)";           Units = "V";
-                case(this.UnitsType("Ohms"));       Headers = this.Name + " - Resistance (Ohms)";   Units = "Ohms";
+                case(this.UnitsType("Ohms"));       Headers = this.Name + " - Resistance (Ω)";      Units = "Ω";
                 case(this.UnitsType("Watts"));      Headers = this.Name + " - Watts (W)";           Units = "W";
                 case(this.UnitsType("Siemens"));    Headers = this.Name + " - Siemens (S)";         Units = "S";
                 otherwise

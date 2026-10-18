@@ -32,8 +32,8 @@ classdef Lakeshore331 < Palladium.Core.Instrument
     properties(Access = public, SetObservable)
         Name = "Ls331";                                         %Instrument name, used as the prefix of its heater power column header
         Connection_Type = Palladium.Enums.ConnectionType.GPIB;  %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
-        Ch_A_Reading;                                           %What to read on channel A: Temperature (K), Resistance (Ohms), or Disabled to not measure it
-        Ch_B_Reading;                                           %What to read on channel B: Temperature (K), Resistance (Ohms), or Disabled to not measure it
+        Ch_A_Reading;                                           %What to read on channel A: Temperature (K), Resistance (Ω), or Disabled to not measure it
+        Ch_B_Reading;                                           %What to read on channel B: Temperature (K), Resistance (Ω), or Disabled to not measure it
         Ch_A_Name = "Channel A Temperature (K)"                 %Data column header for channel A when reading temperature, e.g. "Sample Temp (K)"
         Ch_B_Name = "Channel B Temperature (K)"                 %Data column header for channel B when reading temperature
         HeaterResistance = 100;                                 %Resistance of the heater connected to the heater output, in Ohms - used to calculate heater power
@@ -146,11 +146,11 @@ classdef Lakeshore331 < Palladium.Core.Instrument
             %Add a column for each channel that isn't Disabled
             switch(this.Ch_A_Reading)
                 case(this.MeasType("Temperature"));     Headers = [Headers string(this.Ch_A_Name)];          Units = [Units "K"];
-                case(this.MeasType("Resistance"));      Headers = [Headers "Ch A Resistance (Ohms)"];       Units = [Units "Ohms"];
+                case(this.MeasType("Resistance"));      Headers = [Headers "Ch A Resistance (Ω)"];           Units = [Units "Ω"];
             end
             switch(this.Ch_B_Reading)
                 case(this.MeasType("Temperature"));     Headers = [Headers string(this.Ch_B_Name)];          Units = [Units "K"];
-                case(this.MeasType("Resistance"));      Headers = [Headers "Ch B Resistance (Ohms)"];       Units = [Units "Ohms"];
+                case(this.MeasType("Resistance"));      Headers = [Headers "Ch B Resistance (Ω)"];           Units = [Units "Ω"];
             end
 
             %The heater power is always recorded

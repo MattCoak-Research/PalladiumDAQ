@@ -3,7 +3,9 @@ classdef GUIUtils
     %The Instrument Options panel builds a field for each property that
     %`ComputePropertyList` returns, shows its value with `ToScalarString`,
     %and reads typed number lists back with `ToDoubleArrayFromScalarString`.
-    %`MessageToHTML` formats messages for dialogue boxes,
+    %`MessageToHTML` formats messages for dialogue boxes, `EscapeLaTeX`
+    %makes any text (e.g. a column header) show as typed in LaTeX-interpreted
+    %labels (`GreekToLaTeX` converts just the Greek letters),
     %`ChooseFromList` asks the user to pick one item from a list,
     %`ChooseFile` asks for a file or folder, and `ShowWarning` shows a
     %warning in the window it concerns.
@@ -405,10 +407,132 @@ classdef GUIUtils
             html = regexprep(html, "(https?://[^\s<]*[^\s<.,;:)])", "<a href=""$1"">$1</a>");
             html = replace(html, [sprintf("\r\n"), newline], "<br>");
         end
+
+        function latex = GreekToLaTeX(text)
+            %Turn the Greek letters in text into LaTeX, for labels shown with the LaTeX interpreter.
+            %MATLAB's LaTeX interpreter can't show Unicode Greek letters - a
+            %label with "Ω" fails to draw, with a warning - but shows
+            %LaTeX's math symbols: "Resistance (Ω)" becomes
+            %"Resistance ($\Omega$)". Neighbouring letters share one math
+            %group ("Δθ" becomes "$\Delta\theta$"). The capitals that look
+            %like Latin letters (Alpha, Beta, ...) become those letters, as
+            %LaTeX has no symbols for them. Also converts the micro sign (µ)
+            %and the ohm sign (Ω, U+2126). Other text is unchanged
+            %
+            %Inputs:
+            %   text - the text (string array, char or cellstr)
+            %
+            %Outputs:
+            %   latex - the text, with LaTeX for the Greek letters (string, same size)
+
+            latex = Palladium.Utilities.GUIUtils.ConvertToLaTeX(text, false);
+        end
+
+        function latex = EscapeLaTeX(text)
+            %Make text show as typed in a label with the LaTeX interpreter, e.g. a data column header.
+            %LaTeX's special characters are escaped - otherwise "_" makes
+            %a subscript, "%" hides the rest of the label, and "&", "#",
+            %"$", "{", "}", "^", "~" and "\" break it or vanish - and Greek
+            %letters become LaTeX symbols, as GreekToLaTeX does. For
+            %example "dV/dI_x (kΩ) 50%" becomes
+            %"dV/dI\_x (k$\Omega$) 50\%". Each escape is one MATLAB's LaTeX
+            %interpreter draws as the character itself: "&" is "{\&}" (it
+            %shows "\&" as "&amp;"), and "^", "~" and "\" are math symbols
+            %(\hat{}, \tilde{}, \backslash), sharing a math group with any
+            %neighbouring Greek letters
+            %
+            %Inputs:
+            %   text - the text (string array, char or cellstr)
+            %
+            %Outputs:
+            %   latex - the text, ready for the LaTeX interpreter (string, same size)
+
+            latex = Palladium.Utilities.GUIUtils.ConvertToLaTeX(text, true);
+        end
     end
 
     %% Methods (Static, Private)
     methods (Static, Access = private)
+
+        function latex = ConvertToLaTeX(text, escapeSpecials)
+            %Convert text for the LaTeX interpreter, one character at a time - shared by GreekToLaTeX and EscapeLaTeX.
+            %Greek letters (and, when escaping, ^ ~ and \) become math
+            %symbols, with neighbouring ones in one $...$ group - two groups
+            %touching ("$$") would start display maths. When escaping,
+            %_ % & # $ { } become their text-mode escapes. Done in one pass,
+            %so nothing is escaped twice
+            %
+            %Inputs:
+            %   text           - the text (string array, char or cellstr)
+            %   escapeSpecials - true to escape LaTeX's special characters too
+            %
+            %Outputs:
+            %   latex - the converted text (string, same size)
+
+            persistent greek mathSpecials textSpecials
+            if isempty(greek)
+                %Lower case α-ω (U+03B1-U+03C9, including final sigma ς), the
+                %variant forms, then capitals Α-Ω (U+0391-U+03A9, no U+03A2)
+                lower = ["\alpha", "\beta", "\gamma", "\delta", "\varepsilon", "\zeta", "\eta", "\theta", "\iota", "\kappa", ...
+                    "\lambda", "\mu", "\nu", "\xi", "o", "\pi", "\rho", "\varsigma", "\sigma", "\tau", "\upsilon", "\varphi", ...
+                    "\chi", "\psi", "\omega"];
+                upper = ["A", "B", "\Gamma", "\Delta", "E", "Z", "H", "\Theta", "I", "K", "\Lambda", "M", "N", "\Xi", "O", ...
+                    "\Pi", "P", "\Sigma", "T", "\Upsilon", "\Phi", "X", "\Psi", "\Omega"];
+                upperCodes = [913:929, 931:937];
+                variants = dictionary(string(char([977, 981, 982, 1009, 1013, 181, 8486]')), ...
+                    ["\vartheta"; "\phi"; "\varpi"; "\varrho"; "\epsilon"; "\mu"; "\Omega"]);   %ϑ ϕ ϖ ϱ ϵ, micro sign, ohm sign
+                greek = dictionary([string(char((945:969)')); string(char(upperCodes'))], [lower'; upper']);
+                greek(keys(variants)) = values(variants);
+
+                %Escapes MATLAB's LaTeX interpreter draws as the character
+                mathSpecials = dictionary(["^", "~", "\"], ["\hat{}", "\tilde{}", "\backslash"]);
+                textSpecials = dictionary(["_", "%", "&", "#", "$", "{", "}"], ["\_", "\%", "{\&}", "\#", "\$", "\{", "\}"]);
+            end
+
+            latex = string(text);
+            for i = 1:numel(latex)
+                if ismissing(latex(i))
+                    continue;
+                end
+                out = "";
+                inMath = false;
+                for c = char(latex(i))
+                    ch = string(c);
+                    if isKey(greek, ch) && startsWith(greek(ch), "\")
+                        mathText = greek(ch);
+                    elseif escapeSpecials && isKey(mathSpecials, ch)
+                        mathText = mathSpecials(ch);
+                    else
+                        mathText = "";
+                    end
+
+                    if strlength(mathText) > 0
+                        if ~inMath
+                            out = out + "$";
+                            inMath = true;
+                        end
+                        out = out + mathText;
+                        continue;
+                    end
+
+                    if inMath
+                        out = out + "$";
+                        inMath = false;
+                    end
+                    if isKey(greek, ch)
+                        out = out + greek(ch);              %A capital that looks like a Latin letter
+                    elseif escapeSpecials && isKey(textSpecials, ch)
+                        out = out + textSpecials(ch);
+                    else
+                        out = out + ch;
+                    end
+                end
+                if inMath
+                    out = out + "$";
+                end
+                latex(i) = out;
+            end
+        end
 
         function fig = FindUIFigure(owner)
             %The uifigure holding owner - a figure, a component in one, or an App Designer app's window - or [] if none showing.

@@ -100,7 +100,7 @@ classdef test_StarterFiles < matlab.unittest.TestCase
             testCase.verifyTrue(any(contains(lines, instr.Name + " Settings: ExampleSetting = Auto range")), "The template's metadata should be in the header");
             endIdx = find(lines == Palladium.DataWriting.DataWriter.END_METADATA_LINES_STRING);
             headers = split(strtrim(lines(endIdx + 2)), sprintf("\t"));
-            testCase.verifyEqual(headers', ["Time (mins)", instr.Name + " - Resistance_Ohms", instr.Name + " - Current_A"]);
+            testCase.verifyEqual(headers', ["Time (mins)", instr.Name + " - Resistance_Ω", instr.Name + " - Current_A"]);
             rows = lines(endIdx + 3 : end);
             rows = rows(rows ~= "");
             testCase.verifyNotEmpty(rows, "Data should be written");

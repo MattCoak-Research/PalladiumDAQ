@@ -25,7 +25,7 @@ classdef Keithley2000 < Palladium.Core.Instrument
     %% Properties (Public, Private Set)
     properties(GetAccess = public, SetAccess = {?Palladium.Instruments.Keithley2000, ?matlab.unittest.TestCase})
         MeasMode;                                               %Measurement function selected on the instrument, read from it when connecting. Sets the data column header and units.
-        MeasUnit = "Ohms";                                      %Units of the readings in MeasMode, e.g. "V" or "Ohms". Read from the instrument for Temperature (C, F or K) and AC Voltage (V, dB or dBm).
+        MeasUnit = "Ω";                                      %Units of the readings in MeasMode, e.g. "V" or "Ω". Read from the instrument for Temperature (C, F or K) and AC Voltage (V, dB or dBm).
     end
 
     %% Categoricals
@@ -83,8 +83,8 @@ classdef Keithley2000 < Palladium.Core.Instrument
             %Data column header and units for the reading returned by Measure
             %
             %Outputs:
-            %   Headers - one header, e.g. "K2000 - Resistance_Ohms"
-            %   Units   - its units, e.g. "Ohms"
+            %   Headers - one header, e.g. "K2000 - Resistance_Ω"
+            %   Units   - its units, e.g. "Ω"
 
             switch(this.MeasMode)
                 case(this.MeasType("DC Voltage"));          quantity = "Voltage_DC";
@@ -109,7 +109,7 @@ classdef Keithley2000 < Palladium.Core.Instrument
             %
             %Outputs:
             %   measMode - MeasType categorical, e.g. Resistance
-            %   measUnit - units of the readings, e.g. "Ohms"
+            %   measUnit - units of the readings, e.g. "Ω"
 
             if this.SimulationMode
                 measMode = this.MeasMode;
@@ -124,8 +124,8 @@ classdef Keithley2000 < Palladium.Core.Instrument
                 case("VOLT:AC");    measMode = this.MeasType("AC Voltage");         measUnit = this.QueryUnit(":UNIT:VOLT:AC?");
                 case("CURR:DC");    measMode = this.MeasType("DC Current");         measUnit = "A";
                 case("CURR:AC");    measMode = this.MeasType("AC Current");         measUnit = "A";
-                case("RES");        measMode = this.MeasType("Resistance");         measUnit = "Ohms";
-                case("FRES");       measMode = this.MeasType("4-Wire Resistance");  measUnit = "Ohms";
+                case("RES");        measMode = this.MeasType("Resistance");         measUnit = "Ω";
+                case("FRES");       measMode = this.MeasType("4-Wire Resistance");  measUnit = "Ω";
                 case("FREQ");       measMode = this.MeasType("Frequency");          measUnit = "Hz";
                 case("PER");        measMode = this.MeasType("Period");             measUnit = "s";
                 case("TEMP");       measMode = this.MeasType("Temperature");        measUnit = this.QueryUnit(":UNIT:TEMP?");

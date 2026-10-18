@@ -161,7 +161,7 @@ classdef ConfigIO < handle
                     mkdir(confDir);
                 end
 
-                writestruct(config, configPath, "FileType", "json");
+                writestruct(config, configPath, "FileType", "json", "Encoding", "UTF-8");    %readstruct has no Encoding option, but reads JSON as UTF-8
             catch e
                 error("SaveConfigError:SaveFailed", "%s", "Error saving Config file in ConfigIO: " + e.message);
             end

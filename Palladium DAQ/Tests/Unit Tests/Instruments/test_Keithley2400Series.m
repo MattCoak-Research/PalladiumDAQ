@@ -85,7 +85,7 @@ classdef test_Keithley2400Series < matlab.unittest.TestCase
             headers2410 = k2410.GetHeaders();
 
             testCase.verifyEqual(extractAfter(headers6430, " - "), extractAfter(headers2410, " - "));
-            testCase.verifyEqual(headers6430(1), "SrcMtr - Resistance (Ohms)");
+            testCase.verifyEqual(headers6430(1), "SrcMtr - Resistance (Ω)");
         end
 
         function K6430HasASweepControlTest(testCase)

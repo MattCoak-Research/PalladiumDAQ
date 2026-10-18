@@ -972,8 +972,8 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             %Outputs:
             %   Headers - e.g. ["ZI MFLI - Voltage (V)", "ZI MFLI - Phase (Deg)",
             %             "ZI MFLI - Output Current (A)", "ZI MFLI - Frequency (Hz)",
-            %             "ZI MFLI - Resistance (Ohms)"]
-            %   Units   - matching units, e.g. ["V", "Deg", "A", "Hz", "Ohms"]
+            %             "ZI MFLI - Resistance (Ω)"]
+            %   Units   - matching units, e.g. ["V", "Deg", "A", "Hz", "Ω"]
 
             %Find out what units the device is supplying (current or
             %voltage)
@@ -1025,8 +1025,8 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             %source etc - just for convenience. Not in Current mode,
             %which measures a current rather than a voltage
             if calculateResistance && this.MeasurementMode ~= this.MeasType("Current")
-                Headers = [Headers, this.Name + " - Resistance (Ohms)"];
-                Units = [Units "Ohms"];
+                Headers = [Headers, this.Name + " - Resistance (Ω)"];
+                Units = [Units "Ω"];
             end
         end
 

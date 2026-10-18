@@ -246,7 +246,7 @@ classdef test_DataReader < matlab.unittest.TestCase
        end
 
        function test_ReadFile_HeadersKeepSpacesUnitsAndSymbolsTest(testCase)
-           headers = ["Time (mins)", "Resistance (Ohms)", "dV/dI [a.u.]", "T_sample_1", "50% load"];
+           headers = ["Time (mins)", "Resistance (Ω)", "dV/dI [a.u.]", "T_sample_1", "50% load"];
            file = testCase.writeStandardFile("hdr.dat", join(headers, char(9)), "1" + repmat(string(char(9)) + "1", 1, 4));
 
            [~, readHeaders] = testCase.reader.ReadFile(file);

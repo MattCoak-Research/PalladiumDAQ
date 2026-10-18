@@ -326,7 +326,7 @@ classdef SequenceEditorController < handle
 
         function sequenceLines = LoadSequenceFromFile(this, filePath)
 
-            lnes = readlines(filePath);
+            lnes = readlines(filePath, Encoding = "UTF-8");
 
             if isempty(lnes)
                 Palladium.Utilities.GUIUtils.ShowWarning(this.View, "Empty or invalid sequence file", "Sequence");
@@ -359,7 +359,7 @@ classdef SequenceEditorController < handle
 
         function SaveSequenceToFile(~, sequenceLines, filePath)
             %Will overwrite
-            fid = fopen(filePath, 'w');
+            fid = fopen(filePath, 'w', 'n', 'UTF-8');
 
             formatSpec = '%s\n';
 
