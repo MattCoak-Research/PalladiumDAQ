@@ -29,6 +29,12 @@ classdef test_BigNumberDisplays < matlab.unittest.TestCase
             testCase.Programme = pd;
             pd.AddInstrument("Keithley2000", ConnectionType="Debug");
             pd.SetUpdateTime(0.1);
+
+            %Answer any error dialogue from the start, so an unexpected error
+            %prints its full report (see Logger.HandleError) rather than
+            %failing to open a dialogue - these tests have failed
+            %intermittently with only "Invalid or deleted object" to go on
+            Palladium.Logging.Logger.TestDialogResponse("set", "Ignore");
             testCase.addTeardown(@() Palladium.Logging.Logger.TestDialogResponse("set", ""));
         end
     end

@@ -115,7 +115,11 @@ classdef BigNumberDisplay < handle
             %measure the text in - with nothing of the axes itself shown
             this.Axes = axes(this.Figure, "Units", "pixels", "Visible", "off", "HitTest", "off", ...
                 "XLimMode", "manual", "YLimMode", "manual");
-            this.Axes.Toolbar.Visible = "off";
+            %Remove the axes toolbar, rather than hiding it: reading
+            %Toolbar makes MATLAB create the default toolbar, which in a
+            %new window intermittently errored with "Invalid or deleted
+            %object" (its listener on the axes' interaction container)
+            this.Axes.Toolbar = [];
             disableDefaultInteractivity(this.Axes);
 
             textStyle = {"Parent", this.Axes, "Units", "data", "FontUnits", "pixels", "Interpreter", "none", ...

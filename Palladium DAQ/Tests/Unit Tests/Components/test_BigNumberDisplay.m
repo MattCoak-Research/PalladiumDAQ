@@ -196,6 +196,16 @@ classdef test_BigNumberDisplay < matlab.unittest.TestCase
             testCase.addTeardown(@() delete(d));
             testCase.verifyTrue(isvalid(d));
         end
+
+        function AxesHasNoToolbarTest(testCase)
+            %The toolbar is removed, not hidden - reading the Toolbar to hide
+            %it made MATLAB create one, which intermittently errored in a
+            %new window ("Invalid or deleted object"), so a display
+            %sometimes failed to open
+            ax = findall(testCase.Display.Figure, "Type", "axes");
+            testCase.assertNumElements(ax, 1);
+            testCase.verifyEmpty(ax.Toolbar);
+        end
     end
 
     %% Methods (Private)
