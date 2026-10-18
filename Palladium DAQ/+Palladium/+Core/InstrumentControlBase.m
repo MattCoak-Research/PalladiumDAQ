@@ -441,10 +441,11 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
             dataWriter.InsertMetadataLines([metadataDescLine, dataRowMetadataLine]);
         end
 
-        function InsertSmartTagRequest(~, src, evt, controller)
+        function InsertSmartTagRequest(this, src, evt, controller)
             %Let the user pick a data column to add to a file name as a tag, in a small dialogue.
             %Hook to a GUI's InsertSmartTag event. Shows a small window to
-            %choose a data column and number format; on OK, appends a tag
+            %choose a data column and number format (previewed on example
+            %values, OK only when it can be used); on OK, appends a tag
             %such as " [Sample Temperature (K),%6.2f]" to the name and sends
             %it back with `src.SetNewSweepName`. ProcessFileName later
             %replaces the tag with the column's value
@@ -482,12 +483,12 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
             %Open and configure a little GUI - with OpenDialog, not a modal
             %uifigure: closing a modal one can bring the MATLAB desktop
             %up over Palladium's window
-            optionsFig = Palladium.Utilities.GUIUtils.OpenDialog("Insert Auto-naming Tag", [400, 170], Reference=src, ...
+            optionsFig = Palladium.Utilities.GUIUtils.OpenDialog("Insert Auto-naming Tag", [400, 220], Reference=src, ...
                 Icon=controller.WindowSettings.PalladiumIconPath, Tag="Palladium.InsertSmartTag");
             if isempty(optionsFig)
                 return;     %Already open - brought to the front instead
             end
-            gr =uigridlayout(optionsFig, [4,4], "ColumnWidth", {10, 200, 20, 100, 10}, "RowHeight", {10, 30, 30, 10, 50, 10}, "RowSpacing", 2);
+            gr = uigridlayout(optionsFig, [6,5], "ColumnWidth", {10, 200, 20, 100, 10}, "RowHeight", {10, 30, 30, 50, 50, 10}, "RowSpacing", 2);
 
             l1 = uilabel(gr, Text="Data Column", HorizontalAlignment="Center", FontSize=14, FontName="Georgia");
             l1.Layout.Row = 2;
@@ -498,9 +499,22 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
             d = uidropdown(gr, FontSize=14, FontName="Georgia", Items= headers);
             d.Layout.Row = 3;
             d.Layout.Column = 2;
-            pr = uieditfield(gr, "text", Value=precisionStr, HorizontalAlignment="Center", FontSize=14, FontName="Georgia");
+            pr = uieditfield(gr, "text", Value=precisionStr, HorizontalAlignment="Center", FontSize=14, FontName="Georgia", ...
+                Tooltip=["An sprintf format for the value in the file name, e.g.:", ...
+                         "%6.2f  -  2 decimal places: 3.14", ...
+                         "%.0f  -  a whole number: 3", ...
+                         "%.1f  -  1 decimal place: 3.1", ...
+                         "%05.1f  -  zero-padded to 5 characters: 003.1", ...
+                         "%+.2f  -  always with a sign: +3.14", ...
+                         "%.3e  -  scientific, 3 decimal places: 3.142e+00", ...
+                         "%g  -  the shorter of fixed and scientific: 3.14159", ...
+                         "Decimal points become """ + this.DecimalPointReplacementCharacter + """ in the file name"], ...
+                ValueChangingFcn=@(~, event) Preview(event.Value), ValueChangedFcn=@(~, ~) Preview());
             pr.Layout.Row = 3;
             pr.Layout.Column = 4;
+            example = uilabel(gr, WordWrap="on", HorizontalAlignment="Center", FontSize=13, FontName="Georgia");
+            example.Layout.Row = 4;
+            example.Layout.Column = [2 4];
 
             buttonsGrid = uigridlayout(gr, [1,5], "ColumnWidth", {'1x', 90, 20, 90, '1x'}, "RowHeight", {'1x'});
             buttonsGrid.Layout.Row = 5;
@@ -512,8 +526,47 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
             canb.Layout.Column = 4;
 
             optionsFig.CloseRequestFcn = @(~, ~) Cancel();     %Closing the window cancels
+            Preview();
+
+            function Preview(format)
+                %Show example values as they would appear in the file name - or why the format can't be used.
+                %Given the format while it is being typed; otherwise reads the box
+                if nargin < 1
+                    format = pr.Value;
+                end
+                format = string(format);
+                problem = TagFormatProblem(format);
+                if strlength(problem) == 0
+                    examples = arrayfun(@(v) replace(string(num2str(v, format)), ".", this.DecimalPointReplacementCharacter), ...
+                        [pi, -0.00123456789, 12345678.9]);
+                    example.Text = "In the file name:   " + join(examples, "   ");
+                    example.FontColor = [0 0 0];
+                    okb.Enable = "on";
+                else
+                    example.Text = problem;
+                    example.FontColor = [0.8 0 0];
+                    okb.Enable = "off";
+                end
+            end
+
+            function problem = TagFormatProblem(format)
+                %Why a format can't be used in a tag, or "" if it can.
+                %It must format one number, and can't contain what would end
+                %the tag (a comma or the delimiters) or what a file name can't
+                problem = "";
+                if strlength(format) == 0 || ~Palladium.Components.BigNumberDisplay.IsNumberFormat(format)
+                    problem = "Not a number format - it needs one number, e.g. %6.2f or %.3e";
+                elseif contains(format, [",", string(num2cell(char(this.FileNamePropertyDelimiters)))])
+                    problem = "Can't contain a comma or " + join(string(num2cell(char(this.FileNamePropertyDelimiters))), " ") + " - they would end the tag";
+                elseif contains(format, ["<", ">", ":", """", "/", "\", "|", "?", "*"])
+                    problem = "Can't contain characters that file names can't: < > : "" / \ | ? *";
+                end
+            end
 
             function OK(d,pr)
+                if okb.Enable == "off"
+                    return;
+                end
                 precisionStr = pr.Value;
                 parameterName = d.Value;
                 cancel = false;
