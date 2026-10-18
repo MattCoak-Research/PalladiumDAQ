@@ -362,7 +362,7 @@ classdef Lakeshore340 < Palladium.Core.Instrument
             loop = this.GetLoopString(controlChannel);
             modeIndex = this.GetControlModeIndex(controlMode);
 
-            this.WriteCommand("CMODE " + loop + "," + num2str(modeIndex));
+            this.WriteCommand("CMODE " + loop + "," + Palladium.Core.Instrument.NumberToCommandString(modeIndex));
         end
 
         function SetHeaterRange(this, range)
@@ -373,7 +373,7 @@ classdef Lakeshore340 < Palladium.Core.Instrument
             %           turns the heater off
 
             rangeIdx = this.GetHeaterRangeIndex(range);
-            this.WriteCommand("RANGE " + num2str(rangeIdx));
+            this.WriteCommand("RANGE " + Palladium.Core.Instrument.NumberToCommandString(rangeIdx));
         end
 
         function SetHeaterSetpoint(this, setPt)
@@ -384,7 +384,7 @@ classdef Lakeshore340 < Palladium.Core.Instrument
             %   setPt - setpoint, in the setpoint units set on the instrument
             %           (usually K)
 
-            this.WriteCommand("SETP " + this.GetLoopString(this.ControlChannel) + "," + num2str(setPt));
+            this.WriteCommand("SETP " + this.GetLoopString(this.ControlChannel) + "," + Palladium.Core.Instrument.NumberToCommandString(setPt));
         end
 
         function SetManualOutputPercent(this, controlChannel, percentage)
@@ -397,7 +397,7 @@ classdef Lakeshore340 < Palladium.Core.Instrument
 
             loop = this.GetLoopString(controlChannel);
             assert(percentage <= 100 && percentage >= 0, "Lakeshore340:InvalidOutputPercentage", "Invalid output percentage");
-            this.WriteCommand("MOUT " + loop + "," + num2str(percentage));
+            this.WriteCommand("MOUT " + loop + "," + Palladium.Core.Instrument.NumberToCommandString(percentage));
         end
 
         function SetPIDValues(this, controlChannel, P, I, D)
@@ -410,7 +410,7 @@ classdef Lakeshore340 < Palladium.Core.Instrument
             %   D              - derivative, or rate
 
             loop = this.GetLoopString(controlChannel);
-            this.WriteCommand("PID " + loop + "," + num2str(P) + "," + num2str(I) + "," + num2str(D));
+            this.WriteCommand("PID " + loop + "," + Palladium.Core.Instrument.NumberToCommandString(P) + "," + Palladium.Core.Instrument.NumberToCommandString(I) + "," + Palladium.Core.Instrument.NumberToCommandString(D));
         end
 
         function SetRamp(this, enabled, rate)
@@ -421,7 +421,7 @@ classdef Lakeshore340 < Palladium.Core.Instrument
             %             step it
             %   rate    - ramp rate, in K/min (0.1 to 100)
 
-            this.WriteCommand("RAMP " + this.GetLoopString(this.ControlChannel) + "," + num2str(double(logical(enabled))) + "," + num2str(rate));
+            this.WriteCommand("RAMP " + this.GetLoopString(this.ControlChannel) + "," + Palladium.Core.Instrument.NumberToCommandString(double(logical(enabled))) + "," + Palladium.Core.Instrument.NumberToCommandString(rate));
         end
 
     end

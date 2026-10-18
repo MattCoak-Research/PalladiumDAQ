@@ -175,7 +175,7 @@ classdef Lakeshore350 < Palladium.Core.Instrument
                 return;
             end
 
-            htrChannelStr = num2str(this.GetHeaterChannelIndex(heaterChannel));
+            htrChannelStr = Palladium.Core.Instrument.NumberToCommandString(this.GetHeaterChannelIndex(heaterChannel));
             htrLevel = this.QueryDouble("HTR? " + htrChannelStr);
             htrEnabled = this.GetHeaterRange(heaterChannel) ~= 0;
         end
@@ -261,7 +261,7 @@ classdef Lakeshore350 < Palladium.Core.Instrument
             %Outputs:
             %   output - manual output, in percent
 
-            channelStr = num2str(this.GetHeaterChannelIndex(heaterChannel));
+            channelStr = Palladium.Core.Instrument.NumberToCommandString(this.GetHeaterChannelIndex(heaterChannel));
 
             if(this.SimulationMode)
                 output = 78;
@@ -479,12 +479,12 @@ classdef Lakeshore350 < Palladium.Core.Instrument
             %   controlChannel - Channel categorical: A to D, or None
             %   controlMode    - ControlMode categorical, e.g. Closed Loop PID
 
-            htrChannelStr = num2str(this.GetHeaterChannelIndex(outputChannel));
+            htrChannelStr = Palladium.Core.Instrument.NumberToCommandString(this.GetHeaterChannelIndex(outputChannel));
             channelStr = this.GetChannelString(controlChannel);
             modeIndex = this.GetControlModeIndex(controlMode);
             powerupEnable = "1";
 
-            this.WriteCommand("OUTMODE " + htrChannelStr + "," + num2str(modeIndex) + "," + channelStr + "," + powerupEnable);
+            this.WriteCommand("OUTMODE " + htrChannelStr + "," + Palladium.Core.Instrument.NumberToCommandString(modeIndex) + "," + channelStr + "," + powerupEnable);
         end
 
         function SetHeaterRange(this, heaterChannel, range)
@@ -500,7 +500,7 @@ classdef Lakeshore350 < Palladium.Core.Instrument
             channelStr = this.GetHeaterChannelIndex(heaterChannel);
             rangeIdx = this.GetHeaterRangeIndex(range);
 
-            this.WriteCommand("RANGE " + channelStr + "," + num2str(rangeIdx));
+            this.WriteCommand("RANGE " + channelStr + "," + Palladium.Core.Instrument.NumberToCommandString(rangeIdx));
         end
 
         function SetHeaterSetpoint(this, heaterChannel, setPt)
@@ -514,7 +514,7 @@ classdef Lakeshore350 < Palladium.Core.Instrument
 
             channelStr = this.GetHeaterChannelIndex(heaterChannel);
 
-            this.WriteCommand("SETP " + channelStr + "," + num2str(setPt));
+            this.WriteCommand("SETP " + channelStr + "," + Palladium.Core.Instrument.NumberToCommandString(setPt, SignificantFigures=6));
         end
 
         function SetManualOutputPercent(this, heaterChannel, percentage)
@@ -525,10 +525,10 @@ classdef Lakeshore350 < Palladium.Core.Instrument
             %   heaterChannel - OutputChannel categorical, Ch1 or Ch2
             %   percentage    - manual output, 0 to 100 %
 
-            channelStr = num2str(this.GetHeaterChannelIndex(heaterChannel));
+            channelStr = Palladium.Core.Instrument.NumberToCommandString(this.GetHeaterChannelIndex(heaterChannel));
             assert(percentage <= 100 && percentage >= 0, "Lakeshore350:InvalidOutputPercentage", "Invalid output percentage");
 
-            this.WriteCommand("MOUT " + channelStr + "," + num2str(percentage));
+            this.WriteCommand("MOUT " + channelStr + "," + Palladium.Core.Instrument.NumberToCommandString(percentage, SignificantFigures=5));
         end
 
         function SetPIDValues(this, heaterChannel, P, I, D)
@@ -542,7 +542,7 @@ classdef Lakeshore350 < Palladium.Core.Instrument
 
             channelStr = this.GetHeaterChannelIndex(heaterChannel);
 
-            this.WriteCommand("PID " + channelStr + "," + num2str(P) + "," + num2str(I) + "," + num2str(D));
+            this.WriteCommand("PID " + channelStr + "," + Palladium.Core.Instrument.NumberToCommandString(P, SignificantFigures=5) + "," + Palladium.Core.Instrument.NumberToCommandString(I, SignificantFigures=5) + "," + Palladium.Core.Instrument.NumberToCommandString(D, SignificantFigures=4));
         end
 
         function SetRamp(this, outputChannel, enabled, rate)
@@ -556,7 +556,7 @@ classdef Lakeshore350 < Palladium.Core.Instrument
 
             channelStr = this.GetHeaterChannelIndex(outputChannel);
 
-            this.WriteCommand("RAMP " + channelStr + "," + num2str(double(logical(enabled))) + "," + num2str(rate));
+            this.WriteCommand("RAMP " + channelStr + "," + Palladium.Core.Instrument.NumberToCommandString(double(logical(enabled))) + "," + Palladium.Core.Instrument.NumberToCommandString(rate, SignificantFigures=4));
         end
 
     end

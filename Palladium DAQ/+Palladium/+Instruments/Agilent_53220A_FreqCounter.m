@@ -62,7 +62,7 @@ classdef Agilent_53220A_FreqCounter < Palladium.Core.Instrument
 
                 %Parameters are comma separated, e.g. MEAS:FREQ? 20E6, 0.1, (@1)
                 %(User's Guide, chapter 3, Frequency measurements)
-                freq_Hz = this.QueryDouble("MEAS:FREQ? " + num2str(expectedFreq) + "," + num2str(resolution) + ",(@1)");
+                freq_Hz = this.QueryDouble("MEAS:FREQ? " + Palladium.Core.Instrument.NumberToCommandString(expectedFreq) + "," + Palladium.Core.Instrument.NumberToCommandString(resolution) + ",(@1)");
             end
 
             dataRow = freq_Hz;

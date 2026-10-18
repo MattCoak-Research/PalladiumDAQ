@@ -157,7 +157,7 @@ classdef Keysight4284A_LCR_Meter < Palladium.Core.Instrument
                 return;
             end
 
-            this.WriteCommand("FREQ " + num2str(freqHz) + "HZ");
+            this.WriteCommand("FREQ " + Palladium.Core.Instrument.NumberToCommandString(freqHz) + "HZ");
         end
 
         function SetNewSweepStepValue(this, value)
@@ -181,7 +181,7 @@ classdef Keysight4284A_LCR_Meter < Palladium.Core.Instrument
                 return;
             end
 
-            this.WriteCommand("VOLT " + num2str(voltage_V) + "V");
+            this.WriteCommand("VOLT " + Palladium.Core.Instrument.NumberToCommandString(voltage_V) + "V");
         end
 
     end

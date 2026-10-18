@@ -198,15 +198,21 @@ classdef test_Instrument < matlab.unittest.TestCase
 
         %% NumberToCommandString
         function test_NumberToCommandString_KeepsTheValueTest(testCase)
-            %10 significant figures - num2str, used before, kept only about
+            %15 significant figures - num2str, used before, kept only about
             %5, so set values were silently rounded
             toText = @Palladium.Core.Instrument.NumberToCommandString;
             testCase.verifyEqual(toText(1.23456789), "1.23456789");
-            testCase.verifyEqual(toText(1.2345678e-7), "1.2345678e-07");
+            testCase.verifyEqual(toText(1.2345678e-7), "1.2345678E-07", "Capital E, as instrument manuals write it");
             testCase.verifyEqual(toText(-0.0025), "-0.0025");
             testCase.verifyEqual(toText(5), "5", "Whole numbers without a decimal point");
             testCase.verifyEqual(toText(100000), "100000");
-            testCase.verifyEqual(str2double(toText(pi)), round(pi, 9), AbsTol=1e-12);
+            testCase.verifyEqual(toText(pi), "3.14159265358979");
+            testCase.verifyEqual(toText(20e9 + 1), "20000000001", "A 20 GHz frequency keeps its last Hz");
+            testCase.verifyEqual(toText(0.1 + 0.2), "0.3", "Floating-point noise isn't sent");
+
+            %Fewer, for fixed-width fields such as a Lakeshore's +nnnn
+            testCase.verifyEqual(toText(3.45678901, SignificantFigures=4), "3.457");
+            testCase.verifyEqual(toText(123456.7, SignificantFigures=6), "123457");
         end
 
         %% Connect

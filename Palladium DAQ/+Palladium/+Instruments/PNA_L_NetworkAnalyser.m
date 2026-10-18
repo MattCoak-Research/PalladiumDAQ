@@ -381,8 +381,8 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
                 stop_Hz (1,1) double;
             end
 
-            this.WriteCommand("SENSe1:FREQuency:STARt " + num2str(start_Hz, '%d'));
-            this.WriteCommand("SENSe1:FREQuency:STOP " + num2str(stop_Hz, '%d'));
+            this.WriteCommand("SENSe1:FREQuency:STARt " + Palladium.Core.Instrument.NumberToCommandString(start_Hz));
+            this.WriteCommand("SENSe1:FREQuency:STOP " + Palladium.Core.Instrument.NumberToCommandString(stop_Hz));
         end
 
         function SetNumPoints(this, numPts)
@@ -398,7 +398,7 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
                 return;
             end
 
-            this.WriteCommand("SENS:SWE:POIN " + num2str(numPts));
+            this.WriteCommand("SENS:SWE:POIN " + Palladium.Core.Instrument.NumberToCommandString(numPts));
         end
 
         function SetSweepTime(this, time_s)
@@ -414,7 +414,7 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
                 return;
             end
 
-            this.WriteCommand("SENS1:SWE:TIME " + num2str(time_s));
+            this.WriteCommand("SENS1:SWE:TIME " + Palladium.Core.Instrument.NumberToCommandString(time_s));
         end
 
         function SetSweepType(this, type)

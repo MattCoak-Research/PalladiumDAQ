@@ -1008,23 +1008,30 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
     %% Methods (Static, Public)
     methods (Static, Access = public)
 
-        function str = NumberToCommandString(value)
-            %A number as text for an instrument command, to 10 significant figures.
+        function str = NumberToCommandString(value, Settings)
+            %A number as text for an instrument command, to 15 significant figures (as much as a double reliably holds), or fewer.
             %Use in place of num2str, which keeps only about 5 (1.23456789
             %becomes "1.2346"), so set values were silently rounded. Whole
-            %numbers are written without a decimal point, e.g. "5"
+            %numbers are written without a decimal point, e.g. "5", and a
+            %frequency of 20 GHz keeps its last Hz. Exponents are written with
+            %a capital E (1.2345678E-07), as instrument manuals write them. For
+            %number fields of a fixed width (e.g. a Lakeshore's +nnnnn), give
+            %SignificantFigures as the number of digits the manual shows -
+            %more may not be accepted
             %
             %Inputs:
-            %   value - the number
+            %   value              - the number
+            %   SignificantFigures - (name-value) most significant figures to give. Default 15
             %
             %Outputs:
-            %   str - e.g. "1.23456789", "-0.0025", "1.2345678e-07"
+            %   str - e.g. "1.23456789", "-0.0025", "1.2345678E-07"
 
             arguments
                 value (1,1) double {mustBeReal};
+                Settings.SignificantFigures (1,1) double {mustBeInteger, mustBeBetween(Settings.SignificantFigures, 1, 15)} = 15;
             end
 
-            str = string(sprintf("%.10g", value));
+            str = string(sprintf("%.*G", Settings.SignificantFigures, value));
         end
 
     end

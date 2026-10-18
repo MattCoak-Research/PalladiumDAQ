@@ -767,7 +767,7 @@ classdef MercuryITC < Palladium.Core.Instrument
                 return;
             end
 
-            commandStr = string(deviceAddress) + ":LOOP:" + string(loopCommand) + ":" + num2str(value);
+            commandStr = string(deviceAddress) + ":LOOP:" + string(loopCommand) + ":" + Palladium.Core.Instrument.NumberToCommandString(value);
             responseString = this.SetValue(commandStr);
             confirmedValue = this.ParseSignalResponse(responseString);
         end

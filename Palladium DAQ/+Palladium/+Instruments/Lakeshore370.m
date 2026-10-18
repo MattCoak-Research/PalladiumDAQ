@@ -314,7 +314,7 @@ classdef Lakeshore370 < Palladium.Core.Instrument
             %                 Open Loop or Off
 
             modeIndex = this.GetControlModeIndex(controlMode);
-            this.WriteCommand("CMODE " + num2str(modeIndex));
+            this.WriteCommand("CMODE " + Palladium.Core.Instrument.NumberToCommandString(modeIndex));
         end
 
         function SetHeaterRange(this, range)
@@ -325,7 +325,7 @@ classdef Lakeshore370 < Palladium.Core.Instrument
             %           range has no effect while the control mode is Off
 
             index = this.GetHeaterRangeIndex(range);
-            this.WriteCommand("HTRRNG " + num2str(index));
+            this.WriteCommand("HTRRNG " + Palladium.Core.Instrument.NumberToCommandString(index));
         end
 
         function SetHeaterSetpoint(this, setPt)
@@ -336,7 +336,7 @@ classdef Lakeshore370 < Palladium.Core.Instrument
             %   setPt - setpoint, in the setpoint units set on the instrument
             %           (K or Ohms)
 
-            this.WriteCommand("SETP " + num2str(setPt));
+            this.WriteCommand("SETP " + Palladium.Core.Instrument.NumberToCommandString(setPt, SignificantFigures=6));
         end
 
         function SetManualOutputPercent(this, percentage)
@@ -348,7 +348,7 @@ classdef Lakeshore370 < Palladium.Core.Instrument
             %   percentage - manual output, 0 to 100 %
 
             assert(percentage <= 100 && percentage >= 0, "Lakeshore370:InvalidOutputPercentage", "Invalid output percentage");
-            this.WriteCommand("MOUT " + num2str(percentage));
+            this.WriteCommand("MOUT " + Palladium.Core.Instrument.NumberToCommandString(percentage, SignificantFigures=6));
         end
 
         function SetPIDValues(this, P, I, D)
@@ -359,7 +359,7 @@ classdef Lakeshore370 < Palladium.Core.Instrument
             %   I - integral, or reset, in s (0 to 10000)
             %   D - derivative, or rate, in s (0 to 2500)
 
-            this.WriteCommand(['PID' ' ' num2str(P) ',' num2str(I) ',' num2str(D)]);
+            this.WriteCommand("PID " + Palladium.Core.Instrument.NumberToCommandString(P, SignificantFigures=6) + "," + Palladium.Core.Instrument.NumberToCommandString(I, SignificantFigures=6) + "," + Palladium.Core.Instrument.NumberToCommandString(D, SignificantFigures=6));
         end
 
         function SetRamp(this, enabled, rate)
@@ -378,7 +378,7 @@ classdef Lakeshore370 < Palladium.Core.Instrument
             end
 
             rate = abs(rate);
-            this.WriteCommand("RAMP " + enabledStr + "," + num2str(rate));
+            this.WriteCommand("RAMP " + enabledStr + "," + Palladium.Core.Instrument.NumberToCommandString(rate, SignificantFigures=5));
         end
 
     end
