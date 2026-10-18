@@ -1523,6 +1523,13 @@
                                         </Category>
                                     </Info>
                                 </File>
+                                <File Location="RecordingPNA_L.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
                             </File>
                         </File>
                         <File Location="ZI Testing">
@@ -1806,6 +1813,13 @@
                             </Info>
                         </File>
                         <File Location="test_HP8722ES.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_PNA_L.m">
                             <Info>
                                 <Category UUID="FileClassCategory">
                                     <Label UUID="test"/>

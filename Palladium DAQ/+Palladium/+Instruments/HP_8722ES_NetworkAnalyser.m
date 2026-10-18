@@ -238,8 +238,6 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
 
         function OnConnected(this)
             %Allow a long timeout, for slow sweeps and large data transfers, after connecting.
-            %(The connection's input buffer has no fixed size to enlarge -
-            %setting InputBufferSize, as this used to, errored on connecting)
 
             this.ScanComplete = true;
             if this.SimulationMode
