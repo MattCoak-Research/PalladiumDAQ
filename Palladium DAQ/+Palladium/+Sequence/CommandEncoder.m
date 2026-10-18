@@ -90,7 +90,11 @@ classdef CommandEncoder < handle
                     str = this.BuildDataFileCommand(FilePath=com.DataFilePath, WriteToFile=com.WriteToFile);
 
                 case("InstrumentCommand")
-                    str = this.BuildInstrumentCommand(Instrument=com.Instrument, CommandString=com.CommandString, ControlName=com.ControlName);
+                    if isempty(com.ControlName)
+                         str = this.BuildInstrumentCommand(Instrument=com.Instrument, CommandString=com.CommandString);
+                    else
+                        str = this.BuildInstrumentCommand(Instrument=com.Instrument, CommandString=com.CommandString, ControlName=com.ControlName);
+                    end
                 
                 case("RunSequenceCommand")
                     str = this.BuildRunSequenceCommand(FilePath=com.SequencePath);
@@ -191,7 +195,7 @@ classdef CommandEncoder < handle
             arguments
                 this;
                 Settings.Instrument (1,1) Palladium.Core.Instrument;
-                Settings.ControlName {mustBeTextScalar} = string.empty;
+                Settings.ControlName = string.empty;
                 Settings.CommandString {mustBeTextScalar};
             end
 

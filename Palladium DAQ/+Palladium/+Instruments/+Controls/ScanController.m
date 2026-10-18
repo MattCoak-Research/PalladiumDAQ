@@ -35,15 +35,12 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
     %% Constructor
     methods
         function this = ScanController()
+            this.RegisterCommandCompleteQuery("ScanRun", @this.IsComplete);
         end
     end
 
     %% Methods (Public)
     methods (Access = public)
-
-        function complete = CheckComplete(this)
-            complete = this.Instrument.CheckScanComplete();
-        end
 
         function ClearData(this)
             this.Data.X = [];
@@ -115,6 +112,10 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
 
         function t_s = GetElapsedTime(this)
             t_s = toc(this.timerVal);
+        end
+
+        function complete = IsComplete(this)
+            complete = this.Instrument.CheckScanComplete();
         end
 
         function LockRunButton(this)
@@ -190,12 +191,14 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             %GetCompletedScanData function)
             this.DataArray = this.Instrument.GetCompletedScanData();
 
-            %Write data to file
-            this.WriteScanData(this.DataArray);
+            if this.ControlDetailsStruct.SweepDetails.SaveSweepFile
+                %Write data to file
+                this.WriteScanData(this.DataArray);
 
-            %Add in an end-of sweep metadata line if this is the
-            %last update
-            this.InsertEndMetadataIntoFile(this.DataWriter);
+                %Add in an end-of sweep metadata line if this is the
+                %last update
+                this.InsertEndMetadataIntoFile(this.DataWriter);
+            end
 
             switch(this.PlotterType)
                 case("Simple")
@@ -220,7 +223,7 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             this.GUIView.OnScanDataChanged(this.ControlDetailsStruct.SweepDetails);
         end
 
-        function ScanRun(this, ~, ~)
+        function ScanRun(this, src, evnt) %#ok<INUSD>
             this.Running = true;
             this.TimeElapsed_s = 0;
             this.timerVal = tic();
@@ -252,7 +255,7 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
         function UpdateData(this, ~, ~)
             if this.Running
                 %Check if we reached the end of the sweep
-                if this.CheckComplete()
+                if this.IsComplete()
                     this.ScanComplete();
                 end
             else

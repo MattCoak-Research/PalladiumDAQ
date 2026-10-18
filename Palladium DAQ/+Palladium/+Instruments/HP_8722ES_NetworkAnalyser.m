@@ -34,7 +34,7 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
         MeasMode;                                               %S-parameter to measure: S11, S21, S12 or S22 - selected on the analyser before each sweep
         MeasUnit;                                               %dB (log magnitude) or Absolute (linear magnitude) - the display format is set to match before each sweep
     end
-
+to
     %% Properties (Private)
     properties(Access = private)
         ScanComplete = true;                                    %False while a sweep started by RunScan is under way
@@ -68,26 +68,6 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
 
     %% Methods (Public)
     methods (Access = public)
-
-        function RunScan(this)
-            %Start one sweep, for the Scan Control tab - without waiting for it (see CheckScanComplete).
-            %Selects MeasMode's S-parameter and MeasUnit's display format
-            %first. A device clear first discards any reply left from an
-            %aborted sweep
-
-            this.ScanComplete = false;
-            if this.SimulationMode
-                return;
-            end
-
-            this.Clear();
-            this.WriteCommand(string(this.MeasMode) + ";");
-            this.WriteCommand(this.DisplayFormatCommand() + ";");
-
-            %OPC? makes the analyser reply 1 once the single sweep is done
-            %(Programmer's Guide, Example 3B)
-            this.WriteCommand("OPC?;SING;");
-        end
 
         function complete = CheckScanComplete(this)
             %Check, without waiting, whether the sweep started by RunScan has finished - for the Scan Control tab.
@@ -229,6 +209,26 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
             %   dataRow - empty, matching GetHeaders
 
             dataRow = [];
+        end
+        
+        function RunScan(this)
+            %Start one sweep, for the Scan Control tab - without waiting for it (see CheckScanComplete).
+            %Selects MeasMode's S-parameter and MeasUnit's display format
+            %first. A device clear first discards any reply left from an
+            %aborted sweep
+
+            this.ScanComplete = false;
+            if this.SimulationMode
+                return;
+            end
+
+            this.Clear();
+            this.WriteCommand(string(this.MeasMode) + ";");
+            this.WriteCommand(this.DisplayFormatCommand() + ";");
+
+            %OPC? makes the analyser reply 1 once the single sweep is done
+            %(Programmer's Guide, Example 3B)
+            this.WriteCommand("OPC?;SING;");
         end
 
     end
