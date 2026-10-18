@@ -130,7 +130,8 @@ classdef GUIUtils
             %Inputs:
             %   title      - the window's title
             %   dialogSize - [width, height] in pixels
-            %   Reference  - (name-value) the window to centre on, e.g. the main window. Default: none
+            %   Reference  - (name-value) the window to centre on, e.g. the main window - or anything
+            %                in it: a component or an App Designer app. Default: none
             %   Icon       - (name-value) window icon file. Default: none
             %   Tag        - (name-value) identifies the dialogue, so only one is open at a time. Default "": no limit
             %
@@ -155,7 +156,7 @@ classdef GUIUtils
             end
 
             fig = uifigure("Name", title, "WindowStyle", "alwaysontop", "Resize", "off", "Tag", Settings.Tag, ...
-                "Position", Palladium.Utilities.GUIUtils.CentredPosition(dialogSize, Settings.Reference));
+                "Position", Palladium.Utilities.GUIUtils.CentredPosition(dialogSize, Palladium.Utilities.GUIUtils.FindUIFigure(Settings.Reference)));
             if ~isempty(Settings.Icon) && isfile(Settings.Icon)
                 fig.Icon = Settings.Icon;
             end

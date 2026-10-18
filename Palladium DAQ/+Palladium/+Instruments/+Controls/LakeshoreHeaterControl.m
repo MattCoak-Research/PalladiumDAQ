@@ -5,7 +5,6 @@ classdef LakeshoreHeaterControl < Palladium.Core.InstrumentControlBase
 
     %% Properties (Private)
     properties (Access = private)
-        GUIView;
         Plotter;
     end
 

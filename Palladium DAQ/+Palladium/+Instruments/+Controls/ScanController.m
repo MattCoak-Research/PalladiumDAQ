@@ -18,7 +18,6 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
 
     %% Properties (Protected)
     properties (Access = protected)
-        GUIView;
         timerVal;   %Used for tracking Elapsed Time since sweep started, with tic/toc
         RestartNextTick = false;
         Aborted = false;
@@ -123,25 +122,6 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
 
         function LockRunButton(this)
             this.GUIView.DisableRunButton();
-        end
-
-        function MeasurementsInitialised(this, ~, eventArgs)
-            headers = eventArgs.Headers;
-            switch(this.PlotterType)
-                case("Default")
-                    this.Plotter.UpdateVariables(headers);
-                otherwise
-            end
-        end
-
-        function MeasurementsStarted(this, ~, ~, ~)
-            this.UnlockRunButton();
-        end
-
-        function MeasurementsStopped(this, ~, ~, ~)
-            this.GUIView.EnableRunButton();
-            this.LockRunButton();
-            this.CachedData = [];
         end
 
 
@@ -268,6 +248,32 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
                     this.GUIView.Run();
                 end
             end
+        end
+
+    end
+
+    %% Methods (Protected)
+    methods (Access = protected)
+
+        function OnMeasurementsInitialised(this, headers)
+            %The base class has stored the headers and passed them to the GUIView
+            switch(this.PlotterType)
+                case("Default")
+                    if ~isempty(this.Plotter)
+                        this.Plotter.UpdateVariables(headers);
+                    end
+                otherwise
+            end
+        end
+
+        function OnMeasurementsStarted(this)
+            this.UnlockRunButton();
+        end
+
+        function OnMeasurementsStopped(this)
+            this.GUIView.EnableRunButton();
+            this.LockRunButton();
+            this.CachedData = [];
         end
 
     end

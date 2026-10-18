@@ -65,7 +65,6 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
     properties (Access = protected)
         SecondInstrument;           %Palladium.Core.Instrument reference for the second (Gate, pulse) SMU
         ParentController;           %Palladium.Core.Controller reference, stored so Run() can log via the standard Controller.Log path. Empty when running headless
-        GUIView;                    %Empty when running headless
         timerVal;
     end
 
@@ -734,9 +733,9 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             Palladium.Logging.Logger.Log("Warning", message);
         end
 
-        function OnMeasurementsInitialised(this, headers)
+        function OnMeasurementsInitialised(this, ~)
+            %The base class has stored the headers and passed them to the GUIView
             if ~isempty(this.GUIView)
-                this.GUIView.UpdateAvailableDataColumnHeaders(headers);
                 this.GUIView.SetReady();
                 this.GUIView.EnableRunButton();
             end

@@ -210,27 +210,6 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
             this.GUIView.LockRunButton();
         end
         
-        function MeasurementsInitialised(this, ~, eventArgs)
-            headers = eventArgs.Headers;
-            this.AvailableHeaders = headers;
-            this.GUIView.UpdateAvailableDataColumnHeaders(headers);
-            this.Plotter.UpdateVariables(headers);
-
-            %The instrument is connected now, so it can report limits set on
-            %the hardware
-            this.RefreshUnitsAndLimits();
-        end
-
-        function MeasurementsStarted(this, ~, ~, ~)
-            this.UnlockRunButton();
-        end
-
-        function MeasurementsStopped(this, ~, ~, ~)
-            this.GUIView.OnAbortSweep();
-            this.LockRunButton();
-            this.CachedData = [];
-        end
-
         function OnSweepAbort(this)
             this.Aborted = true;
             this.GUIView.OnAbortSweep();
@@ -363,6 +342,32 @@ classdef SweepController_Stepped < Palladium.Instruments.Controls.SweepControlle
             pauseTime = this.ControlDetailsStruct.SweepDetails.SettleTime;  %This is in seconds
             pause(pauseTime);
         end
+    end
+
+    %% Methods (Protected)
+    methods (Access = protected)
+
+        function OnMeasurementsInitialised(this, headers)
+            %The base class has stored the headers and passed them to the GUIView
+            if ~isempty(this.Plotter)
+                this.Plotter.UpdateVariables(headers);
+            end
+
+            %The instrument is connected now, so it can report limits set on
+            %the hardware
+            this.RefreshUnitsAndLimits();
+        end
+
+        function OnMeasurementsStarted(this)
+            this.UnlockRunButton();
+        end
+
+        function OnMeasurementsStopped(this)
+            this.GUIView.OnAbortSweep();
+            this.LockRunButton();
+            this.CachedData = [];
+        end
+
     end
 
     %% Methods (Private)

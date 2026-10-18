@@ -21,7 +21,7 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
     %  and `TargetUpdateTimeChanged` handlers to the TimingLoopController's
     %  events, and `DataRowCollected` to its own. Each handler calls an
     %  `On*` hook (e.g. `OnMeasurementsStarted`, `OnMeasurementsPaused`),
-    %  which subclasses override.
+    %  which subclasses override - the handlers themselves are sealed.
     %* **Each tick**: the instrument calls `Update` before its reading, and
     %  `UpdateData` with the reading straight after it. Once every
     %  instrument has been read, `DataRowCollected` gets the full data row.
@@ -51,6 +51,7 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
     %% Properties (Protected)
     properties (Access = protected)
         Instrument;                 %The instrument this control is added to - subclasses set it in CreateInstrumentControlGUI
+        GUIView = [];               %The control's GUI component, set in CreateInstrumentControlGUI - may stay empty, for a control without one
         AvailableHeaders = [];      %All data column headers, stored by MeasurementsInitialised when measurements start
         DataArray = [];             %Use to store entire array of dataRows taken during an operation - need it if we change axes on a Plotter mid-sweep
     end
@@ -118,50 +119,6 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
             name = this.ControlDetailsStruct.Name;
         end
 
-        function MeasurementsInitialised(this, src, eventArgs)  %#ok<INUSD>
-            %Store the data column headers when measurements are initialised, then call OnMeasurementsInitialised.
-            %Listener for the TimingLoopController's MeasurementsInitialised
-            %event, raised once the headers are known and before the first tick
-            %
-            %Inputs:
-            %   src       - the TimingLoopController
-            %   eventArgs - Palladium.Events.MeasurementsInitialisedEventData,
-            %               holding the Headers
-
-            headers = eventArgs.Headers;
-            this.AvailableHeaders = headers;
-
-            this.OnMeasurementsInitialised(headers);
-        end
-
-        function MeasurementsStarted(this, src, eventArgs) %#ok<INUSD>
-            %Call OnMeasurementsStarted when the measurement loop starts.
-            %Listener for the TimingLoopController's Started event
-
-            this.OnMeasurementsStarted();
-        end
-
-        function MeasurementsPaused(this, src, eventArgs) %#ok<INUSD>
-            %Call OnMeasurementsPaused when the measurement loop pauses.
-            %Listener for the TimingLoopController's Paused event
-
-            this.OnMeasurementsPaused();
-        end
-
-        function MeasurementsResumed(this, src, eventArgs) %#ok<INUSD>
-            %Call OnMeasurementsResumed when the measurement loop resumes after a pause.
-            %Listener for the TimingLoopController's Resumed event
-
-            this.OnMeasurementsResumed();
-        end
-
-        function MeasurementsStopped(this, src, eventArgs) %#ok<INUSD>
-            %Call OnMeasurementsStopped when the measurement loop stops.
-            %Listener for the TimingLoopController's Stopped event
-
-            this.OnMeasurementsStopped();
-        end
-
         function PlotterAxesSelectionChange(this, pltr)
             %Replot DataArray on a plotter whose axes were changed while the control isn't running.
             %Hook this to a plotter's AxesSelectionChange event. While
@@ -208,17 +165,6 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
             end
         end
 
-        function TargetUpdateTimeChanged(this, ~, evnt)
-            %Store the measurement loop's new target update time in ProgrammeTargetUpdateTime.
-            %Listener for the TimingLoopController's TargetUpdateTimeChanged event
-            %
-            %Inputs:
-            %   evnt - Palladium.Events.ValueChangedEventData, holding the
-            %          new time (s) as Value
-
-            this.ProgrammeTargetUpdateTime = evnt.Value;%In seconds
-        end
-
         function UnsubscribeFromEvents(this)
             %Delete all the listeners kept by RegisterEventListener.
             %Called by the InstrumentController when the control is removed,
@@ -252,6 +198,77 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
             %   dataRow - this instrument's reading, from Measure
             %   headers - the data column headers of all instruments
         end
+    end
+
+    %% Methods (Sealed, Public)
+    %Listeners for the measurement loop's events. Sealed, so a control
+    %cannot replace them by mistake - override the On* hooks instead
+    %(e.g. OnMeasurementsStarted)
+    methods (Sealed, Access = public)
+
+        function MeasurementsInitialised(this, src, eventArgs)  %#ok<INUSD>
+            %Store the data column headers when measurements are initialised, pass them to the GUI, then call OnMeasurementsInitialised.
+            %Listener for the TimingLoopController's MeasurementsInitialised
+            %event, raised once the headers are known and before the first
+            %tick. A GUIView with an UpdateAvailableDataColumnHeaders method
+            %(e.g. a file setup panel, which then enables its Insert
+            %Auto-naming tag button) is given them; a control with no
+            %GUIView is fine
+            %
+            %Inputs:
+            %   src       - the TimingLoopController
+            %   eventArgs - Palladium.Events.MeasurementsInitialisedEventData,
+            %               holding the Headers
+
+            headers = eventArgs.Headers;
+            this.AvailableHeaders = headers;
+
+            if ~isempty(this.GUIView) && isvalid(this.GUIView) && ismethod(this.GUIView, "UpdateAvailableDataColumnHeaders")
+                this.GUIView.UpdateAvailableDataColumnHeaders(headers);
+            end
+
+            this.OnMeasurementsInitialised(headers);
+        end
+
+        function MeasurementsStarted(this, src, eventArgs) %#ok<INUSD>
+            %Call OnMeasurementsStarted when the measurement loop starts.
+            %Listener for the TimingLoopController's Started event
+
+            this.OnMeasurementsStarted();
+        end
+
+        function MeasurementsPaused(this, src, eventArgs) %#ok<INUSD>
+            %Call OnMeasurementsPaused when the measurement loop pauses.
+            %Listener for the TimingLoopController's Paused event
+
+            this.OnMeasurementsPaused();
+        end
+
+        function MeasurementsResumed(this, src, eventArgs) %#ok<INUSD>
+            %Call OnMeasurementsResumed when the measurement loop resumes after a pause.
+            %Listener for the TimingLoopController's Resumed event
+
+            this.OnMeasurementsResumed();
+        end
+
+        function MeasurementsStopped(this, src, eventArgs) %#ok<INUSD>
+            %Call OnMeasurementsStopped when the measurement loop stops.
+            %Listener for the TimingLoopController's Stopped event
+
+            this.OnMeasurementsStopped();
+        end
+
+        function TargetUpdateTimeChanged(this, ~, evnt)
+            %Store the measurement loop's new target update time in ProgrammeTargetUpdateTime.
+            %Listener for the TimingLoopController's TargetUpdateTimeChanged event
+            %
+            %Inputs:
+            %   evnt - Palladium.Events.ValueChangedEventData, holding the
+            %          new time (s) as Value
+
+            this.ProgrammeTargetUpdateTime = evnt.Value;%In seconds
+        end
+
     end
 
     %% Methods (Protected)
@@ -426,7 +443,7 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
 
         function InsertSmartTagRequest(~, src, evt, controller)
             %Let the user pick a data column to add to a file name as a tag, in a small dialogue.
-            %Hook to a GUI's InsertSmartTag event. Shows a modal window to
+            %Hook to a GUI's InsertSmartTag event. Shows a small window to
             %choose a data column and number format; on OK, appends a tag
             %such as " [Sample Temperature (K),%6.2f]" to the name and sends
             %it back with `src.SetNewSweepName`. ProcessFileName later
@@ -462,9 +479,15 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
             parameterName = [];
             cancel = true;
 
-            %Open and configure a little GUI
-            optionsFig = uifigure(WindowStyle="modal", Position=[300,300, 400, 170], Icon=controller.WindowSettings.PalladiumIconPath);
-            gr = uigridlayout(optionsFig, [4,4], "ColumnWidth", {10, 200, 20, 100, 10}, "RowHeight", {10, 30, 30, 10, 50, 10}, "RowSpacing", 2);
+            %Open and configure a little GUI - with OpenDialog, not a modal
+            %uifigure: closing a modal one can bring the MATLAB desktop
+            %up over Palladium's window
+            optionsFig = Palladium.Utilities.GUIUtils.OpenDialog("Insert Auto-naming Tag", [400, 170], Reference=src, ...
+                Icon=controller.WindowSettings.PalladiumIconPath, Tag="Palladium.InsertSmartTag");
+            if isempty(optionsFig)
+                return;     %Already open - brought to the front instead
+            end
+            gr =uigridlayout(optionsFig, [4,4], "ColumnWidth", {10, 200, 20, 100, 10}, "RowHeight", {10, 30, 30, 10, 50, 10}, "RowSpacing", 2);
 
             l1 = uilabel(gr, Text="Data Column", HorizontalAlignment="Center", FontSize=14, FontName="Georgia");
             l1.Layout.Row = 2;
@@ -488,20 +511,24 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
             canb = uibutton(buttonsGrid, Text="Cancel", FontSize=14, FontName="Georgia", ButtonPushedFcn=@(src,event) Cancel());
             canb.Layout.Column = 4;
 
+            optionsFig.CloseRequestFcn = @(~, ~) Cancel();     %Closing the window cancels
+
             function OK(d,pr)
                 precisionStr = pr.Value;
                 parameterName = d.Value;
                 cancel = false;
-                delete(optionsFig);
+                uiresume(optionsFig);
             end
 
             function Cancel()
                 cancel = true;
-                delete(optionsFig);
+                uiresume(optionsFig);
             end
 
-            % Wait until OK/Cancel is pressed
+            % Wait until OK/Cancel is pressed, then close it and bring
+            % back the window it was opened from
             uiwait(optionsFig);
+            Palladium.Utilities.GUIUtils.CloseDialog(optionsFig, src);
 
             if ~cancel
                 %Append to string

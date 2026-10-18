@@ -11,7 +11,6 @@ classdef SweepController < Palladium.Core.InstrumentControlBase
 
     %% Properties (Protected)
     properties (Access = protected)
-        GUIView;
         timerVal;   %Used for tracking Elapsed Time since sweep started, with tic/toc
         RestartNextTick = false;
         Aborted = false;
