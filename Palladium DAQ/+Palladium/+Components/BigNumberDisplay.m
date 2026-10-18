@@ -70,10 +70,13 @@ classdef BigNumberDisplay < handle
             %   Icon        - (name-value) window icon file. Default: the Big Number icon, if found
             %   Visible     - (name-value) "off" to keep the window hidden, e.g. in tests. Default "on"
 
+            %Required, not optional: MATLAB takes an optional argument that
+            %is text matching the start of an option's name as that option -
+            %units "V" were read as Visible, and "I" as Icon
             arguments
-                title {mustBeTextScalar} = "";
-                units {mustBeTextScalar} = "";
-                columnIndex (1,1) double {mustBeInteger, mustBePositive} = 1;
+                title {mustBeTextScalar};
+                units {mustBeTextScalar};
+                columnIndex (1,1) double {mustBeInteger, mustBePositive};
                 Settings.Icon {mustBeTextScalar} = Palladium.Components.BigNumberDisplay.DefaultIconPath();
                 Settings.Visible {mustBeMember(Settings.Visible, ["on", "off"])} = "on";
             end

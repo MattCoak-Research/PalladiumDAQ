@@ -130,6 +130,18 @@ classdef test_BigNumberDisplay < matlab.unittest.TestCase
             testCase.verifyFalse(isvalid(testCase.Display));
         end
 
+        function UnitsLikeAnOptionNameTest(testCase)
+            %Units such as "V" or "I" are units - they used to be read as
+            %the start of the Visible or Icon option, and the display failed
+            %to open ("Invalid value for 'Visible' argument")
+            for units = ["V", "I"]
+                d = Palladium.Components.BigNumberDisplay("Some column", units, 4);
+                testCase.addTeardown(@() delete(d));
+                testCase.verifyEqual(d.Units, units);
+                testCase.verifyEqual(d.ColumnIndex, 4);
+            end
+        end
+
         function NoIconFileTest(testCase)
             d = Palladium.Components.BigNumberDisplay("T", "", 1, Icon="", Visible="off");
             testCase.addTeardown(@() delete(d));
