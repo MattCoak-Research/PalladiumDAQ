@@ -115,7 +115,10 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
         end
 
         function complete = IsComplete(this)
-            complete = this.Instrument.CheckScanComplete();
+            %For a sequence's ScanRun: true once the scan has been saved
+            %(by ScanComplete) or aborted - not just when the Instrument
+            %has finished it, so the next command cannot run first
+            complete = ~this.Running;
         end
 
         function LockRunButton(this)
@@ -255,7 +258,7 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
         function UpdateData(this, ~, ~)
             if this.Running
                 %Check if we reached the end of the sweep
-                if this.IsComplete()
+                if this.Instrument.CheckScanComplete()
                     this.ScanComplete();
                 end
             else

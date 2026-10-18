@@ -34,7 +34,7 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
         MeasMode;                                               %S-parameter to measure: S11, S21, S12 or S22 - selected on the analyser before each sweep
         MeasUnit;                                               %dB (log magnitude) or Absolute (linear magnitude) - the display format is set to match before each sweep
     end
-to
+
     %% Properties (Private)
     properties(Access = private)
         ScanComplete = true;                                    %False while a sweep started by RunScan is under way

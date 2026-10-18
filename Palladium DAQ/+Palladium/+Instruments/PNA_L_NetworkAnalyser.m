@@ -31,6 +31,12 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
         MeasUnit;                                               %Units label (dB or Absolute) for the data column header. Only labels the column - set the trace format on the instrument.
     end
 
+    %% Properties (Private)
+    properties(Access = private)
+        SimulatedSweepTime_s = 0.2;                             %In SimulationMode, how long a sweep takes
+        SimulatedSweepStartTime = [];                           %In SimulationMode, tic of the last sweep triggered - empty if none
+    end
+
     %% Categoricals
     methods
         function catOut = MeasType(this, inputStr);        catOut = this.ConvertToCategorical(inputStr, ["S11", "S21", "S12", "S22"]); end
@@ -70,14 +76,14 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
 
         function ready = CheckSystemReady(this)
             %Check whether channel 1 has finished its sweep and is back on HOLD.
-            %In SimulationMode, returns true at random one call in ten
+            %In SimulationMode, a sweep takes SimulatedSweepTime_s from
+            %TriggerSingle, after which it stays ready until the next one
             %
             %Outputs:
             %   ready - true when the channel's sweep mode is HOLD
 
             if this.SimulationMode
-                dieRoll = randi(100);
-                ready = dieRoll > 90; %10% chance to be true
+                ready = isempty(this.SimulatedSweepStartTime) || toc(this.SimulatedSweepStartTime) >= this.SimulatedSweepTime_s;
                 return;
             end
 
@@ -474,6 +480,14 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
             arguments
                 this;
                 waitForCompletion (1,1) logical = false;
+            end
+
+            if this.SimulationMode
+                this.SimulatedSweepStartTime = tic();
+                if waitForCompletion
+                    this.WaitForSystemReady();
+                end
+                return;
             end
 
             if waitForCompletion
