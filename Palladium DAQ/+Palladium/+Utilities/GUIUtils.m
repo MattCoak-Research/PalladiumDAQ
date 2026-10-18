@@ -29,9 +29,12 @@ classdef GUIUtils
 
         function path = ChooseFile(mode, Settings)
             %Ask the user for a file to open or save, or a folder, then bring the window back to the front.
-            %Uses the system's dialogues (uigetfile, uiputfile and uigetdir),
-            %which can leave Palladium's window behind others when they close
-            %- the Reference window is brought back with BringToFront
+            %Uses the system's dialogues (uigetfile, uiputfile and uigetdir).
+            %These belong to the MATLAB desktop window, so Windows raises the
+            %desktop beneath them while they are open - Palladium's window
+            %goes behind it, and there is no option to prevent that. When
+            %the dialogue closes, the Reference window is brought back to
+            %the front with BringToFront
             %
             %Inputs:
             %   mode      - "open" (a file to open), "save" (a file to save to) or "folder"

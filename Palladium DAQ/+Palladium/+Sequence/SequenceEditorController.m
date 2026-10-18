@@ -87,7 +87,7 @@ classdef SequenceEditorController < handle
 
             %If it exists already, just bring it to the front
             if this.ViewExists
-                this.View.SeizeFocus();
+                Palladium.Utilities.GUIUtils.BringToFront(this.View);
                 this.View.RefreshInstrumentNames(this.Instruments);
                 return;
             end
