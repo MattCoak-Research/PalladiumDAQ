@@ -1,15 +1,19 @@
 classdef SR830_Lockin < Palladium.Core.Instrument
     %SR830_Lockin - Instrument driver for the Stanford Research Systems SR830 DSP lock-in amplifier.
     %Reads the X and Y outputs each measurement tick (as one coherent
-    %`SNAP?` snapshot), plus the amplitude of the sine output. If the sine
+    %`SNAP?` snapshot), plus the amplitude of the sine output. X and Y are
+    %divided by `AmplifierGain`, the gain of any preamplifier or transformer
+    %before the input, so they are the signal at the sample. If the sine
     %output drives a sample through a voltage-to-current converter (set in
     %`ConnectedCurrentSource`), the output column is the current instead, and
-    %a resistance column X / (current x `AmplifierGain`) is added.
+    %a resistance column X / current is added.
     %
     %With `AutoSensitivity` on, the driver steps the sensitivity up or down
     %one range after each reading when the larger of X and Y is near the top
-    %of the range or would fit in the range below. Its ranges are in volts,
-    %so it is meant for the voltage inputs (A or A-B). Set the reference,
+    %of the range or would fit in the range below (using the readings
+    %before AmplifierGain). Its ranges are in volts, so it is meant for the
+    %voltage inputs (A or A-B) - the current inputs aren't supported yet:
+    %the column headers also assume volts. Set the reference,
     %time constant and input configuration on the front panel.
     %
     %The SR830 has GPIB and RS-232 interfaces; the driver tells it which
@@ -29,7 +33,7 @@ classdef SR830_Lockin < Palladium.Core.Instrument
         Connection_Type = Palladium.Enums.ConnectionType.GPIB;      %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         AutoSensitivity (1,1) logical = true;                       %Step the sensitivity range up or down automatically after each reading, to keep X and Y on range
         ConnectedCurrentSource categorical;                         %Voltage-to-current converter driven by the sine output, if any: None, or 200 uA/V. Sets the output column's units and adds a resistance column.
-        AmplifierGain (1,1) double = 1;                             %Gain of any external preamplifier or transformer before the input, used in the resistance calculation
+        AmplifierGain (1,1) double {mustBeNonzero} = 1;             %Gain of any external preamplifier or transformer before the input. X and Y (and so the resistance) are divided by it, to give the signal at the sample
     end
 
     %% Categoricals
@@ -75,7 +79,7 @@ classdef SR830_Lockin < Palladium.Core.Instrument
             %Outputs:
             %   Headers - e.g. ["SR830 - Vx (V)", "SR830 - Vy (V)", "SR830 - Output Current (A)",
             %             "SR830 - Resistance (Ohms)"]
-            %   Units   - matching units, e.g. ["V", "V", "A", "Ohm"]
+            %   Units   - matching units, e.g. ["V", "V", "A", "Ohms"]
 
             Headers = [this.Name + " - Vx (V)", this.Name + " - Vy (V)"];
             Units = ["V", "V"];
@@ -100,7 +104,7 @@ classdef SR830_Lockin < Palladium.Core.Instrument
             %for convenience
             if calculateResistance
                 Headers = [Headers, this.Name + " - Resistance (Ohms)"];
-                Units = [Units "Ohm"];
+                Units = [Units "Ohms"];
             end
         end
 
@@ -154,12 +158,14 @@ classdef SR830_Lockin < Palladium.Core.Instrument
 
         function [dataRow] = Measure(this)
             %Read X and Y, the output level and, with a current source, the resistance.
-            %In the same order as GetHeaders. With AutoSensitivity on, the
-            %sensitivity is then stepped up or down a range if needed
+            %In the same order as GetHeaders. X and Y are divided by
+            %AmplifierGain. With AutoSensitivity on, the sensitivity is then
+            %stepped up or down a range if needed
             %
             %Outputs:
-            %   dataRow - X and Y in V, the output level in V or A, then the
-            %             resistance in Ohms if a current source is connected
+            %   dataRow - X and Y in V at the sample, the output level in V or
+            %             A, then the resistance in Ohms if a current source
+            %             is connected
 
             if(this.SimulationMode)
                 data = "0.0705876,0.00256349";
@@ -170,9 +176,13 @@ classdef SR830_Lockin < Palladium.Core.Instrument
                 data = this.QueryString("SNAP? 1,2");
             end
 
+            %As read by the lock-in, then at the sample: divided by the gain
+            %of any preamplifier or transformer before the input
             splitData = strsplit(data, ',');
-            x = str2double(splitData{1});
-            y = str2double(splitData{2});
+            xInput = str2double(splitData{1});
+            yInput = str2double(splitData{2});
+            x = xInput / this.AmplifierGain;
+            y = yInput / this.AmplifierGain;
 
             %Get the output level - voltage, or current if a current source
             %is connected
@@ -185,12 +195,13 @@ classdef SR830_Lockin < Palladium.Core.Instrument
                 case(this.CurrentSource("None"))
                     %No resistance column
                 otherwise
-                    resistance_Ohms = x / (output * this.AmplifierGain);
+                    resistance_Ohms = x / output;
                     dataRow = [dataRow resistance_Ohms];
             end
 
+            %The sensitivity ranges are for the lock-in's own input
             if(this.AutoSensitivity && ~this.SimulationMode)
-                this.AutoTuneSensitivity(x, y);
+                this.AutoTuneSensitivity(xInput, yInput);
             end
         end
 
@@ -227,8 +238,8 @@ classdef SR830_Lockin < Palladium.Core.Instrument
             %it is below 85% of the range below, so there is some hysteresis
             %
             %Inputs:
-            %   vx - X reading, in V
-            %   vy - Y reading, in V
+            %   vx - X reading at the lock-in input (before AmplifierGain), in V
+            %   vy - Y reading at the lock-in input (before AmplifierGain), in V
 
             v = max(abs(vx), abs(vy));
 

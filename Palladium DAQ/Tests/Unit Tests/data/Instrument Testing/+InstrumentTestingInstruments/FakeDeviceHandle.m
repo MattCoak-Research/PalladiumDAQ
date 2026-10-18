@@ -5,7 +5,8 @@ classdef FakeDeviceHandle < handle
     %without any hardware, and records what they were sent.
 
     properties (Access = public)
-        QueryResponse = "";     %What query() returns
+        QueryResponse = "";     %What query() returns - unless QueryResponses has a reply for that command
+        QueryResponses = dictionary(string.empty, string.empty);   %Replies to particular commands, e.g. QueryResponses("MAG") = "100"
         ReadResponse = "";      %What fscanf() returns
         QueriedCommands (1,:) string = strings(1, 0);
         WrittenCommands (1,:) string = strings(1, 0);
@@ -16,7 +17,11 @@ classdef FakeDeviceHandle < handle
 
         function response = query(this, command)
             this.QueriedCommands(end + 1) = string(command);
-            response = char(this.QueryResponse);
+            if isConfigured(this.QueryResponses) && isKey(this.QueryResponses, string(command))
+                response = char(this.QueryResponses(string(command)));
+            else
+                response = char(this.QueryResponse);
+            end
         end
 
         function fprintf(this, command)
