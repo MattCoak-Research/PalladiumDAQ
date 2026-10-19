@@ -232,10 +232,11 @@ classdef test_BigNumberDisplay < matlab.unittest.TestCase
             ax = findobj(testCase.Display.Figure, "Type", "axes");
             W = ax.XLim(2);
             H = ax.YLim(2);
-            texts = findobj(ax, "Type", "text", "Visible", "on");     %Not the hidden measuring text
+            texts = findobj(ax, "Type", "text", "Visible", "on");     %Not any hidden text
             for k = 1 : numel(texts)
                 e = texts(k).Extent;
-                what = label + ": '" + string(texts(k).String) + "'";
+                what = label + ": '" + string(texts(k).String) + "' (font size " + texts(k).FontSize + ", at " + mat2str(texts(k).Position(1:2), 4) + ...
+                    ", extent " + mat2str(e, 4) + ", in " + W + "x" + H + ")";
                 testCase.verifyGreaterThanOrEqual(e(1), -0.5, what + " runs off the left");
                 testCase.verifyLessThanOrEqual(e(1) + e(3), W + 0.5, what + " runs off the right");
                 testCase.verifyGreaterThanOrEqual(e(2), -0.5, what + " runs off the bottom");

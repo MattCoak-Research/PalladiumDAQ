@@ -28,9 +28,9 @@ classdef BigNumberDisplay < handle
     %size, so each piece is measured at a reference size and scaled to fit,
     %then measured again at that size and shrunk until it really fits - at
     %small sizes text is relatively bigger (TeX superscripts keep a minimum
-    %size, and fonts differ between systems). The measuring is done on a
-    %hidden text object, so the visible text only ever changes to its final
-    %size.
+    %size, and fonts differ between systems). Each measurement is made on a
+    %new hidden text object, so the visible text only ever changes to its
+    %final size.
 
     %% Properties (Constant, Private)
     properties (Constant, Access = private)
@@ -70,7 +70,6 @@ classdef BigNumberDisplay < handle
         TitleText;                  %Text objects for the title, value and units
         ValueText;
         UnitsText;
-        Ruler;                      %Hidden text object used to measure text, so the visible text isn't changed while measuring
         FitWidth = 1;               %Size (pixels, at ReferenceFontSize) the value's text is fitted for - the widest and tallest since the last resize
         FitHeight = 1;
         FitShape = "";              %The last value measured, with its digits as 0s - in the fixed-width font, values of the same shape take the same space
@@ -136,7 +135,6 @@ classdef BigNumberDisplay < handle
                 "HorizontalAlignment", "right", "VerticalAlignment", "bottom");
             this.UnitsText = text(0, 0, this.Units, textStyle{:}, "Color", [0.25 0.25 0.25], ...
                 "HorizontalAlignment", "left", "VerticalAlignment", "bottom");
-            this.Ruler = text(0, 0, "", textStyle{:}, "Visible", "off");
 
             %Let the new window settle first - text measured in it straight
             %away can come out at the default font size
@@ -291,22 +289,18 @@ classdef BigNumberDisplay < handle
                 titleScale = min(usableWidth / titleW, this.TitleHeightFraction * H / titleH);
                 titleSize = max(floor(ref * titleScale), 1);
 
-                %Check it at that size - on the Ruler, then as drawn - and
-                %shrink it until it fits
+                %Check it at that size, and shrink it until it fits
                 for step = 1:this.MaxShrinkSteps
                     [titleW, titleH] = this.Measure(this.Title, titleSize, "bold", titleFont);
-                    this.TitleText.FontSize = titleSize;
-                    this.TitleText.Position = [W/2, H - pad, 0];
-
                     over = max(titleW / usableWidth, titleH / (this.TitleHeightFraction * H));
-                    if ~this.IsInside(this.TitleText, [0, W, 0, H])
-                        over = max(over, 1.01);     %Measured to fit, but drawn over the edge
-                    end
                     if over <= 1 || titleSize == 1
                         break;
                     end
                     titleSize = this.ShrunkSize(titleSize, over);
                 end
+
+                this.TitleText.FontSize = titleSize;
+                this.TitleText.Position = [W/2, H - pad, 0];
                 titleBottom = H - pad - titleH - pad;
             end
 
@@ -324,44 +318,25 @@ classdef BigNumberDisplay < handle
             valueSize = max(floor(ref * scale), 1);
 
             %Check the values the size is fitted for, and the units, at that
-            %size - on the Ruler, then as drawn - and shrink it until they fit
+            %size, and shrink it until they fit
             for step = 1:this.MaxShrinkSteps
                 [valueW, valueH, unitsW, gap, unitsSize] = this.MeasureValueAndUnits(valueSize);
-
-                %Centre the pair horizontally, and the value vertically in its
-                %space. The value is right-aligned, ending just before the units
-                totalWidth = valueW + gap + unitsW;
-                valueRight = (W - totalWidth) / 2 + valueW;
-                bottom = pad + (valueHeight - valueH) / 2;
-                this.ValueText.FontSize = valueSize;
-                this.ValueText.Position = [valueRight, bottom, 0];
-                this.UnitsText.FontSize = unitsSize;
-                this.UnitsText.Position = [valueRight + gap, bottom, 0];
-
-                over = max(totalWidth / usableWidth, valueH / valueHeight);
-                if ~this.IsInside([this.ValueText, this.UnitsText], [0, W, 0, titleBottom + pad])
-                    over = max(over, 1.01);     %Measured to fit, but drawn over the edge
-                end
+                over = max((valueW + gap + unitsW) / usableWidth, valueH / valueHeight);
                 if over <= 1 || valueSize == 1
                     break;
                 end
                 valueSize = this.ShrunkSize(valueSize, over);
             end
-        end
 
-        function inside = IsInside(~, texts, box)
-            %True if the text objects, as drawn, are inside a box [left, right, bottom, top] (pixels), to within half a pixel.
-            %Empty text is ignored
-
-            inside = true;
-            for t = texts
-                if strlength(string(t.String)) == 0
-                    continue;
-                end
-                e = t.Extent;
-                inside = inside && e(1) >= box(1) - 0.5 && e(1) + e(3) <= box(2) + 0.5 ...
-                    && e(2) >= box(3) - 0.5 && e(2) + e(4) <= box(4) + 0.5;
-            end
+            %Centre the pair horizontally, and the value vertically in its
+            %space. The value is right-aligned, ending just before the units
+            totalWidth = valueW + gap + unitsW;
+            valueRight = (W - totalWidth) / 2 + valueW;
+            bottom = pad + (valueHeight - valueH) / 2;
+            this.ValueText.FontSize = valueSize;
+            this.ValueText.Position = [valueRight, bottom, 0];
+            this.UnitsText.FontSize = unitsSize;
+            this.UnitsText.Position = [valueRight + gap, bottom, 0];
         end
 
         function [valueW, valueH, unitsW, gap, unitsSize] = MeasureValueAndUnits(this, valueSize)
@@ -399,10 +374,12 @@ classdef BigNumberDisplay < handle
         end
 
         function [w, h] = Measure(this, str, fontSize, fontWeight, fontName, interpreter)
-            %The width and height (pixels) of text at a font size, measured on the hidden Ruler.
-            %Extent isn't updated by a change of FontSize or String alone -
-            %it would give the size before - but setting Position makes it
-            %measure again
+            %The width and height (pixels) of text at a font size, measured on a new hidden text object.
+            %A new object for each measurement, made with all its settings at
+            %once: reusing one text object and changing its FontSize gave
+            %the size it had before (its Extent isn't always measured again
+            %- e.g. on Linux, where a display's text then overflowed its
+            %window)
 
             arguments
                 this;
@@ -413,14 +390,11 @@ classdef BigNumberDisplay < handle
                 interpreter = "none";
             end
 
-            ruler = this.Ruler;
-            ruler.Interpreter = interpreter;
-            ruler.String = str;
-            ruler.FontName = fontName;
-            ruler.FontWeight = fontWeight;
-            ruler.FontSize = fontSize;
-            ruler.Position = ruler.Position;
+            ruler = text(0, 0, str, "Parent", this.Axes, "Units", "data", "FontUnits", "pixels", "Visible", "off", ...
+                "Interpreter", interpreter, "FontName", fontName, "FontWeight", fontWeight, "FontSize", fontSize, ...
+                "Clipping", "off", "HitTest", "off");
             extent = ruler.Extent;
+            delete(ruler);
             w = max(extent(3), 1);
             h = max(extent(4), 1);
         end
