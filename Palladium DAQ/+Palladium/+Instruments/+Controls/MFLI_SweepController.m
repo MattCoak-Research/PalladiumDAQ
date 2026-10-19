@@ -231,7 +231,10 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
         end
 
         function OnMeasurementsStopped(this)
-            this.GUIView.AbortSweep();
+            if this.Running
+                this.GUIView.AbortSweep();
+            end
+
             this.LockRunButton();
         end
 
