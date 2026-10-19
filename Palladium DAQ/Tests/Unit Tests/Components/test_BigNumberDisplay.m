@@ -112,6 +112,7 @@ classdef test_BigNumberDisplay < matlab.unittest.TestCase
         %% Fitting the window
         function TextFitsAtEverySizeTest(testCase)
             %Never cut off - at any window shape, with short and long values
+            testCase.assumeTrue(testCase.Display.MeasuresText, "Text can't be measured here (e.g. a headless Linux runner, where every short text measures the same) - so its fit can't be checked");
             for size = [520 300; 200 120; 900 250; 250 700; 120 60]'
                 testCase.resizeTo(size');
                 for value = [4.2, 123456.789, -1.23456e-12]

@@ -30,7 +30,9 @@ classdef BigNumberDisplay < handle
     %small sizes text is relatively bigger (TeX superscripts keep a minimum
     %size, and fonts differ between systems). Each measurement is made on a
     %new hidden text object, so the visible text only ever changes to its
-    %final size.
+    %final size. Where text can't really be measured (`MeasuresText` is
+    %false - e.g. on a headless Linux test runner, where every short text
+    %measured the same), the display relies on the scaling alone.
 
     %% Properties (Constant, Private)
     properties (Constant, Access = private)
@@ -62,6 +64,7 @@ classdef BigNumberDisplay < handle
         Title (1,1) string = "";        %Shown across the top - normally the column's header
         Units (1,1) string = "";        %Shown after the value, smaller
         DisplayedValue (1,1) string = Palladium.Components.BigNumberDisplay.NoValueText;   %The value as shown
+        MeasuresText (1,1) logical = true;  %False if text can't really be measured here (see CanMeasureText) - the text is then sized by scaling alone
     end
 
     %% Properties (Private)
@@ -140,6 +143,14 @@ classdef BigNumberDisplay < handle
             %away can come out at the default font size
             drawnow;
             this.OnResize();
+
+            %Check text can really be measured - once the axes is in the
+            %window's pixels (the first OnResize) - and lay it out again
+            %by scaling alone if not
+            this.MeasuresText = this.CanMeasureText();
+            if ~this.MeasuresText
+                this.OnResize();
+            end
             this.Figure.Visible = Settings.Visible;
         end
 
@@ -290,7 +301,8 @@ classdef BigNumberDisplay < handle
                 titleSize = max(floor(ref * titleScale), 1);
 
                 %Check it at that size, and shrink it until it fits
-                for step = 1:this.MaxShrinkSteps
+                titleH = titleH * titleSize / ref;
+                for step = 1:this.MaxShrinkSteps * this.MeasuresText     %No steps if text can't be measured
                     [titleW, titleH] = this.Measure(this.Title, titleSize, "bold", titleFont);
                     over = max(titleW / usableWidth, titleH / (this.TitleHeightFraction * H));
                     if over <= 1 || titleSize == 1
@@ -316,10 +328,16 @@ classdef BigNumberDisplay < handle
             end
             scale = min(usableWidth / (valueW + gap + unitsW), valueHeight / valueH);
             valueSize = max(floor(ref * scale), 1);
+            scale = valueSize / ref;
+            valueW = valueW * scale;
+            valueH = valueH * scale;
+            unitsW = unitsW * scale;
+            gap = gap * scale;
+            unitsSize = max(floor(valueSize * this.UnitsSizeRatio), 1);
 
             %Check the values the size is fitted for, and the units, at that
             %size, and shrink it until they fit
-            for step = 1:this.MaxShrinkSteps
+            for step = 1:this.MaxShrinkSteps * this.MeasuresText     %No steps if text can't be measured
                 [valueW, valueH, unitsW, gap, unitsSize] = this.MeasureValueAndUnits(valueSize);
                 over = max((valueW + gap + unitsW) / usableWidth, valueH / valueHeight);
                 if over <= 1 || valueSize == 1
@@ -371,6 +389,17 @@ classdef BigNumberDisplay < handle
             %A smaller font size for text that is too big by a factor of over - always at least 1 smaller, and never below 1.
 
             newSize = max(min(fontSize - 1, floor(fontSize / over)), 1);
+        end
+
+        function tf = CanMeasureText(this)
+            %True if text can really be measured here: eight characters measure far wider than one.
+            %Call once the axes is in the window's pixels (after Layout).
+            %Not so on a headless Linux test runner, where every short text
+            %measured 21.2 x 40 pixels whatever its length and font size
+
+            w1 = this.Measure("0", 20, "normal", this.ValueFont);
+            w8 = this.Measure("00000000", 20, "normal", this.ValueFont);
+            tf = w8 > 4 * w1;
         end
 
         function [w, h] = Measure(this, str, fontSize, fontWeight, fontName, interpreter)
