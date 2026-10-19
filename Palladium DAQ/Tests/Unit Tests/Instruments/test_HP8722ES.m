@@ -85,14 +85,71 @@ classdef test_HP8722ES < matlab.unittest.TestCase
             instr.Connection_Type = Palladium.Enums.ConnectionType.Debug;
             evalc("instr.Connect()");
 
-            instr.RunScan();
+            instr.RunScan(struct("NumPoints", 51));
             for k = 1:500
                 if instr.CheckScanComplete(); break; end
             end
             data = instr.GetCompletedScanData();
 
             testCase.verifyTrue(instr.CheckScanComplete());
-            testCase.verifySize(data, [20, 2]);
+            testCase.verifySize(data, [51, 2]);
+        end
+
+        function RunScanAppliesTheSettingsTest(testCase)
+            %The VNA Control's settings, from the Programmer's Guide - numbers
+            %without exponents, as the guide doesn't say they're accepted
+            [instr, connection] = testCase.makeInstrument();
+            settings = struct("StartFrequency_Hz", 1.5e9, "StopFrequency_Hz", 2e10, "NumPoints", 150, ...
+                "SweepTime_s", 0.25, "SweepType", "Log", "MeasMode", "S21", "MeasUnit", "dB", ...
+                "SaveSweepFile", true, "FileName", "x");
+
+            instr.RunScan(settings);
+
+            testCase.verifyEqual(connection.WrittenCommands, ["STAR1500000000HZ;", "STOP20000000000HZ;", "POIN101;", ...
+                "SWET0.250000S;", "LOGFREQ;", "S21;", "LOGM;", "OPC?;SING;"], "150 points is nearest 101 of the analyser's choices");
+            testCase.verifyEqual(string(instr.MeasMode), "S21");
+        end
+
+        function ZeroSweepTimeIsAutomaticTest(testCase)
+            %SWET0 is the same as SWEA (automatic)
+            [instr, connection] = testCase.makeInstrument();
+            instr.RunScan(struct("SweepTime_s", 0));
+            testCase.verifyEqual(connection.WrittenCommands(1), "SWET0.000000S;");
+        end
+
+        function SettingsAreAnsweredFromMemoryDuringASweepTest(testCase)
+            %Once OPC?;SING; is sent no query can be answered until the sweep
+            %ends - the settings read back before it are used instead
+            [instr, connection] = testCase.makeInstrument();
+            connection.QueryResponses("STAR?;") = "1E9";
+            connection.QueryResponses("STOP?;") = "2E9";
+            connection.QueryResponses("POIN?;") = "101";
+            instr.RunScan();
+            queriesBefore = numel(connection.QueriedCommands);
+
+            start_Hz = instr.GetStartFrequency();
+            settings = instr.GetScanSettings();
+            metadata = instr.CollectMetaData();
+
+            testCase.verifyNumElements(connection.QueriedCommands, queriesBefore, "No queries during the sweep");
+            testCase.verifyEqual(start_Hz, 1e9);
+            testCase.verifyEqual(settings.StopFrequency_Hz, 2e9);
+            testCase.verifyEqual(metadata.NumPoints, 101);
+        end
+
+        function GetScanSettingsReadsTheAnalyserTest(testCase)
+            [instr, connection] = testCase.makeInstrument();
+            replies = ["STAR?;", "5E7"; "STOP?;", "4E10"; "POIN?;", "401"; "SWET?;", "0.12"; "LOGFREQ?;", "0"; ...
+                "S11?;", "0"; "S21?;", "0"; "S12?;", "1"; "S22?;", "0"; "LOGM?;", "0"; "LINM?;", "1"];
+            for i = 1:height(replies)
+                connection.QueryResponses(replies(i, 1)) = replies(i, 2);
+            end
+
+            settings = instr.GetScanSettings();
+
+            testCase.verifyEqual(settings, struct("StartFrequency_Hz", 5e7, "StopFrequency_Hz", 4e10, "NumPoints", 401, ...
+                "SweepTime_s", 0.12, "SweepType", "Linear", "MeasMode", "S12", "MeasUnit", "Absolute"));
+            testCase.verifyEqual(string(instr.MeasMode), "S11", "Only reported - the driver's own setting is unchanged");
         end
     end
 

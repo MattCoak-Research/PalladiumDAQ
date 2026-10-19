@@ -1,19 +1,23 @@
 classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
     %HP_8722ES_NetworkAnalyser - Instrument driver for the HP 8722ES vector network analyser.
-    %Records whole frequency sweeps through the Scan Control tab, rather
+    %Records whole frequency sweeps through the VNA Control tab, rather
     %than a value each measurement tick: each scan is saved to its own data
     %file as two columns, frequency (Hz) and the S-parameter selected by
     %`MeasMode`. `Measure` returns no values, so the analyser adds no
     %columns to the main data file.
     %
-    %Before each sweep the driver selects `MeasMode`'s S-parameter and the
-    %display format for `MeasUnit` (log magnitude for dB, linear magnitude
-    %for Absolute), then takes one sweep (`OPC?;SING;`), checking for its
-    %completion each tick without waiting. The trace is read as ASCII
-    %(`FORM4;`, `OUTPFORM;`) and the frequency of each point from the
-    %limit-test array (`OUTPLIML;`), which gives them for linear, log and
-    %list sweeps alike. Set the frequency range, points, power and
-    %calibration on the analyser. (Commands from the 8719ES/8720ES/8722ES
+    %Before each sweep the driver applies the tab's settings (`RunScan`):
+    %frequency range, number of points (one of the analyser's: 3, 11, 21,
+    %26, 51, 101, 201, 401, 801 or 1601 - the nearest is used), sweep time
+    %(0 for automatic) and linear or log sweep, then `MeasMode`'s
+    %S-parameter and the display format for `MeasUnit` (log magnitude for
+    %dB, linear magnitude for Absolute). It then takes one sweep
+    %(`OPC?;SING;`), checking for its completion each tick without
+    %waiting. The trace is read as ASCII (`FORM4;`, `OUTPFORM;`) and the
+    %frequency of each point from the limit-test array (`OUTPLIML;`), which
+    %gives them for linear, log and list sweeps alike. Set the power and
+    %calibration on the analyser. The tab starts from the analyser's own
+    %settings (`GetScanSettings`). (Commands from the 8719ES/8720ES/8722ES
     %Programmer's Guide.)
     %
     %The 8722ES (50 MHz to 40 GHz) is remote-controlled over HP-IB (GPIB)
@@ -38,6 +42,8 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
     %% Properties (Private)
     properties(Access = private)
         ScanComplete = true;                                    %False while a sweep started by RunScan is under way
+        SweepSettings = struct("StartFrequency_Hz", 50e6, "StopFrequency_Hz", 40e9, "NumPoints", 201, ...
+            "SweepTime_s", 0, "SweepType", "Linear");          %The sweep settings read back before the last sweep - answered from here while a sweep is under way, when queries can't be (the reply to OPC? is pending). In SimulationMode, the settings last set
     end
 
     %% Categoricals
@@ -62,7 +68,7 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
             this.MeasUnit = this.MeasUnitType("dB");
 
             %Define the Instrument Controls that can be added
-            this.DefineInstrumentControl(Name = "Scan Control", ClassName = "ScanController", TabName = "Scan Control", EnabledByDefault = true);
+            this.DefineInstrumentControl(Name = "VNA Control", ClassName = "VNAController", TabName = "VNA Control", EnabledByDefault = true);
         end
     end
 
@@ -170,21 +176,55 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
             %Read the number of points per sweep.
             %
             %Outputs:
-            %   numOfPoints - number of points (20 in SimulationMode)
+            %   numOfPoints - number of points (201 in SimulationMode, until set)
 
-            if this.SimulationMode
-                numOfPoints = 20;
+            if this.SimulationMode || ~this.ScanComplete
+                numOfPoints = this.SweepSettings.NumPoints;
                 return;
             end
 
             numOfPoints = this.QueryDouble("POIN?;");
         end
 
+        function settings = GetScanSettings(this)
+            %The analyser's current sweep settings, for the VNA Control tab to start from - the fields RunScan takes.
+            %While a sweep is under way, those read back before it started.
+            %The sweep time is the analyser's actual one - automatic can't be
+            %read back
+            %
+            %Outputs:
+            %   settings - struct: StartFrequency_Hz, StopFrequency_Hz, NumPoints,
+            %              SweepTime_s, SweepType ("Linear" or "Log"), MeasMode
+            %              and MeasUnit (text)
+
+            measMode = string(this.MeasMode);
+            measUnit = string(this.MeasUnit);
+            if this.SimulationMode || ~this.ScanComplete
+                settings = this.SweepSettings;
+            else
+                settings = this.ReadSweepSettings();
+
+                %The S-parameter and display format selected, if one of ours
+                for sParameter = string(categories(this.MeasMode))'
+                    if this.QueryDouble(sParameter + "?;") == 1
+                        measMode = sParameter;
+                    end
+                end
+                if this.QueryDouble("LOGM?;") == 1
+                    measUnit = "dB";
+                elseif this.QueryDouble("LINM?;") == 1
+                    measUnit = "Absolute";
+                end
+            end
+            settings.MeasMode = measMode;
+            settings.MeasUnit = measUnit;
+        end
+
         function startFreq_Hz = GetStartFrequency(this)
             %Read the sweep start frequency, in Hz.
 
-            if this.SimulationMode
-                startFreq_Hz = 50e6;
+            if this.SimulationMode || ~this.ScanComplete
+                startFreq_Hz = this.SweepSettings.StartFrequency_Hz;
                 return;
             end
 
@@ -194,8 +234,8 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
         function stopFreq_Hz = GetStopFrequency(this)
             %Read the sweep stop frequency, in Hz.
 
-            if this.SimulationMode
-                stopFreq_Hz = 40e9;
+            if this.SimulationMode || ~this.ScanComplete
+                stopFreq_Hz = this.SweepSettings.StopFrequency_Hz;
                 return;
             end
 
@@ -211,20 +251,62 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
             dataRow = [];
         end
         
-        function RunScan(this)
-            %Start one sweep, for the Scan Control tab - without waiting for it (see CheckScanComplete).
-            %Selects MeasMode's S-parameter and MeasUnit's display format
-            %first. A device clear first discards any reply left from an
-            %aborted sweep
+        function RunScan(this, scanDetails)
+            %Start one sweep, for the VNA Control tab, with its settings - without waiting for it (see CheckScanComplete).
+            %Applies each setting scanDetails has (see GetScanSettings for
+            %the fields; others, e.g. the file settings, are ignored), then
+            %selects MeasMode's S-parameter and MeasUnit's display format. A
+            %device clear first discards any reply left from an aborted
+            %sweep. The settings are read back before the sweep starts, for
+            %the data file's metadata
+            %
+            %Inputs:
+            %   scanDetails - (optional) struct of settings. Default: none, keeping the analyser's
 
-            this.ScanComplete = false;
+            arguments
+                this;
+                scanDetails (1,1) struct = struct();
+            end
+
+            has = @(name) isfield(scanDetails, name) && ~isempty(scanDetails.(name));
+            if has("MeasMode");     this.MeasMode = this.MeasType(string(scanDetails.MeasMode));       end
+            if has("MeasUnit");     this.MeasUnit = this.MeasUnitType(string(scanDetails.MeasUnit));   end
+
             if this.SimulationMode
+                this.ApplySimulatedSettings(scanDetails, has);
+                this.ScanComplete = false;
                 return;
             end
 
             this.Clear();
+
+            %Numbers without exponents (whole Hz), as the Programmer's Guide
+            %doesn't say the analyser accepts them
+            if has("StartFrequency_Hz") && has("StopFrequency_Hz")
+                this.WriteCommand(sprintf("STAR%.0fHZ;", scanDetails.StartFrequency_Hz));
+                this.WriteCommand(sprintf("STOP%.0fHZ;", scanDetails.StopFrequency_Hz));
+            end
+            if has("NumPoints")
+                this.WriteCommand(sprintf("POIN%d;", this.AllowedNumPoints(scanDetails.NumPoints)));
+            end
+            if has("SweepTime_s")
+                this.WriteCommand(sprintf("SWET%.6fS;", scanDetails.SweepTime_s));     %SWET0 is automatic, as SWEA
+            end
+            if has("SweepType")
+                switch string(scanDetails.SweepType)
+                    case "Linear";  this.WriteCommand("LINFREQ;");
+                    case "Log";     this.WriteCommand("LOGFREQ;");
+                    otherwise
+                        error("HP_8722ES_NetworkAnalyser:UnsupportedSweepType", "%s", "Sweep type must be Linear or Log, received " + string(scanDetails.SweepType));
+                end
+            end
             this.WriteCommand(string(this.MeasMode) + ";");
             this.WriteCommand(this.DisplayFormatCommand() + ";");
+
+            %Read back what was set - no queries can be answered once the
+            %sweep has started
+            this.SweepSettings = this.ReadSweepSettings();
+            this.ScanComplete = false;
 
             %OPC? makes the analyser reply 1 once the single sweep is done
             %(Programmer's Guide, Example 3B)
@@ -252,6 +334,33 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
     %% Methods (Private)
     methods(Access = private)
 
+        function ApplySimulatedSettings(this, scanDetails, has)
+            %In SimulationMode, remember the sweep settings scanDetails has, as the analyser would set them.
+
+            for name = ["StartFrequency_Hz", "StopFrequency_Hz", "SweepTime_s", "SweepType"]
+                if has(name)
+                    this.SweepSettings.(name) = scanDetails.(name);
+                end
+            end
+            if has("NumPoints")
+                this.SweepSettings.NumPoints = this.AllowedNumPoints(scanDetails.NumPoints);
+            end
+        end
+
+        function settings = ReadSweepSettings(this)
+            %Read the sweep settings from the analyser: frequency range, points, sweep time and sweep type.
+
+            settings.StartFrequency_Hz = this.QueryDouble("STAR?;");
+            settings.StopFrequency_Hz = this.QueryDouble("STOP?;");
+            settings.NumPoints = this.QueryDouble("POIN?;");
+            settings.SweepTime_s = this.QueryDouble("SWET?;");
+            if this.QueryDouble("LOGFREQ?;") == 1
+                settings.SweepType = "Log";
+            else
+                settings.SweepType = "Linear";
+            end
+        end
+
         function command = DisplayFormatCommand(this)
             %The display format command for MeasUnit: LOGM (log magnitude, dB) or LINM (linear magnitude).
 
@@ -261,6 +370,14 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
                 otherwise
                     error("HP_8722ES_NetworkAnalyser:InvalidMeasUnit", "%s", "MeasUnit must be dB or Absolute, received " + string(this.MeasUnit));
             end
+        end
+
+        function numPoints = AllowedNumPoints(~, requested)
+            %The analyser's number of points nearest a requested number - it takes only 3, 11, 21, 26, 51, 101, 201, 401, 801 or 1601 (POIN).
+
+            allowed = [3, 11, 21, 26, 51, 101, 201, 401, 801, 1601];
+            [~, idx] = min(abs(allowed - requested));
+            numPoints = allowed(idx);
         end
 
         function numbers = QueryNumbers(this, command)

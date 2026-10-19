@@ -1,17 +1,20 @@
 classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
     %PNA_L_NetworkAnalyser - Instrument driver for the Keysight (Agilent) PNA-L N5232A vector network analyser.
-    %Records whole frequency sweeps through the Scan Control tab, rather
-    %than a value each measurement tick. Running a scan triggers one sweep
-    %on channel 1; when the channel returns to HOLD the sweep is read back
-    %and saved to its own data file as two columns, frequency (Hz) and the
-    %formatted trace data of the selected measurement. `Measure` returns no
-    %values, so the analyser adds no columns to the main data file. The
-    %sweep settings are recorded in the data-file header.
+    %Records whole frequency sweeps through the VNA Control tab, rather
+    %than a value each measurement tick. Running a scan applies the tab's
+    %settings (`RunScan`) and triggers one sweep on channel 1; when the
+    %channel returns to HOLD the sweep is read back and saved to its own
+    %data file as two columns, frequency (Hz) and the formatted trace data.
+    %`Measure` returns no values, so the analyser adds no columns to the
+    %main data file. The sweep settings are recorded in the data-file
+    %header.
     %
-    %Set up the measurement (S-parameter, format, frequency range, points)
-    %on the instrument, with the trigger source set to Internal. `MeasMode`
-    %and `MeasUnit` label the data column; `MeasMode` is also the parameter
-    %used by `DefineMeasurement`.
+    %Before each sweep the driver selects a measurement on channel 1 of the
+    %S-parameter in `MeasMode` - if channel 1 has none, its first
+    %measurement is changed to that parameter - and sets the display format
+    %for `MeasUnit` (log magnitude for dB, linear magnitude for Absolute).
+    %The tab starts from the analyser's own settings (`GetScanSettings`).
+    %Set the trigger source to Internal on the instrument.
     %
     %The PNA-L is controlled with SCPI commands over GPIB or LAN. Other PNA
     %series analysers share the command set and should work too, but have
@@ -27,14 +30,16 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
     properties(Access = public, SetObservable)
         Name = 'PNA';                                           %Instrument name, used as the prefix of its scan data column headers
         Connection_Type = Palladium.Enums.ConnectionType.GPIB;  %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
-        MeasMode;                                               %S-parameter measured: S11, S21, S12 or S22. Labels the data column, and is the parameter DefineMeasurement creates.
-        MeasUnit;                                               %Units label (dB or Absolute) for the data column header. Only labels the column - set the trace format on the instrument.
+        MeasMode;                                               %S-parameter measured: S11, S21, S12 or S22 - a measurement of it is selected on channel 1 before each sweep
+        MeasUnit;                                               %dB (log magnitude) or Absolute (linear magnitude) - the display format is set to match before each sweep
     end
 
     %% Properties (Private)
     properties(Access = private)
         SimulatedSweepTime_s = 0.2;                             %In SimulationMode, how long a sweep takes
         SimulatedSweepStartTime = [];                           %In SimulationMode, tic of the last sweep triggered - empty if none
+        SimulatedSettings = struct("StartFrequency_Hz", 300e3, "StopFrequency_Hz", 6e9, "NumPoints", 20, ...
+            "SweepTime_s", 0, "SweepType", "Linear");          %In SimulationMode, the sweep settings last set (SweepTime_s 0 for automatic)
     end
 
     %% Categoricals
@@ -60,7 +65,7 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
             this.MeasUnit = this.MeasUnitType("dB");
 
             %Define the Instrument Controls that can be added
-            this.DefineInstrumentControl(Name = "Scan Control", ClassName = "ScanController", TabName = "Scan Control", EnabledByDefault = true);
+            this.DefineInstrumentControl(Name = "VNA Control", ClassName = "VNAController", TabName = "VNA Control", EnabledByDefault = true);
         end
     end
 
@@ -201,7 +206,7 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
             %Read the channel 1 start frequency, in Hz.
 
             if this.SimulationMode
-                freq_Hz = 300e3;
+                freq_Hz = this.SimulatedSettings.StartFrequency_Hz;
                 return;
             end
 
@@ -212,7 +217,7 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
             %Read the channel 1 stop frequency, in Hz.
 
             if this.SimulationMode
-                freq_Hz = 300e3 + this.GetNumPoints - 1;
+                freq_Hz = this.SimulatedSettings.StopFrequency_Hz;
                 return;
             end
 
@@ -227,7 +232,12 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
             %   freqVals_Hz - row vector of frequencies, in Hz
 
             if this.SimulationMode
-                freqVals_Hz = 300e3 : 300e3 + this.GetNumPoints - 1;
+                sim = this.SimulatedSettings;
+                if sim.SweepType == "Log"
+                    freqVals_Hz = logspace(log10(sim.StartFrequency_Hz), log10(sim.StopFrequency_Hz), sim.NumPoints);
+                else
+                    freqVals_Hz = linspace(sim.StartFrequency_Hz, sim.StopFrequency_Hz, sim.NumPoints);
+                end
                 return;
             end
 
@@ -266,11 +276,52 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
             end
         end
 
+        function settings = GetScanSettings(this)
+            %The analyser's current sweep settings, for the VNA Control tab to start from - the fields RunScan takes.
+            %MeasMode is the selected measurement's S-parameter, and MeasUnit
+            %follows the display format (dB for log magnitude, Absolute for
+            %linear magnitude) - each kept as it is if the analyser's isn't one
+            %of those
+            %
+            %Outputs:
+            %   settings - struct: StartFrequency_Hz, StopFrequency_Hz, NumPoints,
+            %              SweepTime_s (0 for automatic), SweepType ("Linear" or
+            %              "Log"), MeasMode and MeasUnit (text)
+
+            settings.StartFrequency_Hz = this.GetFrequencyStart();
+            settings.StopFrequency_Hz = this.GetFrequencyStop();
+            settings.NumPoints = this.GetNumPoints();
+            if this.SimulationMode
+                settings.SweepTime_s = this.SimulatedSettings.SweepTime_s;
+            elseif this.QueryDouble("SENS1:SWE:TIME:AUTO?") == 1
+                settings.SweepTime_s = 0;
+            else
+                settings.SweepTime_s = this.GetSweepTime();
+            end
+            settings.SweepType = this.GetSweepType();
+
+            measMode = string(this.MeasMode);
+            measUnit = string(this.MeasUnit);
+            if ~this.SimulationMode
+                [names, parameters] = this.GetMeasurements();
+                selected = strip(erase(string(this.QueryString("CALC:PAR:SEL?")), [string(char(34)), "'"]));
+                if any(names == selected) && any(parameters(names == selected) == categories(this.MeasMode))
+                    measMode = parameters(find(names == selected, 1));
+                    switch this.GetDisplayFormat()
+                        case "MLOG";    measUnit = "dB";
+                        case "MLIN";    measUnit = "Absolute";
+                    end
+                end
+            end
+            settings.MeasMode = measMode;
+            settings.MeasUnit = measUnit;
+        end
+
         function time = GetSweepTime(this)
             %Read the channel 1 sweep time, in seconds.
 
             if this.SimulationMode
-                time = 1.4;
+                time = this.SimulatedSweepTime_s;
                 return;
             end
 
@@ -283,10 +334,10 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
             %SEGM); anything else is returned as it came
             %
             %Outputs:
-            %   type - the sweep type (string); "Linear" in SimulationMode
+            %   type - the sweep type (string)
 
             if this.SimulationMode
-                type = "Linear";
+                type = this.SimulatedSettings.SweepType;
                 return;
             end
 
@@ -304,10 +355,10 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
             %Read the number of points per sweep.
             %
             %Outputs:
-            %   numOfPoints - number of points (20 in SimulationMode)
+            %   numOfPoints - number of points (20 in SimulationMode, until set)
 
             if this.SimulationMode
-                numOfPoints = 20;
+                numOfPoints = this.SimulatedSettings.NumPoints;
                 return;
             end
 
@@ -332,9 +383,22 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
             statusStr = strip(string(result));
         end
 
-        function RunScan(this)
-            %Start a scan, when Run is pressed on the Scan Control tab, by triggering one sweep.
+        function RunScan(this, scanDetails)
+            %Start a scan, when Run is pressed on the VNA Control tab: apply its settings, then trigger one sweep.
+            %Applies each setting scanDetails has (see GetScanSettings for
+            %the fields; others, e.g. the file settings, are ignored), then
+            %selects a measurement of MeasMode on channel 1 and sets the
+            %display format for MeasUnit
+            %
+            %Inputs:
+            %   scanDetails - (optional) struct of settings. Default: none, keeping the analyser's
 
+            arguments
+                this;
+                scanDetails (1,1) struct = struct();
+            end
+
+            this.ApplyScanSettings(scanDetails);
             this.TriggerSingle();
         end
 
@@ -351,6 +415,12 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
                 stop_Hz (1,1) double;
             end
 
+            if this.SimulationMode
+                this.SimulatedSettings.StartFrequency_Hz = start_Hz;
+                this.SimulatedSettings.StopFrequency_Hz = stop_Hz;
+                return;
+            end
+
             this.WriteCommand("SENSe1:FREQuency:STARt " + Palladium.Core.Instrument.NumberToCommandString(start_Hz));
             this.WriteCommand("SENSe1:FREQuency:STOP " + Palladium.Core.Instrument.NumberToCommandString(stop_Hz));
         end
@@ -364,7 +434,7 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
             end
 
             if this.SimulationMode
-                disp("Set simulated VNA num pts to " + num2str(numPts));
+                this.SimulatedSettings.NumPoints = numPts;
                 return;
             end
 
@@ -372,19 +442,23 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
         end
 
         function SetSweepTime(this, time_s)
-            %Set the channel 1 sweep time, in seconds.
+            %Set the channel 1 sweep time, in seconds - or 0 for the fastest (automatic) sweep time.
 
             arguments
                 this;
-                time_s (1,1) double {mustBePositive};
+                time_s (1,1) double {mustBeNonnegative};
             end
 
             if this.SimulationMode
-                disp("Set simulated VNA scan time to " + num2str(time_s) + " s");
+                this.SimulatedSettings.SweepTime_s = time_s;
                 return;
             end
 
-            this.WriteCommand("SENS1:SWE:TIME " + Palladium.Core.Instrument.NumberToCommandString(time_s));
+            if time_s == 0
+                this.WriteCommand("SENS1:SWE:TIME:AUTO ON");
+            else
+                this.WriteCommand("SENS1:SWE:TIME " + Palladium.Core.Instrument.NumberToCommandString(time_s));
+            end
         end
 
         function SetSweepType(this, type)
@@ -399,7 +473,8 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
             end
 
             if this.SimulationMode
-                disp("Set simulated VNA sweep type to " + type);
+                assert(any(type == ["Linear", "Log"]), "PNA_L_NetworkAnalyser:UnsupportedSweepType", "%s", "Sweep type " + string(type) + " not supported");
+                this.SimulatedSettings.SweepType = string(type);
                 return;
             end
 
@@ -475,6 +550,71 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
 
     %% Methods (Private)
     methods(Access = private)
+
+        function ApplyScanSettings(this, scanDetails)
+            %Apply the sweep settings scanDetails has, then select a measurement of MeasMode and set the display format for MeasUnit.
+
+            has = @(name) isfield(scanDetails, name) && ~isempty(scanDetails.(name));
+            if has("StartFrequency_Hz") && has("StopFrequency_Hz")
+                this.SetFrequencyStartAndStop(scanDetails.StartFrequency_Hz, scanDetails.StopFrequency_Hz);
+            end
+            if has("NumPoints");    this.SetNumPoints(scanDetails.NumPoints);       end
+            if has("SweepTime_s");  this.SetSweepTime(scanDetails.SweepTime_s);     end
+            if has("SweepType");    this.SetSweepType(string(scanDetails.SweepType)); end
+            if has("MeasMode");     this.MeasMode = this.MeasType(string(scanDetails.MeasMode));       end
+            if has("MeasUnit");     this.MeasUnit = this.MeasUnitType(string(scanDetails.MeasUnit));   end
+
+            this.SelectMeasurementOf(string(this.MeasMode));
+            this.SetDisplayFormat();
+        end
+
+        function [names, parameters] = GetMeasurements(this)
+            %The names and parameters of the measurements on channel 1 (CALC1:PAR:CAT?), e.g. "CH1_S11_1" and "S11".
+
+            reply = erase(string(this.QueryString("CALC1:PAR:CAT?")), [string(char(34)), "'"]);
+            items = strip(split(reply, ","));
+            items = items(strlength(items) > 0);
+            names = items(1:2:end)';
+            parameters = items(2:2:end)';
+            names = names(1:numel(parameters));
+        end
+
+        function SelectMeasurementOf(this, sParameter)
+            %Select a measurement of an S-parameter on channel 1, for the sweep and CALCulate commands to use.
+            %Every CALCulate command (e.g. reading the trace) acts on the
+            %selected measurement - with none selected they fail, and the
+            %read that follows gives error -420 "Query UNTERMINATED". If
+            %channel 1 has no measurement of sParameter, its first one is
+            %changed to it (CALC1:PAR:MOD)
+
+            if this.SimulationMode
+                return;
+            end
+
+            [names, parameters] = this.GetMeasurements();
+            assert(~isempty(names), "PNA_L_NetworkAnalyser:NoMeasurement", "%s", this.Name + ": channel 1 has no measurement - create one on the analyser.");
+
+            match = find(parameters == sParameter, 1);
+            if isempty(match)
+                this.SelectMeasurement(names(1));
+                this.WriteCommand("CALC1:PAR:MOD " + sParameter);
+            else
+                this.SelectMeasurement(names(match));
+            end
+        end
+
+        function SetDisplayFormat(this)
+            %Set the selected measurement's display format for MeasUnit: log magnitude (dB) or linear magnitude (Absolute).
+
+            if this.SimulationMode
+                return;
+            end
+
+            switch(this.MeasUnit)
+                case(this.MeasUnitType("dB"));          this.WriteCommand("CALC1:FORM MLOG");
+                case(this.MeasUnitType("Absolute"));    this.WriteCommand("CALC1:FORM MLIN");
+            end
+        end
 
         function numbers = QueryNumbers(this, command)
             %Send a query and read its reply as a list of comma-separated numbers (ASCII data format).

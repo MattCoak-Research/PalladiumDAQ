@@ -660,6 +660,13 @@
                                 </Category>
                             </Info>
                         </File>
+                        <File Location="VNAController.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="design"/>
+                                </Category>
+                            </Info>
+                        </File>
                     </File>
                     <File Location="+Events">
                         <Info/>
@@ -1189,6 +1196,13 @@
                         </Info>
                     </File>
                     <File Location="test_DoubleGateSweepInstrumentList.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="test"/>
+                            </Category>
+                        </Info>
+                    </File>
+                    <File Location="test_VNAController.m">
                         <Info>
                             <Category UUID="FileClassCategory">
                                 <Label UUID="test"/>

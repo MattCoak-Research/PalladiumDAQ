@@ -19,10 +19,71 @@ classdef test_PNA_L < matlab.unittest.TestCase
             testCase.verifyFalse(any(instr.GetSupportedConnectionTypes() == Palladium.Enums.ConnectionType.USB));
         end
 
-        function RunScanTriggersOneSweepTest(testCase)
+        function RunScanSelectsAMeasurementThenTriggersTest(testCase)
+            %CALCulate commands act on the selected measurement - with none
+            %selected, the analyser showed error -420 "Query UNTERMINATED"
             [instr, connection] = testCase.makeInstrument();
+            connection.QueryResponses("CALC1:PAR:CAT?") = """CH1_S11_1,S11,CH1_S21_2,S21""";
+            instr.MeasMode = instr.MeasType("S21");
+
             instr.RunScan();
-            testCase.verifyEqual(connection.WrittenCommands, "SENS1:SWE:MODE SINGle");
+
+            testCase.verifyEqual(connection.WrittenCommands, ["CALC:PAR:SEL ""CH1_S21_2""", "CALC1:FORM MLOG", "SENS1:SWE:MODE SINGle"]);
+        end
+
+        function NoMeasurementOfTheSParameterChangesTheFirstTest(testCase)
+            %The user's choice: change the first measurement on channel 1, rather than create one
+            [instr, connection] = testCase.makeInstrument();
+            connection.QueryResponses("CALC1:PAR:CAT?") = """CH1_S11_1,S11""";
+            instr.MeasMode = instr.MeasType("S22");
+
+            instr.RunScan();
+
+            testCase.verifyEqual(connection.WrittenCommands(1:2), ["CALC:PAR:SEL ""CH1_S11_1""", "CALC1:PAR:MOD S22"]);
+        end
+
+        function NoMeasurementAtAllErrorsTest(testCase)
+            [instr, connection] = testCase.makeInstrument();
+            connection.QueryResponses("CALC1:PAR:CAT?") = """""";
+            testCase.verifyError(@() instr.RunScan(), "PNA_L_NetworkAnalyser:NoMeasurement");
+            testCase.verifyEmpty(connection.WrittenCommands, "No sweep started");
+        end
+
+        function RunScanAppliesTheSettingsTest(testCase)
+            %The VNA Control's settings; others (the file settings) are ignored
+            [instr, connection] = testCase.makeInstrument();
+            connection.QueryResponses("CALC1:PAR:CAT?") = """CH1_S11_1,S11""";
+            settings = struct("StartFrequency_Hz", 1e7, "StopFrequency_Hz", 6e9, "NumPoints", 401, ...
+                "SweepTime_s", 0.5, "SweepType", "Log", "MeasMode", "S11", "MeasUnit", "Absolute", ...
+                "SaveSweepFile", true, "FileName", "x");
+
+            instr.RunScan(settings);
+
+            testCase.verifyEqual(connection.WrittenCommands, ["SENSe1:FREQuency:STARt 10000000", "SENSe1:FREQuency:STOP 6000000000", ...
+                "SENS:SWE:POIN 401", "SENS1:SWE:TIME 0.5", "SENS:SWE:TYPE LOG", "CALC:PAR:SEL ""CH1_S11_1""", "CALC1:FORM MLIN", ...
+                "SENS1:SWE:MODE SINGle"]);
+            testCase.verifyEqual(string(instr.MeasUnit), "Absolute");
+        end
+
+        function ZeroSweepTimeIsAutomaticTest(testCase)
+            [instr, connection] = testCase.makeInstrument();
+            instr.SetSweepTime(0);
+            testCase.verifyEqual(connection.WrittenCommands, "SENS1:SWE:TIME:AUTO ON");
+        end
+
+        function GetScanSettingsReadsTheAnalyserTest(testCase)
+            [instr, connection] = testCase.makeInstrument();
+            replies = ["SENSe1:FREQuency:STARt?", "3E5"; "SENSe1:FREQuency:STOP?", "2E10"; "SENS:SWE:POIN?", "201"; ...
+                "SENS1:SWE:TIME:AUTO?", "1"; "SENS:SWE:TYPE?", "LIN"; "CALC1:PAR:CAT?", """CH1_S11_1,S11,CH1_S21_2,S21"""; ...
+                "CALC:PAR:SEL?", """CH1_S21_2"""; "CALCulate1:FORMat?", "MLIN"];
+            for i = 1:height(replies)
+                connection.QueryResponses(replies(i, 1)) = replies(i, 2);
+            end
+
+            settings = instr.GetScanSettings();
+
+            testCase.verifyEqual(settings, struct("StartFrequency_Hz", 3e5, "StopFrequency_Hz", 2e10, "NumPoints", 201, ...
+                "SweepTime_s", 0, "SweepType", "Linear", "MeasMode", "S21", "MeasUnit", "Absolute"), "Automatic sweep time is 0");
         end
 
         function TriggerAndWaitPollsForHoldTest(testCase)
@@ -110,6 +171,22 @@ classdef test_PNA_L < matlab.unittest.TestCase
             testCase.verifyTrue(instr.CheckScanComplete());
             testCase.verifySize(data, [20, 2]);
             testCase.verifyEqual(instr.GetSweepType(), "Linear");
+        end
+
+        function SimulatedScanFollowsTheSettingsTest(testCase)
+            %In Debug mode the settings are kept, and the scan follows them
+            instr = Palladium.Instruments.PNA_L_NetworkAnalyser();
+            instr.Connection_Type = Palladium.Enums.ConnectionType.Debug;
+            evalc("instr.Connect()");
+
+            instr.RunScan(struct("StartFrequency_Hz", 1e6, "StopFrequency_Hz", 2e6, "NumPoints", 11, "SweepType", "Linear", "MeasMode", "S12"));
+            pause(0.3);
+            data = instr.GetCompletedScanData();
+            settings = instr.GetScanSettings();
+
+            testCase.verifyEqual(data(:, 1)', linspace(1e6, 2e6, 11));
+            testCase.verifyEqual([settings.StartFrequency_Hz, settings.StopFrequency_Hz, settings.NumPoints], [1e6, 2e6, 11]);
+            testCase.verifyEqual(settings.MeasMode, "S12");
         end
     end
 
