@@ -405,10 +405,10 @@ classdef BigNumberDisplay < handle
         function [w, h] = Measure(this, str, fontSize, fontWeight, fontName, interpreter)
             %The width and height (pixels) of text at a font size, measured on a new hidden text object.
             %A new object for each measurement, made with all its settings at
-            %once: reusing one text object and changing its FontSize gave
-            %the size it had before (its Extent isn't always measured again
-            %- e.g. on Linux, where a display's text then overflowed its
-            %window)
+            %once, so nothing from an earlier measurement can carry over. The
+            %axes must be in the window's pixels (see Layout), as Extent is
+            %in data units. Where text can't really be measured, the sizes
+            %are placeholders - see CanMeasureText
 
             arguments
                 this;
