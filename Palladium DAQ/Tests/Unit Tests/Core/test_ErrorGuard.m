@@ -3,6 +3,20 @@ classdef test_ErrorGuard < matlab.unittest.TestCase
     % event listeners must reach the Controller's error handling, rather
     % than MATLAB turning them into warnings.
 
+    %% Methods (TestMethodSetup)
+    methods (TestMethodSetup)
+        function noDefaultController(testCase)
+            %Start each test with no Controller registered for errors. A
+            %Palladium open in the same MATLAB session registers its own,
+            %and a test's error then went to it - opening its real error
+            %dialogue, which waited for a click (e.g. in
+            %WithoutControllerFallsBackToLogger). Put back afterwards
+            previous = Palladium.Core.ErrorGuard.DefaultController();
+            Palladium.Core.ErrorGuard.DefaultController([]);
+            testCase.addTeardown(@() Palladium.Core.ErrorGuard.DefaultController(previous));
+        end
+    end
+
     %% Methods (Private)
     methods (Access = private)
         function silenceWarnings(testCase)
