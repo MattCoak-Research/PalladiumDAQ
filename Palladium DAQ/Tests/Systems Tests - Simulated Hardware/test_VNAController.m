@@ -1,6 +1,6 @@
 classdef test_VNAController < matlab.unittest.TestCase
     %TEST_VNACONTROLLER Tests the VNA Control in a running Palladium: its settings panel, filled from the analyser, sent with each Run
-    %For both analysers that use it, in simulation (Debug). The control
+    %For each analyser that uses it, in simulation (Debug). The control
     %doesn't know the instruments' methods: it passes a struct of settings
     %to RunScan, and fills the panel from GetScanSettings.
 
@@ -13,7 +13,7 @@ classdef test_VNAController < matlab.unittest.TestCase
 
     %% Properties (TestParameter)
     properties (TestParameter)
-        InstrumentType = {"PNA_L_NetworkAnalyser", "HP_8722ES_NetworkAnalyser"};
+        InstrumentType = {"PNA_L_NetworkAnalyser", "HP_8722ES_NetworkAnalyser", "PicoVNA_NetworkAnalyser"};
     end
 
     %% Methods (TestClassSetup)

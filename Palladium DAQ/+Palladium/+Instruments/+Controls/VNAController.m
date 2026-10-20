@@ -17,7 +17,7 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
     %with those fields. The S-parameter and units lists are the
     %instrument's own (the categories of its MeasMode and MeasUnit).
     %
-    %Used by PNA_L_NetworkAnalyser and HP_8722ES_NetworkAnalyser.
+    %Used by PNA_L_NetworkAnalyser, HP_8722ES_NetworkAnalyser and PicoVNA_NetworkAnalyser.
 
     %% Properties (Private)
     properties (Access = private)
