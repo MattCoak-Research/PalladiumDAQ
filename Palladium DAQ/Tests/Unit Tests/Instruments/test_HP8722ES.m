@@ -50,21 +50,52 @@ classdef test_HP8722ES < matlab.unittest.TestCase
 
         function ScanDataIsFrequencyAndValueTest(testCase)
             %ASCII trace (two values per point - the first is the value) and
-            %the frequency of each point (the first of four limit-test values)
+            %the frequency of each point (the first of four limit-test values).
+            %As the analyser sends them: the first line comes in answer to the
+            %command, the rest are read after it
             [instr, connection] = testCase.makeInstrument();
-            connection.QueryResponses("OUTPFORM;") = "-1.5,0,-2.5,0,-3.5,0";
-            connection.QueryResponses("OUTPLIML;") = "5E7,0,0,0,1E8,0,0,0,2E8,0,0,0";
+            connection.QueryResponses("POIN?;") = "3";
+            connection.QueryResponses("OUTPFORM;") = "-1.5,0";
+            connection.QueryResponses("OUTPLIML;") = "5E7,0,0,0";
+
+            %The limit test's lines follow the trace's in the analyser's output
+            connection.ReadQueue = ["-2.5,0", "-3.5,0", "1E8,0,0,0", "2E8,0,0,0"];
 
             data = instr.GetCompletedScanData();
 
             testCase.verifyEqual(connection.WrittenCommands, "FORM4;");
             testCase.verifyEqual(data, [5e7, -1.5; 1e8, -2.5; 2e8, -3.5]);
+            testCase.verifyEmpty(connection.ReadQueue, "Every line of both replies is read - none left for the next command");
+        end
+
+        function ScanDataIsAllPointsNotJustTheFirstTest(testCase)
+            %A 201-point sweep gave one point: a single read got only the first line of the trace
+            [instr, connection] = testCase.makeInstrument();
+            numPoints = 201;
+            frequency = linspace(5e7, 4e10, numPoints);
+            value = -(1:numPoints) / 10;
+            connection.QueryResponses("POIN?;") = string(numPoints);
+            connection.QueryResponses("OUTPFORM;") = sprintf("%.15E,%.15E", value(1), 0);
+            connection.QueryResponses("OUTPLIML;") = sprintf("%.15E,%.15E,%.15E,%.15E", frequency(1), 0, 0, 0);
+            traceLines = compose("%.15E,%.15E", value(2:end)', zeros(numPoints - 1, 1))';
+            limitLines = compose("%.15E,%.15E,%.15E,%.15E", frequency(2:end)', zeros(numPoints - 1, 3))';
+            connection.ReadQueue = [traceLines, limitLines];
+
+            data = instr.GetCompletedScanData();
+
+            testCase.verifySize(data, [numPoints, 2]);
+            testCase.verifyEqual(data(:, 1)', frequency, RelTol=1e-12);
+            testCase.verifyEqual(data(:, 2)', value, RelTol=1e-12);
+            testCase.verifyEmpty(connection.ReadQueue);
         end
 
         function MismatchedLengthsErrorTest(testCase)
+            %The analyser sent fewer points than the sweep has
             [instr, connection] = testCase.makeInstrument();
-            connection.QueryResponses("OUTPFORM;") = "-1.5,0,-2.5,0";
+            connection.QueryResponses("POIN?;") = "3";
+            connection.QueryResponses("OUTPFORM;") = "-1.5,0";
             connection.QueryResponses("OUTPLIML;") = "5E7,0,0,0";
+            connection.ReadQueue = ["-2.5,0", ""];     %Two points of the trace, then nothing more
 
             testCase.verifyError(@() instr.GetCompletedScanData(), "HP_8722ES_NetworkAnalyser:DataSizeMismatch");
         end

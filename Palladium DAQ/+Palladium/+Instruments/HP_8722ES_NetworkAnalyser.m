@@ -122,7 +122,8 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
             %and linear magnitude formats the first is the value) and the
             %frequency of each point (the first of OUTPLIML's four values
             %per point), both in ASCII (FORM4) - Programmer's Guide,
-            %Examples 3B and 3D
+            %Examples 3B and 3D. The analyser sends them a line at a time
+            %(see QueryNumbers), so every point is read, not just the first
             %
             %Outputs:
             %   data - one row per point: [frequency in Hz, S-parameter in MeasUnit]
@@ -135,9 +136,11 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
                 return;
             end
 
+            %Two numbers per point for the trace, four for the limit test
+            numPoints = this.GetNumPoints();
             this.WriteCommand("FORM4;");
-            trace = this.QueryNumbers("OUTPFORM;");
-            limits = this.QueryNumbers("OUTPLIML;");
+            trace = this.QueryNumbers("OUTPFORM;", 2 * numPoints);
+            limits = this.QueryNumbers("OUTPLIML;", 4 * numPoints);
 
             values = trace(1:2:end);
             frequency = limits(1:4:end);
@@ -380,11 +383,38 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
             numPoints = allowed(idx);
         end
 
-        function numbers = QueryNumbers(this, command)
-            %Send an output command and read its reply as a list of comma-separated numbers (FORM4 ASCII).
+        function numbers = QueryNumbers(this, command, expectedCount)
+            %Send an output command and read its reply as a list of numbers (FORM4 ASCII), however many lines it comes in.
+            %The analyser ends each pair of numbers in a trace with a line
+            %feed, and ends the transmission only with the GPIB EOI line
+            %(Programmer's Guide, "Output Syntax") - so a single read
+            %gets just the first point. Lines are read, adding their
+            %comma-separated numbers, until expectedCount have arrived (or a
+            %read comes back empty, so the caller finds the shortfall).
+            %Reading everything also leaves nothing behind in the buffer
+            %for the next command to find
+            %
+            %Inputs:
+            %   command       - the output command, e.g. "OUTPFORM;"
+            %   expectedCount - how many numbers the reply holds
+            %
+            %Outputs:
+            %   numbers - row vector of the numbers
 
-            reply = string(this.QueryString(command));
-            numbers = str2double(strsplit(strtrim(reply), ","));
+            numbers = this.ParseNumbers(this.QueryString(command));
+            while numel(numbers) < expectedCount
+                line = strtrim(string(this.ReadString()));
+                if strlength(line) == 0
+                    break;
+                end
+                numbers = [numbers, this.ParseNumbers(line)]; %#ok<AGROW>
+            end
+        end
+
+        function numbers = ParseNumbers(~, text)
+            %The comma-separated numbers in a line of text, as a row vector.
+
+            numbers = str2double(strsplit(strtrim(string(text)), ","));
             numbers = numbers(:)';
         end
 
