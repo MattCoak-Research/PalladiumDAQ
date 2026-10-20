@@ -112,6 +112,22 @@ classdef test_PresetSaveLoad < matlab.unittest.TestCase
                 output = evalc("Palladium.Utilities.PluginLoading.ApplyPresetFromJson(testCase.Programme.Controller, testCase.Programme.View, path)");
             end
         end
+
+        function SettingNoLongerInTheDriverIsSkipped(testCase)
+            %An older preset can have a setting the driver has since lost
+            %(the Lakeshore 370's HeaterResistance, now read from the
+            %instrument) - it used to stop the whole preset with an error.
+            %It is skipped and logged, and the other settings still load
+            path = fullfile(testCase.Folder, "Old.json");
+            writelines("{""Instruments"": [{""Type"": ""Lakeshore370"", ""Properties"": {""Name"": ""Ls370_old"", ""HeaterResistance"": 100, ""Channel"": 3}}]}", path);
+
+            output = evalc("Palladium.Utilities.PluginLoading.ApplyPresetFromJson(testCase.Programme.Controller, testCase.Programme.View, path)");
+
+            testCase.verifySubstring(output, "Ls370_old has no setting HeaterResistance - skipping it");
+            instruments = testCase.Programme.Controller.InstrumentController.GetInstruments();
+            testCase.assertNumElements(instruments, 1);
+            testCase.verifyEqual(instruments{1}.Channel, 3);
+        end
     end
 
     %% Methods (Private)
