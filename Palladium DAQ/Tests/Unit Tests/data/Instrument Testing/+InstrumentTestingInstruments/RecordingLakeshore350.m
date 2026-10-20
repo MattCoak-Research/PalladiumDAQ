@@ -5,5 +5,13 @@ classdef RecordingLakeshore350 < Palladium.Instruments.Lakeshore350
         function SetDeviceHandleForTest(this, handle)
             this.DeviceHandle = handle;
         end
+
+        function OnConnectedForTest(this)
+            this.OnConnected();
+        end
+
+        function ApplySettingsForTest(this, settings)
+            this.ApplySettings(settings);
+        end
     end
 end
