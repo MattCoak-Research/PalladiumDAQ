@@ -53,8 +53,8 @@ classdef TemplateInstrumentClass < Palladium.Core.Instrument
         function [headers, units] = GetHeaders(this)
             %Column headers and units of the values returned by Measure - one each, in the same order
 
-            headers = [this.Name + " - Resistance_Ohms", this.Name + " - Current_A"];
-            units = ["Ohms", "A"];
+            headers = [this.Name + " - Resistance_Ω", this.Name + " - Current_A"];
+            units = ["Ω", "A"];
         end
 
         function [str, limits, xlabelStr, ylabelStr] = GetSweepUnitsString(this)

@@ -94,6 +94,24 @@ classdef test_PresetSaveLoad < matlab.unittest.TestCase
             tabs = testCase.savedSpecs(testCase.save("Second.json"), "PlottingTabs");
             testCase.verifyEqual(tabs(2), tabs(1));
         end
+
+        function BadPresetEntryIsLoggedNotAMATLABWarning(testCase)
+            %A bad entry is skipped and logged through the Logger, like the
+            %rest of Palladium's warnings - not a MATLAB warning, which the
+            %compiled app shows as an error box. The good entry still loads
+            path = fullfile(testCase.Folder, "Bad.json");
+            writelines("{""Instruments"": [{""Properties"": {""Name"": ""NoType""}}, {""Type"": ""Keithley2000""}]}", path);
+
+            output = "";
+            testCase.verifyWarningFree(@() applyPreset());
+            testCase.verifySubstring(output, "instrument entry 1 has no Type - skipping it");
+            names = cellfun(@(i) string(i.Name), testCase.Programme.Controller.InstrumentController.GetInstruments());
+            testCase.verifyEqual(names, "K2000_1");
+
+            function applyPreset()
+                output = evalc("Palladium.Utilities.PluginLoading.ApplyPresetFromJson(testCase.Programme.Controller, testCase.Programme.View, path)");
+            end
+        end
     end
 
     %% Methods (Private)

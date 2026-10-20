@@ -92,8 +92,8 @@ cfg.DocMakerVersion = "v0.7";
 
 %Classes in the API reference: some individually, whole namespaces, and every
 %driver in the instruments folder except the scratch instrument
-cfg.ApiClasses = ["Palladium.Core.Instrument", "Palladium.Utilities.PathUtils"];
-cfg.ApiNamespaces = "Palladium.Enums";
+cfg.ApiClasses = "Palladium";
+cfg.ApiNamespaces = ["Palladium.Core", "Palladium.Enums", "Palladium.Events", "Palladium.Instruments.Events", "Palladium.Utilities", "Palladium.DataWriting", "Palladium.Logging", "Palladium.PythonInstruments"];
 cfg.InstrumentsNamespace = "Palladium.Instruments";
 cfg.InstrumentsFolder = fullfile(cfg.PalladiumFolder, "+Instruments");
 %A scratch driver for prototyping, left out of the docs, the toolbox and the

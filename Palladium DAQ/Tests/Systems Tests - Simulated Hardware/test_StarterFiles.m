@@ -51,7 +51,7 @@ classdef test_StarterFiles < matlab.unittest.TestCase
             %import, that keeps it out of the list) - needs a usable Python
             pyc = testCase.Programme.Controller.InstrumentController.PythonInstrumentController;
             testCase.assumeNotEmpty(pyc, "Python isn't usable here, so Python instruments aren't loaded");
-            testCase.verifyTrue(any(string(pyc.AvaialableInstrNames) == "TemplatePythonInstrument"));
+            testCase.verifyTrue(any(string(pyc.AvailableInstrNames) == "TemplatePythonInstrument"));
         end
 
         function CopiedPythonTemplateRunsAsInstrument(testCase)
@@ -78,15 +78,12 @@ classdef test_StarterFiles < matlab.unittest.TestCase
             %folder, after this folder has gone
             cfg = readstruct(fullfile(appDir, "Tests", "TestingConfig.json"));
             cfg.PathSettings.UserFilesDirectory = fullfile(root, "UserFiles");
-            cfg.PathSettings.UserFilesDirectoryIsRelativePath = false;
             cfg.PathSettings.DefaultDirectory = fullfile(root, "Data");
-            cfg.PathSettings.DataDirectoryIsRelativePath = false;
             cfg.PathSettings.DefaultSequenceDirectory = fullfile(root, "Sequences");
-            cfg.PathSettings.SequenceDirectoryIsRelativePath = false;
             configPath = fullfile(root, "Config.json");
             writestruct(cfg, configPath, FileType="json");
 
-            pd = Palladium(View=[], ConfigFilePath=extractAfter(configPath, appDir + filesep));
+            pd = Palladium(View=[], ConfigFilePath=configPath);     %A full path
             testCase.addTeardown(@() pd.Close());   %Runs before the fixture removes the folder
 
             testCase.verifyTrue(any(string(pd.GetAllInstrumentClassNames()) == "MyTemplateCopy"), "The copy should be listed as an instrument");
@@ -103,7 +100,7 @@ classdef test_StarterFiles < matlab.unittest.TestCase
             testCase.verifyTrue(any(contains(lines, instr.Name + " Settings: ExampleSetting = Auto range")), "The template's metadata should be in the header");
             endIdx = find(lines == Palladium.DataWriting.DataWriter.END_METADATA_LINES_STRING);
             headers = split(strtrim(lines(endIdx + 2)), sprintf("\t"));
-            testCase.verifyEqual(headers', ["Time (mins)", instr.Name + " - Resistance_Ohms", instr.Name + " - Current_A"]);
+            testCase.verifyEqual(headers', ["Time (mins)", instr.Name + " - Resistance_Ω", instr.Name + " - Current_A"]);
             rows = lines(endIdx + 3 : end);
             rows = rows(rows ~= "");
             testCase.verifyNotEmpty(rows, "Data should be written");

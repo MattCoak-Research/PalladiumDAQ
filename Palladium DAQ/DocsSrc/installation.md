@@ -37,7 +37,7 @@ Optional settings are passed as name-value arguments:
 | --- | --- |
 | `Preset="Example"` | Applies a [Preset](presets-and-config.md) from your presets folder once Palladium DAQ has started |
 | `View=[]` | Runs with no GUI, for scripted use |
-| `ConfigFilePath="MyConfig.json"` | Uses a different [Config.json](presets-and-config.md), given relative to the Palladium DAQ installation folder |
+| `ConfigFilePath="MyConfig.json"` | Uses a different [Config.json](presets-and-config.md), given as a full path or relative to the Palladium DAQ installation folder |
 | `DebugMode=true` | Stops on instrument errors with a full stack trace, instead of catching them - useful when writing drivers |
 
 For example:

@@ -33,6 +33,13 @@ classdef Keithley2450 < Palladium.Core.Instrument
         ABORT_PAUSE_S = 0.05;
     end
 
+    %% Properties (Constant, Private)
+    properties(Constant, Access = private)
+        MaxSourceVoltage_V = 210;                               %Most the 2450 can source, in V (5% over the 200 V range) - the Sweep Control limit with no protection or interlock limit
+        MaxSourceCurrent_A = 1.05;                              %Most the 2450 can source, in A (5% over the 1 A range) - the Sweep Control limit
+        NoInterlockMaxVoltage_V = 42;                           %Most the 2450 outputs while its interlock isn't engaged, in V
+    end
+
     %% Properties (Public)
     properties(Access = public)
         FullName = "Keithley 2450 Src Meter";                   %Full name, displayed in the GUI
@@ -46,8 +53,8 @@ classdef Keithley2450 < Palladium.Core.Instrument
         Language;                                               %Command set to use, TSP or SCPI. Must match the command set selected on the instrument, which only changes after a reboot.
     end
 
-    %% Properties (Public, Private Set)
-    properties(GetAccess = public, SetAccess = private)
+    %% Properties (Public, Protected Set)
+    properties(GetAccess = public, SetAccess = protected)
         SourceMode;                                             %Source function, Voltage or Current, read from the instrument when connecting
         MeasMode;                                               %Quantity measured - Current, Voltage, Resistance or Power - from the measure function and units read when connecting
     end
@@ -73,7 +80,9 @@ classdef Keithley2450 < Palladium.Core.Instrument
             this.DefineSupportedConnectionTypes(["Debug", "GPIB", "Ethernet", "USB", "VISA"]);
             this.GPIB_Address = 18;     %Factory default
             this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];
-            this.VISA_Address = 'USB0::0x05E6::0x2450::04602266::0::INSTR';
+            %The 2450's USB address pattern - replace SERIALNUMBER with the
+            %instrument's own (on its rear panel, or in MENU > System > Info)
+            this.VISA_Address = 'USB0::0x05E6::0x2450::SERIALNUMBER::0::INSTR';
 
             %Define the Instrument Controls that can be added to the
             %Instrument
@@ -120,43 +129,6 @@ classdef Keithley2450 < Palladium.Core.Instrument
             pause(Settings.Pause_s);
 
             this.TurnOutputOff();
-        end
-
-        function Connect(this)
-            %Open the connection, check the command set, and read the source and measure settings.
-            %Clears the interface and the instrument's event log, errors if the
-            %command set on the instrument does not match `Language`, then reads
-            %`SourceMode` and `MeasMode` from the instrument
-
-            Connect@Palladium.Core.Instrument(this);
-
-            %Discard anything left over from an earlier session (e.g. a
-            %late reply to a query that timed out), so the first query below
-            %gets its own reply
-            this.ClearInterface();
-
-            %Check the command language set on the hardware matches our
-            %Language setting - it can only be changed on the instrument
-            %with a reboot, so error with instructions if not
-            if ~this.SimulationMode
-                hardwareLanguage = this.GetLanguage();
-                if hardwareLanguage ~= this.Language
-                    msg = this.Name + " is configured on the hardware to use the " + string(hardwareLanguage) + ...
-                        " command set, but its Language setting is " + string(this.Language) + ". Set Language to " + string(hardwareLanguage) + ...
-                        ", or change the command set on the instrument (MENU > System > Settings > Command Set, or send *LANG " + ...
-                        string(this.Language) + ") and reboot it.";
-                    error("Keithley2450:LanguageMismatch", "%s", msg);
-                end
-            end
-
-            %Start with an empty event log, so any errors reported during
-            %measurements come from this session
-            this.ClearErrorQueue();
-
-            %Query hardware options and setup, set properties like
-            %MeasurementMode based on this
-            this.SourceMode = this.GetSourceMode();
-            this.MeasMode = this.GetMeasurementMode();
         end
 
         function ClearErrorQueue(this)
@@ -355,13 +327,13 @@ classdef Keithley2450 < Palladium.Core.Instrument
             %current), it is prefixed "Source" so the two columns differ
             %
             %Outputs:
-            %   Headers - e.g. ["K2450_SrcMtr - Resistance_Ohms", "K2450_SrcMtr - Current_A",
+            %   Headers - e.g. ["K2450_SrcMtr - Resistance_Ω", "K2450_SrcMtr - Current_A",
             %             "K2450_SrcMtr - Compliance Limited"], or with
             %             "K2450_SrcMtr - Source Current_A" as the second
-            %   Units   - matching units, e.g. ["Ohms", "A", ""]
+            %   Units   - matching units, e.g. ["Ω", "A", ""]
 
             switch(this.MeasMode)
-                case(this.MeasType("Resistance"));  measHeader = "Resistance_Ohms";     measUnits = "Ohms";
+                case(this.MeasType("Resistance"));  measHeader = "Resistance_Ω";        measUnits = "Ω";
                 case(this.MeasType("Current"));     measHeader = "Current_A";           measUnits = "A";
                 case(this.MeasType("Voltage"));     measHeader = "Voltage_V";           measUnits = "V";
                 case(this.MeasType("Power"));       measHeader = "Power_W";             measUnits = "W";
@@ -501,11 +473,14 @@ classdef Keithley2450 < Palladium.Core.Instrument
         function [str, limits, xlabelStr, ylabelStr] = GetSweepUnitsString(this)
             %Units, limits and plot labels of the swept source level, for a Sweep Control.
             %Before connecting, when the source function is not yet known, the
-            %units and x label are empty
+            %units and x label are empty. When sourcing voltage and connected,
+            %the limits are the most the instrument will output (see
+            %GetSourceVoltageLimit); otherwise the most the 2450 can source:
+            %210 V, or 1.05 A
             %
             %Outputs:
             %   str       - units of the source level, "V" or "A"
-            %   limits    - default lowest and highest sweep values, [min, max]
+            %   limits    - lowest and highest source levels allowed in the Sweep Control, [min, max]
             %   xlabelStr - label for the source level on plots, e.g. "Source Voltage (V)"
             %   ylabelStr - label for the measured value on plots (the first data column header)
 
@@ -519,11 +494,9 @@ classdef Keithley2450 < Palladium.Core.Instrument
                 return;
             end
 
-            %The 2450 can source up to +/-210 V and +/-1.05 A - these
-            %narrower limits also set the Sweep Control's starting values
             switch(this.SourceMode)
-                case(this.SourceType("Voltage"));   xlabelStr = "Source Voltage (V)";   str = "V";  limits = [-50, 50];
-                case(this.SourceType("Current"));   xlabelStr = "Source Current (A)";   str = "A";  limits = [-1, 1];
+                case(this.SourceType("Voltage"));   xlabelStr = "Source Voltage (V)";   str = "V";  limits = this.GetSourceVoltageLimit() * [-1, 1];
+                case(this.SourceType("Current"));   xlabelStr = "Source Current (A)";   str = "A";  limits = this.MaxSourceCurrent_A * [-1, 1];
                 otherwise
                     error("Keithley2450:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
             end
@@ -636,6 +609,31 @@ classdef Keithley2450 < Palladium.Core.Instrument
             end
         end
 
+        function limit_V = GetSourceVoltageLimit(this)
+            %The most voltage the instrument will output, in V - the Sweep Control's limit.
+            %The lowest of: 210 V; the overvoltage protection level set on the
+            %instrument (GetVoltageSourceOVP); and 42 V if the rear interlock
+            %isn't engaged, as the 2450 then limits its output to that,
+            %silently. 210 V when not connected (or in Debug mode), or if
+            %either can't be read
+            %
+            %Outputs:
+            %   limit_V - the limit, as a positive voltage
+
+            limit_V = this.MaxSourceVoltage_V;
+            if this.SimulationMode || isempty(this.DeviceHandle)
+                return;
+            end
+            try
+                limit_V = min(limit_V, this.GetVoltageSourceOVP());
+                if ~this.IsInterlockEngaged()
+                    limit_V = min(limit_V, this.NoInterlockMaxVoltage_V);
+                end
+            catch err
+                Palladium.Logging.Logger.Log("Warning", this.Name + " could not read its voltage protection or interlock, so the Sweep Control allows up to " + limit_V + " V: " + err.message);
+            end
+        end
+
         function [complianceLimited] = IsAtComplianceLimit(this)
             %Read whether the source was limited by its compliance limit in the last measurement.
             %The instrument's tripped flag reflects the last measurement taken, not
@@ -706,30 +704,6 @@ classdef Keithley2450 < Palladium.Core.Instrument
                     tf = any(result == ["smu.ON", "1"]);
                 otherwise
                     error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
-            end
-        end
-
-        function tf = IsReplyWaiting(this)
-            %Check, without blocking, whether the instrument has a reply waiting to be read.
-            %Over GPIB/VISA this is a serial poll, which works even while a TSP
-            %script is running - so it can be used to wait for a script to print
-            %its result while staying responsive (e.g. to an Abort button). An
-            %error in the event log does not count as a reply
-            %
-            %Outputs:
-            %   tf - true if a reply is waiting
-
-            if (this.SimulationMode)
-                tf = true;
-                return;
-            end
-
-            try
-                tf = visastatus(this.DeviceHandle);
-            catch
-                %No serial poll for Ethernet (tcpclient) - check MATLAB's
-                %receive buffer instead
-                tf = this.DeviceHandle.NumBytesAvailable > 0;
             end
         end
 
@@ -849,7 +823,7 @@ classdef Keithley2450 < Palladium.Core.Instrument
         end
 
         function SetSourceLevel(this, level, enableOutput)
-            %Turn the output on or off, and set the source level.
+            %Set the source level and turn the output on or off - in the order that never sources the wrong level.
             %
             %Inputs:
             %   level        - source level, in V or A depending on SourceMode
@@ -863,37 +837,16 @@ classdef Keithley2450 < Palladium.Core.Instrument
                 return;
             end
 
-            %Turn output on or off
-            switch(this.Language)
-                case(this.LanguageType("SCPI"))
-                    if(enableOutput)
-                        this.WriteCommand("OUTP ON");
-                    else
-                        this.WriteCommand("OUTP OFF");
-                    end
-                case(this.LanguageType("TSP"))
-                    if(enableOutput)
-                        this.WriteCommand("smu.source.output = smu.ON");
-                    else
-                        this.WriteCommand("smu.source.output = smu.OFF");
-                    end
-                otherwise
-                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
-            end
-
-            %Set the output level
-            switch(this.Language)
-                case(this.LanguageType("SCPI"))
-                    switch(this.SourceMode)
-                        case(this.SourceType("Voltage"));   this.WriteCommand("SOUR:VOLT:LEV " + num2str(level));
-                        case(this.SourceType("Current"));   this.WriteCommand("SOUR:CURR:LEV " + num2str(level));
-                        otherwise
-                            error("Keithley2450:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
-                    end
-                case(this.LanguageType("TSP"))
-                    this.WriteCommand("smu.source.level = " + num2str(level));
-                otherwise
-                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
+            %The output is never on at a level it shouldn't be: turning it
+            %on, the level is set first (the output used to come on at the
+            %old level, then jump); turning it off, it goes off first (the
+            %new level was briefly sourced)
+            if enableOutput
+                this.WriteSourceLevel(level);
+                this.WriteOutputState(true);
+            else
+                this.WriteOutputState(false);
+                this.WriteSourceLevel(level);
             end
         end
 
@@ -935,6 +888,87 @@ classdef Keithley2450 < Palladium.Core.Instrument
                 otherwise
                     error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
             end
+        end
+
+    end
+
+    %% Methods (Protected)
+    methods (Access = protected)
+        function WriteSourceLevel(this, level)
+            %Send the source level, in V or A depending on SourceMode (see SetSourceLevel).
+
+            switch(this.Language)
+                case(this.LanguageType("SCPI"))
+                    switch(this.SourceMode)
+                        case(this.SourceType("Voltage"));   this.WriteCommand("SOUR:VOLT:LEV " + Palladium.Core.Instrument.NumberToCommandString(level));
+                        case(this.SourceType("Current"));   this.WriteCommand("SOUR:CURR:LEV " + Palladium.Core.Instrument.NumberToCommandString(level));
+                        otherwise
+                            error("Keithley2450:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                    end
+                case(this.LanguageType("TSP"))
+                    this.WriteCommand("smu.source.level = " + Palladium.Core.Instrument.NumberToCommandString(level));
+                otherwise
+                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
+            end
+        end
+
+        function WriteOutputState(this, enableOutput)
+            %Turn the output on (true) or off (false) (see SetSourceLevel).
+
+            switch(this.Language)
+                case(this.LanguageType("SCPI"))
+                    if(enableOutput)
+                        this.WriteCommand("OUTP ON");
+                    else
+                        this.WriteCommand("OUTP OFF");
+                    end
+                case(this.LanguageType("TSP"))
+                    if(enableOutput)
+                        this.WriteCommand("smu.source.output = smu.ON");
+                    else
+                        this.WriteCommand("smu.source.output = smu.OFF");
+                    end
+                otherwise
+                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
+            end
+        end
+
+
+        function OpenConnection(this)
+            %Open the connection, check the command set, and read the source and measure settings.
+            %Clears the interface and the instrument's event log, errors if the
+            %command set on the instrument does not match `Language`, then reads
+            %`SourceMode` and `MeasMode` from the instrument
+
+            OpenConnection@Palladium.Core.Instrument(this);
+
+            %Discard anything left over from an earlier session (e.g. a
+            %late reply to a query that timed out), so the first query below
+            %gets its own reply
+            this.ClearInterface();
+
+            %Check the command language set on the hardware matches our
+            %Language setting - it can only be changed on the instrument
+            %with a reboot, so error with instructions if not
+            if ~this.SimulationMode
+                hardwareLanguage = this.GetLanguage();
+                if hardwareLanguage ~= this.Language
+                    msg = this.Name + " is configured on the hardware to use the " + string(hardwareLanguage) + ...
+                        " command set, but its Language setting is " + string(this.Language) + ". Set Language to " + string(hardwareLanguage) + ...
+                        ", or change the command set on the instrument (MENU > System > Settings > Command Set, or send *LANG " + ...
+                        string(this.Language) + ") and reboot it.";
+                    error("Keithley2450:LanguageMismatch", "%s", msg);
+                end
+            end
+
+            %Start with an empty event log, so any errors reported during
+            %measurements come from this session
+            this.ClearErrorQueue();
+
+            %Query hardware options and setup, set properties like
+            %MeasurementMode based on this
+            this.SourceMode = this.GetSourceMode();
+            this.MeasMode = this.GetMeasurementMode();
         end
 
     end

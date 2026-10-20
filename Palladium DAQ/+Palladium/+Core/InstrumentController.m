@@ -1,49 +1,84 @@
 classdef InstrumentController < handle
-    %INSTRUMENTCONTROLLER - logic/container/manager class for handling
-    %instrument creation and management in Palladium, and liaising with
-    %Instrument selection GUIs in the View
+    %InstrumentController - Adds and removes instruments and their Instrument Controls, and collects each tick's data row.
+    %Created by the Controller, which holds it as `InstrumentController`.
+    %`Controller.Initialise` gives it the `PythonInstrumentController` (if
+    %Python is set up) and `ErrorOnAllInstrumentErrors`, then calls
+    %`LoadInstrumentClasses`, which raises `InstrumentListPopulated` so the
+    %GUI's Instrument Browser lists the drivers that can be added.
+    %
+    %**Adding and removing.** `AddInstrument` is called by the Instrument
+    %Browser, by `Palladium.AddInstrument` and when a preset is loaded. It
+    %creates the driver, names it (e.g. "K2000_1"), puts it in the base
+    %workspace, and raises `InstrumentAdded` and `InstrumentsChanged`. It
+    %raises `DefaultEnabledInstrumentControlAdd` for each Instrument Control
+    %the driver adds by default. The GUI creates the tab for each
+    %Instrument Control, then calls `AddInstrumentControl`, which creates
+    %the control, registers it with its instrument, and subscribes it to
+    %the TimingLoopController's events and to `DataRowCollected`.
+    %`RemoveInstrument` and `RemoveInstrumentControl` undo these.
+    %
+    %**Starting.** When `TimingLoopController.Start` starts measurements,
+    %`Controller.InitialiseMeasurements` calls `InitialiseInstruments`
+    %(connect each instrument, from the added ones in `SelectedInstruments`
+    %to the measured ones in `Instruments`), `InitialiseHeaders` (the data
+    %column headers) and `GetMetadataLines` (for the data file header).
+    %
+    %**Each tick.** `Controller.Measure` calls `CollectMeasurement`, after
+    %the CommandController has run any queued commands. It returns one data
+    %row - the time, then each instrument's reading from `UpdateAndMeasure`
+    %- and raises `DataRowCollected`. An instrument that fails gives NaNs
+    %for its columns.
+    %
+    %**Stopping.** `CloseAll` disconnects the instruments, called by
+    %`Controller.OnMeasurementsStopped` when the TimingLoopController stops,
+    %and when Palladium closes.
 
     %% Properties (Constant, Private)
     properties (Access = private, Constant)
-        InstrumentsNamespace string = "Palladium.Instruments";
-        ControlsNamespace string = "Palladium.Instruments.Controls";
-        InstrumentClassesToIgnore = {"TemplateInstrumentClass", "TemplatePythonInstrument"};   %Instrument class names (MATLAB or Python) to NOT load into the Browser panel, even if they are in the built-in, User or Python instruments folders - the templates for new drivers, which are copied into every user files folder but never wanted as instruments
+        InstrumentsNamespace string = "Palladium.Instruments";                  %Namespace of the MATLAB instrument drivers, built-in and in the user files folder
+        ControlsNamespace string = "Palladium.Instruments.Controls";            %Namespace of the Instrument Control classes
+        InstrumentClassesToIgnore = {"TemplateInstrumentClass", "TemplatePythonInstrument"};   %Driver class names (MATLAB or Python) not offered in the Instrument Browser - the templates copied into every user files folder
     end
 
     %% Properties (Public)
     properties (Access = public)
-        ErrorOnAllInstrumentErrors = false; %Note - gets set in LoadSettings from the Config.json file's value, overriding a value here. If this is set to true, a full error will be thrown every time an instruments fails to return data. Default (false) is to throw warnings and pad datafile with NaNs instead. Testing has shown that very rare communication errors do happen, and it's a shame to lose the whole experiment because a magnet not being used didn't return 0 properly..
-        PythonInstrumentController;
+        ErrorOnAllInstrumentErrors = false; %True to show the error dialogue, offering to stop, when an instrument fails to return data; false (default) logs a warning and records NaNs. Set from Config.json by Controller.Initialise
+        PythonInstrumentController;         %The PythonInstrumentController that lists and creates Python drivers, set by the Controller if Python is set up - empty otherwise
     end
 
     %% Properties (Public, Private Set)
     properties (GetAccess = public, SetAccess = private)
-        ListOfAvailableInstrumentClassNameStrings;
-        SelectedInstrumentNames;
-        SelectedInstruments;
-        Instruments;
+        ListOfAvailableInstrumentClassNameStrings;  %Class names of all the drivers that can be added, MATLAB and Python - set by LoadInstrumentClasses
+        SelectedInstrumentNames;                    %Class names of the added instruments, in the order of SelectedInstruments
+        SelectedInstruments;                        %Cell array of the added instruments
+        Instruments;                                %Cell array of the instruments being measured, copied from SelectedInstruments when measurements start
     end
 
     %% Properties (Private)
     properties (Access = private)
-        Controller; %Reference back to the overall Palladium Controller that handles all the main logic - feed things back to there
-        AssignInstrumentRefsIntoWorkspace = true;
-        EventListeners;
+        Controller;                                 %Reference back to the overall Palladium Controller that handles all the main logic - feed things back to there
+        AssignInstrumentRefsIntoWorkspace = true;   %True to put each added instrument in the base workspace, as a variable named after it
+        EventListeners;                             %Listeners for the added instruments' PropertyChanged events
     end
 
     %% Events
     events
-        DataRowCollected;
-        DefaultEnabledInstrumentControlAdd;
-        InstrumentAdded;
-        InstrumentsChanged;
-        InstrumentListPopulated;
-        InstrumentRemoved;
+        DataRowCollected;                   %Raised every tick by CollectMeasurement, with a DataRowAddedEventData - each Instrument Control listens to it
+        DefaultEnabledInstrumentControlAdd; %Raised for each EnabledByDefault Instrument Control of an added instrument, with an InstrumentControlAddEventData - the GUI then adds the control
+        InstrumentAdded;                    %Raised when an instrument is added, with an InstrumentAddedEventData - the GUI shows it
+        InstrumentsChanged;                 %Raised when an instrument is added or removed, with an InstrumentsChangedEventData - the Sequence Editor updates
+        InstrumentListPopulated;            %Raised by PopulateInstrumentList, with a ValueChangedEventData of the driver class names - the GUI lists them
+        InstrumentRemoved;                  %Raised when an instrument is about to be removed, with a ValueChangedEventData of it - the GUI removes it
     end
 
     %% Constructor
     methods
         function this = InstrumentController(controller)
+            %Create the instrument controller - called by the Controller's constructor.
+            %
+            %Inputs:
+            %   controller - the Palladium.Core.Controller creating it
+
             this.Controller = controller;
         end
     end
@@ -52,6 +87,13 @@ classdef InstrumentController < handle
     methods (Access = public)
 
         function AddEnabledByDefaultInstrumentControls(this, instr)
+            %Raise DefaultEnabledInstrumentControlAdd for each Instrument Control an instrument adds by default.
+            %Called by AddInstrument. The GUI creates the controls, so with no
+            %GUI none are added
+            %
+            %Inputs:
+            %   instr - the newly added instrument
+
             cdsList = instr.GetAvailableControlOptions();
 
             if isempty(cdsList)
@@ -71,7 +113,27 @@ classdef InstrumentController < handle
         end
 
         function instRef = AddInstrument(this, instrStringToAdd, settings)
-            %Add an instrument just from a string of the name of its class
+            %Create an instrument from its driver class name, and add it to Palladium.
+            %A Python driver of that name is used in preference to a MATLAB
+            %one. The instrument is named with a number added (e.g.
+            %"K2000_1") unless a unique Name is given, put in the base
+            %workspace under that name, and its PropertyChanged event is
+            %listened to. Raises InstrumentAdded and InstrumentsChanged, and
+            %DefaultEnabledInstrumentControlAdd for each control it adds by
+            %default. Errors go to the Controller's error handling
+            %
+            %Inputs:
+            %   instrStringToAdd - the driver's class name, e.g. "Keithley2000" -
+            %                      exactly, including case
+            %   Name             - name for the instrument. Default "Auto",
+            %                      the driver's Name with a number added
+            %   ConnectionType   - name of a Palladium.Enums.ConnectionType to
+            %                      use, e.g. "GPIB". Default "Auto", the
+            %                      driver's default
+            %
+            %Outputs:
+            %   instRef - the instrument, or [] if it could not be added
+
             arguments
                 this;
                 instrStringToAdd {mustBeTextScalar};
@@ -87,15 +149,16 @@ classdef InstrumentController < handle
             if(isempty(instrStringToAdd))
                 return;
             end
+            instrStringToAdd = string(instrStringToAdd);     %Accept char too, as the arguments block does
 
             try
                 %Make sure the instrName is valid, and other error checking
-                assert(isstring(instrStringToAdd), "AddInstrumentError:InvalidInstrumentName", "Instrument name must be a string");
                 assert(~isempty(this.ListOfAvailableInstrumentClassNameStrings), "AddInstrumentError:NoInstrumentClasses", "List of loaded instrument classes to select from is empty - file paths messed up?");
-                assert(any(contains(this.ListOfAvailableInstrumentClassNameStrings, instrStringToAdd, "IgnoreCase", false)), "AddInstrumentError:InstrumentNotAvailable", "%s", string(instrStringToAdd) + " not found in list of avaliable Instruments");
+                %The whole class name must match - not just part of it (e.g. "Keithley")
+                assert(any(string(this.ListOfAvailableInstrumentClassNameStrings) == instrStringToAdd), "AddInstrumentError:InstrumentNotAvailable", "%s", instrStringToAdd + " not found in the list of available instruments");
 
                 %Make an instance of the selected datasource class
-                if ~isempty(this.PythonInstrumentController) && ~isempty(this.PythonInstrumentController.AvaialableInstrNames) && any(ismember(this.PythonInstrumentController.AvaialableInstrNames, instrStringToAdd))
+                if ~isempty(this.PythonInstrumentController) && ~isempty(this.PythonInstrumentController.AvailableInstrNames) && any(ismember(this.PythonInstrumentController.AvailableInstrNames, instrStringToAdd))
                     %Create a python-defined instrument if the name is
                     %present in the PythonInstrumentController (ie is in
                     %the PythonInstruments user folder)
@@ -106,7 +169,7 @@ classdef InstrumentController < handle
                     %precedence by design - standalone user can overwrite a
                     %built-in instrument this way and otherwise would be
                     %unable to
-                    instRef = Palladium.Utilities.PluginLoading.InstantiateClass(this.InstrumentsNamespace, instrStringToAdd);   
+                    instRef = Palladium.Utilities.PluginLoading.InstantiateClass(this.InstrumentsNamespace, instrStringToAdd);
                 else
                     error("InstrumentCreation:NotFoundInNamespace", "%s", "Could not find Instrument " + string(instrStringToAdd) + " in built in or user namespace or Python library. This could indicate that the class file of this Instrument contains an error and MATLAB cannot compile it (missing END statement?).");
                 end
@@ -162,7 +225,7 @@ classdef InstrumentController < handle
                         safeName = genvarname(instRef.Name);
                         assignin("base", safeName, instRef);
                     catch err
-                        warning("AddInstrumentWarning:WorkspaceAssignFailed", "%s", "Failed to assign Instrument " + instRef.Name + " into the workspace. Message: " + err.message);
+                        Palladium.Logging.Logger.Log("Warning", "Failed to assign Instrument " + instRef.Name + " into the workspace. Message: " + err.message);
                     end
                 end
 
@@ -189,21 +252,26 @@ classdef InstrumentController < handle
         end
 
         function cont = AddInstrumentControlFromName(this, instrRef, controlName, view, Settings)
-            % ADDINSTRUMENTCONTROL - Order the GUI View to create and add a
-            % Control for an existing Instrument. For example, add a 'Sweep
-            % Control' Instrument Control object to a Keithley2000 that was
-            % already added to Palladium.
-            % This call is to be used by PluginLoading.ApplyPresetFromJson,
-            % and echoes the code in Palladium.m
+            %Have the GUI add one of an instrument's Instrument Controls, by name.
+            %For example, add a "Sweep Control" to a Keithley2000 that was
+            %already added. Used by PluginLoading.ApplyPresetFromJson when
+            %loading a preset, and does the same as
+            %`Palladium.AddInstrumentControl`
             %
-            % Input arguments:
-            % - instrRef - Palladium.Core.Instrument reference - the instrument to add the control to (required)
-            % - controlName - name of the control (text scalar) - must  match one of the Names defined in that Instrument's constructor, e.g. this.DefineInstrumentControl(Name = "Sweep Control", ClassName = "SweepController_Stepped", TabName = "Sweep Control", EnabledByDefault = false);
+            %Inputs:
+            %   instrRef    - the instrument to add the control to
+            %   controlName - the control's Name, as given to
+            %                 DefineInstrumentControl in the driver's
+            %                 constructor, e.g. "Sweep Control"
+            %   view        - the GUI, which creates the control's tab
+            %   ControlName - name to give the control instead of its
+            %                 default. Default [], keep the default
+            %   TabName     - title of its tab instead of the default.
+            %                 Default [], keep the default
             %
-            % Optional Name-Value pair arguments:
-            % (Blank by default, override with string values to redefine the default values for this control)
-            % - ControlName
-            % - TabName
+            %Outputs:
+            %   cont - the new Instrument Control
+
             arguments
                 this;
                 instrRef (1,1) Palladium.Core.Instrument;
@@ -226,15 +294,20 @@ classdef InstrumentController < handle
         end
 
         function cont = AddInstrumentControlFromStruct(~, instrRef, controlDetailsStruct, view)
-            % ADDINSTRUMENTCONTROLFROMSTRUCT - Create control from struct and
-            % attach to instrument. This is a more advanced version for
-            % scripting - easier to use ADDINSTRUMENTCONTROL which just needs
-            % the name of the Control.
+            %Have the GUI add an Instrument Control to an instrument, from its definition.
+            %The GUI creates a tab and then calls AddInstrumentControl.
+            %AddInstrumentControlFromName is easier to use, needing only the
+            %control's name
             %
-            % Input arguments:
-            % - this - container/manager object
-            % - instrRef - Palladium.Core.Instrument instance to attach control to
-            % - controlDetailsStruct - struct describing control parameters. Easiest way to get this is to call controlDetailsStruct = instrRef.GetControlOption(controlName) on an existing Instrument reference
+            %Inputs:
+            %   instrRef             - the instrument to add the control to
+            %   controlDetailsStruct - the control's definition, e.g. from
+            %                          `instrRef.GetControlOption(controlName)`
+            %   view                 - the GUI, which creates the control's tab
+            %
+            %Outputs:
+            %   cont - the new Instrument Control
+
             arguments
                 ~;
                 instrRef (1,1) Palladium.Core.Instrument;
@@ -247,6 +320,22 @@ classdef InstrumentController < handle
         end
 
         function controlClassRef = AddInstrumentControl(this, tab, instrRef, controlDetailsStruct)
+            %Create an Instrument Control in a GUI tab, register it with its instrument, and subscribe it to events.
+            %Called by the GUI once it has made the tab. The control is
+            %subscribed to the TimingLoopController's Started, Paused,
+            %Resumed, Stopped, MeasurementsInitialised and
+            %TargetUpdateTimeChanged events, and to DataRowCollected, through
+            %ErrorGuard. Errors go to the Controller's error handling
+            %
+            %Inputs:
+            %   tab                  - the GUI tab to build the control in
+            %   instrRef             - the instrument the control belongs to
+            %   controlDetailsStruct - the control's definition, from
+            %                          DefineInstrumentControl
+            %
+            %Outputs:
+            %   controlClassRef - the new Instrument Control
+
             try
                 %Make an instance of the selected datasource class
                 controlClassRef = Palladium.Utilities.PluginLoading.InstantiateClass(this.ControlsNamespace, controlDetailsStruct.ControlClassFileName);
@@ -291,13 +380,23 @@ classdef InstrumentController < handle
         end
 
         function CloseAll(this)
+            %Disconnect from all the connected instruments being measured.
+            %Called by `Controller.OnMeasurementsStopped` when measurements
+            %stop, and when Palladium closes. Skips instruments that are not
+            %connected
 
             %Display a status message in the logger
             this.Controller.Log("Info", "Closing Instruments", "Yellow", "Closing Instruments");
 
-            %Close all instruments
+            %Close all connected instruments (Disconnect calls each driver's
+            %CloseConnection, and marks it as not connected). Instruments that
+            %aren't connected are skipped - e.g. after a failed start, the ones
+            %never reached or already disconnected, or when Palladium closes
+            %while stopped
             for i = 1 : length(this.Instruments)
-                this.Instruments{i}.Close();
+                if this.Instruments{i}.IsConnected
+                    this.Instruments{i}.Disconnect();
+                end
             end
 
             %Display a status message in the logger
@@ -305,6 +404,26 @@ classdef InstrumentController < handle
         end
 
         function DataRow = CollectMeasurement(this, headers)
+            %Take one row of data from all the instruments - called by Controller.Measure each tick.
+            %The first column is the time, in minutes since 1970 (UTC). For
+            %each instrument, applies any settings waiting from an Instrument
+            %Control (CheckForSettingsToApply), then calls UpdateAndMeasure.
+            %If an instrument errors, its columns are NaN, and either a
+            %warning is logged or, with ErrorOnAllInstrumentErrors, the error
+            %dialogue is shown (`Controller.HaltMeasurementsOnInstrumentError`).
+            %If the user chooses to stop there, it returns at once, with NaNs
+            %for the instruments not measured, without passing the row to the
+            %Instrument Controls. Otherwise the row is stored in each instrument's
+            %LastFullDataRow, and DataRowCollected is raised
+            %
+            %Inputs:
+            %   headers - the data column headers of all instruments, passed
+            %             to each instrument's UpdateAndMeasure
+            %
+            %Outputs:
+            %   DataRow - the row of values, in the order of the headers - always
+            %             one per header
+
             %Get current time in universal coordinated time (seconds since 1970) then divide by 60 to get minutes
             Time = posixtime(datetime('now')) /60;
 
@@ -331,6 +450,18 @@ classdef InstrumentController < handle
 
                     if this.ErrorOnAllInstrumentErrors
                         this.Controller.HaltMeasurementsOnInstrumentError(this.Instruments{i}, e);
+
+                        %If the user chose to stop, measurements have now
+                        %stopped and every instrument is closed - stop here,
+                        %rather than measuring the rest (which would fail,
+                        %each with its own dialogue) or passing the row on
+                        %to the Instrument Controls. Pad the row with NaNs
+                        %for the instruments not measured, so it is still
+                        %written in full
+                        if string(this.Controller.TimingLoopController.State) == "Ready"
+                            DataRow = [DataRow, nan(1, numel(headers) - numel(DataRow))]; %#ok<AGROW>
+                            return;
+                        end
                     else
                         %Just show a warning, do not halt execution
                         reportStr = string(e.message);
@@ -358,6 +489,16 @@ classdef InstrumentController < handle
         end
 
         function [Headers, HeadersString, Units] = GetHeaders(this)
+            %Data column headers and units of all the instruments being measured, after the time column.
+            %Also stores the headers, and the Controller's FileWriteDetails,
+            %in each instrument (FullHeadersRow and FileWriteDetails), for
+            %Instrument Controls that write their own data files
+            %
+            %Outputs:
+            %   Headers       - cell array of headers, starting "Time (mins)"
+            %   HeadersString - the headers as one tab-separated char vector
+            %   Units         - cell array of their units, starting "mins"
+
             %Put time in as first header
             Headers = {"Time (mins)"};
             Units = {"mins"};
@@ -388,13 +529,22 @@ classdef InstrumentController < handle
                 catch e
                     %Just show a warning, do not halt execution
                     reportStr = string(e.message);
-                    Palladium.Logging.Logger.Log("Warning", "Last dataRow update call to instrument " + this.Instruments{i}.Name + " failed in CollectMeasurement. Error message: " + reportStr);
-
+                    Palladium.Logging.Logger.Log("Warning", "Could not store the data column headers and data file details in instrument " + this.Instruments{i}.Name + " in GetHeaders. Error message: " + reportStr);
                 end
             end
         end
 
         function instRef = GetInstrumentFromName(this, instName)
+            %Find an added instrument by its Name.
+            %Errors, listing the names of the added instruments, if none
+            %matches
+            %
+            %Inputs:
+            %   instName - the instrument's Name, e.g. "K2000_1"
+            %
+            %Outputs:
+            %   instRef - the instrument
+
             arguments
                 this;
                 instName {mustBeTextScalar};
@@ -404,7 +554,7 @@ classdef InstrumentController < handle
 
             for i = 1 : length(this.SelectedInstruments)
                 if this.SelectedInstruments{i}.Name == instName
-                    instRef = this.SelectedInstruments{i};                    
+                    instRef = this.SelectedInstruments{i};
                     return;
                 end
             end
@@ -425,10 +575,22 @@ classdef InstrumentController < handle
         end
 
         function instRefs = GetInstruments(this)
+            %The added instruments.
+            %
+            %Outputs:
+            %   instRefs - cell array of instruments (SelectedInstruments)
+
             instRefs = this.SelectedInstruments;
         end
 
         function metadataLines = GetMetadataLines(this)
+            %Data file header lines of the instruments' settings, one per instrument that has any.
+            %From each instrument's GrabMetadataString. Called by the
+            %Controller when measurements start
+            %
+            %Outputs:
+            %   metadataLines - string array of lines, or [] if there are none
+
             metadataLines = [];
             for i = 1 : length(this.Instruments)
                 metadataNullableString = this.Instruments{i}.GrabMetadataString();
@@ -439,6 +601,10 @@ classdef InstrumentController < handle
         end
 
         function [headers, headersString, units] = InitialiseHeaders(this)
+            %Make the data column headers when measurements start, and check none is repeated.
+            %Called by `Controller.InitialiseMeasurements` after
+            %InitialiseInstruments. Errors if two columns have the same
+            %header. See GetHeaders for the outputs
 
             %Generate column headers, for internal use and file writing
             [headers, headersString, units] = this.GetHeaders();
@@ -450,6 +616,18 @@ classdef InstrumentController < handle
         end
 
         function [success, msg, title] = InitialiseInstruments(this)
+            %Connect to every added instrument when measurements start.
+            %Called by `Controller.InitialiseMeasurements`. Copies
+            %SelectedInstruments to Instruments, then calls each instrument's
+            %Connect, updating the progress bar. If one fails to connect,
+            %closes those already connected and stops there
+            %
+            %Outputs:
+            %   success - true if all connected (or there are no instruments)
+            %   msg     - if not, a message naming the instrument that failed, with
+            %             its error (Instrument.ConnectionFailedMessage)
+            %   title   - if not, a title for the warning dialogue
+
             %Set starting values. Note, function will immediately return if
             %there are no Instruments, returning these
             success = true;
@@ -459,14 +637,20 @@ classdef InstrumentController < handle
             %Set the list of instruments from the selection panel's ItemData
             this.Instruments = this.GetInstruments();
 
-            %Initialise all instruments
+            %Connect all instruments
             for i = 1 : length(this.Instruments)
 
                 %Update the progress bar
                 this.Controller.UpdateProgress((i) / (length(this.Instruments)+1), "Connecting to " + this.Instruments{i}.Name);
 
                 %Try to connect to the instrument
-                [success, instr_msg] = this.Instruments{i}.Initialise();
+                try
+                    this.Instruments{i}.Connect();
+                    success = true;
+                catch err
+                    success = false;
+                    instr_msg = this.Instruments{i}.ConnectionFailedMessage(err);
+                end
 
                 if ~success
                     %We failed to connect to an Instrument. Rather than
@@ -478,7 +662,7 @@ classdef InstrumentController < handle
 
                     %Disconnect from previous instruments
                     for j = 1 : i-1
-                        this.Instruments{j}.Close();
+                        this.Instruments{j}.Disconnect();
                     end
 
                     %Abort, with warning message
@@ -492,6 +676,12 @@ classdef InstrumentController < handle
         end
 
         function LoadInstrumentClasses(this)
+            %Find all the instrument drivers that can be added, and raise InstrumentListPopulated.
+            %Lists the MATLAB drivers in Palladium.Instruments (built in and
+            %in the user files folder) and the Python drivers, leaving out
+            %InstrumentClassesToIgnore, and sorts them. Errors if two drivers
+            %have the same name. Called by `Controller.Initialise`
+
             %Load the names of the classes from the built-in and User Files
             %Instruments directories - they are the same name, so a single
             %namespace, that just happens to split over two folders. MATLAB
@@ -511,7 +701,7 @@ classdef InstrumentController < handle
 
             %Load Python Instrument classes too
             if ~isempty(this.PythonInstrumentController)
-                pyNames = this.PythonInstrumentController.AvaialableInstrNames;
+                pyNames = this.PythonInstrumentController.AvailableInstrNames;
 
                 %Remove any entries that are specified to be excluded - like
                 %TemplatePythonInstrument
@@ -539,6 +729,11 @@ classdef InstrumentController < handle
         end
 
         function PopulateInstrumentList(this, cellArrayOfInstrumentNameStrings)
+            %Set the list of driver class names that can be added, and raise InstrumentListPopulated.
+            %
+            %Inputs:
+            %   cellArrayOfInstrumentNameStrings - the class names
+
             %Update the stored list of instrument classes that can be
             %loaded, so we can check against it later for e.g. verification
             %and error checking
@@ -550,6 +745,14 @@ classdef InstrumentController < handle
         end
 
         function RemoveInstrument(this, instrumentRef)
+            %Remove an added instrument, and delete it.
+            %Raises InstrumentRemoved first (so the GUI can remove it), then
+            %InstrumentsChanged. Does nothing if instrumentRef is empty. When
+            %removing from the GUI, its Instrument Controls are removed first
+            %
+            %Inputs:
+            %   instrumentRef - the instrument to remove
+
             if isempty(instrumentRef)
                 return;
             end
@@ -573,11 +776,24 @@ classdef InstrumentController < handle
             args = Palladium.Events.InstrumentsChangedEventData(this.SelectedInstruments);
             notify(this, "InstrumentsChanged", args);
 
-            %Remove the instrument class reference from memory
+            %Remove the instrument class reference from memory - keeping its
+            %name for the message, as it can't be read once deleted
+            instrumentName = instrumentRef.Name;
             delete(instrumentRef);
+
+            this.Controller.Log("Info", "Removed Instrument: " + instrumentName, "Green", "Removed Instrument");
         end
 
-        function RemoveInstrumentControl(~, instrRef, controlDetailsStruct)
+        function RemoveInstrumentControl(this, instrRef, controlDetailsStruct)
+            %Remove an Instrument Control from its instrument, and delete it.
+            %Unregisters it from the instrument, unsubscribes it from events,
+            %and calls its RemoveControl. Called by the GUI, which
+            %`Palladium.RemoveInstrumentControl` goes through. Errors unless
+            %exactly one control of that name is found
+            %
+            %Inputs:
+            %   instrRef             - the instrument the control belongs to
+            %   controlDetailsStruct - the control's definition; its Name is used
 
             %Get a reference to the InstrumentControlBase object assigned
             %to this Instrument, of this name
@@ -600,6 +816,8 @@ classdef InstrumentController < handle
 
             %Delete the reference
             delete(controlClass);
+
+            this.Controller.Log("Info", "Removed Instrument Control: " + controlClassName + " from " + instrRef.Name, "Green", "Removed Instrument Control");
         end
     end
 
@@ -607,11 +825,15 @@ classdef InstrumentController < handle
     methods(Access = private)
 
         function InstrumentPropertyChanged(this, evnt)
+            %Pass an instrument's PropertyChanged event on to the Controller.
+
             instr = evnt.AffectedObject;
             this.Controller.InstrumentPropertyChanged(instr);
         end
 
         function RegisterEventListener(this, listnr)
+            %Keep a listener's handle, so it lives as long as this controller.
+
             if isempty(this.EventListeners)
                 this.EventListeners = listnr;
             else
@@ -622,4 +844,3 @@ classdef InstrumentController < handle
     end
 
 end
-

@@ -1,5 +1,11 @@
 classdef PythonUtils
-    %PYTHONUTILS Static methods for setting up and using Python, for Python instruments
+    %PythonUtils - Static functions for setting up and using Python, for Python instruments.
+    %At start-up the Controller chooses the Python to use
+    %(`UsePythonExecutable`) and checks it (`CheckPythonSetup`), showing
+    %`SetupHelpMessage` if Python instruments can't be used. The
+    %PythonInstrumentController then imports the instrument modules
+    %(`ImportPythonModulesInPackageFolder`) and creates them
+    %(`InstantiatePythonModule`). See [Python instruments](../python-instruments.md).
 
     %% Properties (Constant, Public)
     properties (Constant, Access = public)
@@ -12,13 +18,13 @@ classdef PythonUtils
     methods (Static, Access = public)
 
         function AppendFolderToPythonPath(directoryPath)
-            %APPENDFOLDERTOPYTHONPATH - Add a directory to MATLAB's Python path
+            %Add a folder to the end of Python's module search path (sys.path), so Python can import from it.
+            %Does nothing if it is there already. Errors if the folder
+            %doesn't exist
             %
-            % Input arguments:
-            % directoryPath - folder path to prepend to Python search paths
-            %
-            % This function ensures the provided directory is available to the
-            % Python interpreter invoked from MATLAB.
+            %Inputs:
+            %   directoryPath - the folder
+
             arguments
                 directoryPath {mustBeTextScalar};
             end
@@ -26,14 +32,17 @@ classdef PythonUtils
             %Check the path exists first
             assert(exist(directoryPath, 'dir')==7, "PythonPathError:NoSuchDirectory", "%s", "Directory " + directoryPath + " not found, could not add to Python path in PythonUtils");
 
-            %Add to python search path inside MATLAB
-            pyrun("import sys");
-            pyrun("sys.path.append(r""" + directoryPath + """)");
+            %Add to python search path inside MATLAB - only once (each
+            %Palladium start in a MATLAB session used to add it again). The
+            %folder is passed in as a variable, not written into the code,
+            %so any character in it is safe
+            pyrun("import sys" + newline + "if folder not in sys.path: sys.path.append(folder)", folder=char(directoryPath));
         end
 
         function status = CheckPythonSetup()
-            %CheckPythonSetup - Check whether Python instruments can be used: that MATLAB can load Python, and that it has the required packages.
-            %Loads Python, if it isn't loaded already.
+            %Check whether Python instruments can be used: that MATLAB can load Python, and it has the packages needed.
+            %Loads Python, if it isn't loaded already. The packages are
+            %RequiredPackages, looked for without importing them
             %
             %Outputs:
             %   status - struct with fields:
@@ -75,10 +84,16 @@ classdef PythonUtils
         end
 
         function out = ConvertPyStrFields(in)
-            % ConvertPyStrFields Convert py.str fields in a struct to MATLAB string
-            %   out = ConvertPyStrFields(in) scans fields of struct (recursively) and
-            %   converts Python strings (py.str) and Python sequences of strings
-            %   (py.list, py.tuple) to MATLAB string scalars/arrays.
+            %Convert the Python text in a value from Python into MATLAB strings, looking inside structs and cell arrays.
+            %A py.str becomes a string; a py.list or py.tuple becomes a
+            %string array if all its elements are text, otherwise a cell
+            %array; Python None becomes []. Anything else is unchanged
+            %
+            %Inputs:
+            %   in - the value: a struct, cell array or Python object
+            %
+            %Outputs:
+            %   out - the value with its Python text converted
 
             if isempty(in)
                 out = in;
@@ -141,10 +156,21 @@ classdef PythonUtils
         end
 
         function [importedNames, importedModules, shortNames] = ImportPythonModulesInPackageFolder(parentFolder, packageName)
-            %Import all python modules (classes) in a folder (package).
-            %Scans a folder contained in the parentFolder (path), imports each .py file as
-            % packageName.<modname>, and returns a cell array of imported module objects and their names.
-            %parentFolder will be added to the Python path if not already on it.
+            %Import every Python module in a package folder - one per Python instrument.
+            %Imports each .py file in parentFolder/packageName (except those
+            %starting "__") as packageName.<file name>. parentFolder is added
+            %to the Python path if it isn't on it. A module that fails to
+            %import gives a warning and is skipped
+            %
+            %Inputs:
+            %   parentFolder - the folder holding the package folder
+            %   packageName  - the package folder's name, e.g. "PythonInstruments"
+            %
+            %Outputs:
+            %   importedNames   - full module names, e.g. "PythonInstruments.MyInstrument" (string array)
+            %   importedModules - the py.module objects (cell array)
+            %   shortNames      - the names without the package, e.g. "MyInstrument"
+
             arguments
                 parentFolder {mustBeTextScalar};
                 packageName {mustBeTextScalar};
@@ -185,33 +211,43 @@ classdef PythonUtils
                     keys_string = string(keys_cell_char);
 
                     % If already imported, reload to pick up changes
-                    if ismember(keys_string, fullmod)
+                    % (fullmod first: the other way round gives one result
+                    % per loaded module, and the reload never happened)
+                    if ismember(fullmod, keys_string)
                         m = py.importlib.reload(py.importlib.import_module(fullmod));
                     else
                         m = py.importlib.import_module(fullmod);
                     end
                 catch ME
-                    warning('ImportPythonModulesInPackageFolderWarning:ImportFailed', 'Failed to import %s: %s', fullmod, ME.message);
+                    Palladium.Logging.Logger.Log("Warning", "Failed to import Python module " + fullmod + ": " + string(ME.message));
                     continue
                 end
 
                 %Add the imported module to the output lists
                 importedModules{end+1} = m; %#ok<SAGROW>
                 if isempty(importedNames)
-                    importedNames = string(fullmod);                    
+                    importedNames = string(fullmod);
                     s = strsplit(importedNames, '.');
-                    shortNames = string(s(end));    %ShortNames are without the the namespaces and dots
+                    shortNames = string(s(end));    %ShortNames are without the namespaces and dots
                 else
                     importedNames(end+1) = string(fullmod); %#ok<SAGROW>
                     s = strsplit(string(fullmod), '.');
-                    shortNames(end+1) = string(s(end));    %ShortNames are without the the namespaces and dots
+                    shortNames(end+1) = string(s(end));    %ShortNames are without the namespaces and dots
                 end
             end
 
         end
 
         function instance = InstantiatePythonModule(moduleName, module)
-            %Create instance of python module (class)
+            %Create an instance of the class with the same name as its module, e.g. MyInstrument in PythonInstruments.MyInstrument.
+            %
+            %Inputs:
+            %   moduleName - the module's full name
+            %   module     - the imported py.module
+            %
+            %Outputs:
+            %   instance - the new Python object
+
             arguments
                 moduleName {mustBeTextScalar};
                 module (1,1) py.module;
@@ -222,58 +258,9 @@ classdef PythonUtils
             instance = module.(nameAfterNamespaces)();
         end
 
-        function out = PyToMatlab(pyObj)
-            % Convert simple py types (from json.loads) to MATLAB using char/double/cell/struct
-            % pyObj here is typically a py.dict/list/str/numbers.
-            if isa(pyObj, 'py.dict')
-                keys = cell(pyObj.keys());
-                s = struct();
-                for i = 1:numel(keys)
-                    key = keys{i};
-                    val = pyObj{key};
-                    s.(char(key)) = matlabFromPy(val);
-                end
-                out = s;
-            else
-                out = matlabFromPy(pyObj);
-            end
-
-            function m = matlabFromPy(x)
-                if isa(x, 'py.str')
-                    m = char(x);
-                elseif isa(x, 'py.int') || isa(x, 'py.float')
-                    m = double(x);
-                elseif isa(x, 'py.bool')
-                    m = logical(x);
-                elseif isa(x, 'py.list') || isa(x, 'py.tuple')
-                    n = int64(py.len(x));
-                    c = cell(1,n);
-                    for ii = 1:n
-                        c{ii} = matlabFromPy(x{ii});
-                    end
-                    m = c;
-                elseif isa(x, 'py.dict')
-                    % recursive
-                    keys2 = cell(x.keys());
-                    t = struct();
-                    for ii = 1:numel(keys2)
-                        k2 = keys2{ii};
-                        t.(char(k2)) = matlabFromPy(x{k2});
-                    end
-                    m = t;
-                else
-                    try
-                        m = char(py.str(x));
-                    catch
-                        m = x;
-                    end
-                end
-            end
-
-        end
-
         function status = MakeSetupStatus(statusName, Settings)
-            %MakeSetupStatus - Make a Python setup status struct, as returned by CheckPythonSetup.
+            %Make a Python setup status struct, as returned by CheckPythonSetup.
+
             arguments
                 statusName {mustBeTextScalar};              %"OK", "NotFound", "LoadFailed" or "PackagesMissing"
                 Settings.Version = "";                      %Python version
@@ -288,7 +275,9 @@ classdef PythonUtils
         end
 
         function [title, message] = SetupHelpMessage(status, Settings)
-            %SetupHelpMessage - Title and HTML message for a dialog explaining a Python setup problem, and how to fix it.
+            %The title and HTML message for a dialogue explaining a Python setup problem, and how to fix it.
+            %Title and message are "" if status.Status is "OK"
+
             arguments
                 status struct;                          %As returned by CheckPythonSetup
                 Settings.ConfigFilePath = "";           %Config file in use, to say where to set PythonSettings.PythonExecutable
@@ -333,13 +322,14 @@ classdef PythonUtils
         end
 
         function [success, message] = UsePythonExecutable(executable)
-            %UsePythonExecutable - Make MATLAB use the given Python executable, if it isn't using it already.
+            %Make MATLAB use the given Python executable, if it isn't using it already.
             %Python can only be changed before it is loaded in a MATLAB
             %session, so this fails if a different Python is already loaded.
             %
             %Outputs:
             %   success - true if MATLAB now uses that Python
             %   message - why not, if it doesn't ("" if it does)
+
             arguments
                 executable {mustBeTextScalar};  %Path of the Python executable, e.g. python.exe
             end
@@ -360,83 +350,6 @@ classdef PythonUtils
             catch err
                 success = false;
                 message = "Could not use the Python at " + string(executable) + ": " + string(err.message);
-            end
-        end
-
-        function [isInstalled, verNo, subVerNo] = VerifyPythonInstall(Settings)
-            %VERIFYPYTHONINSTALL - Check if Python meets minimum version requirements
-            %
-            % Input arguments:
-            % Settings.MinimumMainVersionNumber - minimum major version (optional)
-            % Settings.MinimumSubVersionNumber  - minimum minor version (optional)
-            %
-            % Output arguments:
-            % isInstalled - true if installed and meets requirements
-            % verNo       - detected major version number
-            % subVerNo    - detected minor version number
-            arguments
-                Settings.MinimumMainVersionNumber = [];
-                Settings.MinimumSubVersionNumber = [];
-            end
-
-            % Query MATLAB's Python environment
-            env = pyenv;
-
-            % If no Python environment configured, report not installed
-            if isempty(env)
-                isInstalled = false;
-                verNo = 0;
-                subVerNo = 0;
-                return;
-            end
-
-            %Else, extract version info
-            ver = env.Version;
-
-            %Empty version info means no install, report not installed
-            if isempty(ver) || strcmp(ver, "")
-                isInstalled = false;
-                verNo = 0;
-                subVerNo = 0;
-                return;
-            end
-
-            c = strsplit(ver, '.');
-            verNo = double(c(1));
-            subVerNo = double(c(2));
-
-            % If no minimum main version requested, accept current installation
-            if isempty(Settings.MinimumMainVersionNumber)
-                isInstalled = true;
-                return;
-            end
-
-            % Compare detected version against requested minima
-            if isempty(Settings.MinimumSubVersionNumber)
-                isInstalled = verNo >= Settings.MinimumMainVersionNumber;
-            else
-                isInstalled = verNo >= Settings.MinimumMainVersionNumber && subVerNo >= Settings.MinimumSubVersionNumber;
-            end
-        end
-
-        function isInstalled = VerifyPythonPackageInstalled(packageName)
-            %VERIFYPYTHONPACKAGEINSTALLED - Check if a Python package is importable
-            %
-            % Input arguments:
-            % packageName - package name as a text scalar (e.g., "numpy")
-            %
-            % Output arguments:
-            % isInstalled - logical true if import succeeds, false otherwise
-            arguments
-                packageName {mustBeTextScalar};
-            end
-            try
-                % Check if the package is installed by attempting to import it
-                pyrun("import " + packageName);
-                isInstalled = true;
-            catch
-                % Import failed => package not available or import error
-                isInstalled = false;
             end
         end
 

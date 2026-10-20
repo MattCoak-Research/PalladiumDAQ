@@ -1,32 +1,32 @@
 classdef PythonInstrument < Palladium.Core.Instrument
-    %PYTHONINSTRUMENT Wrapper for an Instrument.py python-defined
-    %instrument.
-    %This is an Instrument, and will be handled by Palladium as one, but it
-    %contains a reference to a Python class object that does all the actual
-    %logic.
+    %PythonInstrument - Wraps an instrument written in Python, so Palladium DAQ can use it like any other.
+    %Palladium treats it as an Instrument, but the work is done by the
+    %Python object in PyInstr - a subclass of PalladiumPythonCore's
+    %Instrument. Name and FullName are the Python object's; GetHeaders,
+    %Measure and CollectMetaData call its GetHeaders, Measure and
+    %collect_metadata. Connecting calls its connect method for the
+    %connection type (e.g. connectGPIB), or, for Debug, sets its
+    %SimulationMode. `PythonInstrumentController.CreateInstrument` makes
+    %them. See [Python instruments](../python-instruments.md).
 
     %% Properties (Public)
-    properties
-        PyInstr = [];   
+    properties (Access = public)
+        PyInstr = [];   %The Python instrument object this wraps
     end
 
     %% Properties (Dependent, Public)
     properties (Access=public, Dependent)
-        FullName;
+        FullName;       %The Python instrument's FullName, displayed in the GUI
     end
 
     %% Properties (Dependent, Public, Set Observable)
     properties (Access=public, Dependent, SetObservable)
-        Name;
+        Name;           %The Python instrument's Name, used in its data column headers
     end
 
     %% Properties (Public, Set Observable)
     properties (Access=public, SetObservable)
         Connection_Type = Palladium.Enums.ConnectionType.GPIB;   %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
-    end
-
-    %% Properties (Private)
-    properties(Access=private)
     end
 
     %% Get and Set Accessors
@@ -100,6 +100,16 @@ classdef PythonInstrument < Palladium.Core.Instrument
     %% Constructor
     methods
         function this = PythonInstrument(pyInstr)
+            %Wrap a Python instrument object. GPIB at address 22 by default.
+            %
+            %Inputs:
+            %   pyInstr - the Python instrument (from PythonInstrumentController).
+            %             Optional, so the API reference can construct one to read its defaults
+
+            arguments
+                pyInstr = [];
+            end
+
             this@Palladium.Core.Instrument();
 
             %Specify communication options and settings
@@ -114,73 +124,28 @@ classdef PythonInstrument < Palladium.Core.Instrument
     %% Methods (Public)
     methods(Access = public)
 
-        function metadataStruct = CollectMetaData(this) 
+        function metadataStruct = CollectMetaData(this)
+            %The Python instrument's settings for the data file header, from its collect_metadata.
+            %Its dict becomes a struct, with Python text converted to MATLAB
+            %strings; [] if it returns None
+
             assert(~isempty(this.PyInstr), "CollectMetaDataError:PyInstrEmpty", "Python Instrument assignment empty, cannot call CollectMetadata until it is assigned");
             pyStruct = this.PyInstr.collect_metadata();
-            
+
             %Return if this result is null
             if isequal(pyStruct, py.None) || isempty(pyStruct)
                 metadataStruct = [];
                 return;
             end
 
-            %Convert to MATLAB type
+            %Convert to a MATLAB struct, with the Python text (py.str)
+            %fields converted to strings
             metadataStruct = Palladium.Utilities.PythonUtils.ConvertPyStrFields(struct(pyStruct));
-
-            %string fields will be of type py.str here, scan through and
-            %convert them
-           % metadataStruct = 
         end
-
-        function Close(this)
-            if isempty(this.PyInstr)
-                warning("CloseWarning:PyInstrEmpty", "Python Instrument assignment empty, cannot call Close until it is assigned");
-                return;
-            end
-
-            this.PyInstr.close();
-
-        end
-
-        function Connect(this)
-            assert(~isempty(this.PyInstr), "ConnectError:PyInstrEmpty", "Python Instrument assignment empty, cannot call Connect until it is assigned");
-
-            % Handle Debug locally (no Python connect call)
-            switch(this.Connection_Type)
-                case(Palladium.Enums.ConnectionType.Debug)
-                    disp("Connected to simulated " + this.Name + " instrument.");
-                    this.SimulationMode = true;
-                    % Inform Python side of simulation mode
-                    this.PyInstr.SimulationMode = py.bool(this.SimulationMode);
-                    return;
-            end
-
-            % Ensure SimulationMode false for real connections
-            this.SimulationMode = false;
-
-            % Call Python connect functions with primitive args (char, int)
-            switch(this.Connection_Type)
-                case(Palladium.Enums.ConnectionType.Ethernet)
-                    this.PyInstr.connectTCPIP(py.str(char(this.IP_Address)), int32(this.ConnectionSettings.Port));
-                case(Palladium.Enums.ConnectionType.GPIB)
-                    this.PyInstr.connectGPIB(int32(this.ConnectionSettings.GPIB_BoardIndex), int32(this.GPIB_Address), double(this.ConnectionSettings.GPIB_Timeout));
-                case(Palladium.Enums.ConnectionType.VISA)
-                    this.PyInstr.connectVISA(py.str(char(this.VISA_Address)));
-                case(Palladium.Enums.ConnectionType.USB)
-                    this.PyInstr.connectUSB();
-                case(Palladium.Enums.ConnectionType.Serial)
-                    this.PyInstr.connectSerial(py.str(char(this.Serial_Address)));
-                otherwise
-                    error("ConnectError:UnsupportedConnectionType", "%s", "Unsupported connection type: " + this.Connection_Type + ". ConnectionType can be tcpip, gpib, serial, usb, or visa.");
-            end
-
-            % Inform Python side of simulation state (false for real connections)
-            this.PyInstr.SimulationMode = py.bool(this.SimulationMode);
-        end
-
 
         function [headers, units] = GetHeaders(this)
-            % Call the Python GetHeaders() -> (headers, units)
+            %The Python instrument's column headers and units, from its GetHeaders, with Name added in front of each header.
+            %Its GetHeaders returns (headers, units), two lists of text
 
             if isempty(this.PyInstr)
                 error("GetHeadersError:PyInstrEmpty", "PyInstr reference is empty");
@@ -211,7 +176,9 @@ classdef PythonInstrument < Palladium.Core.Instrument
         end
 
         function dataRow = Measure(this)
-            % Call the Python Measure() and convert to numeric array or cell
+            %A reading from the Python instrument's Measure, as a row of numbers.
+            %Its Measure returns a number, or a list or tuple of them
+
             pyOut = this.PyInstr.Measure();
             % If pyOut is a sequence (tuple/list), convert to numeric vector
             if isa(pyOut, 'py.list') || isa(pyOut, 'py.tuple')
@@ -227,6 +194,61 @@ classdef PythonInstrument < Palladium.Core.Instrument
                 % Single numeric return
                 dataRow = double(pyOut);
             end
+        end
+
+    end
+
+    %% Methods (Protected)
+    methods (Access = protected)
+
+        function OpenConnection(this)
+            %Connect the Python instrument - its connect method for the connection type - called by Connect.
+            %Debug connects nothing, and sets SimulationMode on both sides
+
+            assert(~isempty(this.PyInstr), "ConnectError:PyInstrEmpty", "Python Instrument assignment empty, cannot call Connect until it is assigned");
+
+            % Handle Debug locally (no Python connect call)
+            switch(this.Connection_Type)
+                case(Palladium.Enums.ConnectionType.Debug)
+                    disp("Connected to simulated " + this.Name + " instrument.");
+                    this.SimulationMode = true;
+                    % Inform Python side of simulation mode
+                    this.PyInstr.SimulationMode = py.bool(this.SimulationMode);
+                    return;
+            end
+
+            % Ensure SimulationMode false for real connections
+            this.SimulationMode = false;
+
+            % Call Python connect functions with primitive args (char, int)
+            switch(this.Connection_Type)
+                case(Palladium.Enums.ConnectionType.Ethernet)
+                    this.PyInstr.connectTCPIP(py.str(char(this.IP_Address)), int32(this.ConnectionSettings.Port));
+                case(Palladium.Enums.ConnectionType.GPIB)
+                    this.PyInstr.connectGPIB(int32(this.ConnectionSettings.GPIB_BoardIndex), int32(this.GPIB_Address), double(this.ConnectionSettings.GPIB_Timeout));
+                case(Palladium.Enums.ConnectionType.VISA)
+                    this.PyInstr.connectVISA(py.str(char(this.VISA_Address)));
+                case(Palladium.Enums.ConnectionType.USB)
+                    this.PyInstr.connectUSB(py.str(char(this.VISA_Address)));     %USB instruments are opened by their VISA address
+                case(Palladium.Enums.ConnectionType.Serial)
+                    this.PyInstr.connectSerial(py.str(char(this.Serial_Address)));
+                otherwise
+                    error("ConnectError:UnsupportedConnectionType", "%s", "Unsupported connection type: " + this.Connection_Type + ". ConnectionType can be tcpip, gpib, serial, usb, or visa.");
+            end
+
+            % Inform Python side of simulation state (false for real connections)
+            this.PyInstr.SimulationMode = py.bool(this.SimulationMode);
+        end
+
+        function CloseConnection(this)
+            %Close the Python instrument's connection (its close method) - called by Disconnect.
+
+            if isempty(this.PyInstr)
+                Palladium.Logging.Logger.Log("Warning", "Python Instrument assignment empty, cannot call Close until it is assigned");
+                return;
+            end
+
+            this.PyInstr.close();
         end
 
     end

@@ -1,83 +1,91 @@
 classdef Palladium < handle
-    % PALLADIUM Entry point and overall container class of a Palladium DAQ instance - adds a
-    % Controller and a View (usually the PalladiumDAQ_DefaultGUI GUI, but can be
-    % a command-line-only implementation or any other user-defined one if
-    % desired)
+    %Palladium - The Palladium DAQ program: create one to launch it, then control it from scripts.
+    %Typing `Palladium` in the Command Window starts Palladium DAQ with its
+    %GUI. `pd = Palladium(...)` does the same and returns the object, whose
+    %public methods do from a script what the GUI's buttons do: add
+    %instruments and Instrument Controls, set up the data file, and start,
+    %pause and stop measurements. The class is not in a namespace, so no
+    %`import` is needed.
     %
-    % To run, just type Palladium; into the Command Window. Not in a
-    % namespace, so nothing else needed. This will launch with the default
-    % GUI as the View.
+    %Name-value options when constructing (all optional):
     %
-    % To launch with no View, pass the View optional command as empty, ie
-    % Palladium(View=[]);
+    %* `Preset` - name of a Preset in the user files folder's `Presets`
+    %  folder, without `.json`, to apply on launch, e.g. `Preset="Example"`.
+    %* `View` - the GUI to use, from the `Palladium.Views` namespace.
+    %  `View=[]` runs with no GUI.
+    %* `ConfigFilePath` - a Config.json to use instead of the usual one: a
+    %  full path, or one relative to the folder `Palladium.m` is in.
+    %* `DebugMode` - `true` to make instrument errors stop with a full stack
+    %  trace, instead of being caught and logged. For developing drivers.
     %
-    % To launch with a Preset, give the name of a .json Preset file in the
-    % Presets folder of your user files folder (without the .json) as the
-    % Preset argument, ie Palladium(Preset="Example");
+    %A typical script:
+    %
+    %```matlab
+    %pd = Palladium(View=[]);
+    %k = pd.AddInstrument("Keithley2000", ConnectionType="Debug");
+    %pd.SetDirectory("C:\Data");
+    %pd.SetFileName("<DATE>_FirstTest");
+    %pd.SetUpdateTime(0.5);
+    %pd.Start();     % measurements then run in the background, on a timer
+    %pd.Stop();
+    %pd.Close();
+    %```
+    %
+    %Internally, Palladium creates the `Palladium.Core.Controller`, which
+    %coordinates everything, and the View, and attaches the View to the
+    %Controller's events. Almost every method passes straight through to the
+    %Controller or its `InstrumentController` and `TimingLoopController`.
+    %`Palladium.ver()` returns the version, which is defined here. See
+    %"Getting started" and "Presets and Config.json" in the documentation.
 
     %% Properties (Constant, Private)
+    % The version of Palladium DAQ, read by ver() - and so by the buildfile,
+    % for the toolbox version. Update these to set the version number
     properties (Constant, Access = private)
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % Palladium Version Information
-        % Will be read by the ver() function and therefore by the buildfile to define the Toolbox version numbers
-        % Update these to define the Palladium Version Number
-
-        %Major version number - semantic versioning used of form
-        %major.minor.build, each of these are integers.
-        MajorVersionNo = 3;
-
-        %Minor version number - semantic versioning used of form
-        %major.minor.build, each of these are integers.
-        MinorVersionNo = 7;
-
-        %Build version number - semantic versioning used of form
-        %major.minor.build, each of these are integers.
-        BuildVersionNo = 0;
-
-        %Author information
-        AuthorString = "M.J. Coak, University of Birmingham";
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        MajorVersionNo = 3;     %Major version number (semantic versioning, major.minor.build)
+        MinorVersionNo = 8;     %Minor version number (semantic versioning, major.minor.build)
+        BuildVersionNo = 0;     %Build version number (semantic versioning, major.minor.build)
+        AuthorString = "M.J. Coak, University of Birmingham";  %Author, returned by ver() and passed to the GUI with the version
     end
 
     %% Properties (Private)
     properties (Access = {?Palladium, ?matlab.unittest.TestCase})
-        Controller; %The reference to the Controller.m logic class that centrally coordinates everything in Palladium
-        View = [];  %An optional GUI attached to the Palladium instance, with buttons and graphs etc. Not actually required to run the Programme
+        Controller; %The Palladium.Core.Controller that centrally coordinates everything in Palladium DAQ
+        View = [];  %The GUI attached to this instance, or [] when running with no GUI
     end
 
 
     %% Constructor
     methods
         function this = Palladium(Settings)
-            % PALLADIUM - Construct Palladium application object
+            %Launch Palladium DAQ, optionally with a Preset, another Config file or no GUI.
+            %Checks the MATLAB version and toolboxes, creates the View and the
+            %Controller, loads Config.json, applies the Preset if one is given,
+            %and then tells the Controller that loading is finished.
             %
-            % Example call: Palladium(Preset="Example", ConfigFilePath="ExampleFolder/Config.json");
-            % View and ConfigFilePath arguments have built-in defaults, will
-            % not normally need to be overridden.
+            %A Preset is a .json file describing a setup to apply once
+            %Palladium DAQ has started: the instruments to add, with their
+            %settings and Instrument Controls, the update time, and plotting
+            %tabs and windows with their default axes. Save one from the GUI
+            %(Save Preset, under Settings), or edit a .json file by hand. See
+            %"Presets and Config.json" in the documentation.
             %
-            % Preset is optional. A Preset is a .json file describing a
-            % setup to apply once the programme has started: the Instruments
-            % to add, with their settings and Instrument Controls, the
-            % update time, and plotting tabs and windows with their default
-            % axes. The idea is that a Preset corresponds to a physical
-            % setup in the lab that would be tedious to configure by hand
-            % every time the programme is launched. Presets live in the
-            % Presets folder of the user files folder, which starts with an
-            % Example.json. Create one by setting the programme up by hand
-            % and choosing Save Preset (in the GUI's Settings window), or by
-            % copying and editing a .json file in any text editor. See
-            % "Presets and Config.json" in the documentation.
+            %Inputs (all optional name-value arguments):
+            %   ConfigFilePath - path of a Config .json file to use instead of
+            %                    the usual Config.json: a full path, or one relative
+            %                    to the folder Palladium.m is in. ".json" is added if missing;
+            %                    errors if the file is not found. Default []
+            %   DebugMode      - true to throw full errors on all instrument
+            %                    errors, for debugging and development. Default false
+            %   Preset         - name of a .json Preset in the user files
+            %                    folder's Presets folder, without the .json,
+            %                    e.g. "Example". Default [], no Preset
+            %   View           - class name of the GUI to use, in the
+            %                    Palladium.Views namespace, or [] to run with no
+            %                    GUI. Default "PalladiumDAQ_DefaultGUI"
             %
-            % Input arguments (optional, see arguments block):
-            %  - ConfigFilePath (string or empty/null []. Default is []) - Default is blank ([]) - enter a filepath instead to override default Config json file loading and pass in the path for another settings file to be loaded from
-            %  - DebugMode (logical. Default is false) - set to true to
-            %  throw full errors on all Instrument error messages. This is
-            %  for use when debugging issues or testing in development.
-            %  - Preset (string or []. Default is []) - Optionally, the name of a .json Preset file in the user files folder's Presets folder, without the .json, like "Example"
-            %  - View (string or []. Default is "PalladiumDAQ_DefaultGUI") -
-            %  Enter blank ([]) to run a 'headless' Palladium with no GUI
-            %  attached. Give the name of an App Designer app in the +Views folder
-            %  to use that GUI/View instead of the default.
+            %Outputs:
+            %   this - the Palladium object, for scripting
             arguments
                 Settings.ConfigFilePath = [];
                 Settings.DebugMode (1,1) logical = false;
@@ -88,7 +96,7 @@ classdef Palladium < handle
             %Compiler hint to tell MATLAB to include the default GUI in its
             %dependency analysis search when compiling (or it doesn't get
             %bundled in to the standalone exe)
-            %#function Palladium.Views.PalladiumDAQ_DefaultGUI 
+            %#function Palladium.Views.PalladiumDAQ_DefaultGUI
             %#function Palladium.Instruments.Keithley2000
             %#function Palladium.Instruments.Keithley2410
 
@@ -100,9 +108,15 @@ classdef Palladium < handle
             %all paths relative to this, the filepath of the Palladium.m file
             %- if we don't do this they will be relative to the user's
             %current matlab open folder, which is a recipe for disaster
-            if isdeployed % Stand-alone mode.
-                [~, result] = system('path');
-                applicationDir = char(regexpi(result, 'Path=(.*?);', 'tokens', 'once'));
+            if isdeployed % Stand-alone mode: the installation folder, next to the executable
+                try
+                    applicationDir = char(Palladium.Utilities.PathUtils.GetDeployedApplicationDirectory());
+                catch err
+                    %No GUI or Logger yet - show the error in a dialogue, as
+                    %a compiled application has no Command Window
+                    uiwait(errordlg(err.message, "Palladium DAQ installation folder not found"));
+                    rethrow(err);
+                end
             else
                 applicationPath = mfilename('fullpath');
                 [applicationDir, ~, ~] = fileparts(applicationPath);
@@ -136,11 +150,14 @@ classdef Palladium < handle
             if ~isempty(Settings.ConfigFilePath)
                 %Check the file extension, add if missing
                 Settings.ConfigFilePath = Palladium.Utilities.PathUtils.EnsureExtension(Settings.ConfigFilePath, ".json");
-                
-                %Make an absolute path by adding the directory of this file
-                Settings.ConfigFilePath = fullfile(applicationDir, Settings.ConfigFilePath);
+
+                %Use an absolute path as it is; take a relative one as relative
+                %to the folder this file is in
+                if ~Palladium.Utilities.PathUtils.IsAbsolutePath(Settings.ConfigFilePath)
+                    Settings.ConfigFilePath = fullfile(applicationDir, Settings.ConfigFilePath);
+                end
                 Settings.ConfigFilePath = Palladium.Utilities.PathUtils.CleanPath(Settings.ConfigFilePath);
-                
+
                 %Check the file exists
                 assert(isfile(Settings.ConfigFilePath), "PalladiumError:ConfigFileNotFound", "%s", "Could not find override Config file at " + string(Settings.ConfigFilePath));
             end
@@ -163,28 +180,28 @@ classdef Palladium < handle
     methods
 
         function instRef = AddInstrument(this, instrumentClassName, settings)
-            % ADDINSTRUMENT - Add or an Instrument instance to Palladium,
-            % with optional settings.
+            %Add an instrument, by the name of its driver class, and return it.
+            %Any of its Instrument Controls that are enabled by default are
+            %added too. Keep the returned instrument to change its settings or
+            %call its methods, e.g.
+            %`k = pd.AddInstrument("Keithley2000", ConnectionType="Debug");`
+            %then `k.Name = "DMM";`. If the instrument can't be created, the
+            %error is reported and [] is returned.
             %
-            % Usage: pd = Palladium(); to make a Palladium instance and
-            % store the reference to it, then
-            % pd.AddInstrument("Keithley2000");
-            % or with optional arguments;
-            % pd.AddInstrument("Keithley2000", ConnectionType="GPIB");
+            %Inputs:
+            %   instrumentClassName - the driver's class name, as in the GUI's
+            %                         Instruments list, e.g. "Keithley2000"
+            %   Name                - the instrument's name, used in its data
+            %                         column headers. Default "Auto", the class's
+            %                         default name with a number added, e.g.
+            %                         "K2000_1". A number is also added if the
+            %                         name is already taken
+            %   ConnectionType      - the connection type, as text, e.g. "GPIB"
+            %                         or "Debug" (simulated, no hardware).
+            %                         Default "Auto", the driver's default
             %
-            % To store the reference to that new instrument, assign the
-            % output of this function:
-            % keithleyInstrument = pd.AddInstrument("Keithley2000");
-            % then one can do things like keithleyInstrument.Name =
-            % "NewName"; or call functions on that Instrument.
-            %
-            % Input arguments:
-            % this                - parent/manager object
-            % instrumentClassName - instrument class name (text scalar)
-            % settings            - struct with Name and ConnectionType (text scalars)
-            %
-            % Output arguments:
-            % instRef             - reference/handle to the created or existing instrument
+            %Outputs:
+            %   instRef - the new Palladium.Core.Instrument, or [] on failure
             arguments
                 this;
                 instrumentClassName {mustBeTextScalar};
@@ -197,19 +214,22 @@ classdef Palladium < handle
         end
 
         function cont = AddInstrumentControl(this, instrRef, controlName, Settings)
-            % ADDINSTRUMENTCONTROL - Order the GUI View to create and add a
-            % Control for an existing Instrument. For example, add a 'Sweep
-            % Control' Instrument Control object to a Keithley2000 that was
-            % already added to Palladium.
+            %Add one of an instrument's Instrument Controls, such as a Sweep Control, to the GUI.
+            %The instrument must already have been added, and Palladium must
+            %have a GUI.
             %
-            % Input arguments:
-            % - instrRef - Palladium.Core.Instrument reference - the instrument to add the control to (required)
-            % - controlName - name of the control (text scalar) - must  match one of the Names defined in that Instrument's constructor, e.g. this.DefineInstrumentControl(Name = "Sweep Control", ClassName = "SweepController_Stepped", TabName = "Sweep Control", EnabledByDefault = false);
+            %Inputs:
+            %   instrRef    - the Palladium.Core.Instrument to add the control to
+            %   controlName - the control's Name, as given to
+            %                 DefineInstrumentControl in the instrument's
+            %                 constructor, e.g. "Sweep Control"
+            %   ControlName - optional new name for this control, e.g.
+            %                 "IV Sweep". Default [], keep the defined name
+            %   TabName     - optional name of the GUI tab it is shown in.
+            %                 Default [], keep the defined tab name
             %
-            % Optional Name-Value pair arguments:
-            % (Blank by default, override with string values to redefine the default values for this control)
-            % - ControlName
-            % - TabName
+            %Outputs:
+            %   cont - the Instrument Control created
             arguments
                 this;
                 instrRef (1,1) Palladium.Core.Instrument;
@@ -231,38 +251,48 @@ classdef Palladium < handle
         end
 
         function cont = AddInstrumentControlFromStruct(this, instrRef, controlDetailsStruct)
-            % ADDINSTRUMENTCONTROLFROMSTRUCT - Create control from struct and
-            % attach to instrument. This is a more advanced version for
-            % scripting - easier to use ADDINSTRUMENTCONTROL which just needs
-            % the name of the Control.
+            %Add an Instrument Control to the GUI from its full definition struct.
+            %A lower-level version of `AddInstrumentControl`, which is easier
+            %to use as it needs only the control's name. Needs a GUI: errors (Palladium:NoGUI) without one.
             %
-            % Input arguments:
-            % - this - container/manager object
-            % - instrRef - Palladium.Core.Instrument instance to attach control to
-            % - controlDetailsStruct - struct describing control parameters. Easiest way to get this is to call controlDetailsStruct = instrRef.GetControlOption(controlName) on an existing Instrument reference
+            %Inputs:
+            %   instrRef             - the Palladium.Core.Instrument to add the control to
+            %   controlDetailsStruct - the control's definition, as returned by
+            %                          `instrRef.GetControlOption(controlName)`,
+            %                          optionally edited
+            %
+            %Outputs:
+            %   cont - the Instrument Control created
             arguments
                 this;
                 instrRef (1,1) Palladium.Core.Instrument;
                 controlDetailsStruct (1,1) struct;
             end
 
+            this.AssertHasGUI("add an Instrument Control");
+
             %Pass on to the View
             cont = this.View.AddInstrumentControl(instrRef, controlDetailsStruct);
         end
 
         function CacheInstrumentCommand(this, instrument, command, controlName)
-          % CacheInstrumentCommand - Store a command for later execution (on the next
-          % measurement tick) on an instrument. We can't just execute a
-          % command immediatedly because there might be calls to hardware
-          % already running right now, and we can't interrupt them.
-          %
-          % Input arguments:
-          % instrument - Palladium.Core.Instrument instance to target
-          % command    - text scalar command to cache
-          %
-          %Call like: pd.CacheInstrumentCommand(k, "SetSourceLevel(2,false)");
-          %where k is a reference to a Keithley2000 Instrument
-            
+            %Queue a command to run on an instrument, or one of its controls, on the next measurement tick.
+            %Commands are not run straight away, because the measurement loop
+            %may be talking to the hardware at that moment. Queued commands
+            %run one per tick, in order, so measurements must be running for
+            %them to happen. For example
+            %`pd.CacheInstrumentCommand(k, "SetSourceLevel(0.001,true)");`
+            %where k is a Keithley2410.
+            %
+            %Inputs:
+            %   instrument  - the Palladium.Core.Instrument to run it on
+            %   command     - the method call to run, as text, e.g.
+            %                 "SetSourceLevel(0.001,true)"
+            %   controlName - optional name of one of the instrument's
+            %                 Instrument Controls to run it on instead, e.g.
+            %                 "Sweep Control". Default empty, run it on the
+            %                 instrument
+
             arguments
                 this;
                 instrument (1,1) Palladium.Core.Instrument;
@@ -274,7 +304,15 @@ classdef Palladium < handle
         end
 
         function Close(this)
-            % CLOSE - Close the programme. Deletes View and Controller.
+            %Shut down Palladium DAQ, deleting its View and Controller.
+            %Closes the GUI, or with no GUI, stops the measurement timer and
+            %closes the instruments' connections. The object can't be used
+            %afterwards. Closing again does nothing.
+
+            %Already closed - nothing left to shut down (this used to error)
+            if isempty(this.Controller)
+                return;
+            end
 
             if ~isempty(this.View)
                 this.View.Close();
@@ -290,13 +328,26 @@ classdef Palladium < handle
         end
 
         function classNames = GetAllInstrumentClassNames(this)
-            %GETALLINSTRUMENTCLASSNAMES - Return a list (array of strings)
-            %of all available Instrument class names - all the files in the
-            %built-in and user Instrument folders.
+            %List the class names of all available instrument drivers.
+            %These are the built-in drivers and those in the user files
+            %folder, MATLAB and Python - the names AddInstrument accepts.
+            %
+            %Outputs:
+            %   classNames - string array of driver class names
+
             classNames = this.Controller.GetAllInstrumentClassNames();
         end
 
         function instRef = GetInstrumentFromName(this, instName)
+            %Find an added instrument by its Name, e.g. "K2000_1".
+            %Errors, listing the names of the added instruments, if none has
+            %that name.
+            %
+            %Inputs:
+            %   instName - the instrument's Name
+            %
+            %Outputs:
+            %   instRef - the Palladium.Core.Instrument with that name
             arguments
                 this;
                 instName {mustBeTextScalar};
@@ -306,16 +357,45 @@ classdef Palladium < handle
             instRef = this.Controller.GetInstrumentFromName(instName);
         end
 
+        function display = OpenBigNumberDisplay(this, column, Settings)
+            %Open a Big Number Display window, showing a data column's latest value in large type.
+            %Updated each measurement tick, and closed with Palladium DAQ.
+            %Measurements must have started, so the data columns are known.
+            %Without a column, a window asks for it, and how to show the
+            %value; scripts can give them.
+            %
+            %Inputs:
+            %   column             - (optional) the column's number, or its exact header,
+            %                        e.g. "K2000_1 - Voltage (V)"
+            %   SignificantFigures - (name-value) significant figures to show. Default 6
+            %   NumberFormat       - (name-value) sprintf format for the value, e.g. "%.3f",
+            %                        used instead of SignificantFigures. Default "" (automatic)
+            %
+            %Outputs:
+            %   display - the Palladium.Components.BigNumberDisplay, or [] if none was opened
+
+            arguments
+                this;
+                column = [];
+                Settings.SignificantFigures = Palladium.Components.BigNumberDisplay.DefaultSignificantFigures;
+                Settings.NumberFormat = "";
+            end
+
+            display = this.Controller.OpenBigNumberDisplay(column, SignificantFigures=Settings.SignificantFigures, ...
+                NumberFormat=Settings.NumberFormat);
+        end
+
         function Pause(this)
-            %PAUSE - Pause the Measurement Loop
+            %Hold the measurement loop until Resume is called, as the GUI's Pause button does.
+
             this.Controller.TimingLoopController.Pause();
         end
 
         function RemoveInstrument(this, instrRef)
-            % REMOVEINSTRUMENT - Remove an instrument
+            %Remove an added instrument and delete it.
             %
-            % Input arguments:
-            % instrRef - reference to the Palladium.Core.Instrument to remove
+            %Inputs:
+            %   instrRef - the Palladium.Core.Instrument to remove
             arguments
                 this;
                 instrRef (1,1) Palladium.Core.Instrument;
@@ -325,13 +405,13 @@ classdef Palladium < handle
         end
 
         function RemoveInstrumentControl(this, instrRef, controlName)
-            % REMOVEINSTRUMENTCONTROL - Remove a named Instrument Control
-            % from an instrument. This will error if a Control of this name
-            % has not previously been added to that Instrument
+            %Remove an Instrument Control, by name, from an instrument and the GUI.
+            %Errors if the instrument does not offer a control of that name, or
+            %it has not been added. Needs a GUI: errors (Palladium:NoGUI) without one.
             %
-            % Input arguments:
-            % instrRef    - Palladium.Core.Instrument reference to modify
-            % controlName - name of control to remove (text scalar)
+            %Inputs:
+            %   instrRef    - the Palladium.Core.Instrument the control belongs to
+            %   controlName - the control's Name, e.g. "Sweep Control"
             arguments
                 this;
                 instrRef (1,1) Palladium.Core.Instrument;
@@ -347,35 +427,35 @@ classdef Palladium < handle
         end
 
         function RemoveInstrumentControlFromStruct(this, instrRef, controlDetailsStruct)
-            % REMOVEINSTRUMENTCONTROLFROMSTRUCT - Remove a Control tied to an
-            % instrument (e.g. a SweepController). This function is an
-            % advanced utility function for scripting. Easier to use
-            % REMOVEINSTRUMENTCONTROL, which just needs the name of the
-            % Control's class.
+            %Remove an Instrument Control from an instrument and the GUI, given its definition struct.
+            %A lower-level version of `RemoveInstrumentControl`, which is
+            %easier to use as it needs only the control's name. Needs a GUI: errors (Palladium:NoGUI) without one.
             %
-            % Input arguments:t
-            % instrRef - Palladium.Core.Instrument instance reference
-            % controlDetailsStruct - struct describing the control to remove
+            %Inputs:
+            %   instrRef             - the Palladium.Core.Instrument the control belongs to
+            %   controlDetailsStruct - the control's definition, as returned by
+            %                          `instrRef.GetControlOption(controlName)`
             arguments
                 this;
                 instrRef (1,1) Palladium.Core.Instrument;
                 controlDetailsStruct (1,1) struct;
             end
+
+            this.AssertHasGUI("remove an Instrument Control");
             this.View.RemoveInstrumentControl(instrRef, controlDetailsStruct);
         end
 
         function Resume(this)
-            %RESUME - Resume the (previously paused) Measurement Loop
+            %Restart the measurement loop after Pause, as the GUI's Resume button does.
+
             this.Controller.TimingLoopController.Resume();
         end
 
         function SetDescription(this, descriptionText)
-            % SETDESCRIPTION - Set textual description for the current data
-            % file. Will be written into the top-of-file metadata on
-            % measurement Start
+            %Set the description written into the data file's header when measurements start.
             %
-            % Input arguments:
-            % descriptionText - text or string describing the object
+            %Inputs:
+            %   descriptionText - the description, as text
             arguments
                 this;
                 descriptionText {mustBeText};
@@ -386,11 +466,10 @@ classdef Palladium < handle
         end
 
         function SetDirectory(this, directory)
-            % SETDIRECTORY - Set Palladium's working directory, where data
-            % files will be saved
+            %Set the folder that data files are saved in.
             %
-            % Input arguments:
-            % directory - target directory as text scalar
+            %Inputs:
+            %   directory - the folder's path
             arguments
                 this;
                 directory {mustBeTextScalar};
@@ -401,11 +480,10 @@ classdef Palladium < handle
         end
 
         function SetFileExtension(this, fileExtension)
-            % SETFILEEXTENSION - Set the file extension that will be used for
-            % data files Palladium writes
+            %Set the file extension of the data files, normally ".dat".
             %
-            % Input arguments:
-            % fileExtension - text scalar specifying the new file extension
+            %Inputs:
+            %   fileExtension - the extension, e.g. ".dat"
             arguments
                 this;
                 fileExtension {mustBeTextScalar};
@@ -416,10 +494,12 @@ classdef Palladium < handle
         end
 
         function SetFileName(this, fileName)
-            % SETFILENAME - Set the filename for this object
+            %Set the data file's name, without folder or extension.
+            %Any extension given is removed, and `<DATE>` is replaced with
+            %today's date, e.g. "<DATE>_FirstTest".
             %
-            % Input arguments:
-            % fileName - text scalar specifying the new filename
+            %Inputs:
+            %   fileName - the file name
             arguments
                 this;
                 fileName {mustBeTextScalar};
@@ -430,12 +510,11 @@ classdef Palladium < handle
         end
 
         function SetSaveFileBool(this, saveFileBool)
-            % SETSAVEFILEBOOL - Set flag controlling whether to save to file.
-            % If this is false, no data file will be written to disk. By
-            % default this is true
+            %Set whether a data file is written, as the GUI's Write to File option does.
             %
-            % Input arguments:
-            % saveFileBool - logical scalar, true to enable saving
+            %Inputs:
+            %   saveFileBool - true to write a data file (the default), false
+            %                  to measure without saving
             arguments
                 this;
                 saveFileBool (1,1) logical;
@@ -446,10 +525,10 @@ classdef Palladium < handle
         end
 
         function SetUpdateTime(this, time_s)
-            % SETUPDATETIME - Set target update interval for the measurement loop, in seconds
+            %Set the target update time of the measurement loop - the time between readings.
             %
-            % Input arguments:
-            % time_s - update interval in seconds (positive scalar)
+            %Inputs:
+            %   time_s - the update time, in seconds
             arguments
                 this;
                 time_s (1,1) double {mustBePositive};
@@ -460,10 +539,11 @@ classdef Palladium < handle
         end
 
         function SetWriteMode(this, writeMode)
-            % SETWRITEMODE - Set the object's write mode
+            %Set what happens when the data file already exists.
             %
-            % Input arguments:
-            % writeMode - text scalar specifying write mode ("Append To File", )
+            %Inputs:
+            %   writeMode - "Increment File No." (start a new numbered file),
+            %               "Overwrite File" or "Append To File"
             arguments
                 this;
                 writeMode {mustBeTextScalar, mustBeMember(writeMode, {"Increment File No.", "Overwrite File", "Append To File"})};
@@ -474,15 +554,22 @@ classdef Palladium < handle
         end
 
         function Start(this)
-            %START - Start the Measurement Loop; start measurements,
-            %connecting to and initialising all Instruments, then looping
-            %through in ticks to collect data from each, send commands,
-            %update plots, save data to file
+            %Begin measuring, as the GUI's Start button does.
+            %Checks the data file path, connects to and initialises all the
+            %instruments, writes the data file's header, and then starts the
+            %measurement loop, which runs on a timer: each tick reads every
+            %instrument, runs any queued commands, updates the plots and
+            %writes a line to the data file. Returns once the loop has
+            %started. If an instrument fails to connect, starting is aborted
+            %with a warning.
+
             this.Controller.TimingLoopController.Start();
         end
 
         function Stop(this)
-            %STOP - Stop the Measurement Loop
+            %End measurements, as the GUI's Stop button does.
+            %The current tick finishes, and then the instruments are closed.
+
             this.Controller.TimingLoopController.Stop();
         end
 
@@ -490,10 +577,20 @@ classdef Palladium < handle
 
     %% Methods (Private)
     methods (Access = private)
-       
+
+        function AssertHasGUI(this, action)
+            %Error clearly if there is no GUI, for methods that need one.
+            %Instrument Controls live in tabs of the GUI, so they can't be
+            %added or removed when Palladium was started with View=[]
+            %
+            %Inputs:
+            %   action - what was being attempted, e.g. "add an Instrument Control"
+
+            assert(~isempty(this.View), "Palladium:NoGUI", "%s", "Cannot " + action + ": Palladium was started without a GUI (View=[]). Instrument Controls are part of the GUI, so they need it.");
+        end
+
         function view = CreateView(~, viewFileName, applicationDir)
-            %Instantiate an instance of the View/GUI class from file, just
-            %from the desired filename
+            %Create the View (GUI) from its class name in the Palladium.Views namespace.
 
             %Construct the needed paths
             viewDir = fullfile(applicationDir,"+Palladium","+Views");
@@ -513,10 +610,11 @@ classdef Palladium < handle
         end
 
         function LoadPreset(this, presetName)
-            %Load a .json Preset from the user Presets folder and apply it.
+            %Load a .json Preset, by name, from the user Presets folder and apply it.
             %Presets list instruments to add (with their properties to set)
             %and programme-level settings, as well as GUI preferences like
-            %graph windows to show
+            %graph windows to show. Errors are reported, not thrown
+
             %Display a status message in the logger
             this.Controller.ShowStatus('Yellow', 'Loading Preset');
 
@@ -549,16 +647,16 @@ classdef Palladium < handle
     methods (Access = public, Static, Sealed)
 
         function verStruct = ver()
-            % VER - Return Palladium version information struct, from private
-            % const properties in the Palladium class definition. Those
-            % properties are the single definition of what version the
-            % current build is - toolbox, help etc versions will draw from
-            % these.
-            % Static method - evoke with Palladium.ver from any context.
+            %Return the version of Palladium DAQ, e.g. as `Palladium.ver().VersionString`.
+            %The constant properties of this class are the single definition
+            %of the version: the toolbox, documentation and GUI all take it
+            %from here.
             %
-            % Output arguments:
-            % verStruct - struct with fields: VersionString (string), FullversionString (string), Major (integer),
-            %             Minor (integer), Build (integer), and AuthorString (string) fields
+            %Outputs:
+            %   verStruct - struct with fields VersionString (e.g. "3.7.0"),
+            %               FullVersionString ("Palladium DAQ Version 3.7.0"),
+            %               Major, Minor and Build (numbers) and AuthorString
+
             verStruct.VersionString = sprintf('%d.%d.%d', Palladium.MajorVersionNo, Palladium.MinorVersionNo, Palladium.BuildVersionNo);
             verStruct.FullVersionString = sprintf('Palladium DAQ Version %d.%d.%d', Palladium.MajorVersionNo, Palladium.MinorVersionNo, Palladium.BuildVersionNo);
             verStruct.Major = Palladium.MajorVersionNo;

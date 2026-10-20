@@ -8,6 +8,14 @@ classdef Lakeshore331 < Palladium.Core.Instrument
     %
     %The Model 331 has GPIB and RS-232 interfaces. Loop 2 (the 1 W analog
     %voltage output) is not used by this driver.
+    %
+    %**Reading resolution.** The 331 sends readings with about five
+    %significant figures, as on its display: temperatures to 0.001 K below
+    %100 K, but only 0.01 K from 100 K to 999.99 K (and 0.1 K above). So
+    %above 100 K the scatter in the data is mostly that 0.01 K step rather
+    %than noise, and it looks ten times smaller once the temperature drops
+    %below 100 K. This is the instrument - Palladium keeps every digit it
+    %sends. Sensor readings (`SRDG?`) are similarly limited to five digits.
 
     %% Properties (Constant, Private)
     properties(Constant, Access = private)
@@ -24,8 +32,8 @@ classdef Lakeshore331 < Palladium.Core.Instrument
     properties(Access = public, SetObservable)
         Name = "Ls331";                                         %Instrument name, used as the prefix of its heater power column header
         Connection_Type = Palladium.Enums.ConnectionType.GPIB;  %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
-        Ch_A_Reading;                                           %What to read on channel A: Temperature (K), Resistance (Ohms), or Disabled to not measure it
-        Ch_B_Reading;                                           %What to read on channel B: Temperature (K), Resistance (Ohms), or Disabled to not measure it
+        Ch_A_Reading;                                           %What to read on channel A: Temperature (K), Resistance (Ω), or Disabled to not measure it
+        Ch_B_Reading;                                           %What to read on channel B: Temperature (K), Resistance (Ω), or Disabled to not measure it
         Ch_A_Name = "Channel A Temperature (K)"                 %Data column header for channel A when reading temperature, e.g. "Sample Temp (K)"
         Ch_B_Name = "Channel B Temperature (K)"                 %Data column header for channel B when reading temperature
         HeaterResistance = 100;                                 %Resistance of the heater connected to the heater output, in Ohms - used to calculate heater power
@@ -99,22 +107,6 @@ classdef Lakeshore331 < Palladium.Core.Instrument
             heaterPower = this.GetHeaterPower();
         end
 
-        function Connect(this)
-            %Open the connection and read the heater output display mode.
-            %Whether the heater output is a percentage of power or of current is
-            %needed by GetHeaterPower
-
-            Connect@Palladium.Core.Instrument(this);
-            if this.SimulationMode
-                return;
-            end
-
-            %Reply is "<input>,<units>,<powerup enable>,<current/power>",
-            %where current/power is 1 = current, 2 = power
-            cset = strsplit(strtrim(this.QueryString("CSET? " + this.HeaterLoop)), ",");
-            this.HeaterOutputIsPower = str2double(cset{4}) == 2;
-        end
-
         function controlMode = GetControlMode(this)
             %Read the heater's control mode
             %
@@ -154,11 +146,11 @@ classdef Lakeshore331 < Palladium.Core.Instrument
             %Add a column for each channel that isn't Disabled
             switch(this.Ch_A_Reading)
                 case(this.MeasType("Temperature"));     Headers = [Headers string(this.Ch_A_Name)];          Units = [Units "K"];
-                case(this.MeasType("Resistance"));      Headers = [Headers "Ch A Resistance (Ohms)"];       Units = [Units "Ohms"];
+                case(this.MeasType("Resistance"));      Headers = [Headers "Ch A Resistance (Ω)"];           Units = [Units "Ω"];
             end
             switch(this.Ch_B_Reading)
                 case(this.MeasType("Temperature"));     Headers = [Headers string(this.Ch_B_Name)];          Units = [Units "K"];
-                case(this.MeasType("Resistance"));      Headers = [Headers "Ch B Resistance (Ohms)"];       Units = [Units "Ohms"];
+                case(this.MeasType("Resistance"));      Headers = [Headers "Ch B Resistance (Ω)"];           Units = [Units "Ω"];
             end
 
             %The heater power is always recorded
@@ -311,7 +303,9 @@ classdef Lakeshore331 < Palladium.Core.Instrument
         end
 
         function temp = GetTemperature(this, channel)
-            %Read a sensor input in kelvin
+            %Read a sensor input in kelvin.
+            %The 331 replies with about five significant figures: 0.001 K
+            %resolution below 100 K, 0.01 K from 100 K (see the class help)
             %
             %Inputs:
             %   channel - Channel categorical, A or B
@@ -381,7 +375,7 @@ classdef Lakeshore331 < Palladium.Core.Instrument
                     error("Lakeshore331:UnsupportedControlMode", "%s", "Unsupported control mode, should be Manual PID, Zone, Open Loop, AutoTune PID, AutoTune PI or AutoTune P, was " + string(controlMode));
             end
 
-            this.WriteCommand("CMODE " + this.HeaterLoop + "," + num2str(modeIndex));
+            this.WriteCommand("CMODE " + this.HeaterLoop + "," + Palladium.Core.Instrument.NumberToCommandString(modeIndex));
         end
 
         function SetHeaterRange(this, range)
@@ -391,7 +385,7 @@ classdef Lakeshore331 < Palladium.Core.Instrument
             %   range - HeaterRange categorical: Off, Low (0.5 W), Medium (5 W) or
             %           High (50 W). Off turns the heater off
 
-            this.WriteCommand("RANGE " + num2str(this.GetHeaterRangeIndex(range)));
+            this.WriteCommand("RANGE " + Palladium.Core.Instrument.NumberToCommandString(this.GetHeaterRangeIndex(range)));
         end
 
         function SetHeaterSetpoint(this, setPt)
@@ -402,7 +396,7 @@ classdef Lakeshore331 < Palladium.Core.Instrument
             %   setPt - setpoint, in the setpoint units set on the instrument
             %           (usually K)
 
-            this.WriteCommand("SETP " + this.HeaterLoop + "," + num2str(setPt));
+            this.WriteCommand("SETP " + this.HeaterLoop + "," + Palladium.Core.Instrument.NumberToCommandString(setPt, SignificantFigures=6));
         end
 
         function SetManualOutputPercent(this, percentage)
@@ -413,7 +407,7 @@ classdef Lakeshore331 < Palladium.Core.Instrument
             %   percentage - manual output, 0 to 100 %
 
             assert(percentage <= 100 && percentage >= 0, "Lakeshore331:InvalidOutputPercentage", "Invalid output percentage");
-            this.WriteCommand("MOUT " + this.HeaterLoop + "," + num2str(percentage));
+            this.WriteCommand("MOUT " + this.HeaterLoop + "," + Palladium.Core.Instrument.NumberToCommandString(percentage, SignificantFigures=6));
         end
 
         function SetPIDValues(this, P, I, D)
@@ -424,7 +418,7 @@ classdef Lakeshore331 < Palladium.Core.Instrument
             %   I - integral, or reset (0.1 to 1000)
             %   D - derivative, or rate (0 to 200)
 
-            this.WriteCommand("PID " + this.HeaterLoop + "," + num2str(P) + "," + num2str(I) + "," + num2str(D));
+            this.WriteCommand("PID " + this.HeaterLoop + "," + Palladium.Core.Instrument.NumberToCommandString(P, SignificantFigures=6) + "," + Palladium.Core.Instrument.NumberToCommandString(I, SignificantFigures=6) + "," + Palladium.Core.Instrument.NumberToCommandString(D, SignificantFigures=6));
         end
 
         function SetRamp(this, enabled, rate)
@@ -435,13 +429,29 @@ classdef Lakeshore331 < Palladium.Core.Instrument
             %             step it
             %   rate    - ramp rate, in K/min (0.1 to 100)
 
-            this.WriteCommand("RAMP " + this.HeaterLoop + "," + num2str(double(logical(enabled))) + "," + num2str(rate));
+            this.WriteCommand("RAMP " + this.HeaterLoop + "," + Palladium.Core.Instrument.NumberToCommandString(double(logical(enabled))) + "," + Palladium.Core.Instrument.NumberToCommandString(rate, SignificantFigures=5));
         end
 
     end
 
     %% Methods (Protected)
     methods (Access = protected)
+
+        function OpenConnection(this)
+            %Open the connection and read the heater output display mode.
+            %Whether the heater output is a percentage of power or of current is
+            %needed by GetHeaterPower
+
+            OpenConnection@Palladium.Core.Instrument(this);
+            if this.SimulationMode
+                return;
+            end
+
+            %Reply is "<input>,<units>,<powerup enable>,<current/power>",
+            %where current/power is 1 = current, 2 = power
+            cset = strsplit(strtrim(this.QueryString("CSET? " + this.HeaterLoop)), ",");
+            this.HeaterOutputIsPower = str2double(cset{4}) == 2;
+        end
 
         function ApplySettings(this, settings)
             %Send the Heater Control tab's settings to the instrument.

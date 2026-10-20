@@ -1,10 +1,12 @@
 classdef Agilent_53220A_FreqCounter < Palladium.Core.Instrument
     %Agilent_53220A_FreqCounter - Instrument driver for the Agilent (Keysight) 53220A 350 MHz frequency counter.
     %Measures the frequency of the signal on channel 1 each measurement
-    %tick, with `MEAS:FREQ?` set up for a signal around 20 MHz and 0.01 Hz
-    %resolution. MEASure sets the counter's trigger and gate settings
-    %itself (internal trigger, one reading, gate time from the resolution),
-    %so those set on the front panel are not used.
+    %tick, with `MEAS:FREQ?` set up for the signal expected
+    %(`ExpectedFrequency_Hz`, 20 MHz by default) and the resolution wanted
+    %(`Resolution_Hz`, 0.01 Hz by default). MEASure sets the counter's
+    %trigger and gate settings itself (internal trigger, one reading, a
+    %gate time from the resolution - a finer resolution takes longer), so
+    %those set on the front panel are not used.
     %
     %The 53220A has LAN, USB and (option 400) GPIB interfaces. Over LAN,
     %connect to its SCPI socket, port 5025.
@@ -19,6 +21,8 @@ classdef Agilent_53220A_FreqCounter < Palladium.Core.Instrument
     properties(Access = public, SetObservable)
         Name = "A53220A";                                           %Instrument name, used as the prefix of its data column header
         Connection_Type = Palladium.Enums.ConnectionType.GPIB;      %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
+        ExpectedFrequency_Hz (1,1) double {mustBePositive} = 20e6;  %Frequency of the signal expected, in Hz - with Resolution_Hz, sets the gate time
+        Resolution_Hz (1,1) double {mustBePositive} = 0.01;         %Resolution wanted, in Hz - finer resolution needs a longer gate time, so each reading takes longer
     end
 
     %% Constructor
@@ -55,14 +59,12 @@ classdef Agilent_53220A_FreqCounter < Palladium.Core.Instrument
             if(this.SimulationMode)
                 freq_Hz = this.GenerateSimulatedData(1, Baseline=17e6, Variance=0.1e6);
             else
-                %Expected frequency and resolution, both in Hz. Together
-                %they set the gate time
-                expectedFreq = 20e6;
-                resolution = 0.01;
-
-                %Parameters are comma separated, e.g. MEAS:FREQ? 20E6, 0.1, (@1)
-                %(User's Guide, chapter 3, Frequency measurements)
-                freq_Hz = this.QueryDouble("MEAS:FREQ? " + num2str(expectedFreq) + "," + num2str(resolution) + ",(@1)");
+                %Expected frequency and resolution, both in Hz - together
+                %they set the gate time. Parameters are comma separated,
+                %e.g. MEAS:FREQ? 20E6, 0.1, (@1) (User's Guide, chapter 3,
+                %Frequency measurements)
+                freq_Hz = this.QueryDouble("MEAS:FREQ? " + Palladium.Core.Instrument.NumberToCommandString(this.ExpectedFrequency_Hz) + "," + ...
+                    Palladium.Core.Instrument.NumberToCommandString(this.Resolution_Hz) + ",(@1)");
             end
 
             dataRow = freq_Hz;

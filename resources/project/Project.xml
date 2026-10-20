@@ -150,13 +150,6 @@
                     <DIR_SIGNIFIER Location="1">
                         <Info/>
                     </DIR_SIGNIFIER>
-                    <File Location="BigNumberDisplay.mlapp">
-                        <Info>
-                            <Category UUID="FileClassCategory">
-                                <Label UUID="design"/>
-                            </Category>
-                        </Info>
-                    </File>
                     <File Location="ConfigInputWindow.mlapp">
                         <Info>
                             <Category UUID="FileClassCategory">
@@ -246,6 +239,13 @@
                         </Info>
                     </File>
                     <File Location="StatusPanel.mlapp">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
+                    <File Location="BigNumberDisplay.m">
                         <Info>
                             <Category UUID="FileClassCategory">
                                 <Label UUID="design"/>
@@ -351,6 +351,13 @@
                         <Info/>
                     </DIR_SIGNIFIER>
                     <File Location="ConnectionType.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
+                    <File Location="LoopState.m">
                         <Info>
                             <Category UUID="FileClassCategory">
                                 <Label UUID="design"/>
@@ -653,6 +660,13 @@
                                 </Category>
                             </Info>
                         </File>
+                        <File Location="VNAController.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="design"/>
+                                </Category>
+                            </Info>
+                        </File>
                     </File>
                     <File Location="+Events">
                         <Info/>
@@ -674,13 +688,6 @@
                             </Info>
                         </File>
                         <File Location="SweepSetupEventData.m">
-                            <Info>
-                                <Category UUID="FileClassCategory">
-                                    <Label UUID="design"/>
-                                </Category>
-                            </Info>
-                        </File>
-                        <File Location="SweepDataEventData.m">
                             <Info>
                                 <Category UUID="FileClassCategory">
                                     <Label UUID="design"/>
@@ -1143,6 +1150,65 @@
                             </Category>
                         </Info>
                     </File>
+                    <File Location="test_MetadataErrorOnStart.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="test"/>
+                            </Category>
+                        </Info>
+                    </File>
+                    <File Location="data">
+                        <Info/>
+                        <DIR_SIGNIFIER Location="1">
+                            <Info/>
+                        </DIR_SIGNIFIER>
+                        <File Location="MetadataError">
+                            <Info/>
+                            <DIR_SIGNIFIER Location="1">
+                                <Info/>
+                            </DIR_SIGNIFIER>
+                            <File Location="+Palladium">
+                                <Info/>
+                                <DIR_SIGNIFIER Location="1">
+                                    <Info/>
+                                </DIR_SIGNIFIER>
+                                <File Location="+Instruments">
+                                    <Info/>
+                                    <DIR_SIGNIFIER Location="1">
+                                        <Info/>
+                                    </DIR_SIGNIFIER>
+                                    <File Location="MetadataErrorInstrument.m">
+                                        <Info>
+                                            <Category UUID="FileClassCategory">
+                                                <Label UUID="design"/>
+                                            </Category>
+                                        </Info>
+                                    </File>
+                                </File>
+                            </File>
+                        </File>
+                    </File>
+                    <File Location="test_BigNumberDisplays.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="test"/>
+                            </Category>
+                        </Info>
+                    </File>
+                    <File Location="test_DoubleGateSweepInstrumentList.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="test"/>
+                            </Category>
+                        </Info>
+                    </File>
+                    <File Location="test_VNAController.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="test"/>
+                            </Category>
+                        </Info>
+                    </File>
                 </File>
                 <File Location="Unit Tests">
                     <Info/>
@@ -1209,19 +1275,6 @@
                                 </DIR_SIGNIFIER>
                                 <File Location=".gitkeep">
                                     <Info/>
-                                </File>
-                            </File>
-                            <File Location="+TestPresets">
-                                <Info/>
-                                <DIR_SIGNIFIER Location="1">
-                                    <Info/>
-                                </DIR_SIGNIFIER>
-                                <File Location="Testing.m">
-                                    <Info>
-                                        <Category UUID="FileClassCategory">
-                                            <Label UUID="design"/>
-                                        </Category>
-                                    </Info>
                                 </File>
                             </File>
                         </File>
@@ -1379,6 +1432,138 @@
                                         </Category>
                                     </Info>
                                 </File>
+                                <File Location="RecordingKeithley2450.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                                <File Location="RecordingKeithley2410.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                                <File Location="RecordingKeithley6430.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                                <File Location="RecordingSR7265.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                                <File Location="RecordingZI_MFLI.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                                <File Location="RecordingLakeshore331.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                                <File Location="RecordingLakeshore340.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                                <File Location="RecordingLakeshore350.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                                <File Location="RecordingLakeshore370.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                                <File Location="RecordingLakeshore372.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                                <File Location="RecordingAgilent53220A.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                                <File Location="RecordingAH2550.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                                <File Location="RecordingKeysight4284A.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                                <File Location="RecordingKeithley6220.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                                <File Location="RecordingHP8722ES.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                                <File Location="RecordingPNA_L.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                                <File Location="RecordingMercuryITC.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                            </File>
+                        </File>
+                        <File Location="ZI Testing">
+                            <Info/>
+                            <DIR_SIGNIFIER Location="1">
+                                <Info/>
+                            </DIR_SIGNIFIER>
+                            <File Location="ziDAQ.m">
+                                <Info>
+                                    <Category UUID="FileClassCategory">
+                                        <Label UUID="design"/>
+                                    </Category>
+                                </Info>
                             </File>
                         </File>
                     </File>
@@ -1497,6 +1682,13 @@
                                 </Category>
                             </Info>
                         </File>
+                        <File Location="test_Controller.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
                     </File>
                     <File Location="DataWriting">
                         <Info/>
@@ -1564,6 +1756,104 @@
                                 </Category>
                             </Info>
                         </File>
+                        <File Location="test_KeithleySourceLevelOrder.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_SR830.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_SR7265.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_ZI_MFLI.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_Keithley2450.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_LakeshoreCommandNumbers.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_Agilent53220A.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_AH2550.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_Keysight4284A.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_Keithley2400Series.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_Keithley6220.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_HP8722ES.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_PNA_L.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_MercuryITC.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
                     </File>
                     <File Location="PythonInstruments">
                         <Info/>
@@ -1571,6 +1861,39 @@
                             <Info/>
                         </DIR_SIGNIFIER>
                         <File Location="test_PythonInstrumentCore.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_PythonInstrument.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                    </File>
+                    <File Location="Logging">
+                        <Info/>
+                        <DIR_SIGNIFIER Location="1">
+                            <Info/>
+                        </DIR_SIGNIFIER>
+                        <File Location="test_Logger.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                    </File>
+                    <File Location="Components">
+                        <Info/>
+                        <DIR_SIGNIFIER Location="1">
+                            <Info/>
+                        </DIR_SIGNIFIER>
+                        <File Location="test_BigNumberDisplay.m">
                             <Info>
                                 <Category UUID="FileClassCategory">
                                     <Label UUID="test"/>
@@ -1659,6 +1982,13 @@
                             </Info>
                         </File>
                         <File Location="RecordingInstrument.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="design"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="RecordingController.m">
                             <Info>
                                 <Category UUID="FileClassCategory">
                                     <Label UUID="design"/>

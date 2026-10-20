@@ -374,6 +374,57 @@ classdef test_PathUtils < matlab.unittest.TestCase
             testCase.verifyTrue(isAbsolute);
         end
 
+        %% GetDeployedApplicationDirectory
+        function test_GetDeployedApplicationDirectory_FindsExecutable(testCase)
+            %Outside a compiled application the executable is MATLAB's own,
+            %whose folder has no installed Graphics folder - so this errors.
+            %But the error should list a folder tried, showing the
+            %executable was found (PATH on Windows, /proc on Linux, ps on Mac)
+            try
+                appDir = Palladium.Utilities.PathUtils.GetDeployedApplicationDirectory();
+                testCase.verifyFail("Expected no installation folder outside a compiled application, but got " + appDir);
+            catch err
+                testCase.verifyEqual(err.identifier, 'Palladium:InstallationFolderNotFound');
+                testCase.verifyFalse(contains(err.message, "none found"), "The executable's folder should have been found: " + err.message);
+            end
+        end
+
+        %% ApplicationDirectoryCandidates (private)
+        function test_ApplicationDirectoryCandidates(testCase)
+            %Windows/Linux layout: just the executable's folder
+            appDir = fullfile(testCase.TempDir, "application");
+            testCase.verifyEqual(Palladium.Utilities.PathUtils.ApplicationDirectoryCandidates(fullfile(appDir, "PalladiumDAQ")), appDir);
+
+            %Mac app bundle: then the bundle's Resources, and the folder holding the bundle
+            bundleDir = fullfile(appDir, "PalladiumDAQ.app");
+            exePath = fullfile(bundleDir, "Contents", "MacOS", "PalladiumDAQ");
+            expected = [fullfile(bundleDir, "Contents", "MacOS"), fullfile(bundleDir, "Contents", "Resources"), appDir];
+            testCase.verifyEqual(Palladium.Utilities.PathUtils.ApplicationDirectoryCandidates(exePath), expected);
+
+            %Executable not found
+            testCase.verifyEmpty(Palladium.Utilities.PathUtils.ApplicationDirectoryCandidates(""));
+        end
+
+        %% FindInstalledApplicationDirectory (private)
+        function test_FindInstalledApplicationDirectory(testCase)
+            %The first candidate with a Graphics folder is chosen
+            withoutGraphics = fullfile(testCase.TempDir, "Without");
+            withGraphics = fullfile(testCase.TempDir, "With");
+            mkdir(withoutGraphics);
+            mkdir(fullfile(withGraphics, "Graphics"));
+
+            appDir = Palladium.Utilities.PathUtils.FindInstalledApplicationDirectory([withoutGraphics, withGraphics, testCase.TempDir]);
+            testCase.verifyEqual(appDir, withGraphics);
+        end
+
+        function test_FindInstalledApplicationDirectory_NoneFound(testCase)
+            withoutGraphics = fullfile(testCase.TempDir, "Without");
+            mkdir(withoutGraphics);
+
+            testCase.verifyError(@() Palladium.Utilities.PathUtils.FindInstalledApplicationDirectory(withoutGraphics), "Palladium:InstallationFolderNotFound");
+            testCase.verifyError(@() Palladium.Utilities.PathUtils.FindInstalledApplicationDirectory(strings(1, 0)), "Palladium:InstallationFolderNotFound");
+        end
+
         %% GetDocumentsDirectory
         function test_GetDocumentsDirectory(testCase)
             %Note this, by design, gives different results on different
@@ -384,6 +435,24 @@ classdef test_PathUtils < matlab.unittest.TestCase
             testCase.verifyTrue(isfolder(actualPath));
             isAbsolute = startsWith(actualPath, ["/", "\"]) || ~isempty(regexp(actualPath, "^[A-Za-z]:", "once"));
             testCase.verifyTrue(isAbsolute);
+        end
+
+        %% IsAbsolutePath
+        function test_IsAbsolutePath(testCase)
+            %Full paths start from a drive (either slash), a network share or the root folder
+            absolutePaths = ["C:\Data", "c:/Data", "D:\", "\\server\share\Data", "/home/user/Data", "/"];
+            for path = absolutePaths
+                testCase.verifyTrue(Palladium.Utilities.PathUtils.IsAbsolutePath(path), path + " should be absolute");
+            end
+
+            %Everything else is relative - including a bare drive letter with no slash
+            relativePaths = ["Tests/TestingConfig.json", "Tests\Logs", "..\Data", "../Data", "MyConfig", "", "C:Data"];
+            for path = relativePaths
+                testCase.verifyFalse(Palladium.Utilities.PathUtils.IsAbsolutePath(path), path + " should be relative");
+            end
+
+            %Char input works too
+            testCase.verifyTrue(Palladium.Utilities.PathUtils.IsAbsolutePath('C:\Data'));
         end
 
         %% IsDirectoryValid
@@ -417,7 +486,7 @@ classdef test_PathUtils < matlab.unittest.TestCase
         %% MakeFilePathRelative
         function test_MakeFilePathRelative(testCase)
             path = fullfile(testCase.ApplicationDir, testCase.TestDir2);
-            expectedPath = filesep + fullfile("Tests", "Unit Tests", "data", "PathUtils Testing", "Test Folder 2"); %This is the path to Test Folder 2 from the directory with Palladium.m in it
+            expectedPath = fullfile("Tests", "Unit Tests", "data", "PathUtils Testing", "Test Folder 2"); %This is the path to Test Folder 2 from the directory with Palladium.m in it
             expectedSuccessfullyMadeRelative = true;
 
             [actualNewPath, actualSuccessfullyMadeRelative] = Palladium.Utilities.PathUtils.MakeFilePathRelative(path);
@@ -429,13 +498,39 @@ classdef test_PathUtils < matlab.unittest.TestCase
         function test_MakeFilePathRelative_RefDirGiven(testCase)
             path = fullfile(testCase.ApplicationDir, testCase.TestDir2);
             refDir = testCase.ApplicationDir;
-            expectedPath = filesep + testCase.TestDir2; %This is the path to Test Folder 2 from the directory with Palladium.m in it
+            expectedPath = testCase.TestDir2; %This is the path to Test Folder 2 from the directory with Palladium.m in it
             expectedSuccessfullyMadeRelative = true;
 
             [actualNewPath, actualSuccessfullyMadeRelative] = Palladium.Utilities.PathUtils.MakeFilePathRelative(path, RefDir=refDir);
 
             testCase.verifyEqual(actualNewPath, expectedPath);
             testCase.verifyEqual(actualSuccessfullyMadeRelative, expectedSuccessfullyMadeRelative);
+        end
+
+        function test_MakeFilePathRelative_SiblingWithLongerName(testCase)
+            %A folder whose name starts with the reference folder's name is
+            %a sibling, not inside it: relative to "...\Test Folder",
+            %"...\Test Folder 1" is "..\Test Folder 1". This used to give
+            %" 1", because the paths were compared as text, not folders
+            testingDir = fullfile(testCase.ApplicationDir, testCase.TestingDir);
+            refDir = fullfile(testingDir, "Test Folder");
+            path = fullfile(testingDir, "Test Folder 1");
+
+            [actualNewPath, actualSuccessfullyMadeRelative] = Palladium.Utilities.PathUtils.MakeFilePathRelative(path, RefDir=refDir);
+
+            testCase.verifyEqual(actualNewPath, fullfile("..", "Test Folder 1"));
+            testCase.verifyTrue(actualSuccessfullyMadeRelative);
+            testCase.verifyEqual(Palladium.Utilities.PathUtils.CleanPath(fullfile(refDir, actualNewPath)), Palladium.Utilities.PathUtils.CleanPath(path), "The relative path should lead back to the folder");
+        end
+
+        function test_MakeFilePathRelative_RefDirItself(testCase)
+            %The reference folder itself is the empty relative path
+            refDir = fullfile(testCase.ApplicationDir, testCase.TestingDir);
+
+            [actualNewPath, actualSuccessfullyMadeRelative] = Palladium.Utilities.PathUtils.MakeFilePathRelative(refDir, RefDir=refDir);
+
+            testCase.verifyEqual(actualNewPath, "");
+            testCase.verifyTrue(actualSuccessfullyMadeRelative);
         end
 
         function test_MakeFilePathRelative_CheckFolderHeirachy(testCase)

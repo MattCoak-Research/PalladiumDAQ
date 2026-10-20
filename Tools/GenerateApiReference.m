@@ -693,7 +693,7 @@ end
 function ns = NamespaceOf(className)
 parts = split(string(className), ".");
 if isscalar(parts)
-    ns = "(no namespace)";
+    ns = "Main class";     %Palladium itself - sorts before the Palladium.* namespaces in the index
 else
     ns = join(parts(1:end-1), ".");
 end

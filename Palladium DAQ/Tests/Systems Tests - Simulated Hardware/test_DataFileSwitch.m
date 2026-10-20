@@ -66,6 +66,21 @@ classdef test_DataFileSwitch < matlab.unittest.TestCase
             testCase.verifyEqual(ctrl.FileWriteDetails.Directory, details.Directory);
         end
 
+        function WriteToFileOffWritesNothingTest(testCase)
+            %A whole run - start, measure, stop - with Write to File
+            %unticked leaves no file of any kind: no data file, and no
+            %end-of-run metadata on stopping. (It used to write the data
+            %file anyway - BugFix 1, 8ac0701 - tested then only in the
+            %DataWriter)
+            before = testCase.filesInDataFolder();
+            testCase.startMeasuring(SaveFile=false);
+            pause(1);
+            testCase.Programme.Stop();
+            pause(0.5);
+
+            testCase.verifyEqual(testCase.filesInDataFolder(), before, "No file should be written or changed");
+        end
+
         function SavingTurnedOnMidRunStartsWithHeader(testCase)
             %Started with Write to File unticked, then [DATAFILE] 1 : <path>
             %- the file it starts still gets the full header
@@ -107,6 +122,20 @@ classdef test_DataFileSwitch < matlab.unittest.TestCase
             testCase.addTeardown(@() pd.Stop());
             pause(1);
             testCase.Programme = pd;
+        end
+
+        function files = filesInDataFolder(testCase)
+            %Name, size and date of every file in the data folder (other tests' files may be there too)
+            files = strings(0, 1);      %Also when the folder doesn't exist yet, or is empty
+            if ~isfolder(testCase.DataDir)
+                return;
+            end
+            listing = dir(fullfile(testCase.DataDir, "**", "*"));
+            listing = listing(~[listing.isdir]);
+            for k = 1 : numel(listing)
+                files(end+1, 1) = string(listing(k).name) + " " + listing(k).bytes + " " + string(listing(k).date); %#ok<AGROW>
+            end
+            files = sort(files);
         end
     end
 end

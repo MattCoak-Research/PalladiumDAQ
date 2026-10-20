@@ -3,11 +3,6 @@ classdef MagnetController < Palladium.Core.InstrumentControlBase
     %Instrument object, where it will handle the logic of controlling a
     %superconducting magnet - for now an Oxford Mercury IPS120
     
-    %% Properties (Private)
-    properties (Access = private)
-        GUIView;
-    end
-    
         %% Constructor
     methods
         function this = MagnetController()

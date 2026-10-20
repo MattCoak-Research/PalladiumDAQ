@@ -29,7 +29,7 @@ classdef Lakeshore372 < Palladium.Core.Instrument
         Name = "Ls372";                                         %Instrument name, used as the prefix of its resistance and heater power column headers
         Connection_Type = Palladium.Enums.ConnectionType.GPIB;  %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         Ch_Name = "Sample Temperature (K)";                     %Data column header for the temperature reading, e.g. "Mixing Chamber Temp (K)"
-        Reading;                                                %What to read: Temperature (K, plus the resistance) or Resistance (Ohms) only
+        Reading;                                                %What to read: Temperature (K, plus the resistance) or Resistance (Ω) only
         HeaterResistance = 100;                                 %Resistance of the heater connected to the sample heater output, in Ohms - used to calculate heater power
     end
 
@@ -125,13 +125,13 @@ classdef Lakeshore372 < Palladium.Core.Instrument
             %heater power
             %
             %Outputs:
-            %   Headers - e.g. ["Sample Temperature (K)", "Ls372 - Resistance (Ohms)",
+            %   Headers - e.g. ["Sample Temperature (K)", "Ls372 - Resistance (Ω)",
             %             "Ls372 Heater Power (W)"]. The temperature column uses Ch_Name
-            %   Units   - matching units, e.g. ["K", "Ohms", "W"]
+            %   Units   - matching units, e.g. ["K", "Ω", "W"]
 
             switch(this.Reading)
-                case(this.MeasType("Temperature"));     Headers = [string(this.Ch_Name), this.Name + " - Resistance (Ohms)"];   Units = ["K" "Ohms"];
-                case(this.MeasType("Resistance"));      Headers = this.Name + " - Resistance (Ohms)";                           Units = "Ohms";
+                case(this.MeasType("Temperature"));     Headers = [string(this.Ch_Name), this.Name + " - Resistance (Ω)"];      Units = ["K" "Ω"];
+                case(this.MeasType("Resistance"));      Headers = this.Name + " - Resistance (Ω)";                              Units = "Ω";
                 otherwise
                     error("Lakeshore372:UnsupportedMeasurementType", "%s", "Unsupported measurement type " + string(this.Reading));
             end
@@ -323,7 +323,7 @@ classdef Lakeshore372 < Palladium.Core.Instrument
             %                 Open Loop or Off
 
             modeIndex = this.GetControlModeIndex(controlMode);
-            this.WriteCommand("CMODE " + num2str(modeIndex));
+            this.WriteCommand("CMODE " + Palladium.Core.Instrument.NumberToCommandString(modeIndex));
         end
 
         function SetHeaterRange(this, range)
@@ -334,7 +334,7 @@ classdef Lakeshore372 < Palladium.Core.Instrument
             %           range has no effect while the control mode is Off
 
             index = this.GetHeaterRangeIndex(range);
-            this.WriteCommand("HTRRNG " + num2str(index));
+            this.WriteCommand("HTRRNG " + Palladium.Core.Instrument.NumberToCommandString(index));
         end
 
         function SetHeaterSetpoint(this, setPt)
@@ -345,7 +345,7 @@ classdef Lakeshore372 < Palladium.Core.Instrument
             %   setPt - setpoint, in the setpoint units set on the instrument
             %           (K or Ohms)
 
-            this.WriteCommand("SETP " + num2str(setPt));
+            this.WriteCommand("SETP " + Palladium.Core.Instrument.NumberToCommandString(setPt, SignificantFigures=6));
         end
 
         function SetManualOutputPercent(this, percentage)
@@ -357,7 +357,7 @@ classdef Lakeshore372 < Palladium.Core.Instrument
             %   percentage - manual output, 0 to 100 %
 
             assert(percentage <= 100 && percentage >= 0, "Lakeshore372:InvalidOutputPercentage", "Invalid output percentage");
-            this.WriteCommand("MOUT " + num2str(percentage));
+            this.WriteCommand("MOUT " + Palladium.Core.Instrument.NumberToCommandString(percentage, SignificantFigures=5));
         end
 
         function SetPIDValues(this, P, I, D)
@@ -368,7 +368,7 @@ classdef Lakeshore372 < Palladium.Core.Instrument
             %   I - integral, or reset, in s (0 to 10000)
             %   D - derivative, or rate, in s (0 to 2500)
 
-            this.WriteCommand(['PID' ' ' num2str(P) ',' num2str(I) ',' num2str(D)]);
+            this.WriteCommand("PID " + Palladium.Core.Instrument.NumberToCommandString(P, SignificantFigures=6) + "," + Palladium.Core.Instrument.NumberToCommandString(I, SignificantFigures=6) + "," + Palladium.Core.Instrument.NumberToCommandString(D, SignificantFigures=6));
         end
 
         function SetRamp(this, enabled, rate)
@@ -388,7 +388,7 @@ classdef Lakeshore372 < Palladium.Core.Instrument
 
             output = "0";   %0 = sample heater, 1 = output 1 (warm-up heater).
             rate = abs(rate);
-            this.WriteCommand("RAMP " + output + "," + enabledStr + "," + num2str(rate));
+            this.WriteCommand("RAMP " + output + "," + enabledStr + "," + Palladium.Core.Instrument.NumberToCommandString(rate, SignificantFigures=5));
         end
 
     end

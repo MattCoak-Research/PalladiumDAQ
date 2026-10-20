@@ -1,9 +1,14 @@
-"""Stand-in connections and test scenarios for the communication helpers of
-PalladiumPythonCore/Instrument.py (write_command, read_string, query_string,
-query_double). Used by Tests/Unit Tests/PythonInstruments/test_PythonInstrumentCore.m.
-No hardware, pyvisa or pyserial needed: Ethernet uses a real local socket pair,
-and pyvisa and serial connections are replaced by the small classes below."""
+"""Stand-in connections and test scenarios for PalladiumPythonCore/Instrument.py:
+its communication helpers (write_command, read_string, query_string,
+query_double) and its connect methods. Used by
+Tests/Unit Tests/PythonInstruments/test_PythonInstrumentCore.m and
+test_PythonInstrument.m. No hardware, pyvisa or pyserial needed: Ethernet uses
+a real local socket pair, pyvisa and serial connections are replaced by the
+small classes below, and install_fake_packages puts stand-in pyvisa and serial
+modules in place for the connect methods to import."""
 import socket
+import sys
+import types
 
 from PalladiumPythonCore.Instrument import Instrument
 
@@ -129,3 +134,125 @@ def not_connected():
 def unsupported_connection():
     """A connection object of an unknown kind - raises RuntimeError."""
     instrument(object()).write_command("*RST")
+
+
+# ---- Stand-in pyvisa and pyserial packages, for the connect methods ----
+
+class FakeVisaResource:
+    """What the fake pyvisa ResourceManager opens: records its name and settings."""
+    def __init__(self, resource_name):
+        self.resource_name = resource_name
+        self.timeout = None
+        self.read_termination = None
+        self.write_termination = None
+        self.closed = False
+
+    def query(self, command):
+        return "0"
+
+    def close(self):
+        self.closed = True
+
+
+class FakeResourceManager:
+    def open_resource(self, resource_name):
+        return FakeVisaResource(resource_name)
+
+
+class FakeSerialPort:
+    """What the fake serial.Serial makes: records the settings it was opened with."""
+    def __init__(self, **kwargs):
+        self.settings = dict(kwargs)
+        self.closed = False
+
+    def read_until(self, expected=b"\n"):
+        return b""
+
+    def close(self):
+        self.closed = True
+
+
+_saved_modules = {}
+
+
+def install_fake_packages():
+    """Put stand-in pyvisa and serial modules in sys.modules, so the connect methods import them."""
+    for name in ("pyvisa", "serial"):
+        if name not in _saved_modules:
+            _saved_modules[name] = sys.modules.get(name)
+    fake_pyvisa = types.ModuleType("pyvisa")
+    fake_pyvisa.ResourceManager = FakeResourceManager
+    fake_serial = types.ModuleType("serial")
+    fake_serial.Serial = FakeSerialPort
+    sys.modules["pyvisa"] = fake_pyvisa
+    sys.modules["serial"] = fake_serial
+
+
+def restore_packages():
+    """Put the real pyvisa and serial modules back (or none, if they weren't imported)."""
+    for name, module in _saved_modules.items():
+        if module is None:
+            sys.modules.pop(name, None)
+        else:
+            sys.modules[name] = module
+    _saved_modules.clear()
+
+
+def gpib_connect_without_settings(timeout):
+    """connectGPIB with no ConnectionSettings: the timeout it is given must still be applied."""
+    install_fake_packages()
+    try:
+        inst = instrument()
+        inst.connectGPIB(0, 7, timeout)
+        return {"resource": inst.DeviceHandle.resource_name, "timeout": inst.DeviceHandle.timeout}
+    finally:
+        restore_packages()
+
+
+def usb_connect(visa_address):
+    """connectUSB given a VISA address - it used to need a VISA_Address attribute nothing set."""
+    install_fake_packages()
+    try:
+        inst = instrument()
+        inst.connectUSB(visa_address)
+        return inst.DeviceHandle.resource_name
+    finally:
+        restore_packages()
+
+
+def default_name():
+    """Name of an instrument that doesn't set one - its class name (reading it used to fail)."""
+    return CoreTestInstrument().Name
+
+
+def serial_connect(settings=None):
+    """connectSerial with the driver's own ConnectionSettings (or none): what the port was opened with."""
+    install_fake_packages()
+    try:
+        inst = instrument()
+        if settings is not None:
+            inst.ConnectionSettings = dict(settings)
+        inst.connectSerial("COM9")
+        return inst.DeviceHandle.settings
+    finally:
+        restore_packages()
+
+
+def gpib_connect_with_driver_settings():
+    """connectGPIB when the driver set its own terminators and timeout: those win over Palladium's timeout."""
+    install_fake_packages()
+    try:
+        inst = instrument()
+        inst.ConnectionSettings = {"GPIB_Terminators": ["\r\n", "\n"], "GPIB_Timeout": 2}
+        inst.connectGPIB(0, 3, 10)
+        h = inst.DeviceHandle
+        return {"read": h.read_termination, "write": h.write_termination, "timeout": h.timeout}
+    finally:
+        restore_packages()
+
+
+def instrument_with_serial_settings(baud_rate):
+    """An instrument whose driver set its own serial settings, for wrapping in MATLAB's PythonInstrument."""
+    inst = instrument()
+    inst.ConnectionSettings = {"SerialSettings": {"BaudRate": int(baud_rate), "Parity": "E", "StopBits": 2}}
+    return inst

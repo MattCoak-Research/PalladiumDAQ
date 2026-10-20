@@ -26,18 +26,17 @@ classdef ErrorGuard
             %can be passed on to `RegisterEventListener` as usual.
             %
             %Inputs:
-            %   src - the object that fires the event
-            %   eventName - name of the event to listen for
-            %   callback - function handle to call when the event fires
-            %
-            %Optional name-value arguments:
+            %   src        - the object that fires the event
+            %   eventName  - name of the event to listen for
+            %   callback   - function handle to call when the event fires
             %   Controller - the Controller to report errors to. Empty (the default) uses the one registered with `DefaultController`
-            %   Context - text shown in the error log and dialogue. Defaults to naming the event
+            %   Context    - text shown in the error log and dialogue. Defaults to naming the event
             %   Standalone - true if this is a window that does not interact with the measurement loop (e.g. the Data Viewer). The error dialogue then has no Stop Measurements option and never stops the loop. Default false
-            %   Figure - the window to show the error dialogue in: a figure, or any component inside one (e.g. `app.UIFigure` or `comp`). Default is the main Palladium window. Only needs setting for other windows, such as the Data Viewer, so the dialogue does not appear behind them
+            %   Figure     - the window to show the error dialogue in: a figure, or any component inside one (e.g. `app.UIFigure` or `comp`). Default is the main Palladium window. Only needs setting for other windows, such as the Data Viewer, so the dialogue does not appear behind them
             %
             %Outputs:
             %   ltr - the listener handle
+
             arguments
                 src;
                 eventName {mustBeTextScalar};
@@ -69,6 +68,7 @@ classdef ErrorGuard
             %
             %Outputs:
             %   controller - the currently registered Controller, or empty if there is none
+
             persistent registered;
             if nargin > 0
                 registered = newController;
@@ -81,20 +81,21 @@ classdef ErrorGuard
             %Needs no Controller handle, so it reads the same in any
             %component:
             %
-            %   catch err
-            %       Palladium.Core.ErrorGuard.HandleError("Error in X", err);
-            %   end
+            %```matlab
+            %catch err
+            %    Palladium.Core.ErrorGuard.HandleError("Error in X", err);
+            %end
+            %```
             %
             %The error goes to the default Controller's error handling (log
             %and error dialogue), or is just logged if there isn't one.
             %
             %Inputs:
-            %   context - text describing where the error happened, shown in the log and dialogue
-            %   err - the caught `MException`
-            %
-            %Optional name-value arguments:
+            %   context    - text describing where the error happened, shown in the log and dialogue
+            %   err        - the caught `MException`
             %   Standalone - true if the callback is in a window that does not interact with the measurement loop (e.g. the Data Viewer). The error dialogue then has no Stop Measurements option and never stops the loop. Default false
-            %   Figure - the window to show the error dialogue in: a figure, or any component inside one (e.g. `app.UIFigure` or `comp`). Default is the main Palladium window. Only needs setting for other windows, such as the Data Viewer, so the dialogue does not appear behind them
+            %   Figure     - the window to show the error dialogue in: a figure, or any component inside one (e.g. `app.UIFigure` or `comp`). Default is the main Palladium window. Only needs setting for other windows, such as the Data Viewer, so the dialogue does not appear behind them
+
             arguments
                 context {mustBeTextScalar};
                 err;
@@ -106,23 +107,22 @@ classdef ErrorGuard
         end
 
         function guarded = Wrap(callback, Settings)
-            %Wrap a function handle so that any error it throws is caught and handled.
+            %Guard a function handle, so that any error it throws is caught and handled.
             %The returned handle calls `callback` with whatever arguments it
             %is given. If that throws, the error is reported to the
             %Controller instead of MATLAB turning it into a warning. The
             %guard itself never throws.
             %
             %Inputs:
-            %   callback - function handle to guard
-            %
-            %Optional name-value arguments:
+            %   callback   - function handle to guard
             %   Controller - the Controller to report errors to. Empty (the default) uses the one registered with `DefaultController`
-            %   Context - text shown in the error log and dialogue
+            %   Context    - text shown in the error log and dialogue. Default "Error in callback"
             %   Standalone - true if this is a window that does not interact with the measurement loop (e.g. the Data Viewer). The error dialogue then has no Stop Measurements option and never stops the loop. Default false
-            %   Figure - the window to show the error dialogue in: a figure, or any component inside one (e.g. `app.UIFigure` or `comp`). Default is the main Palladium window. Only needs setting for other windows, such as the Data Viewer, so the dialogue does not appear behind them
+            %   Figure     - the window to show the error dialogue in: a figure, or any component inside one (e.g. `app.UIFigure` or `comp`). Default is the main Palladium window. Only needs setting for other windows, such as the Data Viewer, so the dialogue does not appear behind them
             %
             %Outputs:
             %   guarded - function handle accepting any arguments
+
             arguments
                 callback (1,1) function_handle;
                 Settings.Controller = [];
@@ -156,6 +156,7 @@ classdef ErrorGuard
             %An empty `controller` means the default one registered with
             %`DefaultController`. If there is no live Controller at all,
             %the error is logged with the `Logger` instead.
+
             try
                 if isempty(controller)
                     controller = Palladium.Core.ErrorGuard.DefaultController();

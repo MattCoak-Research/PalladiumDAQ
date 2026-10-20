@@ -85,6 +85,23 @@ classdef test_DataReader < matlab.unittest.TestCase
            testCase.verifyError(@() testCase.reader.ReadFile(missingFile), "DataReader:OpenFileFailure");
        end
 
+       function test_ReadFile_FileEndingAtMarkerErrorsClearlyTest(testCase)
+           %A file that stops right after the end-of-metadata marker has
+           %no headers row - its own error, rather than one from inside
+           %strsplit (fgetl gives -1 at the end of the file)
+           for lines = {["meta"; "<<< END METADATA LINES >>>"], ["meta"; "<<< END METADATA LINES >>>"; ""]}
+               file = testCase.writeRawFile("ends" + numel(lines{1}) + ".dat", lines{1});
+               testCase.verifyError(@() testCase.reader.ReadFile(file), "DataReader:NoHeaderString", "Lines: " + join(lines{1}, " / "));
+           end
+       end
+
+       function test_ReadHeadersLine_EndOfFileErrorsTest(testCase)
+           fid = testCase.openTextFile("only line");
+           fgetl(fid);
+
+           testCase.verifyError(@() Palladium.DataWriting.DataReader.ReadHeadersLine(fid), "DataReader:NoHeaderString");
+       end
+
        function test_ReadFile_MarkerWithTrailingSpaceIsNotRecognisedTest(testCase)
            %The end-of-metadata line has to match exactly
            file = testCase.writeStandardFile("padded.dat", sprintf("a\tb"), "1" + char(9) + "2", EndMarker="<<< END METADATA LINES >>> ");
@@ -229,7 +246,7 @@ classdef test_DataReader < matlab.unittest.TestCase
        end
 
        function test_ReadFile_HeadersKeepSpacesUnitsAndSymbolsTest(testCase)
-           headers = ["Time (mins)", "Resistance (Ohms)", "dV/dI [a.u.]", "T_sample_1", "50% load"];
+           headers = ["Time (mins)", "Resistance (Ω)", "dV/dI [a.u.]", "T_sample_1", "50% load"];
            file = testCase.writeStandardFile("hdr.dat", join(headers, char(9)), "1" + repmat(string(char(9)) + "1", 1, 4));
 
            [~, readHeaders] = testCase.reader.ReadFile(file);

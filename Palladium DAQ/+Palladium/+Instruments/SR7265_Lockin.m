@@ -1,8 +1,9 @@
 classdef SR7265_Lockin < Palladium.Core.Instrument
     %SR7265_Lockin - Instrument driver for the Signal Recovery 7265 (and 7260) DSP lock-in amplifier.
     %Reads the X and Y outputs each measurement tick, in floating-point
-    %mode (`XY.`). They are in volts in voltage input mode - in a current
-    %input mode they are in amps, though the column headers still say V.
+    %mode (`XY.`). The input mode is read when connecting (`InputMode`): in
+    %voltage mode X and Y are in volts, in either current mode they are in
+    %amps, and the column headers say which.
     %
     %With `AutoSensitivity` on, the driver checks the signal magnitude after
     %each reading and steps the sensitivity up a range when it is above
@@ -12,8 +13,9 @@ classdef SR7265_Lockin < Palladium.Core.Instrument
     %The 7265 has GPIB and RS-232 interfaces. Over RS-232, the factory
     %settings are 9600 baud, 7 data bits and even parity, as set in
     %`ConnectionSettings.SerialSettings`; turn character echo and the prompt
-    %off in the instrument's RS232 Settings menu, as they would be read as
-    %part of the replies.
+    %off in the instrument's RS232 Settings menu (in the Communications
+    %menu), as they would be read as part of the replies. If they are on,
+    %connecting stops with a message saying so.
 
     %% Properties (Public)
     properties(Access = public)
@@ -24,8 +26,18 @@ classdef SR7265_Lockin < Palladium.Core.Instrument
     % These properties will appear in the Instrument Settings GUI and are editable there
     properties(Access = public, SetObservable)
         Name = "SR7265";                                            %Instrument name, used as the prefix of its data column headers
-        Connection_Type = Palladium.Enums.ConnectionType.Debug;     %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
+        Connection_Type = Palladium.Enums.ConnectionType.GPIB;      %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         AutoSensitivity (1,1) logical = true;                       %Step the sensitivity range up or down automatically after each reading, to keep the signal on range
+    end
+
+    %% Properties (Public, Protected Set)
+    properties(GetAccess = public, SetAccess = protected)
+        InputMode;                                                  %Voltage, Current HB (high bandwidth) or Current LN (low noise) - read from the instrument (IMODE) when connecting. Voltage until then
+    end
+
+    %% Categoricals
+    methods
+        function catOut = InputModeType(this, inputStr); catOut = this.ConvertToCategorical(inputStr, ["Voltage", "Current HB", "Current LN"]); end
     end
 
     %% Constructor
@@ -43,6 +55,8 @@ classdef SR7265_Lockin < Palladium.Core.Instrument
             %parity are the factory settings - they must match the RS232
             %Settings menu on the instrument. Replies end with CR LF
             this.ConnectionSettings.SerialSettings = struct('BaudRate', 9600, 'DataBits', 7, 'Parity', 'even', 'StopBits', 1, 'Terminator', 'CR/LF');
+
+            this.InputMode = this.InputModeType("Voltage");
         end
     end
 
@@ -50,21 +64,27 @@ classdef SR7265_Lockin < Palladium.Core.Instrument
     methods (Access = public)
 
         function [Headers, Units] = GetHeaders(this)
-            %Data column headers and units for X and Y, as returned by Measure
+            %Data column headers and units for X and Y, as returned by Measure - in volts, or amps in a current input mode.
             %
             %Outputs:
-            %   Headers - ["SR7265 - Vx (V)", "SR7265 - Vy (V)"]
-            %   Units   - ["V", "V"]
+            %   Headers - ["SR7265 - Vx (V)", "SR7265 - Vy (V)"], or
+            %             ["SR7265 - Ix (A)", "SR7265 - Iy (A)"] in a current mode
+            %   Units   - ["V", "V"] or ["A", "A"]
 
-            Headers = [this.Name + " - Vx (V)", this.Name + " - Vy (V)"];
-            Units = ["V", "V"];
+            if this.InputMode == this.InputModeType("Voltage")
+                Headers = [this.Name + " - Vx (V)", this.Name + " - Vy (V)"];
+                Units = ["V", "V"];
+            else
+                Headers = [this.Name + " - Ix (A)", this.Name + " - Iy (A)"];
+                Units = ["A", "A"];
+            end
         end
 
         function [dataRow] = Measure(this)
             %Read X and Y, then step the sensitivity if AutoSensitivity is on.
             %
             %Outputs:
-            %   dataRow - X and Y, in V (or A in current input mode)
+            %   dataRow - X and Y, in V (or A in a current input mode)
 
             if(this.SimulationMode)
                 data = "0.0705876,0.00256349";
@@ -88,8 +108,52 @@ classdef SR7265_Lockin < Palladium.Core.Instrument
         end
     end
 
+    %% Methods (Protected)
+    methods (Access = protected)
+
+        function OnConnected(this)
+            %Read the input mode, which sets the column units - also checking the replies can be read.
+
+            if this.SimulationMode
+                return;
+            end
+
+            this.ReadInputMode();
+        end
+
+    end
+
     %% Methods (Private)
     methods (Access = private)
+
+        function ReadInputMode(this)
+            %Read the input mode (IMODE): 0 voltage, 1 high-bandwidth current, 2 low-noise current (manual page 6-10).
+            %The first replies after connecting, so they are checked: over
+            %RS-232, character echo puts the command into the reply, and the
+            %prompt adds a * or ? after it, read as the start of the next
+            %reply - so it is read twice. Either way the reply isn't just
+            %0, 1 or 2, and connecting stops with a message saying what to
+            %change
+
+            replies = strings(1, 2);
+            for i = 1 : 2
+                replies(i) = strtrim(string(this.QueryString("IMODE")));
+            end
+            mode = str2double(replies);
+
+            if ~all(ismember(mode, [0 1 2])) || mode(1) ~= mode(2)
+                msg = this.Name + " gave unexpected replies to the IMODE query: """ + join(replies, """, """) + """ (expected 0, 1 or 2).";
+                if this.Connection_Type == Palladium.Enums.ConnectionType.Serial
+                    msg = msg + " Over RS-232, turn off Echo and Prompt in the instrument's RS232 Settings menu (in the Communications menu) - they are read as part of every reply.";
+                else
+                    msg = msg + " Check the connection settings, such as the terminator, match the instrument's.";
+                end
+                error("SR7265_Lockin:UnexpectedReply", "%s", msg);
+            end
+
+            modes = ["Voltage", "Current HB", "Current LN"];
+            this.InputMode = this.InputModeType(modes(mode(1) + 1));
+        end
 
         function AutoTuneSensitivity(this)
             %Step the sensitivity range up or down by one if the signal is near its limits.
@@ -98,8 +162,17 @@ classdef SR7265_Lockin < Palladium.Core.Instrument
 
             mag = this.QueryMagnitudeLevel();
 
-            %Sensitivity range index, 1 to 27 - see manual page 6-10
+            %Sensitivity range index, up to 27 - see manual page 6-10
             sen = this.QuerySensitivityLevel();
+
+            %The bottom range: index 1 (2 nV, or 2 fA in high-bandwidth
+            %current mode) - but in low-noise current mode, the ranges start
+            %at index 7 (2 fA)
+            lowestIndex = 1;
+            if this.InputMode == this.InputModeType("Current LN")
+                lowestIndex = 7;
+            end
+            highestIndex = 27;      %1 V, 1 uA or 10 nA
 
             %Magnitude (full scale = 10000) at which to move up a range -
             %200% of full scale
@@ -110,12 +183,10 @@ classdef SR7265_Lockin < Palladium.Core.Instrument
             %below
             lowerCutoff = 4000;
 
-            if(mag >= upperCutoff)
-                sensIndex = min(sen + 1, 27);       %27 is the top range, 1 V
-                this.SetSensitivityLevel(sensIndex);
-            elseif(mag < lowerCutoff)
-                sensIndex = max(sen - 1, 1);        %1 is the bottom range, 2 nV
-                this.SetSensitivityLevel(sensIndex);
+            if(mag >= upperCutoff && sen < highestIndex)
+                this.SetSensitivityLevel(sen + 1);
+            elseif(mag < lowerCutoff && sen > lowestIndex)
+                this.SetSensitivityLevel(sen - 1);
             end
         end
 

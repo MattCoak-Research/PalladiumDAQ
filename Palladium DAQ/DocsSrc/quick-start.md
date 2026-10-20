@@ -28,7 +28,7 @@ The panel at the top of the window sets the data file: its **Directory**, **File
 
 Press **Start**. Palladium DAQ connects to the instrument, writes the file's header, and then takes a reading every **Target update time** seconds, adding each one as a new line in the data file.
 
-Because there is no plot yet, a **📈 Plotting** tab with two plots is added. In a plot, choose **Time (mins)** as the **X Axis** and `K2000_1 - Resistance_Ohms` as the first **Y Axes** entry to watch the readings arrive. The **New 📈 Tab** and **New 📈 Window** buttons at the top add more plots in tabs or separate windows.
+Because there is no plot yet, a **📈 Plotting** tab with two plots is added. In a plot, choose **Time (mins)** as the **X Axis** and `K2000_1 - Resistance_Ω` as the first **Y Axes** entry to watch the readings arrive. The **New 📈 Tab** and **New 📈 Window** buttons at the top add more plots in tabs or separate windows.
 
 ![A plotting tab during a measurement](images/gui/plotting-tab.png)
 

@@ -13,9 +13,10 @@ classdef MercuryITC < Palladium.Core.Instrument
     %`AssignHeaterToLoop` and so on - but there is no Instrument Control tab
     %for them.
     %
-    %The Mercury iTC connects over Ethernet (always port 7020) or RS-232 / USB
-    %(Serial, set to 115200 baud here), and must be set to use its SCPI
-    %command set rather than the legacy one. Level meter (LVL) signals and the
+    %The Mercury iTC connects over Ethernet (always port 7020), RS-232 / USB
+    %(Serial, set to 115200 baud here) or GPIB (with the optional GPIB board;
+    %SCPI commands use GPIB secondary address 1, which the driver sets), and
+    %must be set to use its SCPI command set rather than the legacy one. Level meter (LVL) signals and the
     %Lambda and HelioxX control modes are not implemented. Ported from the
     %mercuryITC.py driver (Benno Meier, 2015), and checked against the Mercury
     %iTC User Manual (MAN-NS-0014, Revision B), chapter 10.
@@ -48,6 +49,7 @@ classdef MercuryITC < Palladium.Core.Instrument
     %% Properties (Private)
     properties(Access = private)
         DeviceCatalogue string = strings(1, 0);                 %Addresses of the devices found on the instrument, read by GetDeviceCatalogue when connecting
+        WarnedUnits string = strings(1, 0);                     %Units in replies that weren't recognised, already warned about (see UnitMultiplier)
     end
 
     %% Constructor
@@ -55,11 +57,17 @@ classdef MercuryITC < Palladium.Core.Instrument
         function this = MercuryITC()
             %Set the supported connection types and default connection settings.
 
-            %Ethernet and RS-232 / USB (which appears as a serial port);
-            %VISA can address either
-            this.DefineSupportedConnectionTypes(["Debug", "Ethernet", "Serial", "VISA"]);
+            %Ethernet, RS-232 / USB (which appears as a serial port) and GPIB
+            %(an optional daughter board); VISA can address any of them
+            this.DefineSupportedConnectionTypes(["Debug", "Ethernet", "Serial", "GPIB", "VISA"]);
 
             this.ConnectionSettings.Port = 7020;    %Fixed on the Mercury iTC
+
+            %SCPI commands over GPIB go to secondary address 1 (manual
+            %9.2.1 - the primary address alone is for the legacy command
+            %set). Commands end with LF
+            this.ConnectionSettings.GPIB_SecondaryAddress = 1;
+            this.ConnectionSettings.GPIB_Terminators = ["LF", "LF"];
 
             %USB is fixed at 115200 baud, 8 data bits, 1 stop bit and no
             %parity; for RS-232 these must match the instrument's RS232
@@ -116,14 +124,6 @@ classdef MercuryITC < Palladium.Core.Instrument
             end
 
             this.SetLoopString(deviceAddress, "HTR", heaterUID);
-        end
-
-        function Connect(this)
-            %Open the connection and read the instrument's device catalogue.
-            %Fills any Channel_n_Name left at "Default" (see GetDeviceCatalogue)
-
-            Connect@Palladium.Core.Instrument(this);
-            this.DeviceCatalogue = this.GetDeviceCatalogue();
         end
 
         function DisablePIDControl(this, deviceAddress)
@@ -184,7 +184,10 @@ classdef MercuryITC < Palladium.Core.Instrument
             end
 
             %Splitting on ":DEV:" leaves each device's <UID>:<TYPE>; the
-            %first piece is the STAT:SYS:CAT prefix, which is discarded
+            %first piece is the STAT:SYS:CAT prefix, which is discarded.
+            %Any spaces are removed first - the manual's examples show some
+            %(e.g. "DEV:MB1.T1 :TEMP"), and addresses never contain them
+            catalogString = regexprep(string(catalogString), "\s", "");
             deviceSegments = strsplit(catalogString, ":DEV:");
             deviceSegments(1) = [];
             deviceAddresses = "DEV:" + string(deviceSegments);
@@ -207,7 +210,7 @@ classdef MercuryITC < Palladium.Core.Instrument
             %   Units   - matching units, from the device type: "K", "W", "%" or "mbar"
 
             if isempty(this.DeviceCatalogue)
-                warning("MercuryITCWarning:EmptyDeviceCatalogue", "Device Catalogue empty in Mercury ITC - no modules found or GetDeviceCatalogue not yet called");
+                Palladium.Logging.Logger.Log("Warning", "Device Catalogue empty in Mercury ITC - no modules found or GetDeviceCatalogue not yet called");
             end
 
             addresses = this.GetChannelAddresses();
@@ -457,8 +460,10 @@ classdef MercuryITC < Palladium.Core.Instrument
                 return;
             end
 
+            %The reply gives the value set, which the instrument may have
+            %rounded - so it must match to within 1 mK, not exactly
             achievedSetPt = this.SetLoopValue(deviceAddress, "TSET", setpoint_K);
-            assert(achievedSetPt == setpoint_K, "MercuryITC:SetpointNotSet", "%s", "Failed to set temperature setpoint on " + string(deviceAddress) + ". Requested " + num2str(setpoint_K) + " K, achieved " + num2str(achievedSetPt) + " K.");
+            assert(abs(achievedSetPt - setpoint_K) <= 1e-3, "MercuryITC:SetpointNotSet", "%s", "Failed to set temperature setpoint on " + string(deviceAddress) + ". Requested " + num2str(setpoint_K) + " K, achieved " + num2str(achievedSetPt) + " K.");
         end
 
         function resultString = SetValue(this, command)
@@ -489,10 +494,12 @@ classdef MercuryITC < Palladium.Core.Instrument
     %% Methods (Protected)
     methods(Access = protected)
 
-        function propertiesToIgnore = GetPropertiesToIgnore(~)
-            %Hide the GPIB address in the GUI - this driver does not support GPIB.
+        function OpenConnection(this)
+            %Open the connection and read the instrument's device catalogue.
+            %Fills any Channel_n_Name left at "Default" (see GetDeviceCatalogue)
 
-            propertiesToIgnore = {"GPIB_Address"};
+            OpenConnection@Palladium.Core.Instrument(this);
+            this.DeviceCatalogue = this.GetDeviceCatalogue();
         end
 
     end
@@ -563,35 +570,6 @@ classdef MercuryITC < Palladium.Core.Instrument
             value = this.ParseSignalResponse(resultString);
         end
 
-        function mult = GetSIPrefixMultiplier(~, unitToken)
-            %Multiplier for the SI prefix of a units string, e.g. 1e-3 for "mK".
-            %A unit with no prefix, e.g. "K", gives 1 (manual section 10.3.5)
-            %
-            %Inputs:
-            %   unitToken - units string, e.g. "mV"
-            %
-            %Outputs:
-            %   mult - the multiplier
-
-            prefixMap = containers.Map(...
-                {'n', 'u', char(181), 'm', 'k', 'M'}, ...   %char(181) is the micro sign
-                {1e-9, 1e-6, 1e-6, 1e-3, 1e3, 1e6});
-
-            if isempty(unitToken) || strlength(string(unitToken)) < 2
-                mult = 1;
-                return;
-            end
-
-            firstChar = char(unitToken);
-            firstChar = firstChar(1);
-
-            if isKey(prefixMap, firstChar)
-                mult = prefixMap(firstChar);
-            else
-                mult = 1;
-            end
-        end
-
         function signalName = GuessSignalNameFromDeviceAddress(~, deviceAddress)
             %Signal to read in Measure for a device, from its type, e.g. "TEMP" for "DEV:DB7.T1:TEMP".
             %Signal names are from the manual's signal tables (sections
@@ -644,38 +622,12 @@ classdef MercuryITC < Palladium.Core.Instrument
             end
         end
 
-        function value = ParseSIPrefixedValue(~, valueString)
-            %Convert a number joined to its units, e.g. "12.3mV", into base SI units.
-            %
-            %Inputs:
-            %   valueString - "<number><prefix><unit>" or "<number><unit>", with a
-            %                 one-letter unit
-            %
-            %Outputs:
-            %   value - the number, scaled by its SI prefix
-
-            siPrefixes = containers.Map(...
-                {'M', 'k', 'm', 'u', char(181), 'n', 'p'}, ...   %char(181) is the micro sign, as in the Python reference
-                {1e6, 1e3, 1e-3, 1e-6, 1e-6, 1e-9, 1e-12});
-
-            %The last character is the unit; the one before is either a
-            %prefix or the number's last digit
-            prefixChar = valueString(end-1);
-
-            if isstrprop(prefixChar, 'digit')
-                value = str2double(valueString(1:end-1));
-            elseif isKey(siPrefixes, prefixChar)
-                value = str2double(valueString(1:end-2)) * siPrefixes(prefixChar);
-            else
-                error("MercuryITC:SIValueParseFailed", "%s", "Could not parse SI-prefixed value: " + string(valueString));
-            end
-        end
-
         function value = ParseSignalResponse(this, responseString)
-            %Read the number from a STAT reply, in base SI units.
+            %Read the number from a STAT reply, in base SI units (pressure in mbar).
             %Handles a plain number (e.g. "...:TSET:4.321:VALID"), a number and
             %units as separate tokens (e.g. "...:SIG:VOLT:12.345:mV:VALID"), and
-            %a number joined to its units (e.g. "...:SIG:TEMP:4.2310K")
+            %a number joined to its units (e.g. "...:SIG:TEMP:4.2310K"). The
+            %units are scaled by UnitMultiplier
             %
             %Inputs:
             %   responseString - the instrument's reply
@@ -683,24 +635,27 @@ classdef MercuryITC < Palladium.Core.Instrument
             %Outputs:
             %   value - the number
 
-            tokens = this.StripAndCheckStatusToken(strsplit(char(responseString), ":"), responseString);
-            lastToken = tokens{end};
+            tokens = string(this.StripAndCheckStatusToken(strsplit(char(responseString), ":"), responseString));
+            lastToken = tokens(end);
 
             %Plain number
-            directValue = str2double(lastToken);
-            if ~isnan(directValue)
-                value = directValue;
+            value = str2double(lastToken);
+            if ~isnan(value)
                 return;
             end
 
             %Number and units as separate tokens
-            if numel(tokens) >= 2 && ~isnan(str2double(tokens{end-1}))
-                value = str2double(tokens{end-1}) * this.GetSIPrefixMultiplier(lastToken);
+            if numel(tokens) >= 2 && ~isnan(str2double(tokens(end-1)))
+                value = str2double(tokens(end-1)) * this.UnitMultiplier(lastToken);
                 return;
             end
 
             %Number joined to its units
-            value = this.ParseSIPrefixedValue(lastToken);
+            parts = regexp(lastToken, "^([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)(.+)$", "tokens", "once");
+            if isempty(parts)
+                error("MercuryITC:ValueParseFailed", "%s", "Could not read a number from the reply: " + string(responseString));
+            end
+            value = str2double(parts(1)) * this.UnitMultiplier(parts(2));
         end
 
         function strVal = ParseStringResponse(this, responseString)
@@ -767,9 +722,40 @@ classdef MercuryITC < Palladium.Core.Instrument
                 return;
             end
 
-            commandStr = string(deviceAddress) + ":LOOP:" + string(loopCommand) + ":" + num2str(value);
+            commandStr = string(deviceAddress) + ":LOOP:" + string(loopCommand) + ":" + Palladium.Core.Instrument.NumberToCommandString(value);
             responseString = this.SetValue(commandStr);
             confirmedValue = this.ParseSignalResponse(responseString);
+        end
+
+        function mult = UnitMultiplier(this, unit)
+            %Multiplier to base units for a reply's units, e.g. 1e-3 for "mV" and 1 for "K".
+            %Replies give a value followed by its scale: n, u, m, none, k or
+            %M before the unit (manual 10.3.5). Units that aren't SI -
+            %"mB" (mbar) for pressure - are matched whole first, so the "m"
+            %isn't taken as milli. Units not recognised are left unscaled,
+            %with a warning logged once for each
+            %
+            %Inputs:
+            %   unit - the units text, e.g. "mV", "kOhm" or "mB"
+            %
+            %Outputs:
+            %   mult - the multiplier
+
+            baseUnits = ["K", "V", "A", "W", "%", "Ohm", "O", string(char(937)), string(char(8486)), "mB"];   %char(937) and char(8486) are the two Unicode ohm signs
+            prefixes = dictionary(["n", "u", string(char(181)), "m", "k", "M"], [1e-9, 1e-6, 1e-6, 1e-3, 1e3, 1e6]);   %char(181) is the micro sign
+
+            unit = strip(string(unit));
+            if any(unit == baseUnits)
+                mult = 1;
+            elseif strlength(unit) >= 2 && isKey(prefixes, extractBefore(unit, 2)) && any(extractAfter(unit, 1) == baseUnits)
+                mult = prefixes(extractBefore(unit, 2));
+            else
+                mult = 1;
+                if ~any(unit == this.WarnedUnits)
+                    this.WarnedUnits(end+1) = unit;
+                    Palladium.Logging.Logger.Log("Warning", this.Name + ": units '" + unit + "' in a reply are not recognised - the value is recorded unscaled");
+                end
+            end
         end
 
         function tokens = StripAndCheckStatusToken(~, tokens, originalResponse)

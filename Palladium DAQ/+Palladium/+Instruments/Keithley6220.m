@@ -7,15 +7,19 @@ classdef Keithley6220 < Palladium.Core.Instrument
     %talks only to the 6220, which speaks for the pair - which is why a
     %current source returns voltage (or resistance) readings.
     %
-    %Set up and start Delta mode on the instrument before measuring: each
-    %measurement tick just reads the latest Delta reading (`SENS:DATA?`),
-    %which is the previous reading again if no new one has been made since.
-    %Set `Units` to match the reading units selected on the instrument
-    %(UNITS key) - it sets the data column header, and is not sent to or
-    %read from the instrument.
+    %Set up and start Delta mode on the instrument before measuring. On
+    %connecting, the driver reads the reading units selected on the
+    %instrument (`UNIT?`) into `Units`, which names the data column, and
+    %adds the reading number to each reading (`FORM:ELEM READ,RNUM`). Each
+    %measurement tick reads the latest Delta reading (`SENS:DATA?`); if no
+    %new reading has been made since the last tick, it is recorded as NaN
+    %rather than repeated.
     %
-    %The 6220 has GPIB and RS-232 interfaces. Reading without Delta mode
-    %(`DeltaMode` false) is not implemented.
+    %With `DeltaMode` false, the driver records the programmed source
+    %current instead (`SOUR:CURR?`), for using the 6220 as a plain current
+    %source.
+    %
+    %The 6220 has GPIB and RS-232 interfaces.
 
     %% Properties (Public)
     properties(Access = public)
@@ -27,8 +31,13 @@ classdef Keithley6220 < Palladium.Core.Instrument
     properties(Access = public, SetObservable)
         Name = "K6220";                                         %Instrument name, used as the prefix of its data column header
         Connection_Type = Palladium.Enums.ConnectionType.GPIB;  %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
-        DeltaMode (1,1) logical = true;                         %If true, readings come from a paired 2182A nanovoltmeter in Delta mode (the intended use). False is not implemented.
-        Units;                                                  %Units of the readings - Volts, Ohms, Watts or Siemens. Must match the reading units set on the instrument.
+        DeltaMode (1,1) logical = true;                         %If true, record Delta mode readings from a paired 2182A nanovoltmeter. If false, record the programmed source current.
+        Units;                                                  %Units of the Delta readings - Volts, Ohms, Watts or Siemens. Read from the instrument's reading units when connecting in Delta mode.
+    end
+
+    %% Properties (Private)
+    properties(Access = private)
+        LastReadingNumber = NaN;                                %Reading number of the last Delta reading recorded, to spot a reading read again (NaN since connecting)
     end
 
     %% Categoricals
@@ -61,15 +70,23 @@ classdef Keithley6220 < Palladium.Core.Instrument
     methods (Access = public)
 
         function [Headers, Units] = GetHeaders(this)
-            %Data column header and units for the reading returned by Measure, set by `Units`.
+            %Data column header and units for the reading returned by Measure.
+            %The Delta reading, in Units - or the source current, without
+            %DeltaMode
             %
             %Outputs:
-            %   Headers - one header, e.g. "K6220 - Resistance (Ohms)"
-            %   Units   - its units, e.g. "Ohms"
+            %   Headers - one header, e.g. "K6220 - Resistance (Ω)"
+            %   Units   - its units, e.g. "Ω"
+
+            if ~this.DeltaMode
+                Headers = this.Name + " - Source Current (A)";
+                Units = "A";
+                return;
+            end
 
             switch(this.Units)
                 case(this.UnitsType("Volts"));      Headers = this.Name + " - Volts (V)";           Units = "V";
-                case(this.UnitsType("Ohms"));       Headers = this.Name + " - Resistance (Ohms)";   Units = "Ohms";
+                case(this.UnitsType("Ohms"));       Headers = this.Name + " - Resistance (Ω)";      Units = "Ω";
                 case(this.UnitsType("Watts"));      Headers = this.Name + " - Watts (W)";           Units = "W";
                 case(this.UnitsType("Siemens"));    Headers = this.Name + " - Siemens (S)";         Units = "S";
                 otherwise
@@ -78,34 +95,38 @@ classdef Keithley6220 < Palladium.Core.Instrument
         end
 
         function [dataRow] = Measure(this)
-            %Read the latest Delta mode reading, in Units.
+            %Read the latest Delta mode reading (NaN if it is not new), or the source current without DeltaMode.
             %
             %Outputs:
             %   dataRow - the reading (a scalar, matching GetHeaders)
 
             if(this.SimulationMode)
                 %Dummy values if simulating instrument
-                data = this.GenerateSimulatedData(1, Baseline=17, Variance=0.1);
+                dataRow = this.GenerateSimulatedData(1, Baseline=17, Variance=0.1);
+            elseif this.DeltaMode
+                dataRow = this.QueryDeltaModeMeasurementValue();
             else
-                %Query for latest measurement
-                if this.DeltaMode
-                    data = this.QueryDeltaModeMeasurementValue();
-                else
-                    data = this.QueryMeasurementValue();
-                end
+                dataRow = this.QueryDouble("SOUR:CURR?");
             end
-
-            %Assign data to output data row
-            dataRow = data;
         end
 
-        function SendCommand(this, comd)
-            %Send a query to the instrument and display its reply in the Command Window.
-            %
-            %Inputs:
-            %   comd - the query to send, e.g. "UNIT?"
+    end
 
-            this.QueryString(comd)
+    %% Methods (Protected)
+    methods (Access = protected)
+
+        function OnConnected(this)
+            %In Delta mode, read the reading units and add reading numbers to readings.
+            %(6220 Reference Manual: UNIT[:VOLT][:DC]?, and FORMat:ELEMents,
+            %whose RNUMber element numbers each reading)
+
+            this.LastReadingNumber = NaN;
+            if this.SimulationMode || ~this.DeltaMode
+                return;
+            end
+
+            this.WriteCommand("FORM:ELEM READ,RNUM");
+            this.ReadUnits();
         end
 
     end
@@ -113,25 +134,48 @@ classdef Keithley6220 < Palladium.Core.Instrument
     %% Methods (Private)
     methods (Access = private)
 
-        function value = QueryDeltaModeMeasurementValue(this)
-            %Read the latest Delta mode reading.
-            %
-            %Outputs:
-            %   value - the reading, the first field of the reply
+        function ReadUnits(this)
+            %Set Units from the reading units selected on the instrument - V, OHMS, W or SIEM.
 
-            %Returns the latest reading again if there is no new one yet.
-            %The reply may also contain other elements, e.g. the timestamp,
-            %depending on FORMat:ELEMents
-            result = this.QueryString("SENS:DATA?");
-            ss = strsplit(result, ',');
-            value = str2double(ss{1});
+            reply = upper(strtrim(string(this.QueryString("UNIT?"))));
+            switch reply
+                case "V";                       units = "Volts";
+                case "OHMS";                    units = "Ohms";
+                case "W";                       units = "Watts";
+                case {"SIEM", "S", "SIEMENS"};  units = "Siemens";
+                otherwise
+                    error("Keithley6220:UnexpectedUnits", "%s", this.Name + " gave unexpected reading units: """ + reply + """ (expected V, OHMS, W or SIEM).");
+            end
+
+            if this.Units ~= this.UnitsType(units)
+                Palladium.Logging.Logger.Log("Info", this.Name + ": the instrument's reading units are " + units + ", so Units is set to " + units + " (was " + string(this.Units) + ").");
+            end
+            this.Units = this.UnitsType(units);
         end
 
-        function value = QueryMeasurementValue(this) %#ok<MANU>
-            %Read a measurement without Delta mode - not implemented, so this always errors.
+        function value = QueryDeltaModeMeasurementValue(this)
+            %Read the latest Delta reading - NaN if it is the same reading as last time.
+            %SENS:DATA? returns the latest reading again if there is no new
+            %one yet (6220 Reference Manual, Read commands); its reading
+            %number, the last element (e.g. +00001RDNG#), tells the two apart.
+            %An overflow (+9.9E37) is NaN too
+            %
+            %Outputs:
+            %   value - the reading
 
-            value = 43; %#ok<NASGU>
-            error("Keithley6220:NotImplemented", "Not implemented");
+            fields = strsplit(string(this.QueryString("SENS:DATA?")), ",");
+            value = str2double(regexp(fields(1), "[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", "match", "once"));
+            readingNumber = str2double(regexp(fields(end), "\d+", "match", "once"));
+
+            if numel(fields) > 1 && ~isnan(readingNumber)
+                if readingNumber == this.LastReadingNumber
+                    value = NaN;
+                end
+                this.LastReadingNumber = readingNumber;
+            end
+            if value >= 9.9e37
+                value = NaN;
+            end
         end
     end
 end

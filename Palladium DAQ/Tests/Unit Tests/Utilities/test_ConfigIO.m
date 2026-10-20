@@ -103,6 +103,24 @@ classdef test_ConfigIO < matlab.unittest.TestCase
             testCase.verifyEqual(configPath, expectedPath);
         end
 
+        %% ApplyRelativeChoice (private)
+        function test_ApplyRelativeChoice(testCase)
+            % The Relative Path checkboxes in the config entry window turn each path relative or full when saved
+            appDir = testCase.TestingDir;
+            fullPath = Palladium.Utilities.PathUtils.CleanPath(fullfile(appDir, "Data", "Run 1"));
+            relativePath = fullfile("Data", "Run 1");
+            cio = testCase.ConfigIOInstance;
+
+            testCase.verifyEqual(cio.ApplyRelativeChoice(fullPath, true, appDir), relativePath, "A full path inside the application folder should be made relative");
+            testCase.verifyEqual(cio.ApplyRelativeChoice(relativePath, false, appDir), fullPath, "A relative path should be made full");
+            testCase.verifyEqual(cio.ApplyRelativeChoice(relativePath, true, appDir), relativePath, "A relative path should stay relative");
+            testCase.verifyEqual(cio.ApplyRelativeChoice(fullPath, false, appDir), fullPath, "A full path should stay full");
+
+            %A folder outside the application folder is made relative with ".."
+            siblingPath = Palladium.Utilities.PathUtils.CleanPath(fullfile(appDir, "..", "Elsewhere"));
+            testCase.verifyEqual(cio.ApplyRelativeChoice(siblingPath, true, appDir), fullfile("..", "Elsewhere"));
+        end
+
         %% CopyLegacyConfig (private)
         function test_CopyLegacyConfig_CopiesOldConfig(testCase)
             % A config file in the application folder is copied to the new place, if there is none there yet

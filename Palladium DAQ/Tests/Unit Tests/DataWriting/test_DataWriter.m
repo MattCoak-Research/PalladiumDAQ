@@ -184,6 +184,21 @@ classdef test_DataWriter < matlab.unittest.TestCase
             testCase.verifyEqual(lines(5), tricky);
         end
 
+        function test_WriteHeaders_UncreatableFileErrorsClearlyTest(testCase)
+            %A file that can't be created (here in a folder that doesn't
+            %exist) gives a clear error naming it - it used to fail on the
+            %first write with "Invalid file identifier"
+            details = testCase.makeDetails("acq", Directory=fullfile(testCase.TempDir, "no", "such", "folder"));
+            writer = Palladium.DataWriting.DataWriter(details);
+
+            testCase.verifyError(@() writer.WriteHeaders("a"), "WriteHeadersError:OpenFailed");
+            try
+                writer.WriteHeaders("a");
+            catch err
+                testCase.verifySubstring(err.message, writer.FileWriteDetails.FilePath);
+            end
+        end
+
         %% WriteLine and WriteData
         function test_WriteLine_AppendsTabDelimitedRowsTest(testCase)
             writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("acq"));
@@ -264,9 +279,11 @@ classdef test_DataWriter < matlab.unittest.TestCase
             details = testCase.makeDetails("acq", Directory=fullfile(testCase.TempDir, "no", "such", "folder"));
             writer = Palladium.DataWriting.DataWriter(details);
 
-            testCase.verifyWarning(@() testCase.runQuietly(@() writer.WriteLine([1 2 3])), "WriteLineWarning:WriteFailed");
+            %Logged, not MATLAB warnings - the compiled app shows those as error boxes
+            testCase.verifyWarningFree(@() testCase.runQuietly(@() writer.WriteLine([1 2 3])));
 
             logText = fileread(logPath);
+            testCase.verifySubstring(logText, "failed (attempt 1 of 3)");
             testCase.verifySubstring(logText, "failed after 3 attempts. Data have been lost.");
         end
 
@@ -275,9 +292,23 @@ classdef test_DataWriter < matlab.unittest.TestCase
             details = testCase.makeDetails("acq", Directory=fullfile(testCase.TempDir, "no", "such", "folder"));
             writer = Palladium.DataWriting.DataWriter(details);
 
-            testCase.verifyWarning(@() testCase.runQuietly(@() writer.WriteData([1 2; 3 4])), "WriteDataWarning:WriteFailed");
+            testCase.verifyWarningFree(@() testCase.runQuietly(@() writer.WriteData([1 2; 3 4])));
 
             testCase.verifySubstring(fileread(logPath), "failed after 3 attempts. Data have been lost.");
+        end
+
+        function test_WriteLine_WaitsBetweenAttemptsTest(testCase)
+            %Each failed attempt is followed by a pause, so a briefly locked
+            %file has time to be released - the attempts used to follow each
+            %other at once, so all failed within microseconds
+            testCase.initialiseLogger();
+            details = testCase.makeDetails("acq", Directory=fullfile(testCase.TempDir, "no", "such", "folder"));
+            writer = Palladium.DataWriting.DataWriter(details);
+            minimumTime = (Palladium.DataWriting.DataWriter.WriteAttempts - 1) * Palladium.DataWriting.DataWriter.WriteRetryPause;
+
+            timer = tic;
+            testCase.runQuietly(@() writer.WriteLine([1 2 3]));
+            testCase.verifyGreaterThanOrEqual(toc(timer), minimumTime);
         end
 
         %% InsertMetadataLines
@@ -321,6 +352,37 @@ classdef test_DataWriter < matlab.unittest.TestCase
             testCase.verifyEqual(after(endIdx+1:end), before(endIdx:end), "End marker, blank line, headers and data");
         end
 
+        function test_InsertMetadataLines_ChangesNothingButTheInsertedLinesTest(testCase)
+            %Byte for byte: indented lines keep their leading spaces, and
+            %the CRLF line endings stay CRLF - the file used to be read with
+            %textscan, which stripped leading spaces, and written back with LF
+            details = testCase.makeDetails("acq", Description="  indented description");
+            writer = Palladium.DataWriting.DataWriter(details);
+            writer.WriteHeaders(sprintf("a\tb"), MetadataLines=["  indented", "", sprintf("\ttabbed")]);
+            writer.WriteLine([1 2]);
+            before = string(fileread(writer.FileWriteDetails.FilePath));
+            marker = Palladium.DataWriting.DataWriter.END_METADATA_LINES_STRING;
+
+            writer.InsertMetadataLines(["  new one", "new two"]);
+
+            expected = replace(before, marker + sprintf("\r\n"), sprintf("  new one\r\nnew two\r\n") + marker + sprintf("\r\n"));
+            testCase.verifyEqual(string(fileread(writer.FileWriteDetails.FilePath)), expected);
+        end
+
+        function test_InsertMetadataLines_KeepsLFLineEndingsTest(testCase)
+            %A file with LF line endings gets LF on the inserted lines too
+            writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("lf"));
+            marker = Palladium.DataWriting.DataWriter.END_METADATA_LINES_STRING;
+            before = "info" + newline + marker + newline + newline + "a" + char(9) + "b" + newline;
+            fid = fopen(writer.FileWriteDetails.FilePath, "w");
+            fprintf(fid, "%s", before);
+            fclose(fid);
+
+            writer.InsertMetadataLines("new");
+
+            testCase.verifyEqual(string(fileread(writer.FileWriteDetails.FilePath)), replace(before, marker, "new" + newline + marker));
+        end
+
         function test_InsertMetadataLines_KeepsFormatCharactersLiteralTest(testCase)
             writer = testCase.writerWithData("acq");
             tricky = "50% done C:\new\table %s %d";
@@ -331,23 +393,42 @@ classdef test_DataWriter < matlab.unittest.TestCase
         end
 
         function test_InsertMetadataLines_NoEndMarkerWarnsAndLeavesFileUnchangedTest(testCase)
-            logPath = testCase.initialiseLogger(); %#ok<NASGU>
+            logPath = testCase.initialiseLogger();
             writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("plain"));
             fid = fopen(writer.FileWriteDetails.FilePath, "w");
             fprintf(fid, "line one\nline two\n");
             fclose(fid);
             before = fileread(writer.FileWriteDetails.FilePath);
 
-            testCase.verifyWarning(@() testCase.runQuietly(@() writer.InsertMetadataLines("x")), "InsertMetadataLinesWarning:MetadataMarkerNotFound");
+            openBefore = testCase.openFileIds();
+            testCase.verifyWarningFree(@() testCase.runQuietly(@() writer.InsertMetadataLines("x")));
+            logText = fileread(logPath);
+            testCase.verifySubstring(logText, "its end-of-metadata line (<<< END METADATA LINES >>>) was not found");
 
+            %Only that message - the file used to be closed a second time,
+            %adding "Could not add metadata lines ... Invalid file identifier"
+            testCase.verifyEqual(count(logText, "Could not add metadata lines"), 1, logText);
             testCase.verifyEqual(fileread(writer.FileWriteDetails.FilePath), before);
+            testCase.verifyEqual(testCase.openFileIds(), openBefore, "No file should be left open");
+        end
+
+        function test_InsertMetadataLines_ClosesTheFileTest(testCase)
+            %After inserting, the file is closed again (not left open and
+            %locked on Windows)
+            writer = testCase.writerWithData("acq", MetadataLines="m1");
+            openBefore = testCase.openFileIds();
+
+            writer.InsertMetadataLines("inserted");
+
+            testCase.verifyEqual(testCase.openFileIds(), openBefore);
         end
 
         function test_InsertMetadataLines_MissingFileWarnsInsteadOfThrowingTest(testCase)
-            testCase.initialiseLogger();
+            logPath = testCase.initialiseLogger();
             writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("never_written"));
 
-            testCase.verifyWarning(@() testCase.runQuietly(@() writer.InsertMetadataLines("x")), "InsertMetadataLinesWarning:WriteFailed");
+            testCase.verifyWarningFree(@() testCase.runQuietly(@() writer.InsertMetadataLines("x")));
+            testCase.verifySubstring(fileread(logPath), "Could not add metadata lines to " + writer.FileWriteDetails.FilePath);
             testCase.verifyFalse(isfile(writer.FileWriteDetails.FilePath), "Must not create the file");
         end
 
@@ -616,6 +697,42 @@ classdef test_DataWriter < matlab.unittest.TestCase
             testCase.verifyError(@() writer.SaveFigure(fig, ax, fullfile(testCase.TempDir, "nope"), "myplot"), "SaveFigureError:SaveFailed");
         end
 
+        function test_SaveFigure_ErrorMessageSeparatesCauseTest(testCase)
+            %The cause follows a ": " - it used to run straight on
+            [fig, ax] = testCase.makeFigure();
+            writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("acq"));
+
+            try
+                writer.SaveFigure(fig, ax, fullfile(testCase.TempDir, "nope"), "myplot");
+                testCase.verifyFail("Expected an error");
+            catch err
+                testCase.verifySubstring(err.message, "Error saving figure in DataWriter: ");
+            end
+        end
+
+        function test_SaveFigure_TitleWithCharactersNotAllowedInFileNamesTest(testCase)
+            %A title such as "Field / Temperature: 4 K" is saved with those
+            %characters replaced - saving used to fail
+            [fig, ax] = testCase.makeFigure();
+            title(ax, "Field (T) / Temperature: 4 K?");
+            writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("acq"));
+
+            writer.SaveFigure(fig, ax, testCase.TempDir, "ignored_name");
+
+            testCase.verifyTrue(isfile(fullfile(testCase.TempDir, "Field (T) - Temperature- 4 K--Fig-00001.png")));
+        end
+
+        function test_SaveFigure_TitleWithNoUsableCharactersKeepsGivenNameTest(testCase)
+            %A title of only spaces: nothing usable is left for a file name
+            [fig, ax] = testCase.makeFigure();
+            title(ax, "   ");
+            writer = Palladium.DataWriting.DataWriter(testCase.makeDetails("acq"));
+
+            writer.SaveFigure(fig, ax, testCase.TempDir, "given_name");
+
+            testCase.verifyTrue(isfile(fullfile(testCase.TempDir, "given_name-Fig-00001.png")));
+        end
+
         function test_SaveFigure_ExactFileNameUsesNameAsGivenTest(testCase)
             %As from a Save As dialog: no -Fig, no number, and a title doesn't replace the name
             [fig, ax] = testCase.makeFigure();
@@ -771,9 +888,11 @@ classdef test_DataWriter < matlab.unittest.TestCase
         end
 
         function test_BuildMetadataLineFromHeaderValuePair_EmptyDataRowWarnsAndReturnsPrefixTest(testCase)
+            logPath = testCase.initialiseLogger();
             line = [];
-            testCase.verifyWarning(@() assignOutput(), "BuildMetadataLineStringFromHeaderValuePairWarning:EmptyDataRow");
+            testCase.verifyWarningFree(@() assignOutput());
             testCase.verifyEqual(line, "Prefix: ");
+            testCase.verifySubstring(fileread(logPath), "No data values for the metadata line starting ""Prefix: """);
 
             function assignOutput()
                 line = Palladium.DataWriting.DataWriter.BuildMetadataLineStringFromHeaderValuePair("Prefix: ", ["a", "b"], []);
@@ -781,9 +900,12 @@ classdef test_DataWriter < matlab.unittest.TestCase
         end
 
         function test_BuildMetadataLineFromHeaderValuePair_EmptyHeaderRowWarnsAndReturnsPrefixTest(testCase)
+            %Its own message - it used to be reported as an empty data row
+            logPath = testCase.initialiseLogger();
             line = [];
-            testCase.verifyWarning(@() assignOutput(), "BuildMetadataLineStringFromHeaderValuePairWarning:EmptyDataRow");
+            testCase.verifyWarningFree(@() assignOutput());
             testCase.verifyEqual(line, "Prefix: ");
+            testCase.verifySubstring(fileread(logPath), "No column headers for the metadata line starting ""Prefix: """);
 
             function assignOutput()
                 line = Palladium.DataWriting.DataWriter.BuildMetadataLineStringFromHeaderValuePair("Prefix: ", [], [1 2]);
@@ -921,6 +1043,16 @@ classdef test_DataWriter < matlab.unittest.TestCase
             testCase.addTeardown(@() Palladium.Logging.Logger.Log("Debug", "Logging stopped", "Controller", true, ...
                 "LogFileDirectory", testCase.LogDir, "LogFileFileName", "unit.log", ...
                 "CommandWindowMessageLevel", "Off", "GUIMessageLevel", "Off", "LogFileMessageLevel", "Off"));
+        end
+
+        function ids = openFileIds(~)
+            %Identifiers of all files currently open. openedFiles replaces
+            %the deprecated fopen('all') in newer releases
+            if ~isempty(which("openedFiles"))
+                ids = openedFiles();
+            else
+                ids = fopen('all');
+            end
         end
 
         function runQuietly(~, fcn) %#ok<INUSD>

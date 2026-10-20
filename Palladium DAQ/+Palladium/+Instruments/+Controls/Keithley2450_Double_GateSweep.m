@@ -65,7 +65,6 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
     properties (Access = protected)
         SecondInstrument;           %Palladium.Core.Instrument reference for the second (Gate, pulse) SMU
         ParentController;           %Palladium.Core.Controller reference, stored so Run() can log via the standard Controller.Log path. Empty when running headless
-        GUIView;                    %Empty when running headless
         timerVal;
     end
 
@@ -147,10 +146,14 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             %Store the reference to this View as a property
             this.GUIView = comp;
 
-            %Update the instrument selection dropdown in the View, get from
-            %Controller
-            instrsList = controller.InstrumentController.GetInstruments();
-            this.SetInstrumentList(instrsList);
+            %Fill the Gate instrument drop-down, and keep it up to date as
+            %instruments are added and removed - it used to be filled only
+            %here, so a Gate added after the control never appeared. It may
+            %be empty until then: a Gate is only needed to Run (RequestRun)
+            instrController = controller.InstrumentController;
+            this.SetInstrumentList(instrController.GetInstruments());
+            ltr = this.AddGuardedListener(instrController, 'InstrumentsChanged', @(src,evnt)this.SetInstrumentList(evnt.Instruments));
+            this.RegisterEventListener(ltr);
 
             %Subscribe to events
             this.AddGuardedListener(comp, 'Run', @(src,evnt)this.RequestRun(evnt.SweepDetails));
@@ -228,6 +231,15 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             arguments
                 this;
                 sweepDetails = [];
+            end
+
+            %A Gate is only needed now, so it is checked here rather than
+            %when the control is added - the second 2450 may be added later
+            if ~isempty(sweepDetails) && ~Palladium.Instruments.Controls.Keithley2450_Double_GateSweep.IsUsableGate(sweepDetails.GateInstr)
+                Palladium.Utilities.GUIUtils.ShowWarning(this.GUIView, "Choose the Gate instrument first. The sweep pulses the gate with a second Keithley 2450 - " + ...
+                    "add one to Palladium, and it will appear in the Gate instrument list.", "No Gate instrument");
+                this.GUIView.SweepComplete();     %Back to ready to Run
+                return;
             end
 
             if this.IsMeasurementLoopRunning()
@@ -470,8 +482,8 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             %MATLAB/GPIB round-trip per point for speed. Everything it
             %references (measBuffer, digio mode, smu settings) was already
             %configured via individual commands in ConfigureMainInstrument.
-            nStr = num2str(numMeasurements);
-            lineStr = num2str(this.DigioLine);
+            nStr = Palladium.Core.Instrument.NumberToCommandString(numMeasurements);
+            lineStr = Palladium.Core.Instrument.NumberToCommandString(this.DigioLine);
             nl = newline;
 
             %After the last reading, either leave the output on (the level
@@ -498,9 +510,9 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             %the original: each pulse steps further from Baseline_V by
             %PulseVoltage_V, alternating sign every other pulse. Reads into
             %gateBuffer, made in ConfigureSecondInstrument.
-            lineStr = num2str(this.DigioLine);
-            baselineStr = num2str(this.Baseline_V);
-            pulseVStr = num2str(this.PulseVoltage_V);
+            lineStr = Palladium.Core.Instrument.NumberToCommandString(this.DigioLine);
+            baselineStr = Palladium.Core.Instrument.NumberToCommandString(this.Baseline_V);
+            pulseVStr = Palladium.Core.Instrument.NumberToCommandString(this.PulseVoltage_V);
             nl = newline;
 
             %After the last point (a pulse, not the baseline), either return
@@ -516,18 +528,18 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             %  -- measure or trigger the other 2450
             script = "local function do_point(v, take_measurement)" + nl + ...
                 "    smu.source.level = v" + nl + ...
-                "    delay(" + num2str(this.PulseWidth_s) + ")" + nl + ...
+                "    delay(" + Palladium.Core.Instrument.NumberToCommandString(this.PulseWidth_s) + ")" + nl + ...
                 "    if take_measurement then" + nl +...
                 "       digio.line[" + lineStr + "].state = digio." + pulseState + nl + ...
                 "       smu.measure.read(gateBuffer)" + nl + ...
-                "       delay(" + num2str(this.OffTime_s) + ")" + nl + ...
+                "       delay(" + Palladium.Core.Instrument.NumberToCommandString(this.OffTime_s) + ")" + nl + ...
                 "       digio.line[" + lineStr + "].state = digio." + idleState + nl + ...
                 "    else" + nl +...
-                "       delay(" + num2str(this.OffTime_s) + ")" + nl + ...
+                "       delay(" + Palladium.Core.Instrument.NumberToCommandString(this.OffTime_s) + ")" + nl + ...
                 "    end" + nl +...
                 "end" + nl + ...
                 nl + ...
-                "for i = 0, " + num2str(this.NumPulses) + " - 1 do" + nl + ...
+                "for i = 0, " + Palladium.Core.Instrument.NumberToCommandString(this.NumPulses) + " - 1 do" + nl + ...
                 "    do_point(" + baselineStr + ", i == 0)" + nl + ...
                 nl + ...
                 "    local half = math.floor(i / 2) + 1" + nl + ...
@@ -609,14 +621,14 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             instr.WriteCommand("smu.source.func = smu.FUNC_DC_VOLTAGE");
             instr.SetVoltageSourceOVP(this.MainOVPSetting);
             instr.WriteCommand("smu.source.autorange = smu.OFF");
-            instr.WriteCommand("smu.source.range = " + num2str(Palladium.Instruments.Controls.Keithley2450_Double_GateSweep.SourceRangeFor(this.Bias_V)));
-            instr.WriteCommand("smu.source.level = " + num2str(this.Bias_V));
-            instr.WriteCommand("smu.source.ilimit.level = " + num2str(this.Compliance2450_A));
+            instr.WriteCommand("smu.source.range = " + Palladium.Core.Instrument.NumberToCommandString(Palladium.Instruments.Controls.Keithley2450_Double_GateSweep.SourceRangeFor(this.Bias_V)));
+            instr.WriteCommand("smu.source.level = " + Palladium.Core.Instrument.NumberToCommandString(this.Bias_V));
+            instr.WriteCommand("smu.source.ilimit.level = " + Palladium.Core.Instrument.NumberToCommandString(this.Compliance2450_A));
 
             instr.WriteCommand("smu.measure.func = smu.FUNC_DC_CURRENT");
             instr.WriteCommand("smu.measure.autorange = smu.OFF");
-            instr.WriteCommand("smu.measure.range = " + num2str(this.Compliance2450_A));
-            instr.WriteCommand("smu.measure.nplc = " + num2str(this.NPLC));
+            instr.WriteCommand("smu.measure.range = " + Palladium.Core.Instrument.NumberToCommandString(this.Compliance2450_A));
+            instr.WriteCommand("smu.measure.nplc = " + Palladium.Core.Instrument.NumberToCommandString(this.NPLC));
             this.ApplySpeedSettings(instr);
 
             %Sense mode is stored per measure function, so set it after
@@ -628,10 +640,10 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
                 instr.WriteCommand("smu.measure.sense = smu.SENSE_2WIRE");
             end
 
-            instr.WriteCommand("digio.line[" + num2str(this.DigioLine) + "].mode = digio.MODE_DIGITAL_IN");
+            instr.WriteCommand("digio.line[" + Palladium.Core.Instrument.NumberToCommandString(this.DigioLine) + "].mode = digio.MODE_DIGITAL_IN");
 
             instr.WriteCommand("smu.source.output = smu.ON");
-            instr.WriteCommand("measBuffer = buffer.make(" + num2str(numMeasurements) + ")");
+            instr.WriteCommand("measBuffer = buffer.make(" + Palladium.Core.Instrument.NumberToCommandString(numMeasurements) + ")");
         end
 
         function ConfigureSecondInstrument(this, numMeasurements, idleState)
@@ -650,21 +662,21 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             instr.WriteCommand("smu.source.func = smu.FUNC_DC_VOLTAGE");
             instr.SetVoltageSourceOVP(this.GateOVPSetting);
             instr.WriteCommand("smu.source.autorange = smu.OFF");
-            instr.WriteCommand("smu.source.range = " + num2str(Palladium.Instruments.Controls.Keithley2450_Double_GateSweep.SourceRangeFor(this.GetGateVoltageExtremes())));
-            instr.WriteCommand("smu.source.ilimit.level = " + num2str(this.Compliance2450_Gate_A));
+            instr.WriteCommand("smu.source.range = " + Palladium.Core.Instrument.NumberToCommandString(Palladium.Instruments.Controls.Keithley2450_Double_GateSweep.SourceRangeFor(this.GetGateVoltageExtremes())));
+            instr.WriteCommand("smu.source.ilimit.level = " + Palladium.Core.Instrument.NumberToCommandString(this.Compliance2450_Gate_A));
             instr.WriteCommand("smu.source.autodelay = smu.OFF");
 
             instr.WriteCommand("smu.measure.func = smu.FUNC_DC_CURRENT");
             instr.WriteCommand("smu.measure.autorange = smu.OFF");
-            instr.WriteCommand("smu.measure.range = " + num2str(this.Compliance2450_Gate_A));
-            instr.WriteCommand("smu.measure.nplc = " + num2str(this.NPLC));
+            instr.WriteCommand("smu.measure.range = " + Palladium.Core.Instrument.NumberToCommandString(this.Compliance2450_Gate_A));
+            instr.WriteCommand("smu.measure.nplc = " + Palladium.Core.Instrument.NumberToCommandString(this.NPLC));
             this.ApplySpeedSettings(instr);
 
-            instr.WriteCommand("digio.line[" + num2str(this.DigioLine) + "].mode = digio.MODE_DIGITAL_OUT");
-            instr.WriteCommand("digio.line[" + num2str(this.DigioLine) + "].state = digio." + idleState);
+            instr.WriteCommand("digio.line[" + Palladium.Core.Instrument.NumberToCommandString(this.DigioLine) + "].mode = digio.MODE_DIGITAL_OUT");
+            instr.WriteCommand("digio.line[" + Palladium.Core.Instrument.NumberToCommandString(this.DigioLine) + "].state = digio." + idleState);
 
             instr.WriteCommand("smu.source.output = smu.ON");
-            instr.WriteCommand("gateBuffer = buffer.make(" + num2str(numMeasurements) + ")");
+            instr.WriteCommand("gateBuffer = buffer.make(" + Palladium.Core.Instrument.NumberToCommandString(numMeasurements) + ")");
         end
 
         function maxWait_s = EstimateMaxRunTime(this, numMeasurements)
@@ -716,19 +728,14 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
         end
 
         function LogWarning(this, message)
-            %Warnings go through the central Logger when running within
-            %Palladium (the Logger needs the app's setup), otherwise as a
-            %MATLAB warning so this Control also works headless
-            if ~isempty(this.ParentController)
-                Palladium.Logging.Logger.Log("Warning", message);
-            else
-                warning("Keithley2450_Double_GateSweep:Warning", "%s", message);
-            end
+            %Through the central Logger - which, without Palladium running,
+            %shows it in the Command Window
+            Palladium.Logging.Logger.Log("Warning", message);
         end
 
-        function OnMeasurementsInitialised(this, headers)
+        function OnMeasurementsInitialised(this, ~)
+            %The base class has stored the headers and passed them to the GUIView
             if ~isempty(this.GUIView)
-                this.GUIView.UpdateAvailableDataColumnHeaders(headers);
                 this.GUIView.SetReady();
                 this.GUIView.EnableRunButton();
             end
@@ -749,7 +756,7 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             %with several columns interleaves them point by point
             %(src1, reading1, time1, src2, reading2, time2, ...)
             this.Log("Pulling buffer data back from both SMUs...");
-            nStr = num2str(numMeasurements);
+            nStr = Palladium.Core.Instrument.NumberToCommandString(numMeasurements);
 
             
 
@@ -1015,33 +1022,38 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
 
 
         function SetInstrumentList(this, listOfAllInstrs)
+            %Fill the GUI's Gate instrument drop-down with the Keithley 2450s that can be the Gate (see GateCandidates).
+            %Called when the control is created, and whenever an instrument
+            %is added or removed (the InstrumentController's
+            %InstrumentsChanged event). The Gate chosen is kept if it is
+            %still there. An empty list is fine until Run (see RequestRun)
+            %
+            %Inputs:
+            %   listOfAllInstrs - cell array of all the instruments added
 
-            %Only add Keithley 2450 instances that are not the parent -
-            %filter out the rest
-
-            if isempty(listOfAllInstrs)
-                warndlg("No additional instruments added. Double Gate Sweep requires two Keithleys to be live, or it cannot run");
+            if isempty(this.GUIView) || ~isvalid(this.GUIView)
                 return;
             end
 
-            kInstrs = [];
-            for i = 1 : length(listOfAllInstrs)
+            this.GUIView.SetInstrumentList(this.GateCandidates(listOfAllInstrs));
+        end
+
+        function gates = GateCandidates(this, listOfAllInstrs)
+            %The instruments that can be the Gate: the Keithley 2450s added, other than this control's own (the Main).
+            %
+            %Inputs:
+            %   listOfAllInstrs - cell array of all the instruments added
+            %
+            %Outputs:
+            %   gates - 1-by-N array of Keithley2450 (empty 1-by-0 if none)
+
+            gates = Palladium.Instruments.Keithley2450.empty(1, 0);
+            for i = 1 : numel(listOfAllInstrs)
                 instr = listOfAllInstrs{i};
-
-                if isa(instr, "Palladium.Instruments.Keithley2450")
-                    if~strcmp(instr.Name, this.Instrument.Name)
-
-                        if isempty(kInstrs)
-                            kInstrs = instr;
-                        else
-                            kInstrs(end+1) = instr; %#ok<AGROW>
-                        end
-                    end
+                if isa(instr, "Palladium.Instruments.Keithley2450") && isvalid(instr) && instr ~= this.Instrument
+                    gates(end+1) = instr; %#ok<AGROW>
                 end
             end
-
-            %Pass on to update the drop-down in the GUI
-            this.GUIView.SetInstrumentList(kInstrs);
         end
 
         function UpdatePlotterSavedPlotTitle(this)
@@ -1059,6 +1071,17 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
                 this.InsertEndMetadataIntoFile(this.DataWriter);
             end
         end
+    end
+
+    %% Methods (Static, Private)
+    methods (Static, Access = private)
+
+        function tf = IsUsableGate(gate)
+            %True if gate is a Keithley 2450 that still exists - e.g. the GUI's Gate choice, which is empty when the list is.
+
+            tf = isscalar(gate) && isa(gate, "Palladium.Instruments.Keithley2450") && isvalid(gate);
+        end
+
     end
 
     %% Methods (Static, Protected)

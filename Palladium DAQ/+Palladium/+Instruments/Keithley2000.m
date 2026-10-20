@@ -25,7 +25,7 @@ classdef Keithley2000 < Palladium.Core.Instrument
     %% Properties (Public, Private Set)
     properties(GetAccess = public, SetAccess = {?Palladium.Instruments.Keithley2000, ?matlab.unittest.TestCase})
         MeasMode;                                               %Measurement function selected on the instrument, read from it when connecting. Sets the data column header and units.
-        MeasUnit = "Ohms";                                      %Units of the readings in MeasMode, e.g. "V" or "Ohms". Read from the instrument for Temperature (C, F or K) and AC Voltage (V, dB or dBm).
+        MeasUnit = "Ω";                                      %Units of the readings in MeasMode, e.g. "V" or "Ω". Read from the instrument for Temperature (C, F or K) and AC Voltage (V, dB or dBm).
     end
 
     %% Categoricals
@@ -55,16 +55,6 @@ classdef Keithley2000 < Palladium.Core.Instrument
     %% Methods (Public)
     methods (Access = public)
 
-        function Close(this)
-            %Restore continuous readings, then disconnect.
-            %Puts the instrument back to free-running readings, as on the front panel
-
-            if ~this.SimulationMode && ~isempty(this.DeviceHandle)
-                this.WriteCommand(":INIT:CONT ON");
-            end
-            Close@Palladium.Core.Instrument(this);
-        end
-
         function metadataStruct = CollectMetaData(this)
             %Measurement setup, recorded in the data-file header.
             %The function and units and, where the function has them, the range and
@@ -89,40 +79,12 @@ classdef Keithley2000 < Palladium.Core.Instrument
             end
         end
 
-        function Connect(this)
-            %Open the connection and prepare the instrument for measuring.
-            %Sets up triggering for one fresh reading per Measure call, and reads back
-            %the measurement function and units
-            %selected on the instrument
-
-            Connect@Palladium.Core.Instrument(this);
-            if this.SimulationMode
-                return;
-            end
-
-            %Clear the error queue, and have readings sent as a bare number
-            %(no units or channel) so they can be parsed as a double
-            this.WriteCommand("*CLS");
-            this.WriteCommand(":FORM:ELEM READ");
-
-            %Stop free-running readings, so that each :READ? in Measure
-            %triggers and returns one new reading. The function, range,
-            %integration rate and filter set on the front panel are kept
-            %(unlike :CONFigure, which resets them)
-            this.WriteCommand(":INIT:CONT OFF");
-            this.WriteCommand(":TRIG:SOUR IMM");
-            this.WriteCommand(":TRIG:COUN 1");
-            this.WriteCommand(":SAMP:COUN 1");
-
-            [this.MeasMode, this.MeasUnit] = this.GetMeasurementMode();
-        end
-
         function [Headers, Units] = GetHeaders(this)
             %Data column header and units for the reading returned by Measure
             %
             %Outputs:
-            %   Headers - one header, e.g. "K2000 - Resistance_Ohms"
-            %   Units   - its units, e.g. "Ohms"
+            %   Headers - one header, e.g. "K2000 - Resistance_Ω"
+            %   Units   - its units, e.g. "Ω"
 
             switch(this.MeasMode)
                 case(this.MeasType("DC Voltage"));          quantity = "Voltage_DC";
@@ -147,7 +109,7 @@ classdef Keithley2000 < Palladium.Core.Instrument
             %
             %Outputs:
             %   measMode - MeasType categorical, e.g. Resistance
-            %   measUnit - units of the readings, e.g. "Ohms"
+            %   measUnit - units of the readings, e.g. "Ω"
 
             if this.SimulationMode
                 measMode = this.MeasMode;
@@ -162,8 +124,8 @@ classdef Keithley2000 < Palladium.Core.Instrument
                 case("VOLT:AC");    measMode = this.MeasType("AC Voltage");         measUnit = this.QueryUnit(":UNIT:VOLT:AC?");
                 case("CURR:DC");    measMode = this.MeasType("DC Current");         measUnit = "A";
                 case("CURR:AC");    measMode = this.MeasType("AC Current");         measUnit = "A";
-                case("RES");        measMode = this.MeasType("Resistance");         measUnit = "Ohms";
-                case("FRES");       measMode = this.MeasType("4-Wire Resistance");  measUnit = "Ohms";
+                case("RES");        measMode = this.MeasType("Resistance");         measUnit = "Ω";
+                case("FRES");       measMode = this.MeasType("4-Wire Resistance");  measUnit = "Ω";
                 case("FREQ");       measMode = this.MeasType("Frequency");          measUnit = "Hz";
                 case("PER");        measMode = this.MeasType("Period");             measUnit = "s";
                 case("TEMP");       measMode = this.MeasType("Temperature");        measUnit = this.QueryUnit(":UNIT:TEMP?");
@@ -187,13 +149,56 @@ classdef Keithley2000 < Palladium.Core.Instrument
                 return;
             end
 
-            %:READ? triggers a reading and waits for it (see Connect)
+            %:READ? triggers a reading and waits for it (see OpenConnection)
             dataRow = this.QueryDouble(":READ?");
 
             %The instrument returns +9.9e37 for an overrange reading
             if abs(dataRow) >= 9.9e37
                 dataRow = NaN;
             end
+        end
+
+    end
+
+    %% Methods (Protected)
+    methods (Access = protected)
+
+        function OpenConnection(this)
+            %Open the connection and prepare the instrument for measuring.
+            %Sets up triggering for one fresh reading per Measure call, and reads back
+            %the measurement function and units
+            %selected on the instrument
+
+            OpenConnection@Palladium.Core.Instrument(this);
+            if this.SimulationMode
+                return;
+            end
+
+            %Clear the error queue, and have readings sent as a bare number
+            %(no units or channel) so they can be parsed as a double
+            this.WriteCommand("*CLS");
+            this.WriteCommand(":FORM:ELEM READ");
+
+            %Stop free-running readings, so that each :READ? in Measure
+            %triggers and returns one new reading. The function, range,
+            %integration rate and filter set on the front panel are kept
+            %(unlike :CONFigure, which resets them)
+            this.WriteCommand(":INIT:CONT OFF");
+            this.WriteCommand(":TRIG:SOUR IMM");
+            this.WriteCommand(":TRIG:COUN 1");
+            this.WriteCommand(":SAMP:COUN 1");
+
+            [this.MeasMode, this.MeasUnit] = this.GetMeasurementMode();
+        end
+
+        function CloseConnection(this)
+            %Restore continuous readings, then disconnect.
+            %Puts the instrument back to free-running readings, as on the front panel
+
+            if ~this.SimulationMode && ~isempty(this.DeviceHandle)
+                this.WriteCommand(":INIT:CONT ON");
+            end
+            CloseConnection@Palladium.Core.Instrument(this);
         end
 
     end

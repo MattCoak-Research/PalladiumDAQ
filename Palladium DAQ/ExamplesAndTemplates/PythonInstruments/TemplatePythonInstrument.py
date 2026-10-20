@@ -27,6 +27,12 @@ class TemplatePythonInstrument(Instrument):
         # self.WriteTermination = "\r\n"
         # self.ReadTermination = "\r\n"
 
+        # Other connection settings, if the defaults don't suit - mainly for serial
+        # instruments, whose baud rate and parity must match the instrument's. Any left
+        # out use the defaults (9600 baud, 8 data bits, no parity, 1 stop bit; a 10 s
+        # timeout). See "Python instruments" in the documentation for all of them
+        # self.ConnectionSettings = {"SerialSettings": {"BaudRate": 115200, "Parity": "E"}}
+
     @property
     def FullName(self):
         """Descriptive name, shown in the GUI."""
@@ -35,7 +41,7 @@ class TemplatePythonInstrument(Instrument):
     def GetHeaders(self):
         """Column headers and their units - one each, in the same order as Measure's values.
         Palladium DAQ adds the instrument's name in front of each header."""
-        return (["Resistance_Ohms", "Current_A"], ["Ohms", "A"])
+        return (["Resistance_Ω", "Current_A"], ["Ω", "A"])
 
     def Measure(self):
         """Take one reading of each column: realistic made-up values in simulation (Debug) mode."""

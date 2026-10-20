@@ -1,24 +1,40 @@
 classdef(Abstract) Instrument < Palladium.Core.Entity
     %Instrument - Abstract base class that every instrument driver inherits from.
     %Drivers must define `FullName`, `Name` and `Connection_Type`, and implement
-    %`GetHeaders` and `Measure`; connecting, simulation and metadata support come from here.
-
-    %% Properties (Abstract, Constant, Public)
-    properties(Abstract, Constant, Access = public)
-    end
+    %`GetHeaders` and `Measure`. This class provides the rest:
+    %
+    %* **Connecting** over GPIB, VISA, USB, Ethernet or serial (`Connect`,
+    %  `Disconnect`), and a Debug connection type that puts the driver in
+    %  `SimulationMode`, for testing without hardware. `IsConnected` says
+    %  whether it is connected. Drivers customise connecting by overriding
+    %  the protected `OpenConnection`, `CloseConnection` and `OnConnected`.
+    %* **Communication**: `WriteCommand`, `QueryString`, `QueryDouble` and
+    %  `ReadString`, which do nothing (or return dummy values) in simulation.
+    %* **GUI settings**: public `SetObservable` properties are shown and
+    %  editable in the Instrument Options panel, and raise `PropertyChanged`.
+    %  `ShowProperty` hides the addresses not used by the connection type.
+    %* **Instrument Controls**: `DefineInstrumentControl` (in the constructor)
+    %  offers controls such as a Sweep Control; Palladium creates them and
+    %  registers them here.
+    %* **Metadata**: override `CollectMetaData` to record settings in the
+    %  data file header.
+    %
+    %See `ExamplesAndTemplates/Instruments/TemplateInstrumentClass.m` and the
+    %"Writing an instrument driver" guide.
 
     %% Properties (Abstract, Public)
     properties(Abstract, Access = public)
-        FullName;   %Will be displayed on eg instrument settings tab
-        Name;
-        Connection_Type;   %Type of connection to use to communicate with the instrument. Value will be a member of the ConnectionType Enum
+        FullName;           %Full name of the instrument, displayed in the GUI, e.g. "Keithley 2000 Multimeter"
+        Name;               %Instrument name, used as the prefix of its data column headers - Palladium adds a number, e.g. "K2000_1"
+        Connection_Type;    %Type of connection used to talk to the instrument: a Palladium.Enums.ConnectionType, one of those set by DefineSupportedConnectionTypes
     end
 
     %% Properties (Public)
-    properties(Access = public) %Properties that will not get detected by the GUI and have buttons added for them
-        LastFullDataRow = [];           %Each tick, the Controller will store the complete DataRow in each Instrument here. This is used when Instruments write their own data files, for things like independent sweeps
-        FullHeadersRow = [];            %On measurements start, this will get cached with the full array of headers for the whole setup - again, for instrument-driven data writing.
-        FileWriteDetails = [];
+    % Not shown in the GUI
+    properties(Access = public)
+        LastFullDataRow = [];           %The last row of data from all instruments, stored here each tick by the InstrumentController - for Instrument Controls that write their own data files
+        FullHeadersRow = [];            %The data column headers of all instruments, stored here when measurements start - matches LastFullDataRow
+        FileWriteDetails = [];          %The main data file's settings (directory, file name, whether writing), copied here when measurements start - for Instrument Controls that write their own data files
         InstrumentDriversDir = "";      %The user files folder's Instrument Drivers folder, set by Palladium when the instrument is added - for drivers that load vendor files (e.g. .NET dlls) from there. Empty if the instrument was made outside Palladium
     end
 
@@ -28,7 +44,7 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
         GPIB_Address    (1,1) {mustBeInteger, mustBeBetween(GPIB_Address, 0, 30)} = 0;
 
         %IP address or hostname of the instrument, e.g. '192.168.1.10'. Used (and shown in the GUI) when Connection_Type is Ethernet; the TCP port is ConnectionSettings.Port.
-        IP_Address      {mustBeTextScalar}  = '192.0.0.0.0';
+        IP_Address      {mustBeTextScalar}  = '127.0.0.1';
 
         %Serial port name, e.g. 'COM3' on Windows or '/dev/ttyUSB0' on Linux. Used (and shown in the GUI) when Connection_Type is Serial; baud rate etc. are in ConnectionSettings.SerialSettings.
         Serial_Address  {mustBeTextScalar} = 'COM12';
@@ -39,18 +55,27 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
 
     %% Properties (Public, Protected Set)
     properties(GetAccess = public, SetAccess = protected)
-        SimulationMode = false;         %Set to true if testing code while not actually connected to a physical instrument - dummy data will be generated. Set via constructor of instance classes only.
+        SimulationMode = false;         %True when connected with the Debug connection type: no hardware is used, and drivers return simulated data
+    end
+
+    %% Properties (Public, Private Set)
+    properties(GetAccess = public, SetAccess = private)
+        IsConnected (1,1) logical = false;  %True between Connect and Disconnect - in Debug mode too. UpdateAndMeasure errors when false
     end
 
     %% Properties (Protected)
     properties(Access = protected)
-        DeviceHandle = [];              %Reference to the instrument connection/session, set when calling Connect()
-        SettingsToApply = [];           %Either null, or a struct of all the settings to apply in the next Measure command (keep these calls synchronous, they come originally from events)
-        SimulatedData = [];             %Empty placeholder where an Instrument can define struct properties like SimulatedData.SourceLevel for testing things like SweepControl
+        DeviceHandle = [];              %The connection to the instrument (visadev, tcpclient or serialport), set by OpenConnection - empty when not connected
+        SettingsToApply = [];           %Settings entered in an Instrument Control (e.g. a Heater Control), waiting to be applied on the next tick, or [] for none
+        SimulatedData = [];             %Struct of values a driver stores for its simulated data, e.g. SimulatedData.SourceLevel - see RetrieveSimulatedDataValue
 
-        %Default Connection Settings - override individual settings in implementation class
-        %constructors
+        %Connection settings - drivers override individual fields in their
+        %constructors: GPIB_BoardIndex, GPIB_SecondaryAddress ([] for
+        %none), Port (TCP, for Ethernet), GPIB_Terminators (read and
+        %write), GPIB_Timeout (s) and SerialSettings (BaudRate, DataBits,
+        %Parity, StopBits, Terminator)
         ConnectionSettings = struct('GPIB_BoardIndex', 0,...
+            'GPIB_SecondaryAddress', [],...
             'Port', 5025,...
             'GPIB_Terminators', ["CR/LF", "CR/LF"],...
             'GPIB_Timeout', 10,...
@@ -67,25 +92,44 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             Palladium.Enums.ConnectionType.Ethernet,...
             Palladium.Enums.ConnectionType.Serial,...
             Palladium.Enums.ConnectionType.USB...
-            ];
-        ControlClasses = [];
-        ControlDetailsStructs = []; % List of structs that define the options for later creating Control Classes
+            ];                          %Connection types offered for this instrument - all by default, set by DefineSupportedConnectionTypes
+        ControlClasses = [];            %The Instrument Controls added to this instrument
+        ControlDetailsStructs = [];     %Definitions of the Instrument Controls that can be added, from DefineInstrumentControl
     end
 
     %% Events
     events (NotifyAccess = private)
-        PropertyChanged;
+        PropertyChanged;                %Raised when any public SetObservable property (a GUI setting) changes
     end
 
     %% Methods (Abstract, Public)
     methods(Abstract, Access = public)
+        %Data column headers and units for the values returned by Measure.
+        %Each header should start with the instrument's Name, e.g.
+        %`this.Name + " - Voltage (V)"`
+        %
+        %Outputs:
+        %   Headers - string array of column headers
+        %   Units   - string array of their units, the same length
         [Headers, Units] = GetHeaders(this);
+
+        %Take a reading, returning one value per header of GetHeaders.
+        %Called once per measurement tick. In SimulationMode, return
+        %simulated values (see GenerateSimulatedData)
+        %
+        %Outputs:
+        %   dataRow - row of values, in the order of GetHeaders
         [dataRow] = Measure(this);
     end
 
     %% Constructor
     methods
         function this = Instrument()
+            %Set up the PropertyChanged event for the GUI settings.
+            %Driver constructors must work with no arguments and no hardware
+            %attached: they only set defaults, the supported connection types
+            %and the Instrument Controls offered
+
             %Register events that will auto-fire when we modify
             %SetObservable events on this instance ("PropertyChanged")
             this.RegisterPropertyChangedEvents();
@@ -96,96 +140,56 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
     methods(Access = public)
 
         function AbortRamp(this)
-            %Override in base classes to support SweepController_Ramp
-            %functionality
+            %Stop a ramp in progress - override for instruments with a Ramp Sweep Control.
+            %Called by SweepController_Ramp when a sweep is aborted. Does
+            %nothing by default
         end
 
         function CheckForSettingsToApply(this)
-            %Apply heater control settings, if Set has been pressed on a
-            %ControlPanel somewhere
+            %Apply settings entered in an Instrument Control, if there are any waiting.
+            %Called by the InstrumentController each tick. Passes the settings
+            %stored by SettingsInput to ApplySettings, then clears them
+
             if ~isempty(this.SettingsToApply)
                 this.ApplySettings(this.SettingsToApply);
                 this.SettingsToApply = [];
             end
         end
 
-        function Close(this)
-            %This (so far) looks to be common behaviour across all instruments.
-            %Can override this function in implementing class if more behaviour needed.
-            switch(this.Connection_Type)
-                case(Palladium.Enums.ConnectionType.Debug)
-                    %Just print a message
-                    disp("Disconnected from simulated " + this.Name + " instrument.");
-                otherwise
-                    %Warn and return if there is no connection to disconnect from
-                    if(isempty(this.DeviceHandle))
-                        disp("Tried to close " + this.Name + " but it is not connected, or has no device handle. Returning Disconnect() with no action taken.");
-                        return;
-                    end
-
-                    %Terminate the connection, reporting any errors if
-                    %found
-                    try
-                        this.DeviceHandle = [];
-                    catch e
-                        error("CloseError:DisconnectFailed", "%s", "Error disconnecting from " + this.Name + ": " + e.message);
-                    end
-            end
-        end
-
         function metadataStruct = CollectMetaData(this) %#ok<*MANU>
-            %Does nothing by default - implementations of individual
-            %instruments can override this to give functionality.
-            %This returns an empty [] and therefore no line will be added
-            %to the datafile header.
-            %If a struct is instead returned by the overriding version (see
-            %the InstrumentTemplate class for an example) it will be parsed
-            %into a string and that added as a line in the data file
-            %header.
-            %Use this to record instrument settings and metadata like
-            %frequency, voltage, measurement mode, that will not change
-            %during the measurement and therefore don't merit logging each
-            %step
+            %Instrument settings to record in the data file header - override to add some.
+            %Use it for settings that don't change during a measurement, such
+            %as ranges, frequencies or modes, rather than logging them every
+            %tick. Each field becomes "Field = value" on a line starting with
+            %the instrument's Name (see GrabMetadataString)
+            %
+            %Outputs:
+            %   metadataStruct - struct of settings, or [] (the default) for
+            %                    no header line
+
             metadataStruct = [];
         end
 
-        function Connect(this)
-            switch(this.Connection_Type)
-                case(Palladium.Enums.ConnectionType.Debug)
-                    %Do not make a physical connection to a real instrument
-                    %- this places the class into SimulationMode, for
-                    %testing without a real piece of hardware connected
-                    disp("Connected to simulated " + this.Name + " instrument.");
-                    this.SimulationMode = true;
-                case(Palladium.Enums.ConnectionType.Ethernet)
-                    this.ConnectTCPIP();
-                case(Palladium.Enums.ConnectionType.GPIB)
-                    this.ConnectGPIB();
-                case(Palladium.Enums.ConnectionType.VISA)
-                    this.ConnectVISA();
-                case(Palladium.Enums.ConnectionType.USB)
-                    this.ConnectUSB();
-                case(Palladium.Enums.ConnectionType.Serial)
-                    this.ConnectSerial();
-                otherwise
-                    error("ConnectError:UnsupportedConnectionType", "%s", "Unsupported connection type: " + this.Connection_Type + ". ConnectionType can be tcpip, gpib, serial, usb, or visa.");
-            end
-        end
-
         function datArray = GenerateSimulatedData(~, numRows, numCols, Settings)
-            %GENERATESIMULATEDDATA - Create synthetic data with optional row or column grouping
+            %Create random simulated data, for Measure in SimulationMode.
+            %Each column (or row, with Transpose) scatters about its own
+            %baseline. Values are normally distributed about Baseline with
+            %standard deviation Variance, clamped to within 5 standard
+            %deviations, so the output is strictly bounded
             %
-            % Input arguments:
-            %   numRows  - number of simulated rows
-            %   numCols  - number of simulated columns
-            %   Settings - struct controlling baseline, transpose, and variance
+            %Inputs:
+            %   numRows   - number of rows
+            %   numCols   - number of columns. Default 1
+            %   Baseline  - mean value: one for all, or one per column (row).
+            %               Default NaN, a random baseline for each
+            %   Transpose - true to make each row, rather than each column, a
+            %               simulated data series. Default false
+            %   Variance  - standard deviation: one for all, or one per column
+            %               (row). Default NaN, a random one for each
             %
-            % Output arguments:
-            %   datArray - generated numeric array. Values are normally
-            %   distributed about Baseline with standard deviation
-            %   Variance, but clamped to within MaxStdDeviations (5)
-            %   standard deviations of Baseline, so the output is
-            %   strictly bounded however many values are generated.
+            %Outputs:
+            %   datArray - numRows-by-numCols array of values
+
             arguments
                 ~;
                 numRows (1,1) {mustBeInteger};
@@ -262,6 +266,15 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
         end
 
         function controlDetailsStruct = GetControlOption(this, controlName)
+            %Get the definition of one of the Instrument Controls this instrument offers.
+            %Errors, listing the names offered, if there is none of that name
+            %
+            %Inputs:
+            %   controlName - the control's Name, e.g. "Sweep Control"
+            %
+            %Outputs:
+            %   controlDetailsStruct - its definition, from DefineInstrumentControl
+
             arguments
                 this;
                 controlName {mustBeTextScalar}
@@ -288,6 +301,11 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
         end
 
         function names = GetRegisteredControlNames(this)
+            %Names of the Instrument Controls added to this instrument.
+            %
+            %Outputs:
+            %   names - string array of names, or [] if none are added
+
             names = [];
 
             for i = 1 : length(this.ControlClasses)
@@ -296,6 +314,12 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
         end
 
         function [objsList, controlDetailsStructsList] = GetRegisteredControlObjects(this)
+            %The Instrument Controls added to this instrument, and their definitions.
+            %
+            %Outputs:
+            %   objsList                  - the controls, or [] if none are added
+            %   controlDetailsStructsList - their definitions (ControlDetailsStruct)
+
             objsList = [];
             controlDetailsStructsList = [];
 
@@ -309,6 +333,14 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
         end
 
         function objsList = GetRegisteredControlObjectsFromName(this, name)
+            %The Instrument Controls added to this instrument with a given name.
+            %
+            %Inputs:
+            %   name - the control's name, e.g. "Sweep Control"
+            %
+            %Outputs:
+            %   objsList - the matching controls, or [] if there are none
+
             objsList = [];
 
             %Scan through all the Registered InstrumentControl classes and
@@ -321,34 +353,35 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
         end
 
         function connectionTypes = GetSupportedConnectionTypes(this)
+            %The connection types offered for this instrument.
+            %
+            %Outputs:
+            %   connectionTypes - Palladium.Enums.ConnectionType array, as set by
+            %                     DefineSupportedConnectionTypes
+
             connectionTypes = this.AllowedConnectionTypes;
         end
 
-        function [success, msg] = Initialise(this)
-            try
-                this.Connect();
-            catch err
-
-                success = false;
-                msg = "Could not connect to Instrument:" + newline + this.FullName + " - " + this.Name + newline + "Connection type " + string(this.Connection_Type) + newline + newline + "Error message: " + err.message;
-                return;
-            end
-
-            success = true;
-            msg = "";
-
-            this.OnInitialised();
-        end
-
         function str = PrintIdentifier(this)
-            %PRINTIDENTIFIER - just prints some information about this
-            %instrument to the command window (and returns it as a string). Basically for
-            %debugging/verification purposes
+            %Print the instrument's full name to the Command Window, for debugging.
+            %
+            %Outputs:
+            %   str - the text printed, "Palladium Instrument <FullName>"
+
             str = "Palladium Instrument " + this.FullName;
             disp(str);
         end
 
         function val = QueryDouble(this, command)
+            %Send a query and return the reply as a number.
+            %In SimulationMode, returns a random number between 100 and 101
+            %
+            %Inputs:
+            %   command - the query to send, e.g. "MEAS:VOLT?"
+            %
+            %Outputs:
+            %   val - the reply, converted with str2double (NaN if it isn't a number)
+
             arguments
                 this;
                 command (1,1) string;
@@ -367,6 +400,15 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
         end
 
         function val = QueryString(this, command)
+            %Send a query and return the reply as text.
+            %In SimulationMode, returns 'null'
+            %
+            %Inputs:
+            %   command - the query to send, e.g. "*IDN?"
+            %
+            %Outputs:
+            %   val - the reply, with leading and trailing whitespace removed
+
             arguments
                 this;
                 command (1,1) string;
@@ -387,7 +429,40 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             end
         end
 
+        function tf = IsReplyWaiting(this)
+            %Check, without blocking, whether the instrument has a reply waiting to be read.
+            %Over GPIB/VISA this is a serial poll (the status byte's message
+            %available bit), which works even while the instrument is busy -
+            %e.g. running a Keithley 2450 TSP script, or an HP 8722ES sweep
+            %started with OPC?;SING; - so it can be used to wait for a reply
+            %while staying responsive (e.g. to an Abort button). Over Ethernet,
+            %checks MATLAB's receive buffer instead. True in SimulationMode
+            %
+            %Outputs:
+            %   tf - true if a reply is waiting
+
+            if (this.SimulationMode)
+                tf = true;
+                return;
+            end
+
+            try
+                tf = visastatus(this.DeviceHandle);
+            catch
+                %No serial poll for Ethernet (tcpclient) - check MATLAB's
+                %receive buffer instead
+                tf = this.DeviceHandle.NumBytesAvailable > 0;
+            end
+        end
+
         function data = ReadString(this)
+            %Read a reply from the instrument without sending anything first.
+            %For instruments that send data on their own, or replies to an
+            %earlier WriteCommand. In SimulationMode, returns 'null'
+            %
+            %Outputs:
+            %   data - the text read
+
             if(this.SimulationMode)
                 data = 'null';
             else
@@ -400,27 +475,52 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
         end
 
         function SetNewSweepStepValue(this, value) %#ok<INUSD>
-            warning("SetNewSweepStepValueWarning:NotOverridden", "An override method for SetNewSweepStepValue has not been defined for this Instrument. A SweepController_Stepped is probably trying to tell this Instrument to go to the next step in its sweep but the Instrument doesn't have a function written to tell it how. Look at the Keithley2410 class for an example");
+            %Go to the next step of a stepped sweep - override for instruments with a Sweep Control.
+            %Called by SweepController_Stepped at each step. The default only
+            %warns that it isn't implemented. See Keithley2410 for an example
+            %
+            %Inputs:
+            %   value - the new value, in the units of GetSweepUnitsString
+
+            Palladium.Logging.Logger.Log("Warning", "An override method for SetNewSweepStepValue has not been defined for this Instrument. A SweepController_Stepped is probably trying to tell this Instrument to go to the next step in its sweep but the Instrument doesn't have a function written to tell it how. Look at the Keithley2410 class for an example");
         end
 
         function SetRampingToTarget(this, target, rate, settings) %#ok<INUSD>
-            %Override in base classes to support SweepController_Ramp
-            %functionality
+            %Start ramping to a target - override for instruments with a Ramp Sweep Control.
+            %Called by SweepController_Ramp. Does nothing by default
+            %
+            %Inputs:
+            %   target   - the value to ramp to
+            %   rate     - the ramp rate, per minute
+            %   settings - other ramp settings from the Sweep Control
         end
 
         function SettingsInput(this, settings)
-            %This is triggered by e.g. the event raised by a
-            %LakeshoreTempControl component. Unpack the data and pass it on
-            %to be acted on in the next update loop
+            %Store settings entered in an Instrument Control, to apply on the next tick.
+            %Called from the event raised when e.g. Set is pressed on a
+            %Lakeshore Heater Control. CheckForSettingsToApply then passes them
+            %to ApplySettings, so they are applied between readings. Ignored
+            %if earlier settings are still waiting
+            %
+            %Inputs:
+            %   settings - struct of settings, as the Instrument Control sends them
+
             if isempty(this.SettingsToApply)    %Just to avoid any crazy async double setting of overriding halfway through giving command stuff
                 this.SettingsToApply = settings;
             end
         end
 
         function value = ShowProperty(this, propertyName)
-            %Returns true/false to determine whether a property should be
-            %shown in the Instrument Options panel - primarily, if we are
-            %in GPIB connection mode, don't show the Serial Address, etc
+            %Whether a GUI setting should be shown in the Instrument Options panel.
+            %Hides the address properties not used by the current connection
+            %type (e.g. Serial_Address when connecting over GPIB), and any
+            %property listed by GetPropertiesToIgnore
+            %
+            %Inputs:
+            %   propertyName - name of a SetObservable property
+            %
+            %Outputs:
+            %   value - true to show it
 
             switch(this.Connection_Type)
                 case(Palladium.Enums.ConnectionType.Debug)
@@ -434,7 +534,7 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
                 case(Palladium.Enums.ConnectionType.Serial)
                     propertiesToIgnore = {"GPIB_Address", "IP_Address", "VISA_Address"};
                 case(Palladium.Enums.ConnectionType.USB)
-                    %USB connects through VISA (see ConnectUSB), so it uses
+                    %USB connects through VISA (see OpenUSBConnection), so it uses
                     %the VISA address
                     propertiesToIgnore = {"GPIB_Address", "IP_Address", "Serial_Address"};
                 otherwise
@@ -462,6 +562,12 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
         end
 
         function WriteCommand(this, command)
+            %Send a command that has no reply.
+            %Does nothing in SimulationMode
+            %
+            %Inputs:
+            %   command - the command to send, e.g. "OUTP ON"
+
             arguments
                 this;
                 command (1,1) string;
@@ -481,7 +587,59 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
     %% Methods (Public, Sealed)
     methods (Access = public, Sealed)
 
+        function Connect(this)
+            %Open the connection, set IsConnected, then call OnConnected - how to connect to the instrument.
+            %How Palladium connects each instrument when measurements start,
+            %and how to connect one from a script. Errors if the connection
+            %cannot be opened (see ConnectionFailedMessage for a message for
+            %the user). If OnConnected errors, the instrument is disconnected
+            %again before the error is rethrown. Drivers customise connecting
+            %by overriding the protected OpenConnection and OnConnected. If
+            %the instrument is already connected, logs a warning (something
+            %earlier failed to disconnect it) and connects again anyway
+
+            if this.IsConnected
+                Palladium.Logging.Logger.Log("Warning", this.Name + ": Connect was called while it was already connected - connecting again. It was not disconnected properly earlier.");
+            end
+
+            this.OpenConnection();
+            this.IsConnected = true;
+
+            try
+                this.OnConnected();
+            catch err
+                try
+                    this.Disconnect();
+                catch
+                    %Report the OnConnected error, not a failure to close
+                end
+                rethrow(err);
+            end
+        end
+
+        function msg = ConnectionFailedMessage(this, err)
+            %A message for the user explaining that connecting to this instrument failed.
+            %Used by the InstrumentController when Connect errors as
+            %measurements start
+            %
+            %Inputs:
+            %   err - the error Connect threw
+            %
+            %Outputs:
+            %   msg - names the instrument and connection type, then gives the
+            %         error message, over several lines
+
+            msg = "Could not connect to Instrument:" + newline + this.FullName + " - " + this.Name + newline + "Connection type " + string(this.Connection_Type) + newline + newline + "Error message: " + err.message;
+        end
+
         function DefineSupportedConnectionTypes(this, connectionTypes)
+            %Set the connection types offered for this instrument - call in the constructor.
+            %Only these are offered in the GUI's Connection_Type drop-down
+            %
+            %Inputs:
+            %   connectionTypes - Palladium.Enums.ConnectionType values, or
+            %                     their names, e.g. ["Debug", "GPIB", "VISA"]
+
             arguments
                 this
                 connectionTypes (:,1) Palladium.Enums.ConnectionType;
@@ -490,16 +648,46 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             this.AllowedConnectionTypes = connectionTypes;
         end
 
+        function Disconnect(this)
+            %Close the connection and set IsConnected false - how to disconnect from the instrument.
+            %How Palladium closes instruments - when measurements stop, and
+            %when a failed start disconnects the instruments already
+            %connected - and how to close one from a script. Calls the
+            %driver's CloseConnection. IsConnected is set false even if
+            %that errors (the error is then rethrown). If the instrument is
+            %not connected, logs a warning (something earlier lost track of
+            %it) and closes anyway, to be sure
+
+            if ~this.IsConnected
+                Palladium.Logging.Logger.Log("Warning", this.Name + ": Disconnect was called while it was not connected - closing anyway. It was not connected, or was already disconnected.");
+            end
+
+            try
+                this.CloseConnection();
+            catch err
+                this.IsConnected = false;
+                rethrow(err);
+            end
+            this.IsConnected = false;
+        end
+
         function [controlDetailsStructs] = GetAvailableControlOptions(this)
+            %Definitions of the Instrument Controls this instrument offers.
+            %
+            %Outputs:
+            %   controlDetailsStructs - struct array, one per control defined with
+            %                           DefineInstrumentControl, or [] for none
+
             controlDetailsStructs = this.ControlDetailsStructs;
         end
 
         function stringLine = GrabMetadataString(this)
-            %This function calls the CollectMetadata function, which should
-            %be defined/overwritten in any Instrument that wants
-            %metadata/settings to be recorded in the data file header.
-            %Controller.InitialiseMeasurements is going to call this
-            %automatically.
+            %The data file header line of this instrument's settings, from CollectMetaData.
+            %Called by the Controller when measurements start
+            %
+            %Outputs:
+            %   stringLine - e.g. "K2000_1 Settings: Range = 10 V, NPLC = 1", or
+            %                [] if CollectMetaData returns []
 
             %Get the metadata, which is either empty or a struct
             result = this.CollectMetaData();
@@ -520,6 +708,13 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
         end
 
         function RegisterControlObject(this, classRef)
+            %Register an Instrument Control that has been added to this instrument.
+            %Called by Palladium when it creates the control. Errors if a
+            %control of the same name is already registered
+            %
+            %Inputs:
+            %   classRef - the Instrument Control
+
             name = classRef.GetName();
 
             %Check we didn't already register a control of this name to
@@ -537,6 +732,12 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
         end
 
         function RemoveControlObject(this, className)
+            %Unregister the Instrument Controls of a given name from this instrument.
+            %Called by Palladium when a control is removed
+            %
+            %Inputs:
+            %   className - the control's name, e.g. "Sweep Control"
+
             for i = length(this.ControlClasses) : -1 : 1
                 if(strcmp(className, this.ControlClasses(i).GetName()))
                     this.ControlClasses(i) = [];
@@ -545,9 +746,21 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
         end
 
         function dataRow = UpdateAndMeasure(this, headers)
-            %UpdateAndMeasure is the entry point to Measure commands from
-            %the InstrumentController Loop. It will call Update methods on
-            %all InstrumentControls and then do the Measure call
+            %Update the Instrument Controls, take a reading, and pass it to the controls.
+            %The entry point for each measurement tick, called by the
+            %InstrumentController: calls each control's Update, then Measure,
+            %then each control's UpdateData with the new reading. Errors if
+            %the instrument is not connected (IsConnected) - in Debug mode
+            %too, so a closed simulated instrument fails like a real one
+            %
+            %Inputs:
+            %   headers - the data column headers of all instruments, passed on
+            %             to the controls' UpdateData
+            %
+            %Outputs:
+            %   dataRow - the reading from Measure
+
+            assert(this.IsConnected, "Instrument:NotConnected", "%s", this.Name + " is not connected - measurements have stopped, or it was never connected");
 
             %First Update any added Controls
             this.UpdateControls();
@@ -565,19 +778,59 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
     %% Methods (Protected)
     methods(Access = protected)
 
-        function ApplySettings(this, settings) %#ok<INUSD>
-            %Does nothing by default - implementations can override this to
-            %give functionality
+        function CloseConnection(this)
+            %Close the connection to the instrument - called by Disconnect, which outside code uses.
+            %Drivers can override it (as protected) to do more first, e.g.
+            %return the instrument to local control, then call
+            %`CloseConnection@Palladium.Core.Instrument(this)`. Drivers that
+            %open their own kind of connection (see OpenConnection) close it
+            %here instead
+
+            switch(this.Connection_Type)
+                case(Palladium.Enums.ConnectionType.Debug)
+                    %Just print a message
+                    disp("Disconnected from simulated " + this.Name + " instrument.");
+                otherwise
+                    %Warn and return if there is no connection to disconnect from
+                    if(isempty(this.DeviceHandle))
+                        disp("Tried to close " + this.Name + " but it is not connected, or has no device handle. Returning Disconnect() with no action taken.");
+                        return;
+                    end
+
+                    %Terminate the connection, reporting any errors if
+                    %found
+                    try
+                        this.DeviceHandle = [];
+                    catch e
+                        error("CloseError:DisconnectFailed", "%s", "Error disconnecting from " + this.Name + ": " + e.message);
+                    end
+            end
         end
 
-        function ConnectGPIB(this)
-            this.DeviceHandle = visadev("GPIB::" + num2str(this.GPIB_Address) + "::" + num2str(this.ConnectionSettings.GPIB_BoardIndex) + "::INSTR");
+        function ApplySettings(this, settings) %#ok<INUSD>
+            %Apply settings entered in an Instrument Control - override to use them.
+            %Called on the next tick after SettingsInput, between readings.
+            %Does nothing by default
+            %
+            %Inputs:
+            %   settings - struct of settings, as the Instrument Control sends them
+        end
+
+        function OpenGPIBConnection(this)
+            %Open a GPIB connection, using GPIB_Address and ConnectionSettings.
+            %Uses GPIB_BoardIndex, GPIB_SecondaryAddress, GPIB_Terminators
+            %and GPIB_Timeout. The VISA resource name is built by
+            %GPIBResourceName
+
+            this.DeviceHandle = visadev(Palladium.Core.Instrument.GPIBResourceName(this.ConnectionSettings.GPIB_BoardIndex, ...
+                this.GPIB_Address, this.ConnectionSettings.GPIB_SecondaryAddress));
             configureTerminator(this.DeviceHandle, this.ConnectionSettings.GPIB_Terminators(1), this.ConnectionSettings.GPIB_Terminators(2));
             this.DeviceHandle.Timeout = this.ConnectionSettings.GPIB_Timeout;%In seconds
         end
 
-        function ConnectSerial(this)
-            %Connect to instrument via serial/COM interface
+        function OpenSerialConnection(this)
+            %Open a serial (COM) port connection, using Serial_Address and ConnectionSettings.SerialSettings.
+
             this.DeviceHandle = serialport(this.Serial_Address, this.ConnectionSettings.SerialSettings.BaudRate);
 
             %Configure serial settings
@@ -587,8 +840,10 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             configureTerminator(this.DeviceHandle, this.ConnectionSettings.SerialSettings.Terminator);
         end
 
-        function ConnectTCPIP(this)
-            %Connect to instrument via ethernet/tcpip
+        function OpenTCPIPConnection(this)
+            %Open an Ethernet (TCP) connection, using IP_Address and ConnectionSettings.Port.
+            %Reuses an existing connection to the same address and port if
+            %there is one
 
             %Note that 2022 Matlab has changed the syntax for these -
             %removing fopen and fclose in particular:
@@ -607,18 +862,21 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             end
         end
 
-        function ConnectUSB(this)
-            this.ConnectVISA();
+        function OpenUSBConnection(this)
+            %Open a USB connection, through VISA, using VISA_Address.
+
+            this.OpenVISAConnection();
         end
 
-        function ConnectVISA(this)
-            %Connect to instrument via VISA interface
+        function OpenVISAConnection(this)
+            %Open a VISA connection, using VISA_Address.
+            %Reuses an existing connection to the same resource if there is one
 
             %Note that 2022 Matlab has changed the syntax for these -
             %removing fopen and fclose in particular:
             %https://uk.mathworks.com/help/instrument/transition-your-code-to-visadev-interface.html
 
-            %Check for existing connection -  Find a tcpip object at this address and port.
+            %Check for an existing connection to this VISA resource
             existingHandle = visadevfind(Name=this.VISA_Address);   %This requires Matlab 2024a
             if(~isempty(existingHandle))    %If we already are connected, don't try to connect again - will error
                 this.DeviceHandle = existingHandle;
@@ -629,10 +887,18 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
         end
 
         function catOut = ConvertToCategorical(~, inputStr, catNamesStrArray)
-            %Convert an input string into a categorical with categories set
-            %by catNameStrArray. This function mainly handles the
-            %boilerplate of argument validation and error checking, to keep
-            %implementation classes simpler
+            %Convert text to a categorical with the given categories, for a driver's categorical settings.
+            %Used by the one-line converters in a driver's Categoricals
+            %block. Errors, listing the categories, if the text isn't one
+            %of them
+            %
+            %Inputs:
+            %   inputStr         - the value, e.g. "DC Voltage"
+            %   catNamesStrArray - all the allowed values, in drop-down order
+            %
+            %Outputs:
+            %   catOut - categorical with value inputStr and categories catNamesStrArray
+
             arguments
                 ~;
                 inputStr (1,1) string;
@@ -655,11 +921,20 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
         end
 
         function DefineInstrumentControl(this, Settings)
-            %Normally call this in the Constructor of an Instrument
-            %implementation - specify a Control class, like a
-            %SweepController or the Control Panel GUI for a magnet power
-            %supply, that will then appear as an option to be added to this
-            %Instrument
+            %Offer an Instrument Control for this instrument - call in the constructor.
+            %For example a Sweep Control, or a magnet's control panel. It then
+            %appears as an option in the GUI and to AddInstrumentControl, or
+            %is added automatically if EnabledByDefault
+            %
+            %Inputs:
+            %   Name             - name of the control, e.g. "Sweep Control"
+            %   ClassName        - its class in Palladium.Instruments.Controls,
+            %                      e.g. "SweepController_Stepped"
+            %   TabName          - title of the tab it is shown in
+            %   EnabledByDefault - true to add it whenever the instrument is
+            %                      added. Default false
+            %   UserData         - any extra data the control needs. Default []
+
             arguments
                 this;
                 Settings.Name               {mustBeTextScalar}
@@ -680,24 +955,67 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
         end
 
         function propertiesToIgnore = GetPropertiesToIgnore(this)
+            %GUI settings to hide in the Instrument Options panel - override to hide some.
+            %
+            %Outputs:
+            %   propertiesToIgnore - cell array of property names. Default {}
+
             propertiesToIgnore = {};
         end
 
-        function OnInitialised(this)
-            %No default functionality - override in Implementation classes
+        function OnConnected(this)
+            %Called by Connect once the connection is open - override to do more then.
+            %Does nothing by default. If it errors, Connect disconnects again
+        end
+
+        function OpenConnection(this)
+            %Open the connection to the instrument, using Connection_Type - called by Connect, which outside code uses.
+            %The Debug connection type makes no connection, and puts the
+            %driver in SimulationMode. Drivers can override it (as protected)
+            %to do more after connecting (e.g. read settings), calling
+            %`OpenConnection@Palladium.Core.Instrument(this)` first - or to
+            %open their own kind of connection (e.g. through a vendor's
+            %library) instead
+
+            switch(this.Connection_Type)
+                case(Palladium.Enums.ConnectionType.Debug)
+                    %Do not make a physical connection to a real instrument
+                    %- this places the class into SimulationMode, for
+                    %testing without a real piece of hardware connected
+                    disp("Connected to simulated " + this.Name + " instrument.");
+                    this.SimulationMode = true;
+                case(Palladium.Enums.ConnectionType.Ethernet)
+                    this.OpenTCPIPConnection();
+                case(Palladium.Enums.ConnectionType.GPIB)
+                    this.OpenGPIBConnection();
+                case(Palladium.Enums.ConnectionType.VISA)
+                    this.OpenVISAConnection();
+                case(Palladium.Enums.ConnectionType.USB)
+                    this.OpenUSBConnection();
+                case(Palladium.Enums.ConnectionType.Serial)
+                    this.OpenSerialConnection();
+                otherwise
+                    error("ConnectError:UnsupportedConnectionType", "%s", "Unsupported connection type: " + this.Connection_Type + ". ConnectionType can be tcpip, gpib, serial, usb, or visa.");
+            end
         end
 
 
         function val = RetrieveSimulatedDataValue(this, propName, defaultValue)
+            %Get a value stored in SimulatedData, storing a default if it isn't there yet.
+            %
+            %Inputs:
+            %   propName     - the field of SimulatedData, e.g. "SourceLevel"
+            %   defaultValue - value to use (and store) if the field isn't set.
+            %                  Default 0
+            %
+            %Outputs:
+            %   val - the stored value, or defaultValue
+
             arguments
                 this;
                 propName {mustBeTextScalar};
                 defaultValue = 0;
             end
-            %Handle retrieving a previously stored SimulatedData struct
-            %field, like SimulatedData.SourceLevel, but dealing with edge
-            %cases like it not being set yet, SimulatedData being empty,
-            %etc
 
             if isempty(this.SimulatedData)
                 this.SimulatedData.(propName) = defaultValue;
@@ -718,24 +1036,79 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
 
     end
 
+    %% Methods (Static, Public)
+    methods (Static, Access = public)
+
+        function name = GPIBResourceName(boardIndex, primaryAddress, secondaryAddress)
+            %The VISA resource name of a GPIB instrument, e.g. "GPIB0::18::INSTR".
+            %VISA's form is GPIB<board>::<primary>[::<secondary>]::INSTR. Most
+            %instruments have no secondary address; some need one, e.g. the
+            %Mercury iTC uses secondary address 1 for SCPI commands
+            %
+            %Inputs:
+            %   boardIndex       - the GPIB interface board, usually 0
+            %   primaryAddress   - the instrument's GPIB address (0-30)
+            %   secondaryAddress - (optional) its secondary address (0-30), or [] for none. Default []
+            %
+            %Outputs:
+            %   name - the resource name (string)
+
+            arguments
+                boardIndex (1,1) double {mustBeInteger, mustBeNonnegative};
+                primaryAddress (1,1) double {mustBeInteger, mustBeInRange(primaryAddress, 0, 30)};
+                secondaryAddress double {mustBeInteger, mustBeInRange(secondaryAddress, 0, 30)} = [];
+            end
+
+            name = "GPIB" + boardIndex + "::" + primaryAddress;
+            if ~isempty(secondaryAddress)
+                name = name + "::" + secondaryAddress;
+            end
+            name = name + "::INSTR";
+        end
+
+        function str = NumberToCommandString(value, Settings)
+            %A number as text for an instrument command, to 15 significant figures (as much as a double reliably holds), or fewer.
+            %Use in place of num2str, which keeps only about 5 (1.23456789
+            %becomes "1.2346"), so set values were silently rounded. Whole
+            %numbers are written without a decimal point, e.g. "5", and a
+            %frequency of 20 GHz keeps its last Hz. Exponents are written with
+            %a capital E (1.2345678E-07), as instrument manuals write them. For
+            %number fields of a fixed width (e.g. a Lakeshore's +nnnnn), give
+            %SignificantFigures as the number of digits the manual shows -
+            %more may not be accepted
+            %
+            %Inputs:
+            %   value              - the number
+            %   SignificantFigures - (name-value) most significant figures to give. Default 15
+            %
+            %Outputs:
+            %   str - e.g. "1.23456789", "-0.0025", "1.2345678E-07"
+
+            arguments
+                value (1,1) double {mustBeReal};
+                Settings.SignificantFigures (1,1) double {mustBeInteger, mustBeBetween(Settings.SignificantFigures, 1, 15)} = 15;
+            end
+
+            str = string(sprintf("%.*G", Settings.SignificantFigures, value));
+        end
+
+    end
+
     %% Methods (Private)
     methods (Access = private)
 
         function HandlePropEvents(this, ~, evnt)
-            %Gets called internally (by Matlab) on properties marked as
-            %'properties (SetObservable)' - pass on events to tell GUIs we have
-            %changed properties and that they should update
-            %evnt contains the following info:
-            %  PropertyEvent with properties:
-            %AffectedObject: [1×1 Palladium.Instruments.Keithley2000]
-            %  Source: [1×1 meta.property]
-            %EventName: 'PostSet'
+            %Raise PropertyChanged when a SetObservable property changes.
+            %Listener for each property's PostSet event, passing the event on
+            %so the GUI updates
 
             %Trigger event
             notify(this, "PropertyChanged", evnt);
         end
 
         function RegisterPropertyChangedEvents(this)
+            %Listen for changes to every SetObservable property.
+
             mc = metaclass(this);
             metaprops = [mc(:).Properties];
             for i = length(metaprops): -1 : 1
@@ -748,12 +1121,16 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
         end
 
         function UpdateControls(this)
+            %Call Update on each Instrument Control, before a reading.
+
             for i = 1 : length(this.ControlClasses)
                 this.ControlClasses(i).Update();
             end
         end
 
         function UpdateControlsData(this, dataRow, headers)
+            %Pass a new reading to each Instrument Control.
+
             for i = 1 : length(this.ControlClasses)
                 this.ControlClasses(i).UpdateData(dataRow, headers);
             end
@@ -761,4 +1138,3 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
 
     end
 end
-

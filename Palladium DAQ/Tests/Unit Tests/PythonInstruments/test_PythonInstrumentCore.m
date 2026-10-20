@@ -87,6 +87,54 @@ classdef test_PythonInstrumentCore < matlab.unittest.TestCase
             testCase.verifyPythonError(@() testCase.Fakes.unsupported_connection(), "RuntimeError", "Unsupported connection type");
         end
 
+        function GPIBTimeoutAppliedWithoutSettingsTest(testCase)
+            %connectGPIB applies the timeout it is given (in ms for pyvisa)
+            %even with no ConnectionSettings - it used to be skipped then
+            r = struct(testCase.Fakes.gpib_connect_without_settings(3.5));
+            testCase.verifyEqual(string(r.resource), "GPIB0::7::INSTR");
+            testCase.verifyEqual(double(r.timeout), 3500);
+        end
+
+        function SerialUsesTheDriversSettingsTest(testCase)
+            %A driver sets its serial settings in ConnectionSettings; any it
+            %leaves out take the defaults
+            settings = py.dict(pyargs("SerialSettings", py.dict(pyargs("BaudRate", int32(115200), "Parity", "E", "StopBits", 2)), "GPIB_Timeout", 3));
+            r = struct(testCase.Fakes.serial_connect(settings));
+            testCase.verifyEqual(string(r.port), "COM9");
+            testCase.verifyEqual(double(r.baudrate), 115200);
+            testCase.verifyEqual(string(r.parity), "E");
+            testCase.verifyEqual(double(r.stopbits), 2);
+            testCase.verifyEqual(double(r.bytesize), 8, "Not set by the driver - the default");
+            testCase.verifyEqual(double(r.timeout), 3);
+        end
+
+        function SerialDefaultsWithoutSettingsTest(testCase)
+            r = struct(testCase.Fakes.serial_connect());
+            testCase.verifyEqual([double(r.baudrate), double(r.bytesize), double(r.stopbits), double(r.timeout)], [9600, 8, 1, 10]);
+            testCase.verifyEqual(string(r.parity), "N");
+        end
+
+        function GPIBUsesTheDriversTerminatorsAndTimeoutTest(testCase)
+            %The driver's own timeout wins over the one Palladium passes
+            r = struct(testCase.Fakes.gpib_connect_with_driver_settings());
+            testCase.verifyEqual(string(r.read), string([char(13) newline]));
+            testCase.verifyEqual(string(r.write), string(newline));
+            testCase.verifyEqual(double(r.timeout), 2000);
+        end
+
+        function USBConnectsWithTheAddressGivenTest(testCase)
+            %connectUSB opens the VISA address it is given - it used to look
+            %for a VISA_Address attribute that nothing set, and always fail
+            resource = testCase.Fakes.usb_connect("USB0::0x05E6::0x2450::SN1::INSTR");
+            testCase.verifyEqual(string(resource), "USB0::0x05E6::0x2450::SN1::INSTR");
+        end
+
+        function NameDefaultsToTheClassNameTest(testCase)
+            %An instrument that doesn't set Name is named after its class -
+            %reading Name used to fail until a subclass set it
+            testCase.verifyEqual(string(testCase.Fakes.default_name()), "CoreTestInstrument");
+        end
+
         function TemplateWorksInSimulation(testCase)
             %The template Python instrument (ExamplesAndTemplates/PythonInstruments):
             %Measure returns one number per header, and it has the members Palladium uses

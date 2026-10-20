@@ -13,7 +13,6 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
     %% Properties (Private)
     properties (Access = private)
         SweepHandle = [];
-        GUIView;
         Data;
         Plotter;
         DataWriter;
@@ -205,29 +204,38 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
         function UpdateData(this, dataRow, headers) %#ok<INUSD>
         end
 
-        function MeasurementsInitialised(this, ~, eventArgs)
-            headers = eventArgs.Headers;
-            this.AvailableHeaders = headers;
-
-            sweepPlotHeaders = ["SweepValues", "Amplitude", "Phase", "X", "Y"];
-            this.Plotter.UpdateVariables(sweepPlotHeaders);
-        end
-
-        function MeasurementsStarted(this, ~, ~, ~)
-            this.UnlockRunButton();
-        end
-
-        function MeasurementsStopped(this, ~, ~, ~)
-            this.GUIView.AbortSweep();
-            this.LockRunButton();
-        end
-
         function LockRunButton(this)
             this.GUIView.LockRunButton();
         end
 
         function UnlockRunButton(this)
             this.GUIView.UnlockRunButton();
+        end
+
+    end
+
+    %% Methods (Protected)
+    methods (Access = protected)
+
+        function OnMeasurementsInitialised(this, ~)
+            %The base class has stored the headers and passed them to the
+            %GUIView. The plotter shows the sweep's own columns
+            if ~isempty(this.Plotter)
+                sweepPlotHeaders = ["SweepValues", "Amplitude", "Phase", "X", "Y"];
+                this.Plotter.UpdateVariables(sweepPlotHeaders);
+            end
+        end
+
+        function OnMeasurementsStarted(this)
+            this.UnlockRunButton();
+        end
+
+        function OnMeasurementsStopped(this)
+            if this.Running
+                this.GUIView.AbortSweep();
+            end
+
+            this.LockRunButton();
         end
 
     end

@@ -71,13 +71,64 @@ classdef test_CommandController < matlab.unittest.TestCase
             testCase.verifyError(@() testCase.runCommand("disp('x'); Record(1)"), "MATLAB:class:UndefinedMethod");
             testCase.verifyEqual(testCase.Instrument.LastCall, "", "Record should not have been called");
         end
+
+        function ControlNameLikeAnOptionNameTest(testCase)
+            %A control named e.g. "F" or "Function" - the start of the
+            %FunctionOnComplete option's name - is still taken as the control
+            %name, also when FunctionOnComplete follows (as the Sequence Editor
+            %queues commands). MATLAB only reads an optional text argument as
+            %an option name if what follows can pair up as names and values;
+            %controlName is the last positional argument, so it can't. Guards
+            %against a positional argument being added after it
+            testCase.applyFixture(matlab.unittest.fixtures.PathFixture( ...
+                fullfile(fileparts(mfilename("fullpath")), "..", "data", "Instrument Testing"), IncludeSubfolders=true));
+            onComplete = @() [];
+            for name = ["F", "Function"]
+                control = InstrumentTestingInstruments.StubControl(name);
+                testCase.Instrument.RegisterControlObject(control);
+
+                %Queued as the Sequence Editor does, then run - on the control
+                testCase.Controller.CacheInstrumentCommand(testCase.Instrument, "Update()", name, FunctionOnComplete=onComplete);
+                command = Palladium.Sequence.Commands.InstrumentCommand(testCase.Instrument, "Update()", name, FunctionOnComplete=onComplete);
+                testCase.Controller.ExecuteCommand(command);
+
+                testCase.verifyEqual(command.ControlName, name);
+                testCase.verifyEqual(control.UpdateCount, 1, "Run on the control named " + name);
+            end
+        end
+
+        function MethodNameReadAsWhenRun(testCase)
+            %ParseMethodName reads the name as running the command does
+            names = arrayfun(@Palladium.Core.CommandController.ParseMethodName, ...
+                ["SweepRun", "SweepRun()", "  SweepRun ( ) ; ", "SetField(1, 100)", "SetField (1, 100);", " SetField(1,100)"]);
+            testCase.verifyEqual(names, ["SweepRun", "SweepRun", "SweepRun", "SetField", "SetField", "SetField"]);
+        end
+
+        function CompleteCheckFoundHoweverCommandIsWritten(testCase)
+            %A command's "has it finished?" check is found however the
+            %command is written - it used to need the name followed straight
+            %by "(", so "SweepRun" or "SetField (1, 100)" ran but the
+            %sequence didn't wait for them
+            isDone = @() true;
+            testCase.Instrument.RegisterCommandCompleteQuery("RecordNothing", isDone);
+            testCase.Instrument.RegisterCommandCompleteQuery("Record", isDone);
+
+            for cmd = ["RecordNothing", "RecordNothing()", " RecordNothing ( ) ;", "Record(1, 2)", "Record (1, 2);", " Record(1,2)"]
+                command = Palladium.Sequence.Commands.InstrumentCommand(testCase.Instrument, cmd, string.empty);
+                testCase.verifyEqual(command.IsCompleteFn, isDone, cmd);
+            end
+
+            %A command with no check registered completes straight away
+            command = Palladium.Sequence.Commands.InstrumentCommand(testCase.Instrument, "RecordNothingElse", string.empty);
+            testCase.verifyEmpty(command.IsCompleteFn);
+        end
     end
 
     %% Methods (Private)
     methods (Access = private)
         function runCommand(testCase, commandString)
             %Run an instrument command on the recording instrument, as a sequence does
-            command = Palladium.Sequence.Commands.InstrumentCommand(testCase.Instrument, commandString);
+            command = Palladium.Sequence.Commands.InstrumentCommand(testCase.Instrument, commandString, string.empty);
             testCase.Controller.ExecuteCommand(command);
         end
     end

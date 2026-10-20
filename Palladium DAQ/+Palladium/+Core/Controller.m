@@ -1,51 +1,91 @@
 classdef Controller < handle
-    %CONTROLLER Logic and measurement loop for Palladium DAQ Programme.
+    %Controller - Central logic class of a Palladium DAQ instance, which runs with or without a GUI.
+    %`Palladium.m` creates one Controller, attaches the View (the GUI) to it
+    %with `AttachView`, then calls `Initialise` and, once everything is set
+    %up, `OnLoaded`. Nothing here needs a View: `Palladium(View=[])` runs
+    %headless, with the Controller alone.
+    %
+    %The work is shared out between sub-controllers, which the Controller
+    %creates in its constructor and owns:
+    %
+    %* `InstrumentController` - adds, connects and closes instruments, loads
+    %  the instrument classes available (MATLAB and Python), and collects
+    %  each tick's measurements and the data column headers.
+    %* `TimingLoopController` - the measurement loop: Start, Pause, Resume
+    %  and Stop, and a timer that calls `Measure` every tick.
+    %* `CommandController` - queues instrument commands and sequences, and
+    %  runs them at the start of each tick.
+    %* `PlottingController` (private) - creates the plotters (`AddNewPlotter`)
+    %  and updates them with new data.
+    %* `SequenceEditorController` (private) - the Sequence Editor, whose
+    %  queued commands and sequences are passed on to the CommandController.
+    %* `DataWriter` - writes the data file. A new one is made by
+    %  `InitialiseDataWriting` each time measurements start.
+    %
+    %**Settings and user files.** `Initialise` loads the config file (see
+    %`ConfigIO`), starts the Logger, creates the user files folder and its
+    %subfolders, copies starter files (templates, the example Preset) into
+    %them, sets up Python instruments and loads the instrument classes.
+    %
+    %**Measuring.** `TimingLoopController.Start` calls `InitialiseDataWriting`,
+    %`CanStart` and `InitialiseMeasurements`, then the timer calls `Measure`
+    %each tick: run queued commands, collect a data row, write it to the
+    %file, add it to `DataTable` and update the plots.
+    %
+    %**Errors and warnings.** `HandleError` logs an error and shows the error
+    %dialogue, where the user can stop the measurements or suppress the
+    %message. `HandleCallbackError` is the entry point for errors caught in
+    %GUI callbacks, event listeners and the measurement loop: the Controller
+    %registers itself as `ErrorGuard.DefaultController`, and guards its own
+    %listeners with `ErrorGuard.AddListener`. `HandleWarning` shows a warning
+    %box.
+    %
+    %**Events.** The View listens to the Controller's events to show status
+    %messages (`GreenStatus`, `YellowStatus`, `RedStatus`), progress bars,
+    %the file write options, the loaded settings and new data rows. The View
+    %calls back in through the public methods, such as the `SetFilePaths...`
+    %setters, `LoadPreset`, `OpenSequenceEditor` and `OpenHelp`.
 
     %% Properties (Constant, Private)
     properties(Constant, Access = private)
-        PythonInstrumentNamespace = "PythonInstruments";
-        UserFolderName = "Palladium DAQ - User Files";
-        UserInstrumentFolderName = "+Palladium" + filesep + "+Instruments";
-        UserPresetFolderName = "Presets";
-        UserInstrumentDriversFolderName = "Instrument Drivers"; %Instrument drivers could actually be anywhere, as long as they are on the path. This folder will get temporarily added to the path on programme start though, so saving the user that headache if they put them in here
+        PythonInstrumentNamespace = "PythonInstruments";    %Namespace folder of the user's Python instruments, in the user files folder
+        UserFolderName = "Palladium DAQ - User Files";      %Name of the user files folder, created inside UserFilesDir
+        UserInstrumentFolderName = "+Palladium" + filesep + "+Instruments";    %Folder of the user's MATLAB instrument drivers, in the user files folder - so they are in the Palladium.Instruments namespace
+        UserPresetFolderName = "Presets";                   %Folder of Preset .json files, in the user files folder
+        UserInstrumentDriversFolderName = "Instrument Drivers"; %Folder for vendor driver files (e.g. dlls), in the user files folder - added to the MATLAB path with its subfolders on start
     end
 
     %% Properties (Public)
     properties (Access = public)
-        %Paths and Directories
-        ApplicationDir;     %Parent Directory the code is run from (Palladium.m location or .exe location)
-        UserFilesDir;       %Parent directory that holds the Presets & User Instruments folders, editable by User
+        ApplicationDir;     %Folder Palladium DAQ runs from: the folder of Palladium.m, or of PalladiumDAQ.exe in an installed app
+        UserFilesDir;       %Folder that holds the user files folder ("Palladium DAQ - User Files"), from PathSettings.UserFilesDirectory in the config
     end
 
     %% Properties (Public, Private Set)
     properties(GetAccess = public, SetAccess = private)
-        %Settings structs
-        WindowSettings;
-        PathSettings;
-        FileWriteDetails;
+        WindowSettings;     %WindowSettings section of the config, plus PalladiumIconPath (the windows' icon, or [] if not found), set in Initialise
+        PathSettings;       %PathSettings section of the config, with relative paths made absolute, set in Initialise
+        FileWriteDetails;   %Data file settings: Directory, FileName, FileExtension, DescriptionText, SaveFile and WriteMode - change them with the SetFilePaths... methods
 
-        %Data array
-        DataTable;
-        Headers = {};
-        Units = {};
+        DataTable;          %All data rows measured since measurements started, one row per tick, with columns as in Headers
+        Headers = {};       %Data column headers of all the instruments, set when measurements start
+        Units = {};         %Units of the data columns, matching Headers
 
-        %Sub-controllers
-        TimingLoopController;
-        InstrumentController;
-        CommandController;
-        DataWriter;
+        TimingLoopController;   %Runs the measurement loop (Start, Pause, Resume, Stop), calling Measure every tick
+        InstrumentController;   %Adds, connects and closes instruments, and collects their measurements
+        CommandController;      %Queues instrument commands and sequences, run at the start of each tick
+        DataWriter;             %Writes the data file - a new one is made by InitialiseDataWriting each time measurements start
 
-        %File paths
-        UserInstrumentsDir;
-        UserPythonInstrumentsDir;
-        UserPresetsDir;
-        UserInstrumentDriversDir;
+        UserInstrumentsDir;         %The user files folder's +Palladium/+Instruments folder, for MATLAB instrument drivers - empty in the installed app
+        UserPythonInstrumentsDir;   %The user files folder, which holds the PythonInstruments namespace folder of Python instruments
+        UserPresetsDir;             %The user files folder's Presets folder
+        UserInstrumentDriversDir;   %The user files folder's Instrument Drivers folder, for vendor driver files such as QDInterface.dll
     end
 
     %% Properties (Private)
     properties(Access = private)
-        PlottingController;
-        SequenceEditorController;
+        PlottingController;         %Creates the plotters and updates them with new data each tick
+        SequenceEditorController;   %Runs the Sequence Editor, whose queued commands and sequences go to the CommandController
 
         ConfigFilePath = "";        %Path of the config file in use
         HeadersString = "";         %Column header line of the data file, set when measurements start
@@ -53,34 +93,43 @@ classdef Controller < handle
         PythonSetupStatus = [];     %Result of setting up Python (see PythonUtils.CheckPythonSetup), set in Initialise
         WarningSettings;            %WarningSettings section of the config
 
-        DebugMode = false; %Set to true (in Palladium entry point as optional arg) to rethrow all handled errors and hence have a stack trace to follow in the command window - for debugging/testing purposes 
-        DefaultDataDir;
+        DebugMode = false;          %Set by Palladium(DebugMode=true) for debugging - passed to the CommandController, which then logs each command it runs
+        DefaultDataDir;             %Folder the Data Viewer opens in: PathSettings.DefaultDirectory
 
-        Closing = false;    %Will get set by an attached GUI if it is in the process of being closed, to tell us to stop sending events to a now-invalid GUI
-       
-        SuppressedErrorMessages = {};
+        Closing = false;            %Set by OnFigureClosed when the GUI closes, so errors no longer go to the now-invalid GUI
+        BigNumberDisplays = Palladium.Components.BigNumberDisplay.empty(1, 0);   %Open Big Number Display windows, updated each tick (see OpenBigNumberDisplay)
+
+        SuppressedErrorMessages = {};   %Error messages the user chose to suppress in the error dialogue, until Palladium DAQ is restarted
         ErrorDialogOpen = false;    %True while an error dialogue is showing, so further errors get logged without stacking more dialogues
-        UIFigureHandle = []; %Needed for error handling - need to know if we are throwing a modal dialogue box in an attached UIFigure, or a free floating normal one if there is no listening View
+        UIFigureHandle = [];        %The main GUI window, set by RegisterUIFigure - error dialogues and warnings are shown in it, or free-floating if there is none
     end
 
     %% Events
     events
-        DataRowUpdated;
-        FileWriteOptionsChanged;
-        FinalisePreset;
-        GreenStatus;
-        Loaded;
-        RedStatus
-        SettingsApplied;
-        StartedShowingProgress;
-        StoppedShowingProgress;
-        UpdatedProgress;
-        YellowStatus;
+        DataRowUpdated;             %Raised each tick with the new data row and the headers (DataRowAddedEventData), for anything that needs each new row, e.g. a script
+        FileWriteOptionsChanged;    %Raised when FileWriteDetails changes, with the new details (ValueChangedEventData), for the View to show
+        FinalisePreset;             %Raised by Palladium.LoadPreset once a Preset has been applied, for the View to update to match
+        GreenStatus;                %Status message for the GUI's status strip, with a green light: all is well (MessageEventData)
+        Loaded;                     %Raised by OnLoaded once start-up has finished, for the View to let the user interact
+        RedStatus                   %Status message for the GUI's status strip, with a red light: an error (MessageEventData)
+        SettingsApplied;            %Raised by Initialise with the path and window settings (SettingsChangedEventData), for the View to apply
+        StartedShowingProgress;     %Raised to show a progress bar, with its message and title (MessageEventData)
+        StoppedShowingProgress;     %Raised to close the progress bar
+        UpdatedProgress;            %Raised to move the progress bar on, with the fraction done and a message (ProgressUpdateEventData)
+        YellowStatus;               %Status message for the GUI's status strip, with a yellow light: busy, or a warning (MessageEventData)
     end
 
     %% Constructor
     methods
         function this = Controller(Settings)
+            %Create the sub-controllers and connect their events to each other.
+            %Called by `Palladium.m`. Settings are not loaded until
+            %`Initialise`. Also registers this Controller as
+            %`ErrorGuard.DefaultController`, where errors from GUI callbacks go
+            %
+            %Inputs (name-value):
+            %   ApplicationDir - folder Palladium DAQ runs from (see the ApplicationDir property)
+            %   DebugMode      - true to log each command the CommandController runs. Default false
             arguments
                 Settings.ApplicationDir {mustBeTextScalar};
                 Settings.DebugMode (1,1) logical = false;
@@ -127,12 +176,26 @@ classdef Controller < handle
     methods (Access = public)
 
         function AbortSequence(this)
+            %Abort the sequence running in the CommandController, when the Sequence Editor asks.
+
             this.CommandController.AbortSequence();
         end
 
         function pltr = AddNewPlotter(this, parent, parentFigure, Settings)
-            %This is used by things like Instrument Control creating GUIs
-            %and placing Plotters in existing Gridlayouts
+            %Create a Plotter, with axis dropdowns, in a GUI container such as a grid layout.
+            %Used by the GUI's plot tabs and windows, and by Instrument
+            %Controls that show a plot. A registered plotter is updated with
+            %new data every tick; an unregistered one only shows what its
+            %owner pushes to it. On error, shows the error dialogue
+            %
+            %Inputs:
+            %   parent         - container to put the plotter in. Empty (the default) makes a new uifigure
+            %   parentFigure   - uifigure to attach the plotter's context menu to. Empty (the default) uses the main window
+            %   Size           - (name-value) "Medium" (the default), or another size the Plotter supports
+            %   RegisterPlotter - (name-value) true (the default) to update the plotter with the data every tick
+            %
+            %Outputs:
+            %   pltr - the new Plotter
             arguments
                 this;
                 parent = [];
@@ -184,12 +247,18 @@ classdef Controller < handle
         end
 
         function pltr = AddNewSimplePlotter(this, parent, size)
-            %SimplePlotter is a barebones version of the Plotter class
-            %that doesn't have dropdowns and is not plugged into the
-            %DataRow and update infrastructure. It can just take plot
-            %commands programmtically from whatever made it.
-            %This is used by things like Instrument Control creating GUIs
-            %and placing Plotters in exisiting Gridlayouts
+            %Create a SimplePlotter, which only plots what its owner sends it, in a GUI container.
+            %A SimplePlotter is a barebones Plotter with no axis dropdowns,
+            %and is never updated with the data rows. Used by the GUI and by
+            %Instrument Controls that draw their own plots. On error, shows
+            %the error dialogue
+            %
+            %Inputs:
+            %   parent - container to put the plotter in, e.g. a grid layout
+            %   size   - "Medium" (the default), or another size the Plotter supports
+            %
+            %Outputs:
+            %   pltr - the new SimplePlotter
             arguments
                 this;
                 parent;
@@ -212,12 +281,23 @@ classdef Controller < handle
         end
 
         function AttachView(this, view)
-            %Assign controllers into the View and have it subscribe to
-            %their events
+            %Give a View (GUI) the Controller and sub-controllers, so it can subscribe to their events.
+            %Called by `Palladium.m` before `Initialise`. Calls the View's
+            %`AssignControllersAndHookUpEvents`
+
             view.AssignControllersAndHookUpEvents(this, this.TimingLoopController, this.InstrumentController);
         end
 
         function CacheInstrumentCommand(this, instrument, command, controlName, Settings)
+            %Queue a command for an instrument (or one of its controls), to run at the start of the next tick.
+            %Passes through to the CommandController. Used by
+            %`Palladium.CacheInstrumentCommand` and the Sequence Editor
+            %
+            %Inputs:
+            %   instrument  - the instrument to run the command on
+            %   command     - method call as text, e.g. "SetSourceLevel(2, false)"
+            %   controlName - name of the instrument's Instrument Control to run it on instead. Empty (the default) for the instrument itself
+            %   FunctionOnComplete - (name-value) function to call once the command has run. Default []
             arguments
                 this;
                 instrument (1,1) Palladium.Core.Instrument;
@@ -230,6 +310,10 @@ classdef Controller < handle
         end
 
         function canStart = CanStart(this)
+            %Check the data file's folder and name are valid, so measurements can start.
+            %Called by `TimingLoopController.Start`. If not, shows the error
+            %dialogue and returns false
+
             canStart = false;
             try
                 %Verify directory and path valid
@@ -248,14 +332,19 @@ classdef Controller < handle
         end
 
         function CloseProgress(this)
+            %Close the progress bar, by raising StoppedShowingProgress.
+
             notify(this, "StoppedShowingProgress");
         end
 
         function classNames = GetAllInstrumentClassNames(this)
+            %Names of all the instrument classes that can be added, MATLAB and Python.
+
             classNames = this.InstrumentController.ListOfAvailableInstrumentClassNameStrings;
         end
 
         function instRef = GetInstrumentFromName(this, instName)
+            %Find an added instrument by its Name, via the InstrumentController.
             arguments
                 this;
                 instName {mustBeTextScalar};
@@ -266,27 +355,50 @@ classdef Controller < handle
         end
 
         function HaltMeasurementsOnInstrumentError(this, instr, e)
+            %Show the error dialogue for an instrument's measurement error, and stop if the user asks.
+            %Called by the InstrumentController when an instrument's
+            %measurement fails and LogSettings.ErrorOnAllInstrumentErrors is
+            %on (otherwise it only logs a warning)
+            %
+            %Inputs:
+            %   instr - the instrument that failed
+            %   e     - the error it threw
+
             %Show error message and ask if we want to stop measurements
             halt = this.HandleError("Error in main measurement loop - Collect Data from " + instr.FullName, e);
             if(halt)
                 Palladium.Logging.Logger.Log("Info", "Measurements aborted by User from Error Dialogue");
-                this.TimingLoopController.Stop();
-                this.TimingLoopController.OnStopped();
+
+                %Wind the loop down now (stop the timer, close the
+                %instruments, raise Stopped) - unless it already has been,
+                %as in HandleCallbackError
+                if this.TimingLoopController.State ~= "Ready"
+                    this.TimingLoopController.OnStopped();
+                end
             end
         end
 
         function tf = IsClosing(this)
+            %True once the GUI window has been closed (see OnFigureClosed).
+
             tf = this.Closing;
         end
 
         function HandleCallbackError(this, context, err, Settings)
-            %Single entry point for errors caught in event listeners, GUI
-            %callbacks, and the measurement loop itself (see ErrorGuard for
-            %why callbacks need this). Logs the error, shows the error
-            %dialogue, and stops the measurement loop if the user chooses to.
-            %A Standalone error, from a window that does not interact with
-            %the measurement loop (e.g. the Data Viewer), gets a dialogue
-            %without the stop option, and never touches the loop.
+            %Handle an error caught in a GUI callback, an event listener or the measurement loop.
+            %The single entry point for these errors (see ErrorGuard for why
+            %callbacks need this). Logs the error, shows the error dialogue,
+            %and stops the measurement loop if the user chooses to. A
+            %Standalone error, from a window that does not interact with the
+            %measurement loop (e.g. the Data Viewer), gets a dialogue without
+            %the stop option, and never touches the loop. Once the GUI is
+            %closing, other errors just close the loop's timer
+            %
+            %Inputs:
+            %   context    - what was happening, shown before the error message
+            %   err        - the MException caught
+            %   Standalone - (name-value) true for an error from a window that does not interact with the loop. Default false
+            %   Figure     - (name-value) window to show the dialogue in (see HandleError). Default [], the main window
             arguments
                 this;
                 context;
@@ -316,11 +428,22 @@ classdef Controller < handle
         end
 
         function Halt = HandleError(this, message, error, Settings)
-            %Log an error and show the error dialogue, returning whether the
-            %user chose to stop the measurements. With Standalone = true the
-            %error is from a window that does not interact with the loop, so
-            %the dialogue has no stop option, Halt is false, and the main
+            %Log an error and show the error dialogue, returning whether the user chose to stop.
+            %Also shows the error on the main window's status light. An error
+            %the user has suppressed is ignored; one arriving while a
+            %dialogue is already open is only logged. With Standalone = true
+            %the error is from a window that does not interact with the loop,
+            %so the dialogue has no stop option, Halt is false, and the main
             %window's status light is left alone.
+            %
+            %Inputs:
+            %   message    - what was happening, shown before the error message
+            %   error      - the MException caught
+            %   Standalone - (name-value) true for an error from a window that does not interact with the loop. Default false
+            %   Figure     - (name-value) window to show the dialogue in. Default [], the main window
+            %
+            %Outputs:
+            %   Halt - true if the user chose to stop the measurements
             arguments
                 this;
                 message;
@@ -371,7 +494,7 @@ classdef Controller < handle
             catch e
                 warning("HandleErrorWarning:HandlingFailed", "%s", "An error was thrown while.. trying to handle an error.. :" + string(e.message));
             end
-            
+
             %TODO - use the DebugMode property to show simple stack trace
             %in the error. Right now it does nothing but it USED to
 
@@ -400,6 +523,12 @@ classdef Controller < handle
         end
 
         function HandleWarning(this, msg, title)
+            %Show a warning: a warning box in the main window, or a MATLAB warning if there is no GUI.
+            %
+            %Inputs:
+            %   msg   - the warning, as plain text (newlines are kept, and backslashes are not escapes)
+            %   title - title of the warning box
+
             try
                 uifg = this.UIFigureHandle;
                 if matlab.ui.internal.isUIFigure(uifg)
@@ -411,21 +540,40 @@ classdef Controller < handle
                     %shows as a Windows error box)
                     uialert(uifg, Palladium.Utilities.GUIUtils.MessageToHTML(msg), title, "Icon", "warning", "Interpreter", "HTML");
                 else
-                    %Our view is not a ui figure - just show a warning in the
-                    %console
-                    warning("HandleWarningWarning:Message", "%s", msg);
+                    %No GUI window - log it (Command Window, status bar and
+                    %log file), as a MATLAB warning would miss the log file
+                    %and show as an error box in the standalone app
+                    Palladium.Logging.Logger.Log("Warning", string(msg));
                 end
             catch
-                warning("HandleWarningWarning:Message", "%s", msg);
+                Palladium.Logging.Logger.Log("Warning", string(msg));
             end
         end
 
         function tf = HasGUIWindow(this)
             %True if a GUI window is open to show messages and dialog boxes in
+
             tf = matlab.ui.internal.isUIFigure(this.UIFigureHandle) && isvalid(this.UIFigureHandle);
         end
 
         function Initialise(this, versionString, Settings)
+            %Load the settings, start the Logger, set up the user files folder and load the instruments.
+            %Called by `Palladium.m` after `AttachView`. In order:
+            %
+            %* loads the config file and starts the Logger - an error here
+            %  is thrown, as the error dialogue is not set up yet;
+            %* sets the default data file settings (FileWriteDetails);
+            %* creates the user files folder and its subfolders, and copies
+            %  starter files into them if they are not there yet;
+            %* finds the GUI windows' icon, and raises SettingsApplied;
+            %* sets up Python and loads the Python instrument classes - if
+            %  Python can't be used, carries on without them (OnLoaded warns);
+            %* loads the MATLAB instrument classes, initialises the
+            %  TimingLoopController, and sets up the Sequence Editor.
+            %
+            %Inputs:
+            %   versionString  - Palladium DAQ's version, for the start-up message
+            %   ConfigFilePath - (name-value) config file to load instead of the default one. Default []
             arguments
                 this;
                 versionString {mustBeTextScalar};
@@ -478,7 +626,7 @@ classdef Controller < handle
                 %doesn't exist
                 this.UserFilesDir = Palladium.Utilities.PathUtils.CleanPath(this.PathSettings.UserFilesDirectory);
 
-               
+
                 %Now make sure that folder exists and create it if not
                 this.EnsureUserFilesDirExists(this.UserFilesDir);
 
@@ -533,7 +681,7 @@ classdef Controller < handle
                 if ismember(this.PythonSetupStatus.Status, ["OK", "PackagesMissing"])
                     this.InstrumentController.PythonInstrumentController = Palladium.PythonInstruments.PythonInstrumentController(this.PythonInstrumentNamespace, this.ApplicationDir);
                     this.InstrumentController.PythonInstrumentController.LoadInstrumentClasses(this.UserPythonInstrumentsDir);
-                    this.Log("Debug", "Python Instrument Classes initialised (Python " + this.PythonSetupStatus.Version + ", " + this.PythonSetupStatus.Executable + ")", "Green", "Instruments intialised");
+                    this.Log("Debug", "Python Instrument Classes initialised (Python " + this.PythonSetupStatus.Version + ", " + this.PythonSetupStatus.Executable + ")", "Green", "Instruments initialised");
                 end
                 if this.PythonSetupStatus.Status ~= "OK"
                     [title, ~] = Palladium.Utilities.PythonUtils.SetupHelpMessage(this.PythonSetupStatus);
@@ -552,7 +700,7 @@ classdef Controller < handle
                 %list)
                 this.Log("Debug", "Initialising Instrument Classes", "Yellow", "Initialising Instruments...");
                 this.InstrumentController.LoadInstrumentClasses();
-                this.Log("Debug", "Instrument Classes initialised", "Green", "Instruments intialised");
+                this.Log("Debug", "Instrument Classes initialised", "Green", "Instruments initialised");
 
                 %Initialise TimingLoopController
                 this.TimingLoopController.Initialise();
@@ -561,7 +709,7 @@ classdef Controller < handle
                 %make sure the sequence directory exists.
                 if ~exist(this.PathSettings.DefaultSequenceDirectory, "dir")
                     mkdir(this.PathSettings.DefaultSequenceDirectory);
-                end                
+                end
                 this.SequenceEditorController.Initialise(...
                     "DefaultDataDirectory", this.PathSettings.DefaultDirectory,...
                     "DefaultSequenceDirectory", this.PathSettings.DefaultSequenceDirectory,...
@@ -576,6 +724,14 @@ classdef Controller < handle
         end
 
         function InitialiseDataWriting(this)
+            %Make a new DataWriter for the current file settings, and settle the file name.
+            %Called by `TimingLoopController.Start` and when a sequence
+            %switches data file. The DataWriter applies the write mode to the
+            %file name (e.g. incrementing its number, see
+            %`DataWriter.ValidateFilePath`), and the result is sent to the
+            %View with FileWriteOptionsChanged. Also removes
+            %deleted plotters from the PlottingController
+
             %Create a DataWriter object to log all data
             this.DataWriter = Palladium.DataWriting.DataWriter(this.FileWriteDetails);
             this.FileWriteDetails.FileName = this.DataWriter.ValidateFilePath();
@@ -589,9 +745,23 @@ classdef Controller < handle
         end
 
         function [success, msg, title] = InitialiseMeasurements(this)
-            %Reset and prepare all GUI and instruments ready to then run
-            %the main update loop - note that Resume doesn't call this,
-            %just gets the loop running again without it
+            %Connect the instruments and prepare the data, plots and data file to start measuring.
+            %Called by `TimingLoopController.Start` (but not by Resume, which
+            %just restarts the loop). Shows a progress bar meanwhile. Clears
+            %DataTable, connects and initialises the instruments, sets
+            %Headers and Units, resets the plots, and writes the column
+            %headers and instruments' metadata lines to the data file. If
+            %setting up errors, shows the error dialogue and fails; if
+            %collecting the metadata errors, it fails only if the user
+            %chooses to stop there, and otherwise starts without the metadata
+            %
+            %Outputs:
+            %   success - true if measurements are ready to start
+            %   msg     - if an instrument failed to connect, the details. ""
+            %             otherwise - including when the user has already seen
+            %             an error dialogue
+            %   title   - if an instrument failed to connect, a short title for the warning, else ""
+
             success = false; msg = ""; title = "";
 
             %Display a status message in the logger
@@ -641,6 +811,7 @@ classdef Controller < handle
 
             %Add a metadata/settings line to the top of the datafile (in
             %the header) for each instrument that defines one
+            metadataLines = [];     %No metadata lines if collecting them fails
             try
                 %Update the progress bar
                 this.UpdateProgress(1, "Writing metadata and headers");
@@ -652,7 +823,16 @@ classdef Controller < handle
                 this.CloseProgress();
             catch e
                 this.CloseProgress();
-                this.HandleError("Error collecting instrument metadata", e);
+                halt = this.HandleError("Error collecting instrument metadata", e);
+                if halt
+                    %The user chose to stop in the error dialogue - don't start.
+                    %No message, as they have already seen the error (see
+                    %TimingLoopController.AbortStart)
+                    this.Log("Info", "Start cancelled from the error dialogue", "Yellow", "Start cancelled");
+                    success = false; msg = ""; title = "";
+                    return;
+                end
+                %Otherwise carry on, without the metadata lines
             end
 
             %Write the headers to file
@@ -661,7 +841,11 @@ classdef Controller < handle
             success = true;
         end
 
-        function InstrumentPropertyChanged(this, instr)           
+        function InstrumentPropertyChanged(this, instr)
+            %Log an instrument's settings change and refresh the Sequence Editor's instrument names.
+            %Called by the InstrumentController when an instrument raises
+            %PropertyChanged
+
             %Display a status message in the logger
             this.Log("Info", instr.Name + " Property Changed", "Green", instr.Name + " Property Changed");
 
@@ -671,7 +855,13 @@ classdef Controller < handle
         end
 
         function Log(this, level, logText, colour, statusText)
-            %Passes through to both the Logger and the GUI status panel
+            %Send a message to the Logger, and show a status message in the GUI's status strip.
+            %
+            %Inputs:
+            %   level      - "Debug", "Info", "Warning" or "Error"
+            %   logText    - message for the Logger
+            %   colour     - status light colour: "Green", "Yellow" or "Red"
+            %   statusText - shorter message for the status strip
             arguments
                 this;
                 level       {mustBeText, mustBeMember(level, ["Debug", "Info", "Warning", "Error"])};
@@ -679,6 +869,7 @@ classdef Controller < handle
                 colour      {mustBeText, mustBeMember(colour, ["Green", "Yellow", "Red"])};
                 statusText  (1,1) string;
             end
+
             %Pass through to the Logger and to the status strip in the
             %bottom of the GUI
             Palladium.Logging.Logger.Log(level, logText);
@@ -686,14 +877,25 @@ classdef Controller < handle
         end
 
         function Measure(this)
-            %This is the core function that gets called by
-            %TimingLoopController's Update call every tick, to actually
-            %grab data from Instruments and do things with it.
+            %Run one tick of the measurement loop: commands, data collection, file, data table and plots.
+            %Called by the TimingLoopController's timer every tick. In order:
+            %runs queued commands (CommandController.Update), collects a data
+            %row from the instruments, writes it to the data file, adds it
+            %to DataTable, updates the plots and Big Number Displays, and raises
+            %DataRowUpdated. Each
+            %step catches its own errors (see HandleCallbackError), so the
+            %rest still run if the user chooses to carry on; a failed data
+            %collection gives a row of NaNs. If the user chooses to stop while
+            %commands run, the rest of the tick is skipped; if they stop while
+            %collecting, the row (padded with NaNs) is still written and plotted
 
             try
                 this.CommandController.Update();
             catch e
                 CatchMeasurementLoopError(this, e);
+            end
+            if this.TimingLoopController.State == "Ready"
+                return;     %The user chose to stop measurements from an error dialogue - the instruments are closed now
             end
 
             try
@@ -725,6 +927,7 @@ classdef Controller < handle
             try
                 %Update data plots & Update any Big Number Display windows
                 this.PlottingController.PlotData(dataRow, this.DataTable);
+                this.UpdateBigNumberDisplays(dataRow);
                 args = Palladium.Events.DataRowAddedEventData(dataRow, this.Headers);
                 notify(this, "DataRowUpdated", args);
             catch e
@@ -743,6 +946,10 @@ classdef Controller < handle
         end
 
         function OnFigureClosed(this)
+            %Shut down when the GUI window closes: stop the timer, close the instruments and the Sequence Editor.
+            %Called by `Palladium.m`. Data Viewer windows are left open, by
+            %design
+
             this.Log("Debug", "Palladium DAQ closed", "Yellow", "Closing");
             this.Closing = true;
             this.TimingLoopController.CloseTimer();
@@ -752,9 +959,17 @@ classdef Controller < handle
             %Sequence Editor windows (not DataViewer ones though, by
             %design)
             this.SequenceEditorController.Close();
+
+            %Close any Big Number Display windows - they show this session's data
+            delete(this.BigNumberDisplays(isvalid(this.BigNumberDisplays)));
+            this.BigNumberDisplays = Palladium.Components.BigNumberDisplay.empty(1, 0);
         end
 
         function OnLoaded(this)
+            %Finish start-up: raise Loaded so the GUI accepts input, then warn of any Python setup problem.
+            %Called by `Palladium.m` once everything is set up, including any
+            %Preset
+
             %Display a status message in the logger
             this.Log("Info", "Palladium loaded", "Green", "Ready");
 
@@ -771,10 +986,88 @@ classdef Controller < handle
         end
 
         function OnMeasurementsStopped(this)
+            %Close all the instruments, once the measurement loop has stopped.
+            %Called by `TimingLoopController.OnStopped`
+
             this.InstrumentController.CloseAll();
         end
 
+        function display = OpenBigNumberDisplay(this, column, Settings)
+            %Open a Big Number Display window for a data column, updated each measurement tick.
+            %Called by the main window's **New Display** button, which asks
+            %which column to show. A script can give the column instead. The
+            %data columns are only known once measurements have started, so
+            %before then this says so and opens nothing. The display closes
+            %with Palladium DAQ
+            %
+            %Inputs:
+            %   column             - (optional) the column's number, or its exact header,
+            %                        e.g. "K2000_1 - Voltage (V)". Asked for if not given,
+            %                        along with the significant figures and number format
+            %   SignificantFigures - (name-value) significant figures to show. Default 6
+            %   NumberFormat       - (name-value) sprintf format for the value, e.g. "%.3f",
+            %                        used instead of SignificantFigures. Default "" (automatic)
+            %
+            %Outputs:
+            %   display - the Palladium.Components.BigNumberDisplay, or [] if none was opened
+
+            %column is the last positional argument, so a header that starts
+            %like an option's name can't be read as that option
+            arguments
+                this;
+                column = [];
+                Settings.SignificantFigures (1,1) double {mustBeInteger, mustBePositive} = Palladium.Components.BigNumberDisplay.DefaultSignificantFigures;
+                Settings.NumberFormat {Palladium.Components.BigNumberDisplay.mustBeNumberFormat} = "";
+            end
+
+            display = [];
+            headers = string(this.Headers);
+            if isempty(headers)
+                this.Log("Info", "Start measurements before opening a Big Number Display - the data columns aren't known until then", "Yellow", "Start measurements first");
+                return;
+            end
+
+            try
+                %Which column, and how to show it: asked for, or as given
+                if isempty(column)
+                    %A uifigure dialogue, not listdlg - closing listdlg sent the
+                    %main window to the back
+                    choice = Palladium.Components.BigNumberDisplay.ChooseColumn(headers, ...
+                        Reference=this.UIFigureHandle, Icon=this.WindowSettings.PalladiumIconPath);
+                    if isempty(choice)
+                        return;
+                    end
+                    index = choice.Column;
+                    Settings.SignificantFigures = choice.SignificantFigures;
+                    Settings.NumberFormat = choice.NumberFormat;
+                elseif isnumeric(column)
+                    index = column;
+                    assert(isscalar(index) && index >= 1 && index <= numel(headers) && index == round(index), ...
+                        "OpenBigNumberDisplay:NoSuchColumn", "%s", "There is no data column " + string(column) + " - there are " + numel(headers));
+                else
+                    index = find(headers == string(column), 1);
+                    assert(~isempty(index), "OpenBigNumberDisplay:NoSuchColumn", "%s", "There is no data column called " + string(column));
+                end
+
+                %Its units, if known (Units matches Headers)
+                units = "";
+                if index <= numel(this.Units)
+                    units = string(this.Units(index));
+                end
+
+                display = Palladium.Components.BigNumberDisplay(headers(index), units, index);
+                display.SignificantFigures = Settings.SignificantFigures;
+                display.NumberFormat = Settings.NumberFormat;
+                this.BigNumberDisplays(end+1) = display;
+            catch err
+                this.HandleError("Error opening a Big Number Display", err);
+                display = [];
+            end
+        end
+
         function OpenDataViewer(this)
+            %Open a Data Viewer window, in the default data folder.
+
             try
                 defaultDataPath = this.DefaultDataDir;
                 extensions = this.FileWriteDetails.FileExtension;
@@ -785,8 +1078,10 @@ classdef Controller < handle
         end
 
         function OpenHelp(this)
-            %Open the documentation's contents page: in the system browser
-            %from the compiled app, in MATLAB's web browser otherwise
+            %Open the documentation's contents page in a web browser.
+            %The system browser from the compiled app, MATLAB's web browser
+            %otherwise
+
             try
                 %Docs is next to Palladium.m in the toolbox, and next to
                 %PalladiumDAQ.exe in an installed app (the installer puts it there)
@@ -808,6 +1103,8 @@ classdef Controller < handle
         end
 
         function OpenSequenceEditor(this)
+            %Open a Sequence Editor window.
+
             try
                 %Add a View/GUI to the sequence editor (which is secretly
                 %already there)
@@ -818,8 +1115,13 @@ classdef Controller < handle
                 this.HandleError("Error opening Sequence Viewer", err);
             end
         end
-        
+
         function QueueSequence(this, args)
+            %Queue a sequence of commands from the Sequence Editor in the CommandController.
+            %
+            %Inputs:
+            %   args - event data whose Value is a cell array of the commands
+
             cellArrayOfCommands = args.Value;
 
             this.CommandController.CacheCommands(cellArrayOfCommands);
@@ -829,6 +1131,8 @@ classdef Controller < handle
         end
 
         function RegisterUIFigure(this, uiFigureHandle)
+            %Register the main GUI window, where error dialogues and warnings are then shown.
+            %Called by the View
             arguments
                 this;
                 uiFigureHandle (1,1) handle;
@@ -837,77 +1141,66 @@ classdef Controller < handle
             this.UIFigureHandle = uiFigureHandle;
         end
 
-        function RemoveInstrument(this, instrRef)
-            try
-                %Store this, as we won't be able to retrieve it after deleting
-                %the object
-                instName = instrRef.Name;
-
-                % Pass on to Instrument Controller
-                this.InstrumentController.RemoveInstrument(instrRef);
-
-                %Verbose/debug message printing
-                this.Log("Info", "Removed Instrument: " + instName, "Green", "Removed Instrument");
-
-            catch err
-                this.HandleError("Error removing instrument " + instrRef.Name, err);
-            end
-        end
-
-        function RemoveInstrumentControl(this, instrRef, controlDetailsStruct)
-            try
-                %Pass on through to InstrumentController
-                this.InstrumentController.RemoveInstrumentControl(instrRef, controlDetailsStruct);
-
-                %Verbose/debug message printing
-                this.Log("Info", "Removed Instrument Control: " + controlDetailsStruct.Name, "Green", "Removed Instrument Control");
-            catch err
-                this.HandleError("Error removing instrument control " + controlDetailsStruct.Name, err);
-            end
-        end
-
         function LoadPreset(this, view)
-            %This function is called from the Settings menu in the View,
-            %after launch
+            %Ask the user for a Preset .json file and apply it.
+            %Called from the GUI's Settings menu. The file dialogue opens in
+            %the user files folder's Presets folder. See
+            %`PluginLoading.ApplyPresetFromJson`
+            %
+            %Inputs:
+            %   view - the View, which adds the Preset's GUI parts (plots, Instrument Controls)
+
             defaultFilePath = Palladium.Utilities.PathUtils.CleanPath(this.UserPresetsDir);
 
             % Open file dialog in defaultFilePath and filter to .json
             filter = {'*.json','JSON files'; '*.*','All Files'};
-            [file, location] = uigetfile(filter, "Load Preset", fullfile(defaultFilePath, '*.json'));
+            jsonFilePath = Palladium.Utilities.GUIUtils.ChooseFile("open", Filter=filter, Title="Load Preset", ...
+                Default=fullfile(defaultFilePath, '*.json'), Reference=this.UIFigureHandle);
 
             %Cancel if it was cancelled
-            if file == 0
+            if jsonFilePath == ""
                 return;
             end
-            jsonFilePath = fullfile(location, file);
 
             %Load the present in and apply all the settings
             Palladium.Utilities.PluginLoading.ApplyPresetFromJson(this, view, jsonFilePath);
         end
 
         function SavePreset(this, view)
+            %Ask the user for a file name, and save the current setup there as a Preset .json file.
+            %Called from the GUI's Settings menu. The file dialogue opens in
+            %the user files folder's Presets folder. See
+            %`PluginLoading.SavePresetToJson`
+            %
+            %Inputs:
+            %   view - the View, whose GUI parts (plots) are saved too
+
             defaultFilePath = fullfile(this.UserPresetsDir, "NewPreset.json");
             defaultFilePath = Palladium.Utilities.PathUtils.CleanPath(defaultFilePath);
-            
+
             %Open a file browse dialog window
-            [file, location] = uiputfile(defaultFilePath, "Save Preset");
+            jsonFilePath = Palladium.Utilities.GUIUtils.ChooseFile("save", Filter={'*.json', 'JSON files'}, Title="Save Preset", ...
+                Default=defaultFilePath, Reference=this.UIFigureHandle);
 
             %Cancel if it was cancelled
-            if file == 0
+            if jsonFilePath == ""
                 return;
             end
-            jsonFilePath = fullfile(location, file);
 
             Palladium.Utilities.PluginLoading.SavePresetToJson(this, this.InstrumentController, view, jsonFilePath);
         end
 
         function SetFilePathWhileRunning(this, filePath, saveFileBool)
-            %This is designed as the entry point for sequences modifying
-            %the file write options while the loop is running. Needs to
-            %Stop/Start the data writer. Note that this doesn't need to be
-            %cached, it is not async/event driven - this is called from
-            %CommandController.Update, the first call in the Measure loop
-            %tick
+            %Switch to a new data file, or switch saving on or off, while measurements run.
+            %The entry point for a sequence's `[DATAFILE]` command, through the
+            %CommandController's DataFileCommandRun event. It is not queued:
+            %it runs from CommandController.Update, the first step of the
+            %tick (see Measure). Makes a new DataWriter, and starts the new
+            %file with its header, as Start does
+            %
+            %Inputs:
+            %   filePath     - full path of the new data file, or empty to keep the current one
+            %   saveFileBool - true to write the data to file
             arguments
                 this;
                 filePath string;    %New data file, or empty to keep the current one
@@ -955,6 +1248,8 @@ classdef Controller < handle
         end
 
         function SetFilePathsDirectory(this, directory)
+            %Set the data file's folder, and tell the View (FileWriteOptionsChanged).
+
             try
                 this.FileWriteDetails.Directory = Palladium.Utilities.PathUtils.CleanPath(directory);
 
@@ -967,6 +1262,8 @@ classdef Controller < handle
         end
 
         function SetFilePathsFileExtension(this, fileExtension)
+            %Set the data file's extension, e.g. ".dat", and tell the View (FileWriteOptionsChanged).
+
             try
                 this.FileWriteDetails.FileExtension = fileExtension;
 
@@ -979,6 +1276,8 @@ classdef Controller < handle
         end
 
         function SetFilePathsDescription(this, descriptionText)
+            %Set the data file's description text, and tell the View (FileWriteOptionsChanged).
+
             try
                 this.FileWriteDetails.DescriptionText = descriptionText;
 
@@ -991,6 +1290,10 @@ classdef Controller < handle
         end
 
         function SetFilePathsFileName(this, fileName)
+            %Set the data file's name, and tell the View (FileWriteOptionsChanged).
+            %Any extension is removed, and a `<DATE>` tag is replaced with
+            %today's date
+
             try
                 %Make sure the filename doesn't have an extra file extension
                 %included by user by mistake - we will add an extension on
@@ -1011,6 +1314,8 @@ classdef Controller < handle
         end
 
         function SetFilePathsSaveFileBool(this, saveFileBool)
+            %Set whether to write the data to file, and tell the View (FileWriteOptionsChanged).
+
             try
                 this.FileWriteDetails.SaveFile = saveFileBool;
 
@@ -1023,6 +1328,10 @@ classdef Controller < handle
         end
 
         function SetFilePathsWriteMode(this, writeMode)
+            %Set the data file's write mode, and tell the View (FileWriteOptionsChanged).
+            %The write mode says what to do if the file already exists:
+            %"Increment File No.", "Overwrite File" or "Append To File"
+
             try
                 this.FileWriteDetails.WriteMode = writeMode;
 
@@ -1035,34 +1344,47 @@ classdef Controller < handle
         end
 
         function ShowMessageInGUI(this, colour, msg)
-            %Note, this is for the moment deliberately seperate from the
-            %ShowStatus call, even though it just calls that and nothing
-            %else - this will be called from the Logger, and we might later
-            %want to show messages from there in the GUI in different ways.
+            %Show a message from the Logger in the GUI's status strip.
+            %For now this just calls ShowStatus, but is kept separate as the
+            %Logger's entry point, so its messages could later be shown in
+            %other ways
+
             this.ShowStatus(colour, msg);
         end
 
         function ShowProgress(this, msg, title)
+            %Show a progress bar, by raising StartedShowingProgress.
+            %
+            %Inputs:
+            %   msg   - message shown in the progress bar
+            %   title - its title
+
             args = Palladium.Events.MessageEventData(msg, title);
             notify(this, "StartedShowingProgress", args);
         end
 
         function ShowStatus(this, colour, msg)
+            %Show a message in the GUI's status strip, by raising GreenStatus, YellowStatus or RedStatus.
+            %
+            %Inputs:
+            %   colour - status light colour: "Green", "Yellow" or "Red"
+            %   msg    - the message
+
             switch(colour)
-                case('Green')
-                    notify(this, "GreenStatus", Palladium.Events.MessageEventData(msg));
-                case('Yellow')
-                    notify(this, "YellowStatus", Palladium.Events.MessageEventData(msg));
-                case('Red')
-                    notify(this, "RedStatus", Palladium.Events.MessageEventData(msg));
+                case('Green');      notify(this, "GreenStatus", Palladium.Events.MessageEventData(msg));
+                case('Yellow');     notify(this, "YellowStatus", Palladium.Events.MessageEventData(msg));
+                case('Red');        notify(this, "RedStatus", Palladium.Events.MessageEventData(msg));
                 otherwise
                     error("ShowStatusError:UnsupportedColour", "Colour unsupported in ShowStatus");
             end
         end
 
         function UpdateProgress(this, progress, message)
-            %Tell the Controller that a slow event has made progress. Will
-            %trigger updates on GUI Progress Bars on an attached View
+            %Move the progress bar on, by raising UpdatedProgress.
+            %
+            %Inputs:
+            %   progress - fraction done, from 0 to 1
+            %   message  - message to show in the progress bar
             arguments
                 this;
                 progress (1,1) double;
@@ -1079,6 +1401,7 @@ classdef Controller < handle
     methods(Access=private)
 
         function AppendToDataTable(this, dataRow)
+            %Add a data row to the bottom of DataTable.
 
             if isempty(this.DataTable)
                 this.DataTable = dataRow;
@@ -1088,8 +1411,8 @@ classdef Controller < handle
         end
 
         function figureHandle = ResolveDialogueFigure(this, requested)
-            %The uifigure to show an error dialogue in: the requested one if
-            %given and still open, otherwise the main window, otherwise empty
+            %The uifigure to show an error dialogue in: the requested one if open, else the main window, else empty.
+
             figureHandle = [];
             if ~isempty(requested)
                 try
@@ -1109,8 +1432,8 @@ classdef Controller < handle
         end
 
         function ClearErrorDialogOpen(this)
-            %Used by an onCleanup in HandleError, so the flag is reset even
-            %if showing the dialogue itself errors
+            %Reset ErrorDialogOpen - run by an onCleanup in HandleError, so it is reset even if the dialogue errors.
+
             if isvalid(this)
                 this.ErrorDialogOpen = false;
             end
@@ -1135,11 +1458,16 @@ classdef Controller < handle
         end
 
         function EnsureUserFilesDirExists(this, pathToDir)
-            % ENSUREUSERFILESDIREXISTS - Ensure a user files directory
-            % exists, along with its subfolders, and add to the path
+            %Create the user files folder and its subfolders if they don't exist, and add them to the path.
+            %Sets the User...Dir properties. The subfolders are Presets,
+            %Instrument Drivers (with Quantum Design/PPMS Communication), the
+            %PythonInstruments namespace folder and, except in the installed
+            %app, +Palladium/+Instruments for MATLAB instrument drivers.
+            %Except in the installed app, the user files folder and Instrument
+            %Drivers (with its subfolders) are added to the MATLAB path
             %
-            % Input arguments:
-            % pathToDir  - full path of the directory to ensure exists
+            %Inputs:
+            %   pathToDir - the folder to make the user files folder in (UserFilesDir)
 
             %Build the path to the 'Palladium DAQ - User Files' directory
             userDirPath = fullfile(pathToDir, this.UserFolderName);
@@ -1196,6 +1524,23 @@ classdef Controller < handle
         end
 
         function [logSettings, pathSettings, windowSettings, plotterSettings, pythonSettings, warningSettings] = LoadSettings(this, Settings)
+            %Load the config file and return its sections, with the paths tidied and made absolute.
+            %Remembers the config file's path in ConfigFilePath. Fixes a user
+            %files path that ends in the user files folder itself (writing
+            %the fix back to the config), makes relative paths absolute
+            %(relative to ApplicationDir), and creates the data, log,
+            %sequence and user files folders if needed. A folder that can't
+            %be made falls back, with a warning: the data folder to the
+            %user's Documents folder (PathUtils.GetDocumentsDirectory), the
+            %others to their default place in Documents/Palladium DAQ, then
+            %to Documents itself (see CreateFolderOrFallBack)
+            %
+            %Inputs:
+            %   ConfigFilePath - (name-value) config file to load instead of the default one. Default []
+            %
+            %Outputs:
+            %   logSettings, pathSettings, windowSettings, plotterSettings,
+            %   pythonSettings, warningSettings - the config's sections, as structs
             arguments
                 this;
                 Settings.ConfigFilePath = [];                  % Default is blank ([]) - enter a filepath instead to override default Config json file loading and pass in the path for another settings file to be loaded from
@@ -1235,19 +1580,14 @@ classdef Controller < handle
             end
 
 
-            %Make relative path if specified
-            if(pathSettings.DataDirectoryIsRelativePath)
-                pathSettings.DefaultDirectory = fullfile(this.ApplicationDir, pathSettings.DefaultDirectory);
-            end
-            if(logSettings.LogFileDirectoryIsRelativePath)
-                logSettings.LogFileDirectory = fullfile(this.ApplicationDir, logSettings.LogFileDirectory);
-            end
-            if(pathSettings.SequenceDirectoryIsRelativePath)
-                pathSettings.DefaultSequenceDirectory = fullfile(this.ApplicationDir, pathSettings.DefaultSequenceDirectory);
-            end
-            if(pathSettings.UserFilesDirectoryIsRelativePath)
-                pathSettings.UserFilesDirectory = fullfile(this.ApplicationDir, pathSettings.UserFilesDirectory);
-            end
+            %Folders stored as relative paths are relative to ApplicationDir
+            %(the folder Palladium.m is in) - make them absolute. In an
+            %installed copy that is the installation folder, so warn
+            isInstalled = ~configIO.IsSourceCheckout(this.ApplicationDir);
+            pathSettings.DefaultDirectory = this.MakeAbsoluteFromApplicationDir(pathSettings.DefaultDirectory, this.ApplicationDir, isInstalled);
+            logSettings.LogFileDirectory = this.MakeAbsoluteFromApplicationDir(logSettings.LogFileDirectory, this.ApplicationDir, isInstalled);
+            pathSettings.DefaultSequenceDirectory = this.MakeAbsoluteFromApplicationDir(pathSettings.DefaultSequenceDirectory, this.ApplicationDir, isInstalled);
+            pathSettings.UserFilesDirectory = this.MakeAbsoluteFromApplicationDir(pathSettings.UserFilesDirectory, this.ApplicationDir, isInstalled);
 
             %Clean the paths up, removing extra \\..\\.. loops etc
             pathSettings.DefaultDirectory = Palladium.Utilities.PathUtils.CleanPath(pathSettings.DefaultDirectory);
@@ -1255,43 +1595,47 @@ classdef Controller < handle
             pathSettings.DefaultSequenceDirectory = Palladium.Utilities.PathUtils.CleanPath(pathSettings.DefaultSequenceDirectory);
             pathSettings.UserFilesDirectory = Palladium.Utilities.PathUtils.CleanPath(pathSettings.UserFilesDirectory);
 
-            %Verify that the DefaultDirectory exists - if it doesn't, try to make that folder. If that fails, set to a fallback
-            %and warn user.
-            if(~isfolder(pathSettings.DefaultDirectory))
-                %Show a warning in the command window
-                disp("Could not find directory " + pathSettings.DefaultDirectory + " specified in the config file. Creating new directory.");
+            %Make sure each folder exists, creating it if not. If it can't
+            %be made, fall back (with a warning): data to the user's
+            %Documents folder (or home folder if there is none), which
+            %always exists; logs, sequences and user files first to their
+            %default place in Documents/Palladium DAQ, so they don't clutter
+            %Documents, then to Documents itself
+            documentsDir = Palladium.Utilities.PathUtils.GetDocumentsDirectory();
+            defaults = configIO.GenerateDefaultConfigStruct();
+            pathSettings.DefaultDirectory = this.CreateFolderOrFallBack(...
+                [pathSettings.DefaultDirectory, documentsDir], "data");
+            logSettings.LogFileDirectory = this.CreateFolderOrFallBack(...
+                [logSettings.LogFileDirectory, defaults.LogSettings.LogFileDirectory, documentsDir], "log");
+            pathSettings.DefaultSequenceDirectory = this.CreateFolderOrFallBack(...
+                [pathSettings.DefaultSequenceDirectory, defaults.PathSettings.DefaultSequenceDirectory, documentsDir], "sequence");
 
-                try
-                    %Create the folder
-                    mkdir(pathSettings.DefaultDirectory);
+            %The config gives the folder that holds the user files folder -
+            %make the user files folder itself, which is the one that has to
+            %be writable
+            userFilesFolder = this.CreateFolderOrFallBack(...
+                fullfile([pathSettings.UserFilesDirectory, defaults.PathSettings.UserFilesDirectory, documentsDir], this.UserFolderName), "user files");
+            pathSettings.UserFilesDirectory = string(fileparts(userFilesFolder));
+        end
 
-                    %Assert the creation was successful
-                    assert(isfolder(pathSettings.DefaultDirectory), "LoadSettingsError:FolderNotFound", "Folder not found at path");
-                catch exception
-                    %Warn the user
-                    warning("LoadSettingsWarning:DefaultDirectoryCreationFailed", "%s", "Could not find directory " + pathSettings.DefaultDirectory + " specified in the config file, and hit an error while trying to create it. Reverting to fallback for default directory. Error message: " + string(exception.message));
+        function UpdateBigNumberDisplays(this, dataRow)
+            %Show a new data row in each open Big Number Display - called each tick by Measure.
+            %Displays whose windows have been closed are dropped from the list
 
-                    %User folder eg c:/Matt/
-                    userDir = fullfile(getenv('USERPROFILE'));
-
-                    %Set the Default Dir
-                    pathSettings.DefaultDirectory = userDir;
-
-                end
+            this.BigNumberDisplays = this.BigNumberDisplays(isvalid(this.BigNumberDisplays));
+            for k = 1 : numel(this.BigNumberDisplays)
+                this.BigNumberDisplays(k).UpdateValue(dataRow);
             end
         end
 
         function PlotterAxesSelectionChange(this, pltr)
-            %This is needed for the case where we want to change the
-            %displayed data in a Plotter, but the loop is not running.
-            %While measurement loop is running, the Plotter will get an
-            %Update call with new data every tick, and if it has
-            %established that a button has been pressed and it needs to
-            %e.g. change the data plotted on a y axis, it sets a bool flag
-            %to do a plot refresh next update tick. If there are no ticks
-            %this does not happen, so in that case, we hook into the
-            %Plotter's event and fire a manual replot in the case that
-            %measurements are stopped
+            %Replot a plotter whose axes were changed while measurements are not running.
+            %While the loop runs, a plotter whose axis selection changes
+            %replots on its next update tick. With no ticks that never
+            %happens, so this listens to the plotter's AxesSelectionChange
+            %event and replots it with the whole DataTable (if there is any
+            %data)
+
             if this.TimingLoopController.State ~= "Running"
                 %Have to pass whole data table back in - Plotters do not
                 %store/copy these, that would be very expensive.
@@ -1305,8 +1649,8 @@ classdef Controller < handle
         end
 
         function PythonSetupWarningClosed(this, evt)
-            %Remember in the config file if the user chose not to see the
-            %Python setup warning again
+            %Remember in the config file if the user chose not to see the Python setup warning again.
+
             if evt.SelectedOption ~= "Don't show this again"
                 return
             end
@@ -1321,6 +1665,8 @@ classdef Controller < handle
         end
 
         function SavePlot(this, eventData)
+            %Save a plotter's figure, as a .fig and a .png, next to the data file, when its SavePlot event fires.
+
             try
                 %Save the figure and a png to file using the existing
                 %DataWriter
@@ -1334,11 +1680,15 @@ classdef Controller < handle
         end
 
         function status = SetUpPython(this)
-            %Choose the Python to use, and check it can be used for Python
-            %instruments. In order of preference: PythonSettings.PythonExecutable
-            %from the config, the Python bundled with the standalone
-            %application (installed in its application folder), or the one
-            %MATLAB finds itself (see pyenv)
+            %Choose the Python to use, and check it can be used for Python instruments.
+            %In order of preference: PythonSettings.PythonExecutable from the
+            %config, the Python bundled with the standalone application
+            %(installed in its application folder), or the one MATLAB finds
+            %itself (see pyenv)
+            %
+            %Outputs:
+            %   status - setup status struct (see PythonUtils.CheckPythonSetup)
+
             executable = string(this.PythonSettings.PythonExecutable);
             if isempty(executable) || executable == ""
                 bundledPython = fullfile(this.ApplicationDir, "Python", "python.exe");
@@ -1361,10 +1711,11 @@ classdef Controller < handle
         end
 
         function ShowPythonSetupWarning(this)
-            %Show a dialog explaining any problem setting up Python, and how
-            %to fix it - unless Python is fine, the user has turned this
-            %warning off, or there is no GUI to show it in. Doesn't wait for
-            %the dialog to close
+            %Show a dialog explaining any problem setting up Python, and how to fix it.
+            %Not shown if Python is fine, the user has turned this warning
+            %off, or there is no GUI to show it in. Doesn't wait for the
+            %dialog to close
+
             if isempty(this.PythonSetupStatus) || this.PythonSetupStatus.Status == "OK" || this.WarningSettings.SuppressPythonSetupWarning
                 return
             end
@@ -1379,6 +1730,80 @@ classdef Controller < handle
                     "Icon", "warning", "Interpreter", "html", "CloseFcn", @(~, evt) this.PythonSetupWarningClosed(evt));
             catch err
                 this.HandleError("Error showing the Python setup warning", err);
+            end
+        end
+
+    end
+
+    %% Methods (Static, Private)
+    methods(Static, Access = {?Palladium.Core.Controller, ?matlab.unittest.TestCase})    %Permission is Private, but also allow unit tests to see it
+
+        function folder = CreateFolderOrFallBack(folders, description)
+            %The first of a list of folders that exists or can be created - the config's folder, then fallbacks.
+            %If the first (the config's) can't be made and a fallback is
+            %used, warns (LoadSettingsWarning:FolderCreationFailed) - a MATLAB
+            %warning, as the Logger is not set up yet when the config is
+            %loaded. Errors (LoadSettingsError:FolderCreationFailed) if none
+            %can be made
+            %
+            %Inputs:
+            %   folders     - the config's folder, then the fallbacks in order (string array)
+            %   description - what the folder is for, for the messages, e.g. "log"
+            %
+            %Outputs:
+            %   folder - the folder used (string)
+
+            folders = unique(string(folders), "stable");
+            problems = strings(1, 0);
+            for k = 1:numel(folders)
+                folder = folders(k);
+                if ~isfolder(folder)
+                    if k == 1
+                        disp("[INFO] - The " + description + " folder " + folder + " in the config file doesn't exist - creating it.");
+                    end
+                    [~, msg] = mkdir(folder);
+                    if ~isfolder(folder)
+                        problems(end+1) = folder + " (" + string(msg) + ")"; %#ok<AGROW>
+                        continue
+                    end
+                end
+
+                if k > 1
+                    warning("LoadSettingsWarning:FolderCreationFailed", "%s", "Could not create the " + description + " folder given in the config file: " + problems(1) + ...
+                        ". Using " + folder + " instead - change it in the config file to stop this message.");
+                end
+                return
+            end
+
+            error("LoadSettingsError:FolderCreationFailed", "%s", "Could not create the " + description + " folder, or any fallback for it. Tried: " + join(problems, "; "));
+        end
+
+        function path = MakeAbsoluteFromApplicationDir(path, applicationDir, isInstalled)
+            %Make a config folder path absolute, taking a relative one as relative to applicationDir.
+            %An absolute path (PathUtils.IsAbsolutePath) is returned as it
+            %is. In an installed copy (toolbox or compiled application),
+            %applicationDir is the installation folder - which may not be
+            %writable, and is replaced by each update - so a relative path
+            %gives a warning. The Logger is not set up yet when the config
+            %is loaded, so this is a MATLAB warning
+            %
+            %Inputs:
+            %   path           - a config folder path, e.g. "Data" or "C:\Data"
+            %   applicationDir - the folder Palladium.m is in
+            %   isInstalled    - true if this is not a source checkout (ConfigIO.IsSourceCheckout)
+            %
+            %Outputs:
+            %   path - the absolute path
+
+            if Palladium.Utilities.PathUtils.IsAbsolutePath(path)
+                return
+            end
+
+            relativePath = path;
+            path = fullfile(applicationDir, path);
+            if isInstalled
+                warning("LoadSettingsWarning:RelativePathInInstalledCopy", "%s", "The folder """ + relativePath + """ in the config file is a relative path, so it is inside Palladium DAQ's installation folder (" + ...
+                    Palladium.Utilities.PathUtils.CleanPath(path) + "). That folder may not be writable, and is replaced when Palladium DAQ is updated - set a full path for it in the config file instead.");
             end
         end
 

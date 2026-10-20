@@ -114,6 +114,7 @@ function unit = QueryUnit(this, command)
 end 
 ```
 * **Overriding methods**, such as an instrument's `Measure` or `GetHeaders`, need help text only where their behaviour differs from the base class; otherwise the reference shows the base class's help.
+* **Abstract methods** take their help from the comment block directly *above* the declaration in the `methods (Abstract)` block - unlike other methods, a comment below the declaration line is ignored. Leave a blank line between one abstract method and the next comment block.
 
 ## Properties
 

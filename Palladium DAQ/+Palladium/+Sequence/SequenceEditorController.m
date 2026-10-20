@@ -85,9 +85,9 @@ classdef SequenceEditorController < handle
                 Settings.IconPath;
             end
 
-            %If it exists already, just bring it to the fron
+            %If it exists already, just bring it to the front
             if this.ViewExists
-                this.View.SeizeFocus();
+                Palladium.Utilities.GUIUtils.BringToFront(this.View);
                 this.View.RefreshInstrumentNames(this.Instruments);
                 return;
             end
@@ -232,7 +232,7 @@ classdef SequenceEditorController < handle
             result = this.CommandEncoder.ParseSequenceText(seqTextStrArray, this.Instruments);
 
             if isempty(result)
-                warndlg("Empty sequence, cannot run");
+                Palladium.Utilities.GUIUtils.ShowWarning(this.View, "Empty sequence, cannot run", "Sequence");
                 if ~isempty(this.View)
                     disp("Sequence Aborted");
                     this.View.OnSequenceAbort();
@@ -291,19 +291,16 @@ classdef SequenceEditorController < handle
         end
 
         function SaveSequenceButtonPushed(this, sequenceLines)
-            this.SelectedDir
             seqExt = "*" + string(this.FileWriteDetails.FileExtension);
-            filter = {seqExt, "Palladium Sequence Files"};
+            filter = {char(seqExt), 'Palladium Sequence Files'};
             defaultpath = fullfile(this.SelectedDir, this.FileWriteDetails.FileName);
             title = "Save Sequence As..";
 
-            %Open a save as file dialogue
-            [file,location] = uiputfile(filter, title, defaultpath);
-            if isequal(file,0) || isequal(location,0)
+            %Open a save as file dialogue, then bring the Sequence Editor back to the front
+            path = Palladium.Utilities.GUIUtils.ChooseFile("save", Filter=filter, Title=title, Default=defaultpath, Reference=this.View);
+            if path == ""
                 return;
             end
-
-            path = fullfile(location,file);
 
             this.SaveSequenceToFile(sequenceLines, path);
 
@@ -327,18 +324,18 @@ classdef SequenceEditorController < handle
     %% Methods (Private)
     methods(Access=private)
 
-        function sequenceLines = LoadSequenceFromFile(~, filePath)
+        function sequenceLines = LoadSequenceFromFile(this, filePath)
 
-            lnes = readlines(filePath);
+            lnes = readlines(filePath, Encoding = "UTF-8");
 
             if isempty(lnes)
-                warndlg("Empty or invalid sequence file");
+                Palladium.Utilities.GUIUtils.ShowWarning(this.View, "Empty or invalid sequence file", "Sequence");
                 sequenceLines = [];
                 return;
             end
 
             if length(lnes) < 2
-                warndlg("Empty or invalid sequence file");
+                Palladium.Utilities.GUIUtils.ShowWarning(this.View, "Empty or invalid sequence file", "Sequence");
                 sequenceLines = [];
                 return;
             end
@@ -362,7 +359,7 @@ classdef SequenceEditorController < handle
 
         function SaveSequenceToFile(~, sequenceLines, filePath)
             %Will overwrite
-            fid = fopen(filePath, 'w');
+            fid = fopen(filePath, 'w', 'n', 'UTF-8');
 
             formatSpec = '%s\n';
 

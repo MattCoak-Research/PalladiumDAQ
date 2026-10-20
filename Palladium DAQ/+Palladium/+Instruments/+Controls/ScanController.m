@@ -4,6 +4,24 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
     %measurement that occurs over multiple measurement ticks. A good
     %example is a VNA, slowly scanning. This is like a SweepController, but
     %without the setting of a ticking up varilable
+    %
+    %The instrument provides the scan, through these methods:
+    %
+    %* `RunScan(scanDetails)` - start one scan. scanDetails is the struct
+    %  of settings from the control's GUI (see CollectScanDetails): the
+    %  file settings (SaveSweepFile, FileName) and any a subclass adds, e.g.
+    %  VNAController's frequencies. The instrument applies those it uses,
+    %  in whatever way it likes, and ignores the rest
+    %* `CheckScanComplete()` - true once the scan has finished, checked each tick
+    %* `GetCompletedScanData()` - the finished scan, one row per point
+    %* `GetScanHeaders()` - the scan data file's column headers and units
+    %
+    %The data file is checked before RunScan (so a bad file name never
+    %starts a scan), and its headers and metadata written straight after
+    %it, so they show the settings RunScan applied. Subclasses can add a
+    %settings panel under the Run/file panel (CreateSettingsPanel), add
+    %settings to scanDetails (CollectScanDetails) and react to the
+    %instrument's settings changing (OnInstrumentPropertyChanged)
 
     %% Properties (Public)
     properties (Access = public)
@@ -18,10 +36,10 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
 
     %% Properties (Protected)
     properties (Access = protected)
-        GUIView;
         timerVal;   %Used for tracking Elapsed Time since sweep started, with tic/toc
         RestartNextTick = false;
         Aborted = false;
+        Starting = false;   %True from Run until the scan's data file is started - completion isn't checked until then (see UpdateData)
     end
 
     %% Properties (Private)
@@ -35,15 +53,12 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
     %% Constructor
     methods
         function this = ScanController()
+            this.RegisterCommandCompleteQuery("ScanRun", @this.IsComplete);
         end
     end
 
     %% Methods (Public)
     methods (Access = public)
-
-        function complete = CheckComplete(this)
-            complete = this.Instrument.CheckScanComplete();
-        end
 
         function ClearData(this)
             this.Data.X = [];
@@ -63,8 +78,8 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             scrollableGrid.Layout.Row = 2;
             scrollableGrid.Layout.Column = 2;
             
-            %Add a title label
-            title = instrRef.Name + " Scan Control";
+            %Add a title label, e.g. "PNA_1 Scan Control" - the control's own name
+            title = instrRef.Name + " " + this.GetName();
             uilabel(scrollableGrid, "Text", title, "FontName", "Georgia", FontSize=18, HorizontalAlignment="Center");
 
             %Add the Run/Abort and file handling GUI control
@@ -72,11 +87,16 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
 
             %It doesn't make sense to allow extra data columns when we are
             %doing an 'async' scan with a different number of rows than the
-            %measurement ticks, so hide that GUI.
+            %measurement ticks, so hide that GUI - and its space: the panel's
+            %two rows (30 and 40 px), with its padding and row spacing
             comp.HideDataColumnAddPanel();
+            scrollableGrid.RowHeight{2} = 100;
 
             %Store the reference to this View as a property
             this.GUIView = comp;
+
+            %Any settings a subclass adds, under the Run/file panel
+            this.CreateSettingsPanel(scrollableGrid, 3);
 
             %Subscribe to events
             this.AddGuardedListener(comp, 'RunPushed', @(src,evnt)this.ScanRun(src, evnt));
@@ -88,8 +108,10 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             %that we have to store and register this listener handle
             %properly, or when we remove this control  the orphaned listener still lives on the instrument.
             %When you then change a dropdown (e.g., SourceMode), the PostSet → PropertyChanged event fires, the orphaned listener
-            %tries to call RefreshUnitsAndLimits() on a deleted handle object, and MATLAB crashes.
-            ltr = this.AddGuardedListener(instrRef, 'PropertyChanged', @(src,evnt)this.RefreshUnitsAndLimits());
+            %tries to call its method on a deleted handle object, and MATLAB crashes.
+            %(This called RefreshUnitsAndLimits, which ScanController doesn't
+            %have, so changing an instrument setting errored)
+            ltr = this.AddGuardedListener(instrRef, 'PropertyChanged', @(src,evnt)this.OnInstrumentPropertyChanged());
             this.RegisterEventListener(ltr);
 
 
@@ -117,27 +139,15 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             t_s = toc(this.timerVal);
         end
 
+        function complete = IsComplete(this)
+            %For a sequence's ScanRun: true once the scan has been saved
+            %(by ScanComplete) or aborted - not just when the Instrument
+            %has finished it, so the next command cannot run first
+            complete = ~this.Running;
+        end
+
         function LockRunButton(this)
             this.GUIView.DisableRunButton();
-        end
-
-        function MeasurementsInitialised(this, ~, eventArgs)
-            headers = eventArgs.Headers;
-            switch(this.PlotterType)
-                case("Default")
-                    this.Plotter.UpdateVariables(headers);
-                otherwise
-            end
-        end
-
-        function MeasurementsStarted(this, ~, ~, ~)
-            this.UnlockRunButton();
-        end
-
-        function MeasurementsStopped(this, ~, ~, ~)
-            this.GUIView.EnableRunButton();
-            this.LockRunButton();
-            this.CachedData = [];
         end
 
 
@@ -161,23 +171,30 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             this.ClearData();
 
             %Get parameter
-            this.ControlDetailsStruct.SweepDetails = this.GUIView.CollectScanDetails();
+            this.ControlDetailsStruct.SweepDetails = this.CollectScanDetails();
+            writeToFile = this.ControlDetailsStruct.SweepDetails.SaveSweepFile;
 
             %Update the GUI
             this.GUIView.SetRunning();
 
             %Set up a DataWriter, which will do things like generate the
-            %Sweep Name, and pass in a bool to say if it will actually do any writing to file
-            this.CreateDataFile(this.ControlDetailsStruct.SweepDetails.SaveSweepFile);
+            %Sweep Name - and checks it, before the scan is started
+            this.DataWriter = this.InitialiseDataWriter(this.ControlDetailsStruct.SweepDetails.FileName, WriteToFile=writeToFile);
             this.UpdatePlotterSavedPlotTitle();
 
-            %Tell the Instrument to run the scan - it must have a RunScan() method
-            %defined or this will error
-            this.Instrument.RunScan();
+            %Tell the Instrument to run the scan with these settings - it
+            %must have a RunScan(scanDetails) method defined or this will error
+            this.Instrument.RunScan(this.ControlDetailsStruct.SweepDetails);
+
+            %Write the file's metadata and headers now, so they show the
+            %settings the instrument applied
+            this.StartScanDataFile(writeToFile);
+            this.Starting = false;
         end
 
         function ScanAbort(this, ~, ~)
             this.Running = false;
+            this.Starting = false;
             this.TimeElapsed_s = 0;
             this.OnScanAbort();
         end
@@ -190,12 +207,14 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             %GetCompletedScanData function)
             this.DataArray = this.Instrument.GetCompletedScanData();
 
-            %Write data to file
-            this.WriteScanData(this.DataArray);
+            if this.ControlDetailsStruct.SweepDetails.SaveSweepFile
+                %Write data to file
+                this.WriteScanData(this.DataArray);
 
-            %Add in an end-of sweep metadata line if this is the
-            %last update
-            this.InsertEndMetadataIntoFile(this.DataWriter);
+                %Add in an end-of sweep metadata line if this is the
+                %last update
+                this.InsertEndMetadataIntoFile(this.DataWriter);
+            end
 
             switch(this.PlotterType)
                 case("Simple")
@@ -221,6 +240,11 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
         end
 
         function ScanRun(this, ~, ~)
+            %Not checked for completion (UpdateData) until OnScanRun has
+            %started the data file - a tick can run part-way through (e.g.
+            %while the window updates), and would save the data before the
+            %scan's settings or file exist
+            this.Starting = true;
             this.Running = true;
             this.TimeElapsed_s = 0;
             this.timerVal = tic();
@@ -251,8 +275,9 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
 
         function UpdateData(this, ~, ~)
             if this.Running
-                %Check if we reached the end of the sweep
-                if this.CheckComplete()
+                %Check if we reached the end of the sweep - once its data file
+                %has been started
+                if ~this.Starting && this.Instrument.CheckScanComplete()
                     this.ScanComplete();
                 end
             else
@@ -266,13 +291,61 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
 
     end
 
+    %% Methods (Protected)
+    methods (Access = protected)
+
+        function scanDetails = CollectScanDetails(this)
+            %The scan's settings, passed to the instrument's RunScan - override to add a subclass's own.
+            %By default the Run/file panel's: SaveSweepFile and FileName
+            %
+            %Outputs:
+            %   scanDetails - struct of settings
+
+            scanDetails = this.GUIView.CollectScanDetails();
+        end
+
+        function CreateSettingsPanel(this, parentGrid, row) %#ok<INUSD>
+            %Add a subclass's settings to the tab, under the Run/file panel - override to use it.
+            %Does nothing by default
+            %
+            %Inputs:
+            %   parentGrid - the tab's scrollable grid (one column)
+            %   row        - the row of parentGrid to put them in
+        end
+
+        function OnInstrumentPropertyChanged(this) %#ok<MANU>
+            %Called when one of the instrument's settings changes (e.g. in Instrument Options) - override to use it.
+            %Does nothing by default
+        end
+
+        function OnMeasurementsInitialised(this, headers)
+            %The base class has stored the headers and passed them to the GUIView
+            switch(this.PlotterType)
+                case("Default")
+                    if ~isempty(this.Plotter)
+                        this.Plotter.UpdateVariables(headers);
+                    end
+                otherwise
+            end
+        end
+
+        function OnMeasurementsStarted(this)
+            this.UnlockRunButton();
+        end
+
+        function OnMeasurementsStopped(this)
+            this.GUIView.EnableRunButton();
+            this.LockRunButton();
+            this.CachedData = [];
+        end
+
+    end
+
     %% Methods (Private)
     methods (Access = private)
 
-        function CreateDataFile(this, writeToFile)
-            %Create or reset the data writer class
-            fileNameSuffix = this.ControlDetailsStruct.SweepDetails.FileName;
-            this.DataWriter = this.InitialiseDataWriter(fileNameSuffix, WriteToFile=writeToFile);
+        function StartScanDataFile(this, writeToFile)
+            %Write the new scan data file's metadata and headers, with the DataWriter made in OnScanRun.
 
             %Built in functions in base class will write the data row of all instruments/diagnostics at the start
             %of the sweep, for things like temperature, time
@@ -293,9 +366,13 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
         end
 
         function stringLine = CreateScanMetaDataLine(this)
-            %Copy only the required properties into a new temporary struct
-            %for metadata writing
-            strct.SweepMetadataPlaceholder = "Scan metadata placeholder";
+            %The scan's settings as requested (the instrument's own metadata line has those it applied) - leaving out the file settings.
+
+            strct = rmfield(this.ControlDetailsStruct.SweepDetails, intersect(["SaveSweepFile", "FileName"], ...
+                string(fieldnames(this.ControlDetailsStruct.SweepDetails))));
+            if isempty(fieldnames(strct))
+                strct.Settings = "None";
+            end
 
             %Write the metadata to file
             stringLine = Palladium.DataWriting.DataWriter.BuildMetadataLineStringFromStruct("", strct);

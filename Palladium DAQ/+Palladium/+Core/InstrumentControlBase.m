@@ -1,40 +1,98 @@
 classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogeneous
-    %InstrumentControlBase - Base class for a Logic controller add-on object to be added on to an
-    %Instrument object, eg LakeshoreHeaterControl.m
-    %Heterogeneous, so that an Instrument can hold Controls of different
-    %classes in one array (e.g. a MagnetController and a
-    %SweepController_Ramp on a Mercury IPS).
+    %InstrumentControlBase - Abstract base class of every Instrument Control, such as a Sweep Control or heater panel.
+    %An Instrument Control adds a GUI tab and logic to one instrument: a
+    %Sweep Control, a Lakeshore heater panel or a magnet's control panel,
+    %for example. Subclasses live in `Palladium.Instruments.Controls`, and
+    %must implement `CreateInstrumentControlGUI` and `RemoveControl`.
+    %
+    %**Lifecycle**
+    %
+    %* **Offered**: an instrument driver offers the control by calling
+    %  `DefineInstrumentControl` in its constructor.
+    %* **Created**: when the control is added, the InstrumentController
+    %  constructs it with no arguments, sets `ControlDetailsStruct`,
+    %  `Controller` and `ProgrammeTargetUpdateTime`, then calls
+    %  `CreateInstrumentControlGUI(controller, tab, instrRef)`. That builds
+    %  the GUI in the tab, and must set `Instrument` to `instrRef`. The
+    %  control is then registered with the instrument.
+    %* **Measurement events**: the InstrumentController subscribes the
+    %  control's `MeasurementsInitialised`, `MeasurementsStarted`,
+    %  `MeasurementsPaused`, `MeasurementsResumed`, `MeasurementsStopped`
+    %  and `TargetUpdateTimeChanged` handlers to the TimingLoopController's
+    %  events, and `DataRowCollected` to its own. Each handler calls an
+    %  `On*` hook (e.g. `OnMeasurementsStarted`, `OnMeasurementsPaused`),
+    %  which subclasses override - the handlers themselves are sealed.
+    %* **Each tick**: the instrument calls `Update` before its reading, and
+    %  `UpdateData` with the reading straight after it. Once every
+    %  instrument has been read, `DataRowCollected` gets the full data row.
+    %* **Removed**: the InstrumentController unregisters the control from
+    %  the instrument, calls `UnsubscribeFromEvents`, then `RemoveControl`,
+    %  then deletes it.
+    %
+    %Use `AddGuardedListener` rather than `addlistener` for the GUI's events,
+    %so errors in the callbacks reach the error handling. Controls that
+    %write their own data files (e.g. sweep files) use
+    %`InitialiseDataWriter`, `StartNewDataFile` and
+    %`InsertEndMetadataIntoFile`.
+    %
+    %Heterogeneous, so an instrument can hold controls of different classes
+    %in one array (e.g. a MagnetController and a SweepController_Ramp on a
+    %Mercury IPS).
 
     %% Properties (Public)
     properties (Access = public)
-        ControlDetailsStruct;
-        Controller;                 %Palladium.Core.Controller - set by InstrumentController when the control is added, used to route callback errors to the error handling
-        FileNamePropertyDelimiters = "[]";
-        DecimalPointReplacementCharacter = "p";
-        ProgrammeTargetUpdateTime;
+        ControlDetailsStruct;               %The control's definition, from the instrument's DefineInstrumentControl: Name, ControlClassFileName, TabName, EnabledByDefault and UserData
+        Controller;                         %Palladium.Core.Controller - set by InstrumentController when the control is added, used to route callback errors to the error handling
+        FileNamePropertyDelimiters = "[]";  %The two characters that enclose a data column tag in a file name, e.g. "[Temperature (K)]" - see ProcessFileName
+        DecimalPointReplacementCharacter = "p";   %Replaces "." in processed file names, e.g. "1.50" becomes "1p50"
+        ProgrammeTargetUpdateTime;          %The measurement loop's target time between ticks (s), kept up to date by TargetUpdateTimeChanged
     end
 
     %% Properties (Protected)
     properties (Access = protected)
-        Instrument;
-        AvailableHeaders = [];  
+        Instrument;                 %The instrument this control is added to - subclasses set it in CreateInstrumentControlGUI
+        GUIView = [];               %The control's GUI component, set in CreateInstrumentControlGUI - may stay empty, for a control without one
+        AvailableHeaders = [];      %All data column headers, stored by MeasurementsInitialised when measurements start
         DataArray = [];             %Use to store entire array of dataRows taken during an operation - need it if we change axes on a Plotter mid-sweep
     end
 
     %% Properties (Private)
     properties (Access = private)
-        EventListeners;
+        EventListeners;             %Listeners added with RegisterEventListener, deleted by UnsubscribeFromEvents
     end
 
     %% Methods (Abstract, Public)
     methods (Abstract)
+        %Build the control's GUI in its tab, and connect it to the instrument.
+        %Called by the InstrumentController when the control is added,
+        %after ControlDetailsStruct, Controller and
+        %ProgrammeTargetUpdateTime are set. Implementations should set
+        %`this.Instrument = instrRef`, and subscribe to the GUI's events
+        %with AddGuardedListener
+        %
+        %Inputs:
+        %   controller - the Palladium.Core.Controller, e.g. for
+        %                `controller.AddNewPlotter`
+        %   tab        - the GUI tab (or other container) to build the GUI in
+        %   instrRef   - the instrument the control is added to
         CreateInstrumentControlGUI(this, controller, tab, instrRef);
+
+        %Clean up when the control is removed, e.g. delete its GUI components.
+        %Called by the InstrumentController after the control is
+        %unregistered from the instrument and UnsubscribeFromEvents has
+        %run; the control is deleted straight afterwards
+        %
+        %Inputs:
+        %   instrRef - the instrument the control is being removed from
         RemoveControl(this, instrRef);
     end
 
     %% Constructor
     methods
         function this = InstrumentControlBase()
+            %Create the control - subclass constructors must take no arguments.
+            %The InstrumentController constructs controls by class name, then
+            %sets them up through CreateInstrumentControlGUI
         end
     end
 
@@ -42,49 +100,36 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
     methods (Access = public)
 
         function DataRowCollected(this, dataRow, headers) %#ok<INUSD>
-            %Gets triggered every tick once the loop has collected the
-            %entire dataRow from all instruments. Use to e.g. write sweep
-            %data that includes columns from other instruments
+            %Handle the full data row each tick, once every instrument has been read - override to use it.
+            %Called from the InstrumentController's DataRowCollected event.
+            %Use it to e.g. write sweep data that includes columns from
+            %other instruments. Does nothing by default
+            %
+            %Inputs:
+            %   dataRow - the data row of all instruments, starting with Time
+            %   headers - the data column headers, matching dataRow
         end
 
         function name = GetName(this)
+            %The control's name, from ControlDetailsStruct, e.g. "Sweep Control".
+            %
+            %Outputs:
+            %   name - the Name given to DefineInstrumentControl
+
             name = this.ControlDetailsStruct.Name;
         end
 
-        function MeasurementsInitialised(this, src, eventArgs)  %#ok<INUSD>
-            headers = eventArgs.Headers;
-            this.AvailableHeaders = headers;
-
-            this.OnMeasurementsInitialised(headers);
-        end
-
-        function MeasurementsStarted(this, src, eventArgs) %#ok<INUSD>
-            this.OnMeasurementsStarted();
-        end
-
-        function MeasurementsPaused(this, src, eventArgs) %#ok<INUSD>
-
-        end
-
-        function MeasurementsResumed(this, src, eventArgs) %#ok<INUSD>
-
-        end
-
-        function MeasurementsStopped(this, src, eventArgs) %#ok<INUSD>
-            this.OnMeasurementsStopped();
-        end
-
         function PlotterAxesSelectionChange(this, pltr)
-            %This is needed for the case where we want to change the
-            %displayed data in a Plotter, but the loop is not running.
-            %While measurement loop is running, the Plotter will get an
-            %Update call with new data every tick, and if it has
-            %established that a button has been pressed and it needs to
-            %e.g. change the data plotted on a y axis, it sets a bool flag
-            %to do a plot refresh next update tick. If there are no ticks
-            %this does not happen, so in that case, we hook into the
-            %Plotter's event and fire a manual replot in the case that
-            %measurements are stopped
+            %Replot DataArray on a plotter whose axes were changed while the control isn't running.
+            %Hook this to a plotter's AxesSelectionChange event. While
+            %running, the plotter replots itself on the next update, but
+            %with no updates coming that never happens, so this replots
+            %straight away. Does nothing if DataArray is empty. The subclass
+            %must have a `Running` property
+            %
+            %Inputs:
+            %   pltr - the plotter whose axes changed
+
             if ~this.Running
                 %Have to pass whole data table back in - Plotters do not
                 %store/copy these, that would be very expensive.
@@ -98,15 +143,21 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
         end
 
         function PrintIdentifier(this)
-            %PRINTIDENTIFIER - just prints some information about this
-            %instrument control to the command window. Basically for
-            %debugging/verification purposes
+            %Print the control's name and its instrument's name to the Command Window, for debugging.
+
             str = "Palladium Instrument Control " + this.GetName();
             disp(str);
             disp("Parent Instrument: " + this.Instrument.Name);
         end
 
         function RegisterEventListener(this, listnr)
+            %Keep a listener, so UnsubscribeFromEvents deletes it when the control is removed.
+            %Register any listener the control adds to objects that outlive
+            %it, such as the instrument or a plotter
+            %
+            %Inputs:
+            %   listnr - the listener handle, e.g. from AddGuardedListener
+
             if isempty(this.EventListeners)
                 this.EventListeners = listnr;
             else
@@ -114,11 +165,11 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
             end
         end
 
-        function TargetUpdateTimeChanged(this, ~, evnt)            
-            this.ProgrammeTargetUpdateTime = evnt.Value;%In seconds
-        end
-
         function UnsubscribeFromEvents(this)
+            %Delete all the listeners kept by RegisterEventListener.
+            %Called by the InstrumentController when the control is removed,
+            %before RemoveControl
+
             if isempty(this.EventListeners)
                 return;
             end
@@ -133,36 +184,125 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
         end
 
         function Update(this) %#ok<MANU>
-            %Does nothing by default - override in base classes
+            %Do the control's work for this tick, before the instrument's reading - override to use it.
+            %Called by the instrument's UpdateAndMeasure, just before
+            %Measure. Does nothing by default
         end
 
         function UpdateData(this, dataRow, headers) %#ok<INUSD>
-            %Does nothing by default - override in base classes. Will get
-            %called right after Measure is complete on parent Instrument,
-            %passing in that Instrument's data row
+            %Handle the instrument's new reading, straight after it is taken - override to use it.
+            %Called by the instrument's UpdateAndMeasure, just after
+            %Measure. Does nothing by default
+            %
+            %Inputs:
+            %   dataRow - this instrument's reading, from Measure
+            %   headers - the data column headers of all instruments
         end
+    end
+
+    %% Methods (Sealed, Public)
+    %Listeners for the measurement loop's events. Sealed, so a control
+    %cannot replace them by mistake - override the On* hooks instead
+    %(e.g. OnMeasurementsStarted)
+    methods (Sealed, Access = public)
+
+        function MeasurementsInitialised(this, src, eventArgs)  %#ok<INUSD>
+            %Store the data column headers when measurements are initialised, pass them to the GUI, then call OnMeasurementsInitialised.
+            %Listener for the TimingLoopController's MeasurementsInitialised
+            %event, raised once the headers are known and before the first
+            %tick. A GUIView with an UpdateAvailableDataColumnHeaders method
+            %(e.g. a file setup panel, which then enables its Insert
+            %Auto-naming tag button) is given them; a control with no
+            %GUIView is fine
+            %
+            %Inputs:
+            %   src       - the TimingLoopController
+            %   eventArgs - Palladium.Events.MeasurementsInitialisedEventData,
+            %               holding the Headers
+
+            headers = eventArgs.Headers;
+            this.AvailableHeaders = headers;
+
+            if ~isempty(this.GUIView) && isvalid(this.GUIView) && ismethod(this.GUIView, "UpdateAvailableDataColumnHeaders")
+                this.GUIView.UpdateAvailableDataColumnHeaders(headers);
+            end
+
+            this.OnMeasurementsInitialised(headers);
+        end
+
+        function MeasurementsStarted(this, src, eventArgs) %#ok<INUSD>
+            %Call OnMeasurementsStarted when the measurement loop starts.
+            %Listener for the TimingLoopController's Started event
+
+            this.OnMeasurementsStarted();
+        end
+
+        function MeasurementsPaused(this, src, eventArgs) %#ok<INUSD>
+            %Call OnMeasurementsPaused when the measurement loop pauses.
+            %Listener for the TimingLoopController's Paused event
+
+            this.OnMeasurementsPaused();
+        end
+
+        function MeasurementsResumed(this, src, eventArgs) %#ok<INUSD>
+            %Call OnMeasurementsResumed when the measurement loop resumes after a pause.
+            %Listener for the TimingLoopController's Resumed event
+
+            this.OnMeasurementsResumed();
+        end
+
+        function MeasurementsStopped(this, src, eventArgs) %#ok<INUSD>
+            %Call OnMeasurementsStopped when the measurement loop stops.
+            %Listener for the TimingLoopController's Stopped event
+
+            this.OnMeasurementsStopped();
+        end
+
+        function TargetUpdateTimeChanged(this, ~, evnt)
+            %Store the measurement loop's new target update time in ProgrammeTargetUpdateTime.
+            %Listener for the TimingLoopController's TargetUpdateTimeChanged event
+            %
+            %Inputs:
+            %   evnt - Palladium.Events.ValueChangedEventData, holding the
+            %          new time (s) as Value
+
+            this.ProgrammeTargetUpdateTime = evnt.Value;%In seconds
+        end
+
     end
 
     %% Methods (Protected)
     methods (Access = protected)
 
         function ltr = AddGuardedListener(this, src, eventName, callback)
-            %Use instead of addlistener in Instrument Controls. Errors
-            %thrown in the callback are caught and sent to the Controller's
-            %error handling - with a raw addlistener MATLAB just prints an
-            %orange warning, even (especially) while the loop is running.
-            %Returns the listener handle like addlistener does, so it can be
-            %passed to RegisterEventListener
+            %Add an event listener whose errors go to the error handling - use instead of addlistener.
+            %With a raw addlistener, MATLAB turns errors thrown in the
+            %callback into an orange warning, even while the measurement
+            %loop is running (see ErrorGuard). Errors are reported to
+            %Controller, named after the control and event
+            %
+            %Inputs:
+            %   src       - the object that raises the event
+            %   eventName - name of the event
+            %   callback  - function handle to call when it is raised
+            %
+            %Outputs:
+            %   ltr - the listener handle, as from addlistener, to pass to
+            %         RegisterEventListener if src outlives the control
+
             ltr = Palladium.Core.ErrorGuard.AddListener(src, eventName, callback, Controller = this.Controller, Context = "Error in " + this.GetName() + " (" + string(eventName) + ")");
         end
 
         function stringLine = CreateDataRowHeaderString(this)
-            %Create a line of metadata to log to a datafile that has
-            %header-value pairs for each column in the overall programme
-            %datarow for the last tick. This is intended for logging
-            %diagnostic data like temperature at the start/end of a sweep
-            %that an Instrument is writing to file itself, outside the
-            %usual programme structure
+            %Make a data file metadata line of every column's header and last value.
+            %Uses the instrument's LastFullDataRow and FullHeadersRow. For
+            %logging conditions such as the temperature at the start or end
+            %of a sweep, in a file the control writes itself. Warns and
+            %returns "" if there is no data row yet, e.g. before the first tick
+            %
+            %Outputs:
+            %   stringLine - the metadata line, or ""
+
             dataRow = this.Instrument.LastFullDataRow;
             hdrsRow = this.Instrument.FullHeadersRow;
 
@@ -171,11 +311,11 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
             %a sweep started before the first measurement tick
             stringLine = "";
             if isempty(dataRow)
-                warning("CreateDataRowHeaderStringWarning:EmptyDataRow", "%s", "Data row empty in " + this.Instrument.FullName + ", cannot log to file");
+                Palladium.Logging.Logger.Log("Warning", "Data row empty in " + this.Instrument.FullName + ", cannot log to file");
                 return;
             end
             if isempty(hdrsRow)
-                warning("CreateDataRowHeaderStringWarning:EmptyHeadersRow", "%s", "Headers row empty in "  + this.Instrument.FullName + ", cannot log to file");
+                Palladium.Logging.Logger.Log("Warning", "Headers row empty in "  + this.Instrument.FullName + ", cannot log to file");
                 return;
             end
 
@@ -183,9 +323,18 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
         end
 
         function stringVal = GetParameterValueFromLastMeasurementRow(this, parameterName, Settings)
-            %Grab a parameter - ie Temperature, Magnetic Field, to use to
-            %e.g. automatically name a Sweep File when [Temperature (K)] is
-            %given as part of it's file name.
+            %Get the last value of a data column as text, e.g. the temperature for a sweep file name.
+            %Reads the instrument's LastFullDataRow, so at least one tick
+            %must have run. Logs a warning and returns "!!VAL-MISSING!!" if
+            %there is no data yet, or no column of exactly that name
+            %
+            %Inputs:
+            %   parameterName - the column's full header, e.g. "Temperature (K)"
+            %   Format        - num2str format of the value. Default "%03.2f"
+            %
+            %Outputs:
+            %   stringVal - the value, as text
+
             arguments
                 this;
                 parameterName {mustBeTextScalar};
@@ -200,33 +349,50 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
             %Initialise to empty
             stringVal = "!!VAL-MISSING!!";
 
-            %Error checking
+            %Error checking - warnings go through the Logger, as MATLAB
+            %warnings show as error boxes in the standalone app
             if isempty(dataRow)
-                warning("GetParameterValueFromLastMeasurementRowWarning:EmptyDataRow", "%s", "Data row empty in " + this.Instrument.FullName + ", cannot GetParameterValueFromLastMeasurementRow");
+                Palladium.Logging.Logger.Log("Warning", "No data yet for " + this.Instrument.Name + ", so the value of " + parameterName + " is not known (GetParameterValueFromLastMeasurementRow)");
                 return;
             end
             if isempty(hdrsRow)
-                warning("GetParameterValueFromLastMeasurementRowWarning:EmptyDataRow", "%s", "Data row empty in "  + this.Instrument.FullName + ", cannot GetParameterValueFromLastMeasurementRow");
+                Palladium.Logging.Logger.Log("Warning", "No data column headers yet for " + this.Instrument.Name + ", so the value of " + parameterName + " is not known (GetParameterValueFromLastMeasurementRow)");
                 return;
             end
 
-            %Check the provided Parameter Name is indeed one of the headers
-            if ~any(contains(hdrsRow, parameterName))
-                warning("GetParameterValueFromLastMeasurementRowWarning:ParameterNotFound", "%s", "Could not find parameter " + parameterName + " in the measurement headers file (InstrumentControlBase.GetParameterValueFromLastMeasurementRow).");
+            %The whole header must match - not just part of it (e.g.
+            %"Temperature" would match "Temperature (K)" and "Temperature
+            %Setpoint (K)")
+            idx = string(hdrsRow) == string(parameterName);
+            if ~any(idx)
+                Palladium.Logging.Logger.Log("Warning", "Could not find a data column called " + parameterName + " (GetParameterValueFromLastMeasurementRow)");
                 return;
             end
 
             %Extract data
-            idx = ismember(hdrsRow, parameterName);
-            dat = dataRow(idx);
+            dat = dataRow(find(idx, 1));
             stringVal = num2str(dat, Settings.Format);
         end
 
         function dataWriter = InitialiseDataWriter(this, fileNameSuffix, Settings)
-            %Create the DataWriter for a sweep/scan file, named after the
-            %programme's overall data file with fileNameSuffix added.
-            %Pass WriteToFile=false if the file isn't going to be saved,
-            %in which case nothing is written and an empty suffix is OK
+            %Create the DataWriter for the control's own data file, e.g. a sweep file.
+            %The file is named after the main data file with fileNameSuffix
+            %added, and processed by ProcessFileName (so data column tags
+            %are filled in). It always uses 'Increment File No.' mode, so
+            %no file is overwritten. The instrument's FileWriteDetails are
+            %not changed. Then call StartNewDataFile
+            %
+            %Inputs:
+            %   fileNameSuffix - text added to the main data file's name,
+            %                    e.g. " - Sweep [Temperature (K)]". Errors if
+            %                    empty and WriteToFile is true, as the file
+            %                    would take the main data file's name
+            %   WriteToFile    - false if the file won't be saved, in which
+            %                    case an empty suffix is allowed. Default true
+            %
+            %Outputs:
+            %   dataWriter - a Palladium.DataWriting.DataWriter for the file
+
             arguments
                 this;
                 fileNameSuffix;
@@ -259,6 +425,13 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
         end
 
         function InsertEndMetadataIntoFile(this, dataWriter)
+            %Add the data row at the end of a sweep or scan to its data file's metadata.
+            %Inserts a description line and the CreateDataRowHeaderString line
+            %into the file's header
+            %
+            %Inputs:
+            %   dataWriter - the file's DataWriter, from InitialiseDataWriter
+
             metadataDescLine = this.Instrument.FullName + " Scan - Measurement data at Scan End:";
 
             %Write the data row of all instruments/diagnostics at the end
@@ -268,19 +441,37 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
             dataWriter.InsertMetadataLines([metadataDescLine, dataRowMetadataLine]);
         end
 
-        function InsertSmartTagRequest(~, src, evt, controller)
-            % Add smart text like [Sample Temperature(K),%6.2f] to eg a Sweep File name, triggered by a button press in a GUI. 
-            % This text will auto-update and be repalced with the values corresponding to that data column.
-            %This function shows a GUI with dropdown to select the value
-            %desired, to make this easier for the user, and is probably
-            %generally useful across different sweeps etc
+        function InsertSmartTagRequest(this, src, evt, controller)
+            %Let the user pick a data column to add to a file name as a tag, in a small dialogue.
+            %Hook to a GUI's InsertSmartTag event. Shows a small window to
+            %choose a data column and number format (previewed on example
+            %values, OK only when it can be used); on OK, appends a tag
+            %such as " [Sample Temperature (K),%6.2f]" to the name and sends
+            %it back with `src.SetNewSweepName`. ProcessFileName later
+            %replaces the tag with the column's value
+            %
+            %Inputs:
+            %   src        - the GUI component that raised the event, which
+            %                must have a SetNewSweepName method
+            %   evt        - event data whose Value is the current file name
+            %   controller - the Palladium.Core.Controller, for the headers
+            %                (set when measurements start) and window icon
+
             controlGUIToSendDataBackTo = src;
             originalStr = evt.Value;
-            newStr = originalStr;      
+            newStr = originalStr;
+
+            %The headers are only known once measurements have started. The
+            %GUIs keep their tag button disabled until then, but if this is
+            %reached without them, say so rather than offer an empty list
+            if isempty(controller.Headers)
+                Palladium.Logging.Logger.Log("Warning", "No data columns to choose from yet - start measurements once, then insert the tag");
+                return;
+            end
 
             %Handle case of 1 header only
             if isscalar(controller.Headers)
-                headers = string(controller.Headers{1});                
+                headers = string(controller.Headers{1});
             else
                 headers = controller.Headers;
             end
@@ -289,46 +480,108 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
             parameterName = [];
             cancel = true;
 
-            %Open and configure a little GUI
-            optionsFig = uifigure(WindowStyle="modal", Position=[300,300, 400, 170], Icon=controller.WindowSettings.PalladiumIconPath);
-            gr = uigridlayout(optionsFig, [4,4], "ColumnWidth", {10, 200, 20, 100, 10}, "RowHeight", {10, 30, 30, 10, 50, 10}, "RowSpacing", 2);
+            %Open and configure a little GUI - with OpenDialog, not a modal
+            %uifigure: closing a modal one can bring the MATLAB desktop
+            %up over Palladium's window
+            optionsFig = Palladium.Utilities.GUIUtils.OpenDialog("Insert Auto-naming Tag", [400, 220], Reference=src, ...
+                Icon=controller.WindowSettings.PalladiumIconPath, Tag="Palladium.InsertSmartTag");
+            if isempty(optionsFig)
+                return;     %Already open - brought to the front instead
+            end
+            gr = uigridlayout(optionsFig, [6,5], "ColumnWidth", {10, 200, 20, 100, 10}, "RowHeight", {10, 30, 30, 50, 50, 10}, "RowSpacing", 2);
 
             l1 = uilabel(gr, Text="Data Column", HorizontalAlignment="Center", FontSize=14, FontName="Georgia");
-            l1.Layout.Row = 2; 
-            l1.Layout.Column = 2; 
+            l1.Layout.Row = 2;
+            l1.Layout.Column = 2;
             l2 = uilabel(gr, Text="Precision", HorizontalAlignment="Center", FontSize=14, FontName="Georgia");
-            l2.Layout.Row = 2; 
-            l2.Layout.Column = 4; 
+            l2.Layout.Row = 2;
+            l2.Layout.Column = 4;
             d = uidropdown(gr, FontSize=14, FontName="Georgia", Items= headers);
-            d.Layout.Row = 3; 
-            d.Layout.Column = 2; 
-            pr = uieditfield(gr, "text", Value=precisionStr, HorizontalAlignment="Center", FontSize=14, FontName="Georgia");
-            pr.Layout.Row = 3; 
-            pr.Layout.Column = 4; 
+            d.Layout.Row = 3;
+            d.Layout.Column = 2;
+            pr = uieditfield(gr, "text", Value=precisionStr, HorizontalAlignment="Center", FontSize=14, FontName="Georgia", ...
+                Tooltip=["An sprintf format for the value in the file name, e.g.:", ...
+                         "%6.2f  -  2 decimal places: 3.14", ...
+                         "%.0f  -  a whole number: 3", ...
+                         "%.1f  -  1 decimal place: 3.1", ...
+                         "%05.1f  -  zero-padded to 5 characters: 003.1", ...
+                         "%+.2f  -  always with a sign: +3.14", ...
+                         "%.3e  -  scientific, 3 decimal places: 3.142e+00", ...
+                         "%g  -  the shorter of fixed and scientific: 3.14159", ...
+                         "Decimal points become """ + this.DecimalPointReplacementCharacter + """ in the file name"], ...
+                ValueChangingFcn=@(~, event) Preview(event.Value), ValueChangedFcn=@(~, ~) Preview());
+            pr.Layout.Row = 3;
+            pr.Layout.Column = 4;
+            example = uilabel(gr, WordWrap="on", HorizontalAlignment="Center", FontSize=13, FontName="Georgia");
+            example.Layout.Row = 4;
+            example.Layout.Column = [2 4];
 
             buttonsGrid = uigridlayout(gr, [1,5], "ColumnWidth", {'1x', 90, 20, 90, '1x'}, "RowHeight", {'1x'});
             buttonsGrid.Layout.Row = 5;
             buttonsGrid.Layout.Column = [1 5];
 
             okb = uibutton(buttonsGrid, Text="OK", FontSize=14, FontName="Georgia", ButtonPushedFcn=@(src,event) OK(d, pr));
-            okb.Layout.Column = 2; 
+            okb.Layout.Column = 2;
             canb = uibutton(buttonsGrid, Text="Cancel", FontSize=14, FontName="Georgia", ButtonPushedFcn=@(src,event) Cancel());
-            canb.Layout.Column = 4; 
+            canb.Layout.Column = 4;
+
+            optionsFig.CloseRequestFcn = @(~, ~) Cancel();     %Closing the window cancels
+            Preview();
+
+            function Preview(format)
+                %Show example values as they would appear in the file name - or why the format can't be used.
+                %Given the format while it is being typed; otherwise reads the box
+                if nargin < 1
+                    format = pr.Value;
+                end
+                format = string(format);
+                problem = TagFormatProblem(format);
+                if strlength(problem) == 0
+                    examples = arrayfun(@(v) replace(string(num2str(v, format)), ".", this.DecimalPointReplacementCharacter), ...
+                        [pi, -0.00123456789, 12345678.9]);
+                    example.Text = "In the file name:   " + join(examples, "   ");
+                    example.FontColor = [0 0 0];
+                    okb.Enable = "on";
+                else
+                    example.Text = problem;
+                    example.FontColor = [0.8 0 0];
+                    okb.Enable = "off";
+                end
+            end
+
+            function problem = TagFormatProblem(format)
+                %Why a format can't be used in a tag, or "" if it can.
+                %It must format one number, and can't contain what would end
+                %the tag (a comma or the delimiters) or what a file name can't
+                problem = "";
+                if strlength(format) == 0 || ~Palladium.Components.BigNumberDisplay.IsNumberFormat(format)
+                    problem = "Not a number format - it needs one number, e.g. %6.2f or %.3e";
+                elseif contains(format, [",", string(num2cell(char(this.FileNamePropertyDelimiters)))])
+                    problem = "Can't contain a comma or " + join(string(num2cell(char(this.FileNamePropertyDelimiters))), " ") + " - they would end the tag";
+                elseif contains(format, ["<", ">", ":", """", "/", "\", "|", "?", "*"])
+                    problem = "Can't contain characters that file names can't: < > : "" / \ | ? *";
+                end
+            end
 
             function OK(d,pr)
+                if okb.Enable == "off"
+                    return;
+                end
                 precisionStr = pr.Value;
                 parameterName = d.Value;
                 cancel = false;
-                delete(optionsFig);
+                uiresume(optionsFig);
             end
 
             function Cancel()
                 cancel = true;
-                delete(optionsFig);
+                uiresume(optionsFig);
             end
 
-            % Wait until OK/Cancel is pressed
+            % Wait until OK/Cancel is pressed, then close it and bring
+            % back the window it was opened from
             uiwait(optionsFig);
+            Palladium.Utilities.GUIUtils.CloseDialog(optionsFig, src);
 
             if ~cancel
                 %Append to string
@@ -340,29 +593,50 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
         end
 
         function OnMeasurementsInitialised(this, headers) %#ok<INUSD>
-            %Do nothing, child classes can override
+            %Called when measurements are initialised, before the first tick - override to use it.
+            %Does nothing by default
+            %
+            %Inputs:
+            %   headers - the data column headers of all instruments
         end
 
         function OnMeasurementsPaused(this)
-            %Do nothing, child classes can override
+            %Called when the measurement loop pauses - override to use it.
+            %Does nothing by default
         end
 
         function OnMeasurementsResumed(this)
-            %Do nothing, child classes can override
+            %Called when the measurement loop resumes after a pause - override to use it.
+            %Does nothing by default
         end
 
         function OnMeasurementsStarted(this)
-            %Do nothing, child classes can override
+            %Called when the measurement loop starts - override to use it.
+            %Does nothing by default
         end
 
         function OnMeasurementsStopped(this)
-            %Do nothing, child classes can override
+            %Called when the measurement loop stops - override to use it.
+            %Does nothing by default
         end
-        
+
         function fileNameOut = ProcessFileName(this, fileName, Settings)
-            %Process the file name of e.g. a sweep. Make it a valid filename and do operations like: Grab a parameter - ie Temperature, Magnetic Field, to use to
-            %e.g. automatically name a Sweep File when [Temperature (K)] is
-            %given as part of it's file name.
+            %Fill in the data column tags in a file name, and replace its decimal points.
+            %Each tag, such as "[Temperature (K)]" or "[Temperature (K),%6.2f]",
+            %is replaced with the column's last value (see
+            %GetParameterValueFromLastMeasurementRow), and the delimiters
+            %(FileNamePropertyDelimiters) are removed. Then every "." in the
+            %name becomes DecimalPointReplacementCharacter. Errors if a tag
+            %has more than one comma
+            %
+            %Inputs:
+            %   fileName      - the file name, with any tags
+            %   DefaultFormat - num2str format for tags that don't give one.
+            %                   Default "%03.2f"
+            %
+            %Outputs:
+            %   fileNameOut - the processed file name
+
             arguments
                 this;
                 fileName {mustBeTextScalar};
@@ -418,6 +692,19 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
         end
 
         function StartNewDataFile(this, dataWriter, headers, extraMetadataLines, writeToFile)
+            %Start the control's own data file, writing its headers and start-of-sweep metadata.
+            %Takes the next free file number, then (if writeToFile) writes
+            %the column headers with metadata lines: a description, the
+            %CreateDataRowHeaderString line, the instrument's
+            %GrabMetadataString line, and extraMetadataLines
+            %
+            %Inputs:
+            %   dataWriter         - the file's DataWriter, from InitialiseDataWriter
+            %   headers            - the file's column headers
+            %   extraMetadataLines - string array of further metadata lines,
+            %                        e.g. the sweep settings
+            %   writeToFile        - false to only work out the file name,
+            %                        writing nothing
 
             %This will increment the number of the filename etc
             dataWriter.ValidateFilePath();

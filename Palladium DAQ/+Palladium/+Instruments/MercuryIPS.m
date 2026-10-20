@@ -855,7 +855,7 @@ classdef MercuryIPS < Palladium.Core.Instrument
                 return;
             end
 
-            commandStr = "DEV:" + string(uid) + ":PSU:" + string(noun) + ":" + num2str(value);
+            commandStr = "DEV:" + string(uid) + ":PSU:" + string(noun) + ":" + Palladium.Core.Instrument.NumberToCommandString(value);
             responseString = this.SetValue(commandStr);
             confirmedValue = this.ParseSignalResponse(responseString);
         end

@@ -11,7 +11,6 @@ classdef SweepController < Palladium.Core.InstrumentControlBase
 
     %% Properties (Protected)
     properties (Access = protected)
-        GUIView;
         timerVal;   %Used for tracking Elapsed Time since sweep started, with tic/toc
         RestartNextTick = false;
         Aborted = false;
@@ -124,7 +123,7 @@ classdef SweepController < Palladium.Core.InstrumentControlBase
 
         function SetSweepDetailsValue(this, value, name)
             if this.Running
-                warndlg("Cannot change sweep details while running");
+                Palladium.Utilities.GUIUtils.ShowWarning(this.GUIView, "Cannot change sweep details while running", "Sweep running");
                 return;
             end
 
@@ -211,7 +210,7 @@ classdef SweepController < Palladium.Core.InstrumentControlBase
             if(isempty(numberOfSteps))
                 %Error checking and validation
                 if(abs(step) > abs(startPt - endPt))
-                    warning('SweepControllerWarning:StepTooLarge', 'Step is larger than difference between start and end points in MathsUtils.GenerateSweepPoints. Only the start point will be returned.');
+                    Palladium.Logging.Logger.Log("Warning", "Step is larger than difference between start and end points in MathsUtils.GenerateSweepPoints. Only the start point will be returned.");
                 end
 
                 if(step == 0)
