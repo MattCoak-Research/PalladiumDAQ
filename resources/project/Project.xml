@@ -1407,6 +1407,9 @@
                             <File Location="instrument_core_fakes.py">
                                 <Info/>
                             </File>
+                            <File Location="qcodes_test_instruments.py">
+                                <Info/>
+                            </File>
                         </File>
                         <File Location="SequenceAndCommands Testing">
                             <Info/>
@@ -1964,6 +1967,13 @@
                                 </Category>
                             </Info>
                         </File>
+                        <File Location="test_QCoDeSInstrument.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
                     </File>
                     <File Location="Logging">
                         <Info/>
@@ -2223,6 +2233,18 @@
                     <File Location="index.md">
                         <Info/>
                     </File>
+                </File>
+            </File>
+            <File Location="PalladiumPythonCore">
+                <Info/>
+                <DIR_SIGNIFIER Location="1">
+                    <Info/>
+                </DIR_SIGNIFIER>
+                <File Location="QCoDeSInstrument.py">
+                    <Info/>
+                </File>
+                <File Location="QCoDeSOffline.py">
+                    <Info/>
                 </File>
             </File>
         </File>

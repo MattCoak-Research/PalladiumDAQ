@@ -105,6 +105,41 @@ dmm = pd.AddInstrument("MyDMM", ConnectionType="Debug");
 
 If a Python instrument has the same name as a MATLAB one, the Python one is used. A file that fails to import is skipped, with a warning in the Command Window giving the Python error.
 
+## Using QCoDeS drivers
+
+[QCoDeS](https://microsoft.github.io/Qcodes/) is a Python data acquisition framework with drivers for a large number of instruments. Palladium DAQ can use any QCoDeS driver, through a short Python instrument of your own - a few lines, with no instrument commands to write.
+
+**Install QCoDeS** in the Python that Palladium DAQ uses - one set in `PythonExecutable` as above, since the standalone application's own Python has no `pip`: `python -m pip install qcodes`. Drivers for more instruments are in the community package `qcodes_contrib_drivers`. A driver you wrote yourself, or got as a single `.py` file, needs no installing: it can be put in a folder that is on Python's path (set `PYTHONPATH`, or install it with pip).
+
+**Make the instrument** by putting a file in the `PythonInstruments` folder, named after its class, like any Python instrument:
+
+```python
+from PalladiumPythonCore.QCoDeSInstrument import QCoDeSInstrument
+
+
+class QCoDeS_Keithley2450(QCoDeSInstrument):
+    DriverClass = "qcodes.instrument_drivers.Keithley.Keithley_2450.Keithley2450"
+    Parameters = ["line_frequency"]             # numeric parameters to record in each reading
+    Settings = {"source_function": "voltage"}   # settings to apply on connecting
+    OfflineState = {"*LANG": "SCPI"}            # replies the fake instrument needs, for Debug mode
+```
+
+* `DriverClass` is the dotted path of the QCoDeS driver class, as in its documentation
+* `Parameters` are the QCoDeS parameters recorded as data columns, one per reading. They must be numeric; each column is named after its parameter and unit, such as `line_frequency_Hz`
+* `Settings` are applied when connecting, checked by the driver's own validators (a value it rejects stops the connection with its message), and recorded, as read back from the instrument, in the data file's header
+
+The connection type and address are chosen in the Instrument Settings panel, as for any instrument. To find the parameter names a driver has, without an instrument, run `QCoDeSOffline.list_parameters(...)` in Python, for example in MATLAB:
+
+```matlab
+params = py.PalladiumPythonCore.QCoDeSOffline.list_parameters("qcodes.instrument_drivers.Keithley.Keithley_2450.Keithley2450", pyargs(state=py.dict(pyargs("*LANG", "SCPI"))));
+```
+
+An unknown name in `Parameters` or `Settings` gives an error that lists the driver's parameters and suggests close matches.
+
+### Debug mode
+
+With the connection type set to **Debug**, the real QCoDeS driver runs against a fake instrument, whose parameters hold the values they are set to (still checked by the driver's validators) and give readings with a little noise. Some drivers can't be created this way - they read the instrument's model or firmware from its replies, and reject the made-up ones. Debug is then not offered for that instrument, and the instrument's `SimulationProblem` says why. Often a driver only needs a few replies: `OfflineIDN` sets the identity string the fake instrument gives (by default Palladium DAQ tries one made from the driver's name), and `OfflineState` gives replies to other commands, keyed by the command without its `?`. Set `SupportsSimulation = False` to skip the check and never offer Debug.
+
 ## Limitations
 
 Python instruments are simpler than MATLAB ones:

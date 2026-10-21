@@ -31,6 +31,11 @@ class Instrument(ABC):
     default the class name).
     """
 
+    # Whether the instrument can be used in Debug (simulation) mode. Palladium offers the
+    # Debug connection type only if this is True. A driver that can't simulate itself sets it
+    # to False (or, like QCoDeSInstrument, works it out)
+    SupportsSimulation = True
+
     def __init__(self, *args, **kwargs):
         self._simulation_mode = False
         # Short name, used to name the instrument and its data columns - the

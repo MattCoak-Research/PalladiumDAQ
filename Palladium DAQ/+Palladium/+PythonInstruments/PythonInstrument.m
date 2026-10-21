@@ -118,6 +118,14 @@ classdef PythonInstrument < Palladium.Core.Instrument
             this.ConnectionSettings.GPIB_Terminators = ["LF" "LF"];
 
             this.PyInstr = pyInstr;
+
+            %Offer Debug only if the Python instrument can simulate itself
+            %(e.g. a QCoDeS driver that can't be run with no instrument can't)
+            %(py.getattr, because MATLAB can't read a Python class attribute
+            %as a property)
+            if ~isempty(pyInstr) && ~logical(py.getattr(pyInstr, "SupportsSimulation", py.bool(true)))
+                this.DefineSupportedConnectionTypes(["GPIB", "Ethernet", "Serial", "USB", "VISA"]);
+            end
         end
     end
 
