@@ -28,7 +28,7 @@ jobs:
       matrix:
         # Run the whole job once per OS, in parallel. Palladium DAQ runs on
         # both, and has OS-specific code (paths, the bundled Python), so test both
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, mac-latest, windows-latest]
     # Each matrix leg runs on a fresh GitHub-hosted virtual machine of its OS
     runs-on: ${{matrix.os}}
     # The job's token (GITHUB_TOKEN) gets only what is listed. Tests only
