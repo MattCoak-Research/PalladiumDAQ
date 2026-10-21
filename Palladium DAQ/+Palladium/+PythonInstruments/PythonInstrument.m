@@ -12,6 +12,7 @@ classdef PythonInstrument < Palladium.Core.Instrument
     %% Properties (Public)
     properties (Access = public)
         PyInstr = [];   %The Python instrument object this wraps
+        Type = "";      %The name this instrument was added by (its entry in the instruments list, e.g. "MyDMM"), set by PythonInstrumentController. Saved in Presets so they can add it again
     end
 
     %% Properties (Dependent, Public)

@@ -667,6 +667,13 @@
                                 </Category>
                             </Info>
                         </File>
+                        <File Location="QCoDeSParametersControl.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="design"/>
+                                </Category>
+                            </Info>
+                        </File>
                     </File>
                     <File Location="+Events">
                         <Info/>
@@ -1107,6 +1114,13 @@
                             </Category>
                         </Info>
                     </File>
+                    <File Location="QCoDeSInstrument.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
                 </File>
             </File>
             <File Location="DataViewer.mlapp">
@@ -1244,6 +1258,13 @@
                         </Info>
                     </File>
                     <File Location="test_VNAController.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="test"/>
+                            </Category>
+                        </Info>
+                    </File>
+                    <File Location="test_QCoDeSInstruments.m">
                         <Info>
                             <Category UUID="FileClassCategory">
                                 <Label UUID="test"/>
@@ -1974,6 +1995,13 @@
                                 </Category>
                             </Info>
                         </File>
+                        <File Location="test_QCoDeSCatalog.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
                     </File>
                     <File Location="Logging">
                         <Info/>
@@ -2244,6 +2272,9 @@
                     <Info/>
                 </File>
                 <File Location="QCoDeSOffline.py">
+                    <Info/>
+                </File>
+                <File Location="QCoDeSCatalog.py">
                     <Info/>
                 </File>
             </File>

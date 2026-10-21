@@ -158,7 +158,8 @@ classdef InstrumentController < handle
                 assert(any(string(this.ListOfAvailableInstrumentClassNameStrings) == instrStringToAdd), "AddInstrumentError:InstrumentNotAvailable", "%s", instrStringToAdd + " not found in the list of available instruments");
 
                 %Make an instance of the selected datasource class
-                if ~isempty(this.PythonInstrumentController) && ~isempty(this.PythonInstrumentController.AvailableInstrNames) && any(ismember(this.PythonInstrumentController.AvailableInstrNames, instrStringToAdd))
+                if ~isempty(this.PythonInstrumentController) && (this.PythonInstrumentController.IsQCoDeSEntry(instrStringToAdd) ...
+                        || (~isempty(this.PythonInstrumentController.AvailableInstrNames) && any(ismember(this.PythonInstrumentController.AvailableInstrNames, instrStringToAdd))))
                     %Create a python-defined instrument if the name is
                     %present in the PythonInstrumentController (ie is in
                     %the PythonInstruments user folder)
@@ -709,8 +710,8 @@ classdef InstrumentController < handle
                     pyNames = pyNames(~ismember(string(pyNames), string(this.InstrumentClassesToIgnore)));
                 end
 
-                %Append to the list of names
-                classNames = [classNames pyNames];
+                %Append to the list of names, with the QCoDeS drivers
+                classNames = [classNames pyNames cellstr(this.PythonInstrumentController.QCoDeSEntryNames())];
 
                 %Error on any duplicates
                 [duplicates, combinedString] = Palladium.Utilities.Verification.CheckForDuplicatesInCellArrayOfStrings(classNames);

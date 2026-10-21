@@ -25,13 +25,24 @@ way. QCoDeS itself must be installed in the Python Palladium DAQ uses
 in Config.json.
 """
 import itertools
+import json
+import os
 import re
+import sys
 
 from PalladiumPythonCore.Instrument import Instrument, _require_package
 from PalladiumPythonCore import QCoDeSOffline
 
 _instance_counter = itertools.count(1)
 _simulation_support_cache = {}      # driver class path -> (supported, reason)
+_parameter_list_cache = {}          # driver class path -> parameters found with no instrument connected
+
+# What the fake instrument needs to give some drivers, for them to be created with no instrument: the identity
+# string (OfflineIDN) and replies to commands (OfflineState). Drivers not listed use the defaults.
+KNOWN_OFFLINE_SETTINGS = {
+    "qcodes.instrument_drivers.Keithley.Keithley_2450.Keithley2450":
+        dict(idn="Keithley Instruments,MODEL 2450,0001,1.0", state={"*LANG": "SCPI"}),
+}
 
 
 class QCoDeSInstrument(Instrument):
@@ -278,3 +289,65 @@ class QCoDeSInstrument(Instrument):
             name = f"palladium_{next(_instance_counter)}"
             if not Instrument.exist(name):
                 return name
+
+
+    # ------------------------------------------------------------ parameters
+    def available_parameters_json(self):
+        """The driver's parameters, as JSON: a list of dicts with name, label, unit, gettable, settable, vals.
+
+        From the connected driver if there is one, otherwise found with no instrument connected - which
+        only works for drivers that can be simulated, so it is "[]" for the others until they have been
+        connected once (the list is then kept)."""
+        if self._qcodes_instrument is not None:
+            listing = self._describe_parameters(self._parameters)
+            _parameter_list_cache[self.DriverClass] = listing
+        elif self.DriverClass in _parameter_list_cache:
+            listing = _parameter_list_cache[self.DriverClass]
+        elif self.SupportsSimulation:
+            listing = QCoDeSOffline.list_parameters(self.DriverClass, idn=self.OfflineIDN, state=self.OfflineState,
+                                                    driver_kwargs=self.DriverKwargs)
+            _parameter_list_cache[self.DriverClass] = listing
+        else:
+            listing = []
+        return json.dumps(listing, default=str)
+
+    @staticmethod
+    def _describe_parameters(parameters):
+        return [dict(name=name, label=getattr(p, "label", name), unit=getattr(p, "unit", ""),
+                     gettable=hasattr(p, "get"), settable=hasattr(p, "set"),
+                     vals=repr(p.vals) if getattr(p, "vals", None) else "")
+                for name, p in parameters.items()]
+
+
+class QCoDeSGeneric(QCoDeSInstrument):
+    """A QCoDeS instrument that Palladium DAQ configures while it runs, instead of by a subclass's attributes.
+
+    Used for the QCoDeS drivers in Palladium's instrument list: Palladium DAQ calls configure with the
+    driver the user chose, then set_parameters_json and set_settings_json with the parameters they picked."""
+
+    def configure(self, driver_class, extra_path=""):
+        """Choose the driver. extra_path is a folder to put on Python's path to import it from (a driver
+        the user put in their QCoDeS Drivers folder), or "" for none."""
+        if extra_path and extra_path not in sys.path:
+            sys.path.insert(0, extra_path)
+        self.DriverClass = driver_class
+        self.Name = driver_class.rsplit(".", 1)[-1]
+        known = KNOWN_OFFLINE_SETTINGS.get(driver_class, {})
+        self.OfflineIDN = known.get("idn")
+        self.OfflineState = known.get("state", {})
+        self.Parameters = []
+        self.Settings = {}
+
+    def set_parameters_json(self, text):
+        """The parameters to record in each reading, as a JSON list of names ("" for none)."""
+        names = json.loads(text) if text else []
+        if isinstance(names, str):      # MATLAB writes a single name as plain text, not a list of one
+            names = [names]
+        self.Parameters = [str(n) for n in names]
+
+    def set_settings_json(self, text):
+        """The settings to apply on connecting, as a JSON object of parameter name: value ("" for none)."""
+        settings = json.loads(text) if text else {}
+        if not isinstance(settings, dict):
+            raise ValueError("Settings must be a JSON object, such as {\"source_function\": \"voltage\"}")
+        self.Settings = settings

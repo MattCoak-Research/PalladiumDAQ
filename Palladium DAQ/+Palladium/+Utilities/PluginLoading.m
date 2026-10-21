@@ -594,7 +594,7 @@ classdef PluginLoading
                 for ii = 1:nI
                     instr = instList{ii};
                     instSpec = struct();
-                    if isprop(instr, 'Type')
+                    if isprop(instr, 'Type') && strlength(string(instr.Type)) > 0
                         type = string(instr.Type);
                     elseif ismethod(instr, 'GetType')
                         type = string(instr.GetType());

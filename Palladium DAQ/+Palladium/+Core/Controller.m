@@ -53,6 +53,7 @@ classdef Controller < handle
         UserInstrumentFolderName = "+Palladium" + filesep + "+Instruments";    %Folder of the user's MATLAB instrument drivers, in the user files folder - so they are in the Palladium.Instruments namespace
         UserPresetFolderName = "Presets";                   %Folder of Preset .json files, in the user files folder
         UserInstrumentDriversFolderName = "Instrument Drivers"; %Folder for vendor driver files (e.g. dlls), in the user files folder - added to the MATLAB path with its subfolders on start
+        UserQCoDeSDriversFolderName = "QCoDeS Drivers";     %Folder for QCoDeS driver .py files, in the user files folder - each driver in them is offered in the instruments list
     end
 
     %% Properties (Public)
@@ -80,6 +81,7 @@ classdef Controller < handle
         UserPythonInstrumentsDir;   %The user files folder, which holds the PythonInstruments namespace folder of Python instruments
         UserPresetsDir;             %The user files folder's Presets folder
         UserInstrumentDriversDir;   %The user files folder's Instrument Drivers folder, for vendor driver files such as QDInterface.dll
+        UserQCoDeSDriversDir;       %The user files folder's QCoDeS Drivers folder, for QCoDeS driver .py files
     end
 
     %% Properties (Private)
@@ -681,6 +683,11 @@ classdef Controller < handle
                 if ismember(this.PythonSetupStatus.Status, ["OK", "PackagesMissing"])
                     this.InstrumentController.PythonInstrumentController = Palladium.PythonInstruments.PythonInstrumentController(this.PythonInstrumentNamespace, this.ApplicationDir);
                     this.InstrumentController.PythonInstrumentController.LoadInstrumentClasses(this.UserPythonInstrumentsDir);
+                    try
+                        this.InstrumentController.PythonInstrumentController.LoadQCoDeSDrivers(this.UserQCoDeSDriversDir);
+                    catch err
+                        this.Log("Warning", "Could not look for QCoDeS drivers: " + string(err.message), "Yellow", "QCoDeS drivers");
+                    end
                     this.Log("Debug", "Python Instrument Classes initialised (Python " + this.PythonSetupStatus.Version + ", " + this.PythonSetupStatus.Executable + ")", "Green", "Instruments initialised");
                 end
                 if this.PythonSetupStatus.Status ~= "OK"
@@ -1508,6 +1515,14 @@ classdef Controller < handle
             %there, which will get the provided QDInterface.dll copied into
             %it
             Palladium.Utilities.PathUtils.EnsureDirectoryExists(fullfile(this.UserInstrumentDriversDir, "Quantum Design", "PPMS Communication"));
+
+            %Set up the QCoDeS Drivers directory - QCoDeS drivers are Python
+            %files, so work in the deployed exe too
+            this.UserQCoDeSDriversDir = fullfile(pathToDir, this.UserFolderName, this.UserQCoDeSDriversFolderName);
+            newDirCreated = Palladium.Utilities.PathUtils.EnsureDirectoryExists(this.UserQCoDeSDriversDir);
+            if newDirCreated
+                this.Log("Info", "User directory at " + string(this.UserQCoDeSDriversDir) + " not found - creating new empty directory", "Green", "Creating User Directories");
+            end
 
             % Ensure the user Python Instruments directory exists
             this.UserPythonInstrumentsDir = string(fullfile(this.UserFilesDir, this.UserFolderName));

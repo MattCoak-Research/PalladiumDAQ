@@ -174,7 +174,7 @@ classdef test_QCoDeSInstrument < matlab.unittest.TestCase
             testCase.assertNotEmpty(err, "Expected an error to be thrown");
         end
 
-        function connect(~, instr)
+        function connect(~, instr) %#ok<INUSD>
             %Connect, keeping its messages out of the test output
             evalc("instr.Connect()");
         end

@@ -12,6 +12,7 @@ classdef PythonInstrumentController < handle
         AvailableInstrModules;      %The imported Python modules, one per instrument (cell array of py.module)
         AvailableInstrNames;        %Their instrument names - each module's name, which is also its class name (string array)
         PythonInstrumentNamespace;  %Name of the package folder holding the instruments, e.g. "PythonInstruments"
+        QCoDeSCatalog = struct("entry", {}, "name", {}, "class_path", {}, "source", {}, "vendor", {}, "file", {}, "folder", {});   %The QCoDeS drivers that can be added, from LoadQCoDeSDrivers: one struct each, whose entry is its name in the instruments list
     end
 
     %% Constructor
@@ -57,6 +58,11 @@ classdef PythonInstrumentController < handle
                 instrName {mustBeTextScalar};
             end
 
+            if this.IsQCoDeSEntry(instrName)
+                instrRef = this.CreateQCoDeSInstrument(instrName);
+                return;
+            end
+
             pyInstrRef = this.InstantiateInstrument(instrName);
 
             if isempty(pyInstrRef)
@@ -64,6 +70,59 @@ classdef PythonInstrumentController < handle
             end
 
             instrRef = Palladium.PythonInstruments.PythonInstrument(pyInstrRef);
+            instrRef.Type = string(instrName);
+        end
+
+        function tf = IsQCoDeSEntry(this, instrName)
+            %Whether a name in the instruments list is a QCoDeS driver, found by LoadQCoDeSDrivers.
+            %
+            %Inputs:
+            %   instrName - the name, e.g. "QCoDeS: Keithley2450"
+            %
+            %Outputs:
+            %   tf - true if it is one
+
+            tf = ~isempty(this.QCoDeSCatalog) && any(string({this.QCoDeSCatalog.entry}) == string(instrName));
+        end
+
+        function names = QCoDeSEntryNames(this)
+            %The names of the QCoDeS drivers that can be added, in the instruments list.
+            %
+            %Outputs:
+            %   names - string array, empty if QCoDeS isn't installed or has no drivers
+
+            names = strings(1, 0);
+            if ~isempty(this.QCoDeSCatalog)
+                names = string({this.QCoDeSCatalog.entry});
+            end
+        end
+
+        function LoadQCoDeSDrivers(this, userFolder)
+            %Find the QCoDeS drivers that can be added: the installed qcodes and qcodes_contrib_drivers ones, and .py files in a folder.
+            %The driver files are read as text, not imported, so this is
+            %fast (about half a second). Lists nothing if qcodes isn't
+            %installed in the Python in use, which only affects QCoDeS
+            %drivers - everything else works. Sets QCoDeSCatalog
+            %
+            %Inputs:
+            %   userFolder - the user's QCoDeS Drivers folder, or "" for none
+
+            arguments
+                this;
+                userFolder {mustBeTextScalar} = "";
+            end
+
+            this.QCoDeSCatalog = this.QCoDeSCatalog([]);
+            hasQcodes = logical(pyrun("import importlib.util; found = importlib.util.find_spec('qcodes') is not None", "found"));
+            if ~hasQcodes
+                return;
+            end
+
+            jsonText = string(py.PalladiumPythonCore.QCoDeSCatalog.build_catalog_json(char(userFolder)));
+            decoded = jsondecode(jsonText);
+            if ~isempty(decoded)
+                this.QCoDeSCatalog = reshape(decoded, 1, []);
+            end
         end
 
         function LoadInstrumentClasses(this, directory)
@@ -93,6 +152,18 @@ classdef PythonInstrumentController < handle
 
     %% Methods (Private)
     methods(Access = private)
+
+        function instrRef = CreateQCoDeSInstrument(this, entryName)
+            %Create the QCoDeS instrument for an entry of the instruments list, configured with its driver.
+            %The driver is imported here, so a driver that fails to import
+            %errors now, with Python's message
+
+            entry = this.QCoDeSCatalog(string({this.QCoDeSCatalog.entry}) == string(entryName));
+            pyInstr = py.PalladiumPythonCore.QCoDeSInstrument.QCoDeSGeneric();
+            pyInstr.configure(char(entry.class_path), char(entry.folder));
+            instrRef = Palladium.PythonInstruments.QCoDeSInstrument(pyInstr);
+            instrRef.Type = string(entryName);
+        end
 
         function pyInstrRef = InstantiateInstrument(this, instrName)
             %Create the Python object of a loaded instrument, from its module.
