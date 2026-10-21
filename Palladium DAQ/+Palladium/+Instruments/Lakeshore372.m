@@ -1,22 +1,27 @@
 classdef Lakeshore372 < Palladium.Core.Instrument
     %Lakeshore372 - Instrument driver for the Lake Shore Model 372 AC resistance bridge.
-    %Reads measurement input channel 1 each measurement tick - its resistance
-    %and, if `Reading` is Temperature, the temperature calculated from it
-    %using the channel's calibration curve - plus the power going into the
-    %sample heater. The sample heater can be controlled from the Heater
-    %Control tab: setpoint, ramp, PID values, control mode, heater range
-    %(31.6 uA to 100 mA) and manual output. The input it regulates on and the
-    %setpoint units are set on the instrument.
+    %Reads the resistance of one input (`Channel`: the control input A, or
+    %measurement input channel 1 to 16) each measurement tick - and, if
+    %`Reading` is Temperature, the temperature calculated from it using the
+    %channel's calibration curve (NaN if it has none) - plus the power going
+    %into the sample heater. The sample heater can be controlled from the
+    %Heater Control tab: setpoint, ramp, PID values, control mode, heater
+    %range (31.6 uA to 100 mA) and manual output. The input it regulates on
+    %and the setpoint units are set on the instrument.
+    %
+    %The driver uses the Model 372's own commands, for the sample heater
+    %(output 0), so the instrument's Model 370 emulation mode must be off
+    %(Interface menu, or EMUL 0) - connecting stops with an error if it is
+    %on. The heater output display can be Current or Power, and the
+    %heater's resistance is the one set on the instrument: both are read
+    %when connecting (HTRSET? 0). The Heater Control tab always shows and
+    %sets the output as a percentage of the range's full-scale current, and
+    %the heater power is logged in W.
     %
     %The Model 372 has GPIB, USB and Ethernet interfaces. The USB port appears
     %as a serial (COM) port, so connect to it as Serial, or as VISA with an
     %ASRL address. Over Ethernet, the instrument listens on TCP port 7777.
-    %
-    %The heater output and manual output are read and set as a percentage of
-    %full-scale current, so set the sample heater's output display to Current,
-    %not Power, on the instrument. The control mode and heater range use the
-    %Model 370 commands `CMODE` and `HTRRNG`, which the Model 372 manual does
-    %not list outside its Model 370 emulation mode.
+    %(Commands from the Model 372 User's Manual, chapter 6.)
 
     %% Properties (Public)
     properties(Access = public)
@@ -30,7 +35,13 @@ classdef Lakeshore372 < Palladium.Core.Instrument
         Connection_Type = Palladium.Enums.ConnectionType.GPIB;  %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         Ch_Name = "Sample Temperature (K)";                     %Data column header for the temperature reading, e.g. "Mixing Chamber Temp (K)"
         Reading;                                                %What to read: Temperature (K, plus the resistance) or Resistance (Ω) only
-        HeaterResistance = 100;                                 %Resistance of the heater connected to the sample heater output, in Ohms - used to calculate heater power
+        Channel;                                                %Input read: A (the control input) or measurement input channel 1 to 16 (more than 1 needs a scanner)
+    end
+
+    %% Properties (Private)
+    properties(Access = private)
+        HeaterOutputIsPower = false;                            %True if the sample heater's output display is Power, so HTR? and MOUT are in W, not % of full-scale current - read from HTRSET? 0 on connecting
+        HeaterResistance_Ohms = 100;                            %The sample heater's resistance, as set on the instrument (HTRSET? 0) - read on connecting
     end
 
     %% Categoricals
@@ -38,6 +49,7 @@ classdef Lakeshore372 < Palladium.Core.Instrument
         function catOut = MeasType(this, inputStr);     catOut = this.ConvertToCategorical(inputStr, ["Temperature", "Resistance"]); end
         function catOut = HeaterRange(this, inputStr);  catOut = this.ConvertToCategorical(inputStr, ["Off (0)", "32 muA (1)", "100 muA (2)", "316 muA (3)", "  1 mA (4)", "  3 mA (5)", " 10 mA (6)", " 32 mA (7)", "100 mA (8)"]); end
         function catOut = ControlMode(this, inputStr);  catOut = this.ConvertToCategorical(inputStr, ["Closed Loop PID", "Zone", "Open Loop", "Off"]); end
+        function catOut = InputChannel(this, inputStr); catOut = this.ConvertToCategorical(inputStr, ["A", string(1:16)]); end
     end
 
     %% Constructor
@@ -64,6 +76,7 @@ classdef Lakeshore372 < Palladium.Core.Instrument
             %Make sure to set values for Properties of Categorical type
             %like these
             this.Reading = this.MeasType("Temperature");
+            this.Channel = this.InputChannel("1");
         end
     end
 
@@ -71,16 +84,15 @@ classdef Lakeshore372 < Palladium.Core.Instrument
     methods (Access = public)
 
         function [settings, heaterLevelPct, heaterEnabled, heaterPower] = CollectHeaterControlSettings(this)
-            %Read the heater's settings and output, for the Heater Control tab.
+            %Read the sample heater's settings and output, for the Heater Control tab.
             %
             %Outputs:
             %   settings       - struct of the heater settings, with fields ControlMode,
-            %                    HeaterRange (as the range number 0 to 8), SetPoint,
-            %                    RampEnabled, RampRate, ManualOutput and PID_Settings
-            %                    (with fields P, I and D)
-            %   heaterLevelPct - heater output, in percent (see GetHeaterLevel)
+            %                    HeaterRange, SetPoint, RampEnabled, RampRate,
+            %                    ManualOutput and PID_Settings (with fields P, I and D)
+            %   heaterLevelPct - heater output, in percent of full-scale current
             %   heaterEnabled  - false if the heater range is Off
-            %   heaterPower    - heater power, in W (see GetHeaterPower)
+            %   heaterPower    - heater power, in W
 
             settings.ControlMode = this.GetControlMode();
             settings.HeaterRange = this.GetHeaterRange();
@@ -92,30 +104,31 @@ classdef Lakeshore372 < Palladium.Core.Instrument
             settings.PID_Settings.I = I;
             settings.PID_Settings.D = D;
 
-            [heaterLevelPct, heaterEnabled] = this.GetHeaterLevel();
-            heaterPower = this.GetHeaterPower();
+            [heaterPower, heaterLevelPct, rangeNumber] = this.ReadHeaterOutput();
+            heaterEnabled = rangeNumber ~= 0;
         end
 
         function controlMode = GetControlMode(this)
-            %Read the heater's control mode, with the Model 370 CMODE? query
+            %Read the sample heater's control mode (OUTMODE? 0)
             %
             %Outputs:
             %   controlMode - ControlMode categorical: Closed Loop PID, Zone,
             %                 Open Loop or Off
 
             if(this.SimulationMode)
-                modeIndex = 2;
+                modeIndex = 3;
             else
-                modeIndex = this.QueryDouble("CMODE?");
+                %<mode>,<input/channel>,<powerup enable>,<polarity>,<filter>,<delay>
+                modeIndex = str2double(extractBefore(string(this.QueryString("OUTMODE? 0")) + ",", ","));
             end
 
             switch(modeIndex)
-                case(1);    controlMode = this.ControlMode("Closed Loop PID");
-                case(2);    controlMode = this.ControlMode("Zone");
-                case(3);    controlMode = this.ControlMode("Open Loop");
-                case(4);    controlMode = this.ControlMode("Off");
+                case(0);    controlMode = this.ControlMode("Off");
+                case(2);    controlMode = this.ControlMode("Open Loop");
+                case(3);    controlMode = this.ControlMode("Zone");
+                case(5);    controlMode = this.ControlMode("Closed Loop PID");
                 otherwise
-                    error("Lakeshore372:InvalidControlMode", "%s", "Unknown control mode index returned by " + this.Name + ": " + string(modeIndex));
+                    error("Lakeshore372:InvalidControlMode", "%s", "Unknown sample heater control mode returned by " + this.Name + ": " + string(modeIndex));
             end
         end
 
@@ -142,51 +155,37 @@ classdef Lakeshore372 < Palladium.Core.Instrument
         end
 
         function [htrLevel, htrEnabled] = GetHeaterLevel(this)
-            %Read the heater output percentage, and whether the heater is on.
-            %The output is a percentage of the heater range's full-scale current,
-            %if the instrument's heater output display is set to Current
+            %Read the sample heater output, as a percentage of the range's full-scale current, and whether the heater is on.
+            %Converted from W if the heater output display is Power
             %
             %Outputs:
             %   htrLevel   - heater output, in percent of full-scale current
             %   htrEnabled - false if the heater range is Off
 
-            if this.SimulationMode
-                htrLevel = this.GenerateSimulatedData(1, Baseline=60, Variance=7);
-                htrEnabled = true;
-                return;
-            end
-
-            htrLevel = this.QueryDouble("HTR?");
-            htrEnabled = this.GetHeaterRange() ~= this.GetHeaterRangeIndex(this.HeaterRange("Off (0)"));
+            [~, htrLevel, rangeNumber] = this.ReadHeaterOutput();
+            htrEnabled = rangeNumber ~= 0;
         end
 
         function power = GetHeaterPower(this)
-            %Calculate the power going into the heater, in W.
-            %From the heater output, heater range and HeaterResistance:
-            %power = HeaterResistance x I^2, with I the output percentage of the
-            %range's full-scale current
+            %Read the power going into the sample heater, in W.
+            %Read directly if the heater output display is Power; otherwise
+            %calculated from the output current and the heater's resistance
+            %(set on the instrument)
             %
             %Outputs:
             %   power - heater power, in W
 
-            level = this.GetHeaterLevel();
-            range = this.GetHeaterRange();
-            current = this.GetHeaterCurrentFromRange(range) * level / 100; %Level is a percent
-            power = this.HeaterResistance * current * current;
+            power = this.ReadHeaterOutput();
         end
 
         function htrRange = GetHeaterRange(this)
-            %Read the heater range as its range number, with the Model 370 HTRRNG? query
+            %Read the sample heater range
             %
             %Outputs:
-            %   htrRange - 0 = Off, 1 = 31.6 uA, 2 = 100 uA, 3 = 316 uA, 4 = 1 mA,
-            %              5 = 3.16 mA, 6 = 10 mA, 7 = 31.6 mA, 8 = 100 mA
+            %   htrRange - HeaterRange categorical, from Off (0) to 100 mA (8)
 
-            if(this.SimulationMode)
-                htrRange = 1;
-            else
-                htrRange = this.QueryDouble("HTRRNG?");
-            end
+            names = categories(this.HeaterRange("Off (0)"));
+            htrRange = this.HeaterRange(names{this.GetHeaterRangeNumber() + 1});
         end
 
         function setPt = GetHeaterSetpoint(this)
@@ -196,13 +195,18 @@ classdef Lakeshore372 < Palladium.Core.Instrument
             %   setPt - setpoint, in the setpoint units set on the instrument
             %           (K or Ohms)
 
-            setPt = this.QueryDouble("SETP?");
+            if this.SimulationMode
+                setPt = 0.05;
+                return;
+            end
+
+            setPt = this.QueryDouble("SETP? 0");
         end
 
         function output = GetManualOutputPercent(this)
-            %Read the sample heater's manual output setting, in percent.
-            %Used in Open Loop mode. This is a percentage of full-scale current
-            %only if the instrument's heater output display is set to Current
+            %Read the sample heater's manual output setting, as a percentage of the range's full-scale current.
+            %Used in Open Loop mode. Converted from W if the heater output
+            %display is Power
             %
             %Outputs:
             %   output - manual output, in percent
@@ -212,7 +216,10 @@ classdef Lakeshore372 < Palladium.Core.Instrument
                 return;
             end
 
-            output = this.QueryDouble("MOUT?");
+            output = this.QueryDouble("MOUT? 0");
+            if this.HeaterOutputIsPower
+                output = this.PowerToPercent(output, this.GetHeaterRangeNumber());
+            end
         end
 
         function [P, I, D] = GetPIDValues(this)
@@ -228,12 +235,12 @@ classdef Lakeshore372 < Palladium.Core.Instrument
                 I = 10;
                 D = 5;
             else
-                readings = strsplit(this.QueryString("PID?"), ',');
-                P = str2double(readings{1});
-                istr = readings{2};
-                I = str2double(istr(2:end));    %I string was returning as 'E20.000' - manual says the values should be +10.00 or -10.00 but.. interpreting strings eh. Just snip off the first character before converting to double
-                dStr = strsplit(readings{3}, ':');
-                D = str2double(dStr{1});
+                %The numbers wherever they are in each field - I was once
+                %seen as "E20.000"
+                values = this.NumbersInFields(this.QueryString("PID? 0"), 3);
+                P = values(1);
+                I = values(2);
+                D = values(3);
             end
         end
 
@@ -244,22 +251,19 @@ classdef Lakeshore372 < Palladium.Core.Instrument
             %   enabled - true if setpoint ramping is on
             %   rate    - ramp rate, in K/min
 
-            output = "0";   %0 = sample heater, 1 = output 1 (warm-up heater).
-
             if(this.SimulationMode)
                 enabled = true;
                 rate = 1.2;
             else
                 %Reply is "<off/on>,<rate value>"
-                result = strsplit(this.QueryString("RAMP? " + output), ',');
-                enabled = strcmp(result{1}, '1');
-                rateStr = strsplit(result{2}, ':');
-                rate = str2double(rateStr{1});
+                values = this.NumbersInFields(this.QueryString("RAMP? 0"), 2);
+                enabled = values(1) == 1;
+                rate = values(2);
             end
         end
 
         function res = GetResistance(this)
-            %Read the resistance of measurement input channel 1
+            %Read the resistance of Channel
             %
             %Outputs:
             %   res - the reading, in Ohms
@@ -267,7 +271,7 @@ classdef Lakeshore372 < Palladium.Core.Instrument
             if this.SimulationMode
                 res = this.GenerateSimulatedData(1, Baseline=1024.6, Variance=0.05);
             else
-                res = this.QueryDouble("RDGR? 1");
+                res = this.QueryDouble("RDGR? " + string(this.Channel));
             end
         end
 
@@ -275,26 +279,29 @@ classdef Lakeshore372 < Palladium.Core.Instrument
             %Read an input or channel in sensor units (always Ohms on the Model 372)
             %
             %Inputs:
-            %   channel - "A" for the control input, or a measurement input
-            %             channel number, 1 to 16
+            %   channel - InputChannel categorical, or "A" for the control input or a
+            %             measurement input channel number, 1 to 16
             %
             %Outputs:
             %   reading - the reading, in Ohms
 
-            reading = this.QueryDouble("SRDG? " + channel);
+            reading = this.QueryDouble("SRDG? " + string(channel));
         end
 
         function temp = GetTemperature(this)
-            %Read the temperature of measurement input channel 1
+            %Read the temperature of Channel
             %
             %Outputs:
-            %   temp - the reading, in K. Zero if the channel has no calibration
-            %          curve
+            %   temp - the reading, in K. NaN if the channel has no calibration
+            %          curve (the instrument then reads 0)
 
             if this.SimulationMode
                 temp = this.GenerateSimulatedData(1, Baseline=25, Variance=0.001);
             else
-                temp = this.QueryDouble("RDGK? 1");
+                temp = this.QueryDouble("RDGK? " + string(this.Channel));
+                if temp == 0
+                    temp = NaN;
+                end
             end
         end
 
@@ -316,25 +323,32 @@ classdef Lakeshore372 < Palladium.Core.Instrument
         end
 
         function SetControlMode(this, controlMode)
-            %Set the heater's control mode, with the Model 370 CMODE command
+            %Set the sample heater's control mode (OUTMODE 0), keeping its other output settings.
+            %The input it controls from, power-up enable, polarity, filter
+            %and delay are read (OUTMODE? 0) and sent back unchanged
             %
             %Inputs:
             %   controlMode - ControlMode categorical: Closed Loop PID, Zone,
             %                 Open Loop or Off
 
             modeIndex = this.GetControlModeIndex(controlMode);
-            this.WriteCommand("CMODE " + Palladium.Core.Instrument.NumberToCommandString(modeIndex));
+            if this.SimulationMode
+                return;
+            end
+
+            current = strip(split(string(this.QueryString("OUTMODE? 0")), ","));
+            this.WriteCommand("OUTMODE 0," + modeIndex + "," + join(current(2:end), ","));
         end
 
         function SetHeaterRange(this, range)
-            %Set the heater range, with the Model 370 HTRRNG command
+            %Set the sample heater range (RANGE 0)
             %
             %Inputs:
             %   range - HeaterRange categorical, from Off (0) to 100 mA (8). The
             %           range has no effect while the control mode is Off
 
             index = this.GetHeaterRangeIndex(range);
-            this.WriteCommand("HTRRNG " + Palladium.Core.Instrument.NumberToCommandString(index));
+            this.WriteCommand("RANGE 0," + Palladium.Core.Instrument.NumberToCommandString(index));
         end
 
         function SetHeaterSetpoint(this, setPt)
@@ -345,19 +359,36 @@ classdef Lakeshore372 < Palladium.Core.Instrument
             %   setPt - setpoint, in the setpoint units set on the instrument
             %           (K or Ohms)
 
-            this.WriteCommand("SETP " + Palladium.Core.Instrument.NumberToCommandString(setPt, SignificantFigures=6));
+            this.WriteCommand("SETP 0," + Palladium.Core.Instrument.NumberToCommandString(setPt, SignificantFigures=6));
         end
 
-        function SetManualOutputPercent(this, percentage)
-            %Set the sample heater's manual output, in percent.
-            %Used in Open Loop mode. This is a percentage of full-scale current
-            %only if the instrument's heater output display is set to Current
+        function SetManualOutputPercent(this, percentage, range)
+            %Set the sample heater's manual output, as a percentage of the range's full-scale current.
+            %Used in Open Loop mode. Sent in W if the heater output display
+            %is Power
             %
             %Inputs:
             %   percentage - manual output, 0 to 100 %
+            %   range      - (optional) HeaterRange categorical the percentage
+            %                is of. Default: the range set now
+
+            arguments
+                this;
+                percentage (1,1) double;
+                range = [];
+            end
 
             assert(percentage <= 100 && percentage >= 0, "Lakeshore372:InvalidOutputPercentage", "Invalid output percentage");
-            this.WriteCommand("MOUT " + Palladium.Core.Instrument.NumberToCommandString(percentage, SignificantFigures=5));
+            value = percentage;
+            if this.HeaterOutputIsPower
+                if isempty(range)
+                    rangeNumber = this.GetHeaterRangeNumber();
+                else
+                    rangeNumber = this.GetHeaterRangeIndex(range);
+                end
+                value = this.PercentToPower(percentage, rangeNumber);
+            end
+            this.WriteCommand("MOUT 0," + Palladium.Core.Instrument.NumberToCommandString(value, SignificantFigures=5));
         end
 
         function SetPIDValues(this, P, I, D)
@@ -368,7 +399,7 @@ classdef Lakeshore372 < Palladium.Core.Instrument
             %   I - integral, or reset, in s (0 to 10000)
             %   D - derivative, or rate, in s (0 to 2500)
 
-            this.WriteCommand("PID " + Palladium.Core.Instrument.NumberToCommandString(P, SignificantFigures=6) + "," + Palladium.Core.Instrument.NumberToCommandString(I, SignificantFigures=6) + "," + Palladium.Core.Instrument.NumberToCommandString(D, SignificantFigures=6));
+            this.WriteCommand("PID 0," + Palladium.Core.Instrument.NumberToCommandString(P, SignificantFigures=6) + "," + Palladium.Core.Instrument.NumberToCommandString(I, SignificantFigures=6) + "," + Palladium.Core.Instrument.NumberToCommandString(D, SignificantFigures=6));
         end
 
         function SetRamp(this, enabled, rate)
@@ -386,9 +417,8 @@ classdef Lakeshore372 < Palladium.Core.Instrument
                 enabledStr = "0";
             end
 
-            output = "0";   %0 = sample heater, 1 = output 1 (warm-up heater).
             rate = abs(rate);
-            this.WriteCommand("RAMP " + output + "," + enabledStr + "," + Palladium.Core.Instrument.NumberToCommandString(rate, SignificantFigures=5));
+            this.WriteCommand("RAMP 0," + enabledStr + "," + Palladium.Core.Instrument.NumberToCommandString(rate, SignificantFigures=5));
         end
 
     end
@@ -398,30 +428,44 @@ classdef Lakeshore372 < Palladium.Core.Instrument
 
         function ApplySettings(this, settings)
             %Send the Heater Control tab's settings to the instrument.
-            %The control mode, range, setpoint and ramp are sent twice, to make
-            %sure each is applied after the others
+            %In one pass: the control mode, then the PID values, ramp,
+            %setpoint and (in Open Loop) manual output, and the heater range
+            %last - so the heater is only switched on once everything it
+            %acts on is set
             %
             %Inputs:
             %   settings - struct with the fields returned by
-            %              CollectHeaterControlSettings, with HeaterRange as a
-            %              HeaterRange categorical
+            %              CollectHeaterControlSettings
 
             this.SetControlMode(settings.ControlMode);
-            this.SetHeaterRange(settings.HeaterRange);
-            this.SetHeaterSetpoint(settings.SetPoint);
+            this.SetPIDValues(settings.PID_Settings.P, settings.PID_Settings.I, settings.PID_Settings.D);
             this.SetRamp(settings.RampEnabled, settings.RampRate);
-
-            %Do it again, to make sure we have stuff in the right order..
-            this.SetControlMode(settings.ControlMode);
-            this.SetHeaterRange(settings.HeaterRange);
             this.SetHeaterSetpoint(settings.SetPoint);
-            this.SetRamp(settings.RampEnabled, settings.RampRate);
-
             if(settings.ControlMode == this.ControlMode("Open Loop"))
-                this.SetManualOutputPercent(settings.ManualOutput);
+                this.SetManualOutputPercent(settings.ManualOutput, settings.HeaterRange);
+            end
+            this.SetHeaterRange(settings.HeaterRange);
+        end
+
+        function OnConnected(this)
+            %Check the Model 370 emulation mode is off, and read the sample heater's set-up (HTRSET? 0).
+            %The driver uses the Model 372's own commands, which the
+            %instrument interprets as Model 370 ones in emulation mode - so
+            %connecting stops with an error then, rather than send settings
+            %that would be misread
+
+            if this.SimulationMode
+                return;
             end
 
-            this.SetPIDValues(settings.PID_Settings.P, settings.PID_Settings.I, settings.PID_Settings.D);
+            emulation = this.QueryDouble("EMUL?");
+            assert(emulation == 0, "Lakeshore372:EmulationMode", "%s", this.Name + " is in Model 370 emulation mode - turn it off " + ...
+                "(Interface menu: Emulation Mode None, or send EMUL 0) to use it with this driver, which uses the Model 372's own commands.");
+
+            %<htr resistance>,<max current>,<max user current>,<current/power>
+            values = this.NumbersInFields(this.QueryString("HTRSET? 0"), 4);
+            this.HeaterResistance_Ohms = values(1);
+            this.HeaterOutputIsPower = values(4) == 2;
         end
 
     end
@@ -429,27 +473,79 @@ classdef Lakeshore372 < Palladium.Core.Instrument
     %% Methods (Private)
     methods (Access = private)
 
+        function rangeNumber = GetHeaterRangeNumber(this)
+            %Read the sample heater range number (RANGE? 0): 0 = Off, 1 = 31.6 uA, 2 = 100 uA, ... 8 = 100 mA.
+
+            if(this.SimulationMode)
+                rangeNumber = 1;
+            else
+                rangeNumber = this.QueryDouble("RANGE? 0");
+            end
+        end
+
+        function [power, percent, rangeNumber] = ReadHeaterOutput(this)
+            %Read the sample heater output (HTR?) and range, as power in W and percent of full-scale current.
+            %HTR? is in W if the heater output display is Power, otherwise
+            %in % of full-scale current (power = resistance x current^2)
+
+            if this.SimulationMode
+                percent = this.GenerateSimulatedData(1, Baseline=60, Variance=7);
+                rangeNumber = 1;
+                power = this.PercentToPower(percent, rangeNumber);
+                return;
+            end
+
+            value = this.QueryDouble("HTR?");
+            rangeNumber = this.GetHeaterRangeNumber();
+            if this.HeaterOutputIsPower
+                power = value;
+                percent = this.PowerToPercent(value, rangeNumber);
+            else
+                percent = value;
+                power = this.PercentToPower(value, rangeNumber);
+            end
+        end
+
+        function power = PercentToPower(this, percent, rangeNumber)
+            %Heater power (W) for an output in percent of a range's full-scale current.
+
+            current = this.GetHeaterCurrentFromRange(rangeNumber) * percent / 100;
+            power = this.HeaterResistance_Ohms * current^2;
+        end
+
+        function percent = PowerToPercent(this, power, rangeNumber)
+            %Heater output in percent of a range's full-scale current, for a power in W - 0 with the heater Off.
+
+            fullScale = this.GetHeaterCurrentFromRange(rangeNumber);
+            if fullScale == 0
+                percent = 0;
+            else
+                percent = 100 * sqrt(max(power, 0) / this.HeaterResistance_Ohms) / fullScale;
+            end
+        end
+
         function index = GetControlModeIndex(this, controlMode)
-            %Control mode number used by the Model 370 CMODE command
+            %Sample heater control mode number used by the OUTMODE command
             %
             %Inputs:
             %   controlMode - ControlMode categorical
             %
             %Outputs:
-            %   index - 1 = Closed Loop PID, 2 = Zone, 3 = Open Loop, 4 = Off
+            %   index - 0 = Off, 2 = Open Loop, 3 = Zone, 5 = Closed Loop PID (1 Monitor
+            %           Out, 4 Still and 6 Warm Up are for the other outputs)
 
             switch(controlMode)
-                case(this.ControlMode("Closed Loop PID"));  index = 1;
-                case(this.ControlMode("Zone"));             index = 2;
-                case(this.ControlMode("Open Loop"));        index = 3;
-                case(this.ControlMode("Off"));              index = 4;
+                case(this.ControlMode("Off"));              index = 0;
+                case(this.ControlMode("Open Loop"));        index = 2;
+                case(this.ControlMode("Zone"));             index = 3;
+                case(this.ControlMode("Closed Loop PID"));  index = 5;
                 otherwise
                     error("Lakeshore372:UnsupportedControlMode", "%s", "Unsupported control mode, should be Off, Closed Loop PID, Zone, Open Loop, was " + string(controlMode));
             end
         end
 
         function index = GetHeaterRangeIndex(this, heaterRange)
-            %Heater range number used by the HTRRNG command
+            %Heater range number used by the RANGE command
             %
             %Inputs:
             %   heaterRange - HeaterRange categorical
@@ -499,6 +595,23 @@ classdef Lakeshore372 < Palladium.Core.Instrument
                 otherwise
                     error("Lakeshore372:UnsupportedHeaterRangeIndex", "%s", "Unsupported heater range index in LS372: " + string(heaterRangeIdx));
             end
+        end
+
+        function values = NumbersInFields(reply, count)
+            %The number in each comma-separated field of a reply, wherever it is in the field - e.g. 20 from "E20.000".
+            %Errors if the reply has fewer than count fields with a number
+
+            fields = split(string(reply), ",");
+            values = nan(1, numel(fields));
+            for i = 1:numel(fields)
+                number = regexp(fields(i), "[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?", "match", "once");
+                if ~ismissing(number)
+                    values(i) = str2double(number);
+                end
+            end
+            assert(numel(values) >= count && all(~isnan(values(1:count))), "Lakeshore372:UnexpectedReply", "%s", ...
+                "Lakeshore 372 gave an unexpected reply: '" + string(reply) + "' (expected " + count + " numbers)");
+            values = values(1:count);
         end
 
     end

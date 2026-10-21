@@ -86,6 +86,15 @@ classdef PluginLoading
                             propName = names{k};
                             propVal = props.(propName);
 
+                            %A setting the driver no longer has (e.g. the
+                            %Lakeshore 370's HeaterResistance, now read from
+                            %the instrument) is skipped, not an error that
+                            %stops the whole preset loading
+                            if ~isprop(instr, propName)
+                                Palladium.Logging.Logger.Log("Warning", "Preset: " + string(instr.Name) + " has no setting " + string(propName) + " - skipping it");
+                                continue;
+                            end
+
                             % Conversion rules
                             if ischar(propVal) || isstring(propVal)
                                 s = char(propVal);
