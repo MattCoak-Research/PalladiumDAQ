@@ -1,5 +1,5 @@
 classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
-    %PicoVNA_NetworkAnalyser - Instrument driver for the Pico Technology PicoVNA 106 and 108 USB vector network analysers, through the PicoVNA 5 software.
+    %PicoVNA_NetworkAnalyser - Instrument driver for the Pico Technology PicoVNA 106 and 108 USB vector network analysers, through the PicoVNA 5 or PicoVNA 3 software.
     %Records whole frequency sweeps through the VNA Control tab, rather
     %than a value each measurement tick: each scan is saved to its own data
     %file as two columns, frequency (Hz) and the S-parameter selected by
@@ -8,34 +8,50 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
     %columns to the main data file. The sweep settings are recorded in the
     %data-file header.
     %
-    %The analyser is controlled with SCPI commands over TCP, through the
-    %PicoVNA 5 software, which must be running with its SCPI interface
-    %enabled (it is by default, on port 5025 - see User Preferences,
-    %Network, in the software). Connect with the Ethernet connection type
-    %and `IP_Address` 127.0.0.1 if the software runs on the same PC, or run
-    %it without its window (`bin\vnaserver --instrument <serial>` in its
-    %install folder). (Commands from the PicoVNA 5 User Guide, SCPI
-    %chapter.)
+    %Older analysers can't use the newer PicoVNA 5 software without an
+    %upgrade, so the driver works with either, and finds which is there
+    %when it connects (`Software`, Auto by default): first the PicoVNA 5
+    %software, running on this PC - or at `IP_Address` - with its SCPI
+    %interface enabled (it is by default, on port 5025: User Preferences,
+    %Network); failing that, the PicoVNA 3 software's library on this PC.
+    %If neither is found, the error says what is expected and where to get
+    %them: https://www.picotech.com/downloads#t9. The two differ in what
+    %the user has to do:
     %
-    %Running a scan applies the tab's settings (`RunScan`): start and stop
-    %frequency and number of points. It then starts a sweep (`INITiate`) and asks for the
-    %S-parameter in `MeasMode` (`CALCulate:DATa`) - the software holds the
-    %reply back until the sweep is done, so the driver checks each tick,
-    %without waiting, whether it has arrived (`CheckScanComplete`) and
-    %Palladium stays responsive however long the sweep takes. Abort ends the
-    %scan on screen; the software's sweep is stopped (`ABORt`) when the next
-    %scan starts, or on Disconnect. The tab starts from the software's own
-    %settings (`GetScanSettings`).
+    %* PicoVNA 5 is controlled through the running application. Make or
+    %  load the calibration, and set the bandwidth and power, there (set
+    %  `CalibrationFile` to have a calibration applied on connecting). It
+    %  must not be sweeping continuously (its Start button) during a scan,
+    %  and its trigger must be Free run.
+    %* PicoVNA 3 has no remote control of its application: the driver uses
+    %  the library the software installs, which takes the analyser over -
+    %  so the PicoVNA 3 application must be CLOSED. The bandwidth and
+    %  power are the settings `Bandwidth_Hz` and `Power_dBm` here (ignored
+    %  with PicoVNA 5). The calibration must be made with the library -
+    %  `Calibrate` opens its dialogue and `SaveCalibration` keeps it -
+    %  as files saved by the PicoVNA application can't be used; load one
+    %  with `CalibrationFile` or `LoadCalibration`.
     %
-    %The calibration, bandwidth and power are those of the software, as
-    %with the other analysers: set them there (the data file's header
-    %records what they were) and make or load a calibration there before
-    %measuring - or set `CalibrationFile` to have one applied each time the
-    %analyser connects. S12 and S22 need a two-port calibration. The
-    %software must not be sweeping continuously (its Start button) while a
-    %scan runs, and its trigger must be Free run. The sweep is always
-    %linear in frequency, and its time is set by the points and bandwidth,
-    %so the tab's sweep type must be Linear and its sweep time is ignored.
+    %Either way, running a scan applies the tab's settings (`RunScan`):
+    %start and stop frequency and number of points. It starts a sweep and
+    %returns at once, so Palladium stays responsive however long the sweep
+    %takes, and the driver checks each tick, without waiting, whether it
+    %has finished (`CheckScanComplete`). Abort ends the scan on screen;
+    %PicoVNA 5's sweep is then stopped when the next scan starts or on
+    %Disconnect (PicoVNA 3's library can't stop one: the next scan waits
+    %for it, and Disconnect cuts it off). The calibration decides what can be
+    %measured: a one-port (S11) calibration is enough for S11 sweeps, S21
+    %needs an S21 or S11+S21 one, and S12 and S22 need a two-port one -
+    %PicoVNA 3's library would otherwise hand back placeholder values for
+    %them, so the driver refuses. The sweep is always linear in frequency, and its time is
+    %set by the points and bandwidth, so the tab's sweep type must be
+    %Linear and its sweep time is ignored. The tab starts from the
+    %software's own settings (`GetScanSettings`).
+    %
+    %How each software is driven is in the classes of the
+    %Palladium.Instruments.PicoVNA package: Software5 (SCPI over TCP) and
+    %Software3 (Pico's COM library, run through
+    %Palladium.Utilities.ComServerProcess).
 
     %% Properties (Public)
     properties(Access = public)
@@ -46,16 +62,24 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
     % These properties will appear in the Instrument Settings GUI and are editable there
     properties(Access = public, SetObservable)
         Name = 'PicoVNA';                                       %Instrument name, used as the prefix of its scan data column headers
-        Connection_Type = Palladium.Enums.ConnectionType.Ethernet;  %Type of connection to use to communicate with the instrument: Ethernet is the PicoVNA 5 software's SCPI port. Debug allows testing without a physical instrument.
+        Connection_Type = Palladium.Enums.ConnectionType.Ethernet;  %Type of connection: Ethernet reaches the PicoVNA software (IP_Address and the port are for PicoVNA 5's SCPI interface; PicoVNA 3 is found on this PC). Debug allows testing without a physical instrument.
+        Software;                                               %Which software to use: Auto (the PicoVNA 5 software if it is there, else PicoVNA 3), or PicoVNA 5 or PicoVNA 3 to use only that
         MeasMode;                                               %S-parameter measured: S11, S21, S12 or S22 - S12 and S22 need a two-port calibration
         MeasUnit;                                               %dB (log magnitude) or Absolute (linear magnitude)
-        CalibrationFile {mustBeTextScalar} = "";                %Full path of a calibration file (made in the PicoVNA 5 software) to apply each time the analyser connects - empty to keep the software's own calibration
+        Power_dBm (1,1) double {mustBeBetween(Power_dBm, -20, 10)} = 0;     %PicoVNA 3 only (PicoVNA 5: set in its software): test signal power, -20 to +6 dBm (106) or +10 dBm (108), sent with the frequency plan before each sweep
+        Bandwidth_Hz (1,1) double {mustBeMember(Bandwidth_Hz, [10 50 100 500 1000 5000 10000 15000 35000 70000 140000])} = 1000;  %PicoVNA 3 only (PicoVNA 5: set in its software): measurement (IF) bandwidth, sent with the frequency plan before each sweep - narrower is less noisy but slower
+        CalibrationFile {mustBeTextScalar} = "";                %Full path of a calibration file to apply each time the analyser connects - empty to keep the software's own calibration. PicoVNA 5: made in its software. PicoVNA 3: saved with SaveCalibration
+    end
+
+    %% Properties (Protected)
+    properties(Access = protected)
+        Backend = [];                                           %The Palladium.Instruments.PicoVNA.Backend talking to the software, found by OpenConnection - empty when not connected, or in SimulationMode
     end
 
     %% Properties (Private)
     properties(Access = private)
-        ScanComplete = true;                                    %False from RunScan asking for the sweep's data until it has arrived (or been abandoned)
-        ScanValues = [];                                        %The sweep's values, once they have arrived
+        ScanComplete = true;                                    %False from RunScan starting a sweep until it has finished (or been abandoned)
+        ScanData = [];                                          %The sweep's data (frequency and value of each point), once it has finished
         MeasureError = [];                                      %MException if the sweep failed - raised when its data is collected (GetCompletedScanData). Empty if it didn't
         SweepSettings = [];                                     %Struct of the plan (as GetScanSettings) and Power_dBm, Bandwidth_Hz and CalType read back before the last sweep started - answered from here while it is under way, when the software can't be asked. Empty until the first sweep
         SimulatedSettings = struct("StartFrequency_Hz", 300e3, "StopFrequency_Hz", 8.5e9, "NumPoints", 201);     %In SimulationMode, the frequency plan last set
@@ -63,6 +87,7 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
 
     %% Categoricals
     methods
+        function catOut = SoftwareType(this, inputStr);    catOut = this.ConvertToCategorical(inputStr, ["Auto", "PicoVNA 5", "PicoVNA 3"]); end
         function catOut = MeasType(this, inputStr);        catOut = this.ConvertToCategorical(inputStr, ["S11", "S21", "S12", "S22"]); end
         function catOut = MeasUnitType(this, inputStr);    catOut = this.ConvertToCategorical(inputStr, ["dB", "Absolute"]); end
     end
@@ -72,13 +97,14 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
         function this = PicoVNA_NetworkAnalyser()
             %Set the supported connection types, default settings and Scan Control tab.
 
-            %The PicoVNA 5 software's SCPI port, on this PC by default. Not
-            %USB: the software owns the analyser
+            %The PicoVNA 5 software's SCPI port, on this PC by default; the
+            %PicoVNA 3 library is found on this PC (see OpenConnection)
             this.DefineSupportedConnectionTypes(["Debug", "Ethernet"]);
             this.IP_Address = '127.0.0.1';
             this.ConnectionSettings.Port = 5025;
 
             %Default settings
+            this.Software = this.SoftwareType("Auto");
             this.MeasMode = this.MeasType("S11");
             this.MeasUnit = this.MeasUnitType("dB");
 
@@ -90,25 +116,35 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
     %% Methods (Public)
     methods (Access = public)
 
+        function Calibrate(this)
+            %Open the PicoVNA 3 library's calibration dialogue, to set the frequency plan and calibrate - not while a scan is running.
+            %PicoVNA 3 only: with PicoVNA 5, calibrate in its software.
+            %Keep the calibration with SaveCalibration
+
+            if this.SimulationMode
+                return;
+            end
+
+            this.Backend.Calibrate();
+        end
+
         function complete = CheckScanComplete(this)
             %Check, without waiting, whether the sweep started by RunScan has finished - for the Scan Control tab.
-            %The sweep has finished once the software's reply to the data
-            %request is waiting; it is then read. If the sweep failed (e.g.
-            %no calibration covers it) this is also true, and
-            %GetCompletedScanData raises the error
+            %If the sweep failed (e.g. no calibration covers it) this is
+            %also true, and GetCompletedScanData raises the error
             %
             %Outputs:
             %   complete - true once the sweep has finished
 
-            if ~this.ScanComplete && this.IsReplyWaiting()
-                reply = strip(string(this.ReadString()));
-                values = str2double(split(reply, ","))';
-                if isscalar(values) && isnan(values) && lower(reply) ~= "nan"
-                    %Not numbers: the software's error message
-                    this.MeasureError = MException("PicoVNA_NetworkAnalyser:MeasureFailed", "%s", ...
-                        this.Name + ": measuring " + string(this.MeasMode) + " failed - the software replied """ + reply + """.");
-                else
-                    this.ScanValues = values;
+            if ~this.ScanComplete && this.Backend.IsSweepDone()
+                try
+                    this.ScanData = this.Backend.CollectSweep();
+                catch err
+                    identifier = err.identifier;
+                    if strlength(identifier) == 0
+                        identifier = "PicoVNA_NetworkAnalyser:MeasureFailed";
+                    end
+                    this.MeasureError = MException(identifier, "%s", this.Name + ": " + err.message);
                 end
                 this.ScanComplete = true;
             end
@@ -132,11 +168,24 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
             metadataStruct.CalType = settings.CalType;
         end
 
+        function description = GetActiveSoftware(this)
+            %What the driver is connected to, e.g. "PicoVNA 5 software at 127.0.0.1:5025 (...)" - "Simulated" in SimulationMode, empty if not connected.
+            %
+            %Outputs:
+            %   description - text
+
+            if this.SimulationMode
+                description = "Simulated";
+            elseif isempty(this.Backend)
+                description = "";
+            else
+                description = this.Backend.Description;
+            end
+        end
+
         function data = GetCompletedScanData(this)
             %Frequencies and S-parameter values of the sweep just taken, for the Scan Control tab to save and plot.
-            %The software gives only the values; the frequencies are the
-            %sweep's points, evenly spaced from start to stop. Errors if
-            %the sweep failed - see CheckScanComplete - or gave no values
+            %Errors if the sweep failed - see CheckScanComplete - or gave no values
             %
             %Outputs:
             %   data - one row per point: [frequency (Hz), value in MeasUnit]
@@ -159,12 +208,11 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
             end
 
             plan = this.SweepSettings;
-            values = this.ScanValues(:);
-            assert(numel(values) == plan.NumPoints, "PicoVNA_NetworkAnalyser:DataSizeMismatch", "%s", ...
-                this.Name + ": the sweep has " + plan.NumPoints + " points but the software sent " + numel(values) + " values.");
-            assert(~all(isnan(values)), "PicoVNA_NetworkAnalyser:NoData", "%s", ...
+            data = this.ScanData;
+            assert(size(data, 1) == plan.NumPoints, "PicoVNA_NetworkAnalyser:DataSizeMismatch", "%s", ...
+                this.Name + ": the sweep has " + plan.NumPoints + " points but the software sent " + size(data, 1) + " values.");
+            assert(~all(isnan(data(:, 2))), "PicoVNA_NetworkAnalyser:NoData", "%s", ...
                 this.Name + ": the software sent no data for " + string(this.MeasMode) + " - it needs a calibration covering it (S12 and S22 need a two-port one).");
-            data = [linspace(plan.StartFrequency_Hz, plan.StopFrequency_Hz, plan.NumPoints)', values];
         end
 
         function [Headers, Units] = GetHeaders(~)
@@ -213,7 +261,7 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
         end
 
         function LoadCalibration(this, fileName)
-            %Load a calibration made in the PicoVNA 5 software and apply it.
+            %Load and apply a calibration file - for PicoVNA 5 one made in its software, for PicoVNA 3 one saved with SaveCalibration.
             %
             %Inputs:
             %   fileName - full path of the calibration file
@@ -227,8 +275,7 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
                 return;
             end
 
-            %Quoted, as the software wants for a path with backslashes
-            this.SendCommand("MMEMory:APPLY:CALibration '" + string(fileName) + "'", "applying the calibration file " + string(fileName));
+            this.Backend.LoadCalibration(fileName);
         end
 
         function [dataRow] = Measure(~)
@@ -247,10 +294,11 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
             %Sets the frequency plan from the fields scanDetails has (see
             %GetScanSettings; any it lacks stay as the software has them -
             %others, e.g. the file settings, are ignored), then starts a
-            %sweep and asks for MeasMode's S-parameter in MeasUnit. The settings are read back before the
-            %sweep starts, for the data file's metadata (the software can't
-            %be asked anything while a request is waiting for the sweep). If
-            %an abandoned scan's sweep is still going, it is stopped first
+            %sweep of MeasMode's S-parameter in MeasUnit. The settings are
+            %read back before the sweep starts, for the data file's
+            %metadata (the software can't be asked anything once it is
+            %sweeping). If an abandoned scan's sweep is still going, PicoVNA
+            %5 stops it first and PicoVNA 3 waits for it
             %
             %Inputs:
             %   scanDetails - (optional) struct of settings. Default: none, keeping the software's
@@ -271,27 +319,48 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
             if has("MeasMode");     this.MeasMode = this.MeasType(string(scanDetails.MeasMode));       end
             if has("MeasUnit");     this.MeasUnit = this.MeasUnitType(string(scanDetails.MeasUnit));   end
 
-            this.AbortOutstandingSweep();
+            if ~this.SimulationMode
+                this.Backend.AbortSweep();
+                this.ScanComplete = true;
+            end
 
             %Whatever the tab doesn't give stays as the software has it
             plan = this.ReadPlan();
             for name = ["StartFrequency_Hz", "StopFrequency_Hz", "NumPoints"]
                 if has(name);   plan.(name) = scanDetails.(name);   end
             end
+            if ~this.SimulationMode
+                this.Backend.SetSweepOptions(this.Power_dBm, this.Bandwidth_Hz);
+            end
             this.SetFrequencyPlan(plan.StartFrequency_Hz, plan.StopFrequency_Hz, plan.NumPoints);
             if this.SimulationMode
                 return;     %Simulated sweeps are instant
             end
 
-            this.SendCommand("FORMat ASCii", "setting the data format");
-
-            %Read back what was set, then start the sweep and ask for its
-            %data - the reply comes when the sweep is done
+            %Read back what was set, then start the sweep
             this.SweepSettings = this.ReadSweepSettings();
-            this.SendCommand("INITiate", "starting the sweep");
-            this.WriteCommand("CALCulate:DATa " + string(this.MeasMode) + "," + this.DataType());
-            this.ScanValues = [];
+            this.Backend.StartSweep(string(this.MeasMode), string(this.MeasUnit), this.SweepSettings);
+            this.ScanData = [];
             this.ScanComplete = false;
+        end
+
+        function SaveCalibration(this, fileName)
+            %Save the PicoVNA 3 library's calibration and frequency plan, to load again with LoadCalibration or CalibrationFile.
+            %PicoVNA 3 only: with PicoVNA 5, save calibrations in its software
+            %
+            %Inputs:
+            %   fileName - full path of the file to write
+
+            arguments
+                this;
+                fileName {mustBeTextScalar};
+            end
+
+            if this.SimulationMode
+                return;
+            end
+
+            this.Backend.SaveCalibration(fileName);
         end
 
         function SetFrequencyPlan(this, start_Hz, stop_Hz, numPoints)
@@ -313,25 +382,14 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
 
             assert(stop_Hz > start_Hz, "PicoVNA_NetworkAnalyser:FrequencyOutOfRange", "%s", ...
                 "The stop frequency (" + stop_Hz / 1e6 + " MHz) must be above the start frequency (" + start_Hz / 1e6 + " MHz).");
+            assert(numPoints >= 2, "PicoVNA_NetworkAnalyser:NumPointsOutOfRange", "%s", "A sweep needs at least 2 points, received " + numPoints + ".");
 
             if this.SimulationMode
                 this.SimulatedSettings = struct("StartFrequency_Hz", start_Hz, "StopFrequency_Hz", stop_Hz, "NumPoints", numPoints);
                 return;
             end
 
-            %The software won't put the start above the current stop, so
-            %when moving the whole sweep up, the stop goes first
-            number = @(value) Palladium.Core.Instrument.NumberToCommandString(value);
-            setStart = @() this.SendCommand("SENSe:FREQuency:STARt " + number(start_Hz), "setting the start frequency");
-            setStop = @() this.SendCommand("SENSe:FREQuency:STOP " + number(stop_Hz), "setting the stop frequency");
-            if start_Hz >= this.ParseValue(this.QueryString("SENSe:FREQuency:STOP?"))
-                setStop();
-                setStart();
-            else
-                setStart();
-                setStop();
-            end
-            this.SendCommand("SENSe:SWEep:POINts " + number(numPoints), "setting the number of points");
+            this.Backend.SetFrequencyPlan(start_Hz, stop_Hz, numPoints);
         end
 
     end
@@ -340,47 +398,65 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
     methods(Access = protected)
 
         function CloseConnection(this)
-            %Stop a sweep still going, then close the connection.
+            %Stop a sweep still going where the software allows, release the software and close the connection.
 
-            if ~this.SimulationMode && ~isempty(this.DeviceHandle)
-                try
-                    this.AbortOutstandingSweep();
-                catch
-                    %Close it anyway
-                end
+            if this.SimulationMode
+                disp("Disconnected from simulated " + this.Name + " instrument.");
+                return;
             end
-            CloseConnection@Palladium.Core.Instrument(this);
+
+            if ~isempty(this.Backend)
+                this.Backend.Close();
+                this.Backend = [];
+            end
+        end
+
+        function backend = CreateBackend(this, software)
+            %Make the backend for one of the softwares, not yet connected.
+            %
+            %Inputs:
+            %   software - "PicoVNA 5" or "PicoVNA 3"
+            %
+            %Outputs:
+            %   backend - a Palladium.Instruments.PicoVNA.Backend
+
+            switch(software)
+                case "PicoVNA 5";   backend = Palladium.Instruments.PicoVNA.Software5(Address = string(this.IP_Address), Port = this.ConnectionSettings.Port);
+                case "PicoVNA 3";   backend = Palladium.Instruments.PicoVNA.Software3();
+            end
         end
 
         function OnConnected(this)
-            %Check it is a PicoVNA, allow time for the software to answer, and apply CalibrationFile if set, after connecting.
+            %Say what was connected to, and apply CalibrationFile if set, after connecting.
 
             this.ScanComplete = true;
             if this.SimulationMode
                 return;
             end
 
-            this.DeviceHandle.Timeout = 30;
-            identity = this.QueryString("*IDN?");
-            if ~contains(identity, "Pico", IgnoreCase = true)
-                Palladium.Logging.Logger.Log("Warning", this.Name + ": connected, but the instrument says it is """ + identity + """ - is this the PicoVNA 5 software's SCPI port?");
-            end
+            disp("Connected to " + this.Name + " instrument: " + this.Backend.Description + ".");
             if strlength(string(this.CalibrationFile)) > 0
                 this.LoadCalibration(this.CalibrationFile);
             end
         end
 
         function OpenConnection(this)
-            %Connect to the PicoVNA 5 software's SCPI port, with a hint if it can't be reached.
+            %Find the PicoVNA software to use and connect to it. In Debug mode, no connection - SimulationMode.
+            %Auto tries the PicoVNA 5 software first, then (for a PC that is
+            %this one) the PicoVNA 3 library. Errors, saying what is
+            %expected and where to get it, if none is found
 
-            try
-                OpenConnection@Palladium.Core.Instrument(this);
-            catch err
-                if this.Connection_Type == Palladium.Enums.ConnectionType.Debug
-                    rethrow(err);
-                end
-                error("PicoVNA_NetworkAnalyser:ConnectionFailed", "%s", err.message + newline + newline + ...
-                    "Is the PicoVNA 5 software running, with its SCPI interface enabled on port " + this.ConnectionSettings.Port + " (User Preferences, Network)?");
+            switch(this.Connection_Type)
+                case(Palladium.Enums.ConnectionType.Debug)
+                    disp("Connected to simulated " + this.Name + " instrument.");
+                    this.SimulationMode = true;
+
+                case(Palladium.Enums.ConnectionType.Ethernet)
+                    this.SimulationMode = false;
+                    this.Backend = this.FindSoftware();
+
+                otherwise
+                    error("PicoVNA_NetworkAnalyser:UnsupportedConnectionType", "%s", "Unsupported connection type on the PicoVNA: " + string(this.Connection_Type) + ". Use Ethernet (or Debug).");
             end
         end
 
@@ -389,44 +465,42 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
     %% Methods (Private)
     methods(Access = private)
 
-        function AbortOutstandingSweep(this)
-            %Stop an abandoned scan's sweep, if one is still going, and throw away the reply to its data request.
-            %ABORt on the same connection makes the software answer the data
-            %request with what the sweep had got, then OK. Does nothing if no
-            %data request is outstanding
+        function backend = FindSoftware(this)
+            %Connect to the first of the softwares to try that is there - errors with what is expected if none is.
+            %PicoVNA 3's library only exists on this PC, so it isn't tried
+            %when IP_Address is another computer
 
-            if this.SimulationMode || this.ScanComplete
-                return;
+            requested = string(this.Software);
+            localPC = ismember(lower(string(this.IP_Address)), ["127.0.0.1", "localhost", "::1"]);
+            switch requested
+                case "Auto";        tryList = ["PicoVNA 5", "PicoVNA 3"];
+                otherwise;          tryList = requested;
+            end
+            if ~localPC
+                tryList = tryList(tryList ~= "PicoVNA 3");
             end
 
-            this.WriteCommand("ABORt");
-            reply = "";
-            while reply ~= "OK"
-                reply = strip(string(this.ReadString()));
-            end
-            this.ScanComplete = true;
-        end
-
-        function type = DataType(this)
-            %The CALCulate:DATa type for MeasUnit: LOGMAG (dB) or MAG (linear magnitude).
-
-            switch(this.MeasUnit)
-                case(this.MeasUnitType("dB"));          type = "LOGMAG";
-                case(this.MeasUnitType("Absolute"));    type = "MAG";
-            end
-        end
-
-        function value = ParseValue(~, reply)
-            %A number from the software's reply, which has a unit after it, e.g. "1000000.000000 Hz" or "0.300000 MHz" - frequencies are returned in Hz.
-
-            parts = split(strip(string(reply)));
-            value = str2double(parts(1));
-            if numel(parts) > 1
-                scales = dictionary(["Hz", "kHz", "MHz", "GHz"], [1, 1e3, 1e6, 1e9]);
-                if isKey(scales, parts(2))
-                    value = value * scales(parts(2));
+            failures = strings(1, 0);
+            for software = tryList
+                candidate = this.CreateBackend(software);
+                try
+                    candidate.Open();
+                    backend = candidate;
+                    return;
+                catch err
+                    failures(end + 1) = "* " + software + ": " + err.message; %#ok<AGROW>
                 end
             end
+
+            expected = strings(1, 0);
+            if any(requested == ["Auto", "PicoVNA 5"])
+                expected(end + 1) = "* the PicoVNA 5 software, running on the computer at " + string(this.IP_Address) + ", with its SCPI interface enabled on port " + this.ConnectionSettings.Port + " (User Preferences, Network)";
+            end
+            if any(requested == ["Auto", "PicoVNA 3"]) && localPC && ispc     %PicoVNA 3's library is Windows only
+                expected(end + 1) = "* the PicoVNA 3 software installed on this computer (the application itself closed - its library takes the analyser over)";
+            end
+            error("PicoVNA_NetworkAnalyser:SoftwareNotFound", "%s", "No PicoVNA software was found to talk to the analyser. This needs:" + newline + strjoin(expected, newline) + newline + newline + ...
+                "Download and install them from https://www.picotech.com/downloads#t9" + newline + newline + "What happened:" + newline + strjoin(failures, newline));
         end
 
         function plan = ReadPlan(this)
@@ -438,9 +512,7 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
                 plan = struct("StartFrequency_Hz", this.SweepSettings.StartFrequency_Hz, "StopFrequency_Hz", this.SweepSettings.StopFrequency_Hz, ...
                     "NumPoints", this.SweepSettings.NumPoints);
             else
-                plan = struct("StartFrequency_Hz", this.ParseValue(this.QueryString("SENSe:FREQuency:STARt?")), ...
-                    "StopFrequency_Hz", this.ParseValue(this.QueryString("SENSe:FREQuency:STOP?")), ...
-                    "NumPoints", this.ParseValue(this.QueryString("SENSe:SWEep:POINts?")));
+                plan = this.Backend.ReadPlan();
             end
         end
 
@@ -449,25 +521,14 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
 
             if this.SimulationMode
                 settings = this.SimulatedSettings;
-                settings.Power_dBm = 3;
-                settings.Bandwidth_Hz = 1000;
+                settings.Power_dBm = this.Power_dBm;
+                settings.Bandwidth_Hz = this.Bandwidth_Hz;
                 settings.CalType = "Simulated";
             elseif ~this.ScanComplete
                 settings = this.SweepSettings;
             else
-                settings = this.ReadPlan();
-                settings.Power_dBm = this.ParseValue(this.QueryString("SENSe:LEVel?"));
-                settings.Bandwidth_Hz = this.ParseValue(this.QueryString("SENSe:BANDwidth?"));
-                settings.CalType = string(this.QueryString("MMEMory:CALibration:INFO:TYPe?"));
+                settings = this.Backend.ReadSweepSettings();
             end
-        end
-
-        function SendCommand(this, command, action)
-            %Send a command and error, naming the action, unless the software replies OK - it replies to every command.
-
-            reply = strip(string(this.QueryString(command)));
-            assert(reply == "OK", "PicoVNA_NetworkAnalyser:CommandFailed", "%s", ...
-                this.Name + ": " + action + " failed - the software replied """ + reply + """.");
         end
 
     end
