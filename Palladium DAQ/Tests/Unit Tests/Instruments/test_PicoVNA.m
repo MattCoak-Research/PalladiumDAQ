@@ -1,10 +1,11 @@
 classdef test_PicoVNA < matlab.unittest.TestCase
-    %TEST_PICOVNA Tests the PicoVNA driver's sweep, as the Scan Control runs it, and its sweep settings
+    %TEST_PICOVNA Tests the PicoVNA driver: how it finds the PicoVNA software, and its sweep, as the Scan Control runs it, with PicoVNA 5
     %Commands from the PicoVNA 5 User Guide (SCPI). The driver is given a
-    %fake connection (FakeDeviceHandle), through the RecordingPicoVNA test
-    %subclass. The last test runs against a real PicoVNA 5 software in demo
-    %mode, if one is running on this PC with SCPI on port 5025 - otherwise it
-    %is skipped.
+    %PicoVNA 5 backend with a fake connection (FakeDeviceHandle), through
+    %the RecordingPicoVNA test subclass. PicoVNA 3 is tested in
+    %test_PicoVNASoftware3. The last test runs against a real PicoVNA 5
+    %software in demo mode, if one is running on this PC with SCPI on port
+    %5025 - otherwise it is skipped.
 
     %% Methods (TestClassSetup)
     methods (TestClassSetup)
@@ -20,6 +21,79 @@ classdef test_PicoVNA < matlab.unittest.TestCase
             instr = Palladium.Instruments.PicoVNA_NetworkAnalyser();
             testCase.verifyEqual(sort(string(instr.GetSupportedConnectionTypes()))', sort(["Debug", "Ethernet"]));
             testCase.verifyEqual(string(instr.IP_Address), "127.0.0.1");
+            testCase.verifyEqual(string(instr.Software), "Auto");
+        end
+
+        function AutoUsesPicoVNA5WhenItIsThereTest(testCase)
+            [instr, five, three] = testCase.instrumentWithFakeSoftware();
+
+            evalc("instr.Connect()");
+
+            testCase.verifyEqual(instr.BackendsRequested, "PicoVNA 5", "PicoVNA 3 is not even looked for");
+            testCase.verifyTrue(five.Opened);
+            testCase.verifyFalse(three.Opened);
+            testCase.verifyEqual(instr.GetActiveSoftware(), "fake 5");
+        end
+
+        function AutoFallsBackToPicoVNA3Test(testCase)
+            [instr, five, three] = testCase.instrumentWithFakeSoftware();
+            five.OpenError = "nothing listening on port 5025";
+
+            evalc("instr.Connect()");
+
+            testCase.verifyEqual(instr.BackendsRequested, ["PicoVNA 5", "PicoVNA 3"]);
+            testCase.verifyTrue(three.Opened);
+            testCase.verifyEqual(instr.GetActiveSoftware(), "fake 3");
+        end
+
+        function NeitherSoftwareFoundExplainsWhatIsExpectedTest(testCase)
+            [instr, five, three] = testCase.instrumentWithFakeSoftware();
+            five.OpenError = "nothing listening on port 5025";
+            three.OpenError = "library not registered";
+
+            testCase.verifyError(@() instr.Connect(), "PicoVNA_NetworkAnalyser:SoftwareNotFound");
+            message = testCase.errorMessage(@() instr.Connect());
+            testCase.verifyTrue(contains(message, "https://www.picotech.com/downloads#t9"), "Where to get them");
+            testCase.verifyTrue(contains(message, "PicoVNA 5") && contains(message, "PicoVNA 3"), "What is expected");
+            testCase.verifyTrue(contains(message, "nothing listening on port 5025") && contains(message, "library not registered"), "What happened");
+            testCase.verifyFalse(instr.IsConnected);
+        end
+
+        function ChosenSoftwareIsTheOnlyOneTriedTest(testCase)
+            [instr, five, three] = testCase.instrumentWithFakeSoftware();
+            five.OpenError = "nothing listening on port 5025";
+            instr.Software = instr.SoftwareType("PicoVNA 5");
+
+            testCase.verifyError(@() instr.Connect(), "PicoVNA_NetworkAnalyser:SoftwareNotFound");
+            testCase.verifyEqual(instr.BackendsRequested, "PicoVNA 5");
+
+            instr.Software = instr.SoftwareType("PicoVNA 3");
+            instr.BackendsRequested = strings(1, 0);
+            evalc("instr.Connect()");
+            testCase.verifyEqual(instr.BackendsRequested, "PicoVNA 3");
+            testCase.verifyTrue(three.Opened);
+        end
+
+        function PicoVNA3IsNotTriedForAnotherComputerTest(testCase)
+            %Its library only exists on this PC
+            [instr, five, ~] = testCase.instrumentWithFakeSoftware();
+            five.OpenError = "no route to host";
+            instr.IP_Address = '192.168.1.50';
+
+            testCase.verifyError(@() instr.Connect(), "PicoVNA_NetworkAnalyser:SoftwareNotFound");
+
+            testCase.verifyEqual(instr.BackendsRequested, "PicoVNA 5");
+            testCase.verifyFalse(contains(testCase.errorMessage(@() instr.Connect()), "PicoVNA 3 software installed"));
+        end
+
+        function DisconnectReleasesTheSoftwareTest(testCase)
+            [instr, five, ~] = testCase.instrumentWithFakeSoftware();
+            evalc("instr.Connect()");
+
+            evalc("instr.Disconnect()");
+
+            testCase.verifyTrue(five.Closed);
+            testCase.verifyEqual(instr.GetActiveSoftware(), "");
         end
 
         function RunScanAppliesTheSettingsThenStartsTheSweepTest(testCase)
@@ -34,8 +108,8 @@ classdef test_PicoVNA < matlab.unittest.TestCase
 
             planQueries = ["SENSe:FREQuency:STARt?", "SENSe:FREQuency:STOP?", "SENSe:SWEep:POINts?"];
             testCase.verifyEqual(fake.QueriedCommands, [planQueries, "SENSe:FREQuency:STOP?", ...
-                "SENSe:FREQuency:STARt 1000000", "SENSe:FREQuency:STOP 1000000000", "SENSe:SWEep:POINts 101", "FORMat ASCii", ...
-                planQueries, "SENSe:LEVel?", "SENSe:BANDwidth?", "MMEMory:CALibration:INFO:TYPe?", "INITiate"]);
+                "SENSe:FREQuency:STARt 1000000", "SENSe:FREQuency:STOP 1000000000", "SENSe:SWEep:POINts 101", ...
+                planQueries, "SENSe:LEVel?", "SENSe:BANDwidth?", "MMEMory:CALibration:INFO:TYPe?", "FORMat ASCii", "INITiate"]);
             testCase.verifyEqual(fake.WrittenCommands, "CALCulate:DATa S21,LOGMAG");
             testCase.verifyEqual(string(instr.MeasMode), "S21");
             testCase.verifyFalse(instr.CheckScanComplete(), "No reply yet: the sweep is under way");
@@ -305,7 +379,27 @@ classdef test_PicoVNA < matlab.unittest.TestCase
             for i = 1:height(replies)
                 fake.QueryResponses(replies(i, 1)) = replies(i, 2);
             end
-            instr.SetDeviceHandleForTest(fake);
+            instr.SetBackendForTest(Palladium.Instruments.PicoVNA.Software5(Handle = fake));
+        end
+
+        function message = errorMessage(~, fcn)
+            %The message of the error a function throws.
+            message = "";
+            try
+                fcn();
+            catch err
+                message = string(err.message);
+            end
+        end
+
+        function [instr, five, three] = instrumentWithFakeSoftware(~)
+            %An instrument whose search for the software finds the two fake backends, rather than any real software
+            instr = InstrumentTestingInstruments.RecordingPicoVNA();
+            five = InstrumentTestingInstruments.FakeBackend();
+            five.FakeDescription = "fake 5";
+            three = InstrumentTestingInstruments.FakeBackend();
+            three.FakeDescription = "fake 3";
+            instr.FakeBackends = dictionary(["PicoVNA 5", "PicoVNA 3"], {five, three});
         end
 
         function startSweep(~, instr, fake, numPoints)

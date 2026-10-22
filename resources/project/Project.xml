@@ -870,6 +870,33 @@
                             </Category>
                         </Info>
                     </File>
+                    <File Location="+PicoVNA">
+                        <Info/>
+                        <DIR_SIGNIFIER Location="1">
+                            <Info/>
+                        </DIR_SIGNIFIER>
+                        <File Location="Backend.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="design"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="Software5.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="design"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="Software3.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="design"/>
+                                </Category>
+                            </Info>
+                        </File>
+                    </File>
                 </File>
                 <File Location="+Logging">
                     <Info/>
@@ -1034,6 +1061,13 @@
                         </Info>
                     </File>
                     <File Location="Verification.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
+                    <File Location="ComServerProcess.m">
                         <Info>
                             <Category UUID="FileClassCategory">
                                 <Label UUID="design"/>
@@ -1565,6 +1599,20 @@
                                         </Category>
                                     </Info>
                                 </File>
+                                <File Location="FakeComServer.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                                <File Location="FakeBackend.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
                             </File>
                         </File>
                         <File Location="ZI Testing">
@@ -1629,6 +1677,13 @@
                             </Info>
                         </File>
                         <File Location="test_ConfigIO.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_ComServerProcess.m">
                             <Info>
                                 <Category UUID="FileClassCategory">
                                     <Label UUID="test"/>
@@ -1869,6 +1924,13 @@
                             </Info>
                         </File>
                         <File Location="test_PicoVNA.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_PicoVNASoftware3.m">
                             <Info>
                                 <Category UUID="FileClassCategory">
                                     <Label UUID="test"/>
