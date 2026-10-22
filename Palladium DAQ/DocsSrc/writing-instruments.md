@@ -160,6 +160,20 @@ Controls send settings to the instrument with its `SettingsInput` method. The se
 
 For a [Sequence](sequences.md) to wait for a slow command - such as setting a temperature - to finish, register a function that reports when it is done, in the constructor: `this.RegisterCommandCompleteQuery("SetTemperature", @this.IsTemperatureStable)`. The PPMS driver does this.
 
+## Buttons for things to do before measuring
+
+Some instruments need an action before measurements start - browsing for a calibration file, running a calibration. Override `CreateSetupControls(parent)` to add controls for it to the Instrument Options panel. It is called each time the panel draws the instrument (so show current values), is given a `uipanel` to fill, and returns the height in pixels the controls need:
+
+```matlab
+function height = CreateSetupControls(this, parent)
+    grid = uigridlayout(parent, [1 1]);
+    uibutton(grid, "Text", "Zero the offset", "ButtonPushedFcn", @(~, ~) this.ZeroOffset());
+    height = 60;
+end
+```
+
+The area appears between the settings and the Instrument Controls, and the settings shrink to make room. By default the method adds nothing and returns 0, and there is no area. The controls are disabled while measurements run. The PicoVNA driver uses this for its calibration file and Run Calibration buttons.
+
 ## Testing a driver
 
 * Add the instrument with `Connection_Type` set to `Debug` and start measuring, to check its headers, readings and settings without hardware.

@@ -7,6 +7,7 @@ classdef FakeBackend < Palladium.Instruments.PicoVNA.Backend
         FakeDescription = "";   %What Open sets as the Description
         Opened = false;         %True once Open has worked
         Closed = false;         %True once Close has been called
+        LoadedCalibrations = strings(1, 0);     %The files LoadCalibration was asked for, in order
     end
 
     %% Methods (Public)
@@ -27,6 +28,6 @@ classdef FakeBackend < Palladium.Instruments.PicoVNA.Backend
         function done = IsSweepDone(~);                         done = true; end
         function data = CollectSweep(~);                        data = [1e6, 0]; end
         function AbortSweep(~);                                 end
-        function LoadCalibration(~, ~);                         end
+        function LoadCalibration(this, fileName);               this.LoadedCalibrations(end + 1) = string(fileName); end
     end
 end

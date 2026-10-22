@@ -68,6 +68,11 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
         MeasUnit;                                               %dB (log magnitude) or Absolute (linear magnitude)
         Power_dBm (1,1) double {mustBeBetween(Power_dBm, -20, 10)} = 0;     %PicoVNA 3 only (PicoVNA 5: set in its software): test signal power, -20 to +6 dBm (106) or +10 dBm (108), sent with the frequency plan before each sweep
         Bandwidth_Hz (1,1) double {mustBeMember(Bandwidth_Hz, [10 50 100 500 1000 5000 10000 15000 35000 70000 140000])} = 1000;  %PicoVNA 3 only (PicoVNA 5: set in its software): measurement (IF) bandwidth, sent with the frequency plan before each sweep - narrower is less noisy but slower
+    end
+
+    %% Properties (Public, Set Observable, Hidden)
+    % Set with the Browse and Run Calibration buttons (CreateSetupControls), not in the settings list. SetObservable so that it is saved in presets and redraws the buttons' panel when it changes
+    properties(Access = public, SetObservable, Hidden)
         CalibrationFile {mustBeTextScalar} = "";                %Full path of a calibration file to apply each time the analyser connects - empty to keep the software's own calibration. PicoVNA 5: made in its software. PicoVNA 3: saved with SaveCalibration
     end
 
@@ -78,6 +83,7 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
 
     %% Properties (Private)
     properties(Access = private)
+        SkipCalibrationFile = false;                            %True while RunCalibrationFromGUI has the analyser connected, so a stale CalibrationFile isn't loaded over the new calibration
         ScanComplete = true;                                    %False from RunScan starting a sweep until it has finished (or been abandoned)
         ScanData = [];                                          %The sweep's data (frequency and value of each point), once it has finished
         MeasureError = [];                                      %MException if the sweep failed - raised when its data is collected (GetCompletedScanData). Empty if it didn't
@@ -126,6 +132,106 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
             end
 
             this.Backend.Calibrate();
+        end
+
+        function BrowseForCalibration(this, owner)
+            %Ask for a calibration file and set CalibrationFile to it - the Browse button in the Instrument Options panel.
+            %Does nothing if cancelled
+            %
+            %Inputs:
+            %   owner - the control pressed, for bringing its window back to the front
+
+            path = Palladium.Utilities.GUIUtils.ChooseFile("open", Title = "Choose a calibration file", Reference = owner, ...
+                Filter = {'*.pcal;*.cal', 'Calibration files'; '*.*', 'All files'}, Default = string(this.CalibrationFile));
+            if strlength(path) > 0
+                this.CalibrationFile = path;
+            end
+        end
+
+        function height = CreateSetupControls(this, parent)
+            %Add the calibration file and its Browse and Run Calibration buttons to the Instrument Options panel.
+            %The file is applied whenever the analyser connects. Run
+            %Calibration is PicoVNA 3 only (with PicoVNA 5, calibrate in its
+            %software then Browse for the file)
+            %
+            %Inputs:
+            %   parent - the panel to put the controls in
+            %
+            %Outputs:
+            %   height - the height they need, in pixels
+
+            grid = uigridlayout(parent, [2 3], "RowHeight", {30, 30}, "ColumnWidth", {150, "1x", 90}, "Padding", [10 10 10 10]);
+
+            label = uilabel(grid, "Text", "Calibration file:", "FontName", "Georgia", "FontSize", 14);
+            label.Layout.Row = 1;
+            label.Layout.Column = 1;
+
+            if strlength(string(this.CalibrationFile)) > 0
+                shown = string(this.CalibrationFile);
+            else
+                shown = "none - the software's own calibration is used";
+            end
+            field = uieditfield(grid, "text", "Value", shown, "Editable", "off", "Tooltip", shown, "FontName", "Georgia", "FontSize", 12);
+            field.Layout.Row = 1;
+            field.Layout.Column = [2 3];
+
+            runButton = uibutton(grid, "Text", "Run Calibration", "FontName", "Georgia", "FontSize", 14, ...
+                "Tooltip", "Open the PicoVNA 3 library's calibration dialogue, then save the calibration to a file and use it (PicoVNA 3 only - with PicoVNA 5 calibrate in its software)", ...
+                "ButtonPushedFcn", @(src, ~) this.RunCalibrationFromGUI(src));
+            runButton.Layout.Row = 2;
+            runButton.Layout.Column = 1;
+
+            browseButton = uibutton(grid, "Text", "Browse", "FontName", "Georgia", "FontSize", 14, ...
+                "Tooltip", "Choose a calibration file to apply when the analyser connects", ...
+                "ButtonPushedFcn", @(src, ~) this.BrowseForCalibration(src));
+            browseButton.Layout.Row = 2;
+            browseButton.Layout.Column = 3;
+
+            height = 100;
+        end
+
+        function RunCalibrationFromGUI(this, owner)
+            %Connect, open the library's calibration dialogue, save the result to a file chosen by the user, set CalibrationFile to it and disconnect - the Run Calibration button in the Instrument Options panel.
+            %The calibration lives only in the library while it is
+            %connected, so it is saved to a file to use at the next
+            %Connect. Problems (not connected to hardware, PicoVNA 5, a
+            %measurement running) are shown in the window
+            %
+            %Inputs:
+            %   owner - the control pressed, to show messages in its window
+
+            gui = Palladium.Utilities.GUIUtils;
+            if this.IsConnected
+                gui.ShowWarning(owner, "The analyser is in use. Stop the measurements before running a calibration.", "Calibration");
+                return;
+            end
+            if this.Connection_Type == Palladium.Enums.ConnectionType.Debug
+                gui.ShowWarning(owner, "A calibration needs the analyser: set the Connection_Type to Ethernet (the Debug connection is simulated).", "Calibration");
+                return;
+            end
+
+            this.SkipCalibrationFile = true;
+            cleanup = onCleanup(@() this.EndGUICalibration());
+            savedFile = "";
+            try
+                this.Connect();
+                this.Calibrate();
+                savedFile = gui.ChooseFile("save", Title = "Save the calibration as", Reference = owner, ...
+                    Filter = {'*.pcal', 'Calibration files'}, Default = "Calibration.pcal");
+                if strlength(savedFile) == 0
+                    gui.ShowWarning(owner, "The calibration was not saved, so it is lost when the analyser disconnects. Run it again and choose a file to save it to.", "Calibration");
+                else
+                    this.SaveCalibration(savedFile);
+                end
+            catch err
+                gui.ShowWarning(owner, string(err.message), "Calibration");
+                savedFile = "";
+            end
+
+            clear cleanup;      %Disconnects
+            if strlength(savedFile) > 0
+                this.CalibrationFile = savedFile;
+            end
         end
 
         function complete = CheckScanComplete(this)
@@ -435,7 +541,7 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
             end
 
             disp("Connected to " + this.Name + " instrument: " + this.Backend.Description + ".");
-            if strlength(string(this.CalibrationFile)) > 0
+            if strlength(string(this.CalibrationFile)) > 0 && ~this.SkipCalibrationFile
                 this.LoadCalibration(this.CalibrationFile);
             end
         end
@@ -464,6 +570,19 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
 
     %% Methods (Private)
     methods(Access = private)
+
+        function EndGUICalibration(this)
+            %Disconnect the analyser after RunCalibrationFromGUI, and go back to applying CalibrationFile when connecting.
+
+            this.SkipCalibrationFile = false;
+            if this.IsConnected
+                try
+                    this.Disconnect();
+                catch err
+                    Palladium.Logging.Logger.Log("Warning", this.Name + ": could not disconnect after calibrating: " + string(err.message));
+                end
+            end
+        end
 
         function backend = FindSoftware(this)
             %Connect to the first of the softwares to try that is there - errors with what is expected if none is.

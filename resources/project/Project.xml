@@ -1613,6 +1613,13 @@
                                         </Category>
                                     </Info>
                                 </File>
+                                <File Location="SetupControlsInstrument.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
                             </File>
                         </File>
                         <File Location="ZI Testing">
@@ -1977,6 +1984,13 @@
                             <Info/>
                         </DIR_SIGNIFIER>
                         <File Location="test_BigNumberDisplay.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_InstrumentOptionsPanel.m">
                             <Info>
                                 <Category UUID="FileClassCategory">
                                     <Label UUID="test"/>

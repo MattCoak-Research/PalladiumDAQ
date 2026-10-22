@@ -170,6 +170,25 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             metadataStruct = [];
         end
 
+        function height = CreateSetupControls(this, parent) %#ok<INUSD>
+            %Add controls to the Instrument Options panel, for things to do before measurements start - override to add some.
+            %For actions that need doing before (or apart from) connecting
+            %for a measurement, such as browsing for a calibration file or
+            %running a calibration. The panel gives the controls an area
+            %between the settings and the Instrument Controls, shrinking
+            %the settings to make room, and calls this each time it
+            %redraws the instrument - so show current values. Do nothing and
+            %return 0 (the default) for no area
+            %
+            %Inputs:
+            %   parent - the uipanel to put the controls in: make a uigridlayout in it (or place controls directly)
+            %
+            %Outputs:
+            %   height - height in pixels the area needs, or 0 for none
+
+            height = 0;
+        end
+
         function datArray = GenerateSimulatedData(~, numRows, numCols, Settings)
             %Create random simulated data, for Measure in SimulationMode.
             %Each column (or row, with Transpose) scatters about its own

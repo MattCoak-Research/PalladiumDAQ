@@ -16,6 +16,76 @@ classdef test_PicoVNA < matlab.unittest.TestCase
 
     %% Methods (Test)
     methods (Test)
+        function SetupControlsShowTheCalibrationFileTest(testCase)
+            instr = Palladium.Instruments.PicoVNA_NetworkAnalyser();
+            fig = uifigure("Visible", "off");
+            testCase.addTeardown(@() delete(fig));
+            panel = uipanel(fig);
+
+            height = instr.CreateSetupControls(panel);
+
+            testCase.verifyGreaterThan(height, 0, "Asks for an area");
+            buttons = findall(panel, "Type", "uibutton");
+            testCase.verifyEqual(sort(string({buttons.Text})), sort(["Browse", "Run Calibration"]));
+            field = findall(panel, "Type", "uieditfield");
+            testCase.verifySubstring(string(field.Value), "none", "No file set");
+
+            delete(panel.Children);
+            instr.CalibrationFile = fullfile("cals", "mine.pcal");
+            instr.CreateSetupControls(panel);
+            field = findall(panel, "Type", "uieditfield");
+            testCase.verifyEqual(string(field.Value), fullfile("cals", "mine.pcal"));
+        end
+
+        function CalibrationFileIsNotInTheSettingsListTest(testCase)
+            %It has its own buttons in the setup controls area, so isn't also a setting - but is still saved in presets (SetObservable)
+            instr = Palladium.Instruments.PicoVNA_NetworkAnalyser();
+
+            settings = Palladium.Utilities.GUIUtils.ComputePropertyList(instr, true);
+
+            testCase.verifyFalse(any(settings == "CalibrationFile"));
+            testCase.verifyTrue(any(settings == "MeasMode"), "The others are still there");
+            names = string({metaclass(instr).PropertyList.Name});
+            testCase.verifyEqual(sum(names == "CalibrationFile"), 1, "Defined once");
+            testCase.verifyTrue(findprop(instr, "CalibrationFile").SetObservable);
+        end
+
+        function RunCalibrationIsRefusedInDebugTest(testCase)
+            instr = InstrumentTestingInstruments.RecordingPicoVNA();
+            instr.Connection_Type = Palladium.Enums.ConnectionType.Debug;
+
+            evalc("instr.RunCalibrationFromGUI([])");
+
+            testCase.verifyFalse(instr.IsConnected, "Nothing to calibrate, so not connected");
+        end
+
+        function RunCalibrationIsRefusedWhileConnectedTest(testCase)
+            [instr, five] = testCase.instrumentWithFakeSoftware();
+            evalc("instr.Connect()");
+
+            evalc("instr.RunCalibrationFromGUI([])");
+
+            testCase.verifyTrue(instr.IsConnected, "Left as it was");
+            testCase.verifyFalse(five.Closed);
+        end
+
+        function FailedCalibrationDisconnectsAndKeepsTheFileTest(testCase)
+            %The fake can't calibrate from here (like PicoVNA 5): the error is shown, the analyser let go, CalibrationFile untouched and not loaded
+            [instr, five] = testCase.instrumentWithFakeSoftware();
+            oldFile = fullfile("cals", "old.pcal");
+            instr.CalibrationFile = oldFile;
+
+            evalc("instr.RunCalibrationFromGUI([])");
+
+            testCase.verifyFalse(instr.IsConnected, "Disconnected afterwards");
+            testCase.verifyTrue(five.Closed);
+            testCase.verifyEqual(string(instr.CalibrationFile), oldFile);
+            testCase.verifyEmpty(five.LoadedCalibrations, "The old file isn't loaded just to calibrate");
+
+            evalc("instr.Connect()");
+            testCase.verifyEqual(five.LoadedCalibrations, oldFile, "But it is when connecting for measurements");
+        end
+
         function ConnectionTypesTest(testCase)
             %The software's SCPI port (Ethernet) - not USB, which the software owns
             instr = Palladium.Instruments.PicoVNA_NetworkAnalyser();
