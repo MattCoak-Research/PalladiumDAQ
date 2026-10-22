@@ -297,9 +297,16 @@ classdef Software3 < Palladium.Instruments.PicoVNA.Backend
         function FindAnalyser(this, libraryName)
             %Ask the library to find the analyser on USB (FND, which takes a few seconds) - errors if it finds none. libraryName is for the description.
 
-            serialNumber = str2double(string(this.Server.Call("FND")));
+            %A library that finds the wrong kind of analyser for it can
+            %complain in a message box - closed, as the next library is
+            %then tried, and what it said goes in the error
+            serialNumber = str2double(string(this.Server.CallDismissingDialogs("FND")));
+            said = "";
+            if ~isempty(this.Server.DialogsDismissed)
+                said = " - it showed a message: " + strjoin(this.Server.DialogsDismissed, "; ");
+            end
             assert(serialNumber > 0, "PicoVNA_NetworkAnalyser:PicoVNA3NoAnalyser", "%s", ...
-                "the library started, but FND found no PicoVNA on USB (it returned " + serialNumber + ")");
+                "the library started, but FND found no PicoVNA on USB (it returned " + serialNumber + ")" + said);
             model = strip(string(this.Server.Call("GetInfo", "Model")));
             this.Description = "PicoVNA software's library " + libraryName + " (" + model + ", serial number " + serialNumber + ")";
         end

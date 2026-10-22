@@ -23,6 +23,7 @@ classdef ComServerProcess < handle
     %% Properties (Public, Private Set)
     properties(GetAccess = public, SetAccess = private)
         ProgId = "";                %The COM object's programmatic ID, e.g. "PicoControl3.PicoVNA_3"
+        DialogsDismissed = strings(1, 0);   %What the dialogue boxes the last CallDismissingDialogs closed said, as "title: text" each - empty if there were none
     end
 
     %% Properties (Private)
@@ -116,6 +117,22 @@ classdef ComServerProcess < handle
 
             id = this.SendRequest(functionName, varargin);
             result = this.WaitForReply(id, Inf);
+            reply = Palladium.Utilities.ComServerProcess.ReplyOrError(result, functionName);
+        end
+
+        function reply = CallDismissingDialogs(this, functionName, varargin)
+            %Call one of the COM object's methods and wait for its reply, closing any dialogue box the library shows meanwhile.
+            %For a library that complains in a message box about something
+            %the caller already handles (e.g. the wrong analyser for it),
+            %which would otherwise wait for the user to click it. What the
+            %boxes said is kept in DialogsDismissed. Not for a function
+            %whose dialogue is the point (e.g. a calibration dialogue)
+            %
+            %Inputs and outputs: as for Call
+
+            id = this.SendRequest(functionName, varargin, true);
+            result = this.WaitForReply(id, Inf);
+            this.DialogsDismissed = result.dialogs;
             reply = Palladium.Utilities.ComServerProcess.ReplyOrError(result, functionName);
         end
 
@@ -237,13 +254,18 @@ classdef ComServerProcess < handle
             end
             delete(file);
 
-            result = struct("id", id, "reply", [], "error", "");
+            result = struct("id", id, "reply", [], "error", "", "dialogs", strings(1, 0));
             if isfield(decoded, "reply");   result.reply = decoded.reply;   end
             if isfield(decoded, "error");   result.error = string(decoded.error);   end
+            if isfield(decoded, "dialogs"); result.dialogs = reshape(string(decoded.dialogs), 1, []);   end
         end
 
-        function id = SendRequest(this, functionName, args)
-            %Write a request for the process, after the one before it has finished.
+        function id = SendRequest(this, functionName, args, dismissDialogs)
+            %Write a request for the process, after the one before it has finished - with its dialogue boxes closed meanwhile if dismissDialogs.
+
+            if nargin < 4
+                dismissDialogs = false;
+            end
 
             %A background call nobody collected (e.g. an aborted sweep) is
             %waited for here, as the process only does one thing at a time
@@ -255,7 +277,7 @@ classdef ComServerProcess < handle
 
             id = this.NextId;
             this.NextId = id + 1;
-            this.WriteRequest(id, functionName, args);
+            this.WriteRequest(id, functionName, args, dismissDialogs);
         end
 
         function result = WaitForReply(this, id, timeout_s)
@@ -271,10 +293,13 @@ classdef ComServerProcess < handle
             end
         end
 
-        function WriteRequest(this, id, functionName, args)
+        function WriteRequest(this, id, functionName, args, dismissDialogs)
             %Write the request file - under another name first, so the process never reads it half written.
 
-            request = struct("id", id, "fn", functionName, "args", {args});
+            if nargin < 5
+                dismissDialogs = false;
+            end
+            request = struct("id", id, "fn", functionName, "args", {args}, "dismiss", dismissDialogs);
             temporary = fullfile(this.Folder, "req.tmp");
             writelines(string(jsonencode(request)), temporary, Encoding = "UTF-8");
             movefile(temporary, fullfile(this.Folder, "req.json"), "f");
@@ -298,6 +323,7 @@ classdef ComServerProcess < handle
                 "$dir = " + quote(folder)
                 "$progId = " + quote(progId)
                 "$utf8 = New-Object System.Text.UTF8Encoding $false"
+                "Add-Type -TypeDefinition @'" + newline + Palladium.Utilities.ComServerProcess.DialogCloserSource() + newline + "'@"
                 "function Send($obj) {"
                 "    $tmp = Join-Path $dir 'resp.tmp'"
                 "    [IO.File]::WriteAllText($tmp, ($obj | ConvertTo-Json -Compress -Depth 4), $utf8)"
@@ -317,6 +343,8 @@ classdef ComServerProcess < handle
                 "    Remove-Item -LiteralPath $reqFile -Force"
                 "    if ($req.fn -eq '__quit') { break }"
                 "    [IO.File]::AppendAllText((Join-Path $dir 'trace.txt'), ([string]$req.id + ' ' + $req.fn + [Environment]::NewLine))"
+                "    $dialogs = @()"
+                "    if ($req.dismiss) { [PalladiumDialogCloser]::Start() }"
                 "    try {"
                 "        if ($null -eq $req.args) { $callArgs = [object[]]@() } else { $callArgs = [object[]]@($req.args) }"
                 "        if ($com -is [System.__ComObject]) {"
@@ -325,13 +353,80 @@ classdef ComServerProcess < handle
                 "            $result = $com.PSObject.Methods[$req.fn].Invoke($callArgs)"
                 "        }"
                 "        if ($null -eq $result) { $result = $null }"
-                "        Send @{ id = $req.id; reply = $result }"
+                "        if ($req.dismiss) { $dialogs = @([PalladiumDialogCloser]::Stop()) }"
+                "        Send @{ id = $req.id; reply = $result; dialogs = $dialogs }"
                 "    } catch {"
-                "        Send @{ id = $req.id; error = $_.Exception.Message }"
+                "        if ($req.dismiss) { $dialogs = @([PalladiumDialogCloser]::Stop()) }"
+                "        Send @{ id = $req.id; error = $_.Exception.Message; dialogs = $dialogs }"
                 "    }"
                 "}"
                 ];
             script = strjoin(lines, newline);
+        end
+
+        function source = DialogCloserSource()
+            %The C# of the class that closes the dialogue boxes the process shows (see CallDismissingDialogs), compiled into the PowerShell process.
+            %A thread looks for visible windows of this process every 50 ms
+            %while a call runs, notes what each says (its title and text),
+            %and closes it with WM_CLOSE (so an OK box takes it as OK)
+
+            source = strjoin([
+                "using System;"
+                "using System.Collections.Generic;"
+                "using System.Runtime.InteropServices;"
+                "using System.Text;"
+                "using System.Threading;"
+                "public static class PalladiumDialogCloser {"
+                "    delegate bool EnumProc(IntPtr hwnd, IntPtr lParam);"
+                "    [DllImport(""user32.dll"")] static extern bool EnumWindows(EnumProc proc, IntPtr lParam);"
+                "    [DllImport(""user32.dll"")] static extern bool EnumChildWindows(IntPtr parent, EnumProc proc, IntPtr lParam);"
+                "    [DllImport(""user32.dll"")] static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);"
+                "    [DllImport(""user32.dll"", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr hwnd, StringBuilder text, int max);"
+                "    [DllImport(""user32.dll"", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr hwnd, StringBuilder text, int max);"
+                "    [DllImport(""user32.dll"")] static extern bool IsWindowVisible(IntPtr hwnd);"
+                "    [DllImport(""user32.dll"")] static extern bool PostMessage(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);"
+                "    static readonly object gate = new object();"
+                "    static List<string> closed = new List<string>();"
+                "    static HashSet<IntPtr> handled = new HashSet<IntPtr>();"
+                "    static volatile bool running;"
+                "    static Thread worker;"
+                "    public static void Start() {"
+                "        lock (gate) { closed.Clear(); handled.Clear(); }"
+                "        running = true;"
+                "        worker = new Thread(Loop);"
+                "        worker.IsBackground = true;"
+                "        worker.Start();"
+                "    }"
+                "    public static string[] Stop() {"
+                "        running = false;"
+                "        if (worker != null) { worker.Join(2000); worker = null; }"
+                "        lock (gate) { return closed.ToArray(); }"
+                "    }"
+                "    static string TextOf(IntPtr hwnd) { StringBuilder text = new StringBuilder(512); GetWindowText(hwnd, text, 512); return text.ToString(); }"
+                "    static string ClassOf(IntPtr hwnd) { StringBuilder text = new StringBuilder(64); GetClassName(hwnd, text, 64); return text.ToString(); }"
+                "    static void Loop() {"
+                "        uint me = (uint)System.Diagnostics.Process.GetCurrentProcess().Id;"
+                "        while (running) {"
+                "            EnumWindows(delegate(IntPtr hwnd, IntPtr unused) {"
+                "                uint processId;"
+                "                GetWindowThreadProcessId(hwnd, out processId);"
+                "                if (processId != me || !IsWindowVisible(hwnd) || handled.Contains(hwnd)) { return true; }"
+                "                handled.Add(hwnd);"
+                "                string body = """";"
+                "                EnumChildWindows(hwnd, delegate(IntPtr child, IntPtr unused2) {"
+                "                    string text = TextOf(child);"
+                "                    if (text.Length > 0 && ClassOf(child) == ""Static"") { body += (body.Length > 0 ? "" "" : """") + text; }"
+                "                    return true;"
+                "                }, IntPtr.Zero);"
+                "                lock (gate) { closed.Add(TextOf(hwnd) + "": "" + body); }"
+                "                PostMessage(hwnd, 0x0010, IntPtr.Zero, IntPtr.Zero);"
+                "                return true;"
+                "            }, IntPtr.Zero);"
+                "            Thread.Sleep(50);"
+                "        }"
+                "    }"
+                "}"
+                ], newline);
         end
 
         function path = PowerShellPath(use32Bit)

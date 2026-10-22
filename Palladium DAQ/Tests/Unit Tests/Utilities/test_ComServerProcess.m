@@ -13,6 +13,7 @@ classdef test_ComServerProcess < matlab.unittest.TestCase
             "$o | Add-Member ScriptMethod Slow { param($s) Start-Sleep -Seconds $s; 'done' }"
             "$o | Add-Member ScriptMethod Fail { throw 'boom' }"
             "$o | Add-Member ScriptMethod Nothing { }"
+            "$o | Add-Member ScriptMethod Warn { Add-Type -AssemblyName System.Windows.Forms; [void][System.Windows.Forms.MessageBox]::Show('Wrong instrument for this library', 'Warning'); 'after' }"
             "$o | Add-Member ScriptMethod Crash { [Environment]::Exit(-1073741819) }"
             "$o"
             ], newline);
@@ -79,6 +80,22 @@ classdef test_ComServerProcess < matlab.unittest.TestCase
             testCase.verifyError(@() Palladium.Utilities.ComServerProcess("Fake", CreateObjectScript = "throw 'no such library'"), ...
                 "ComServerProcess:StartFailed");
             testCase.verifyError(@() Palladium.Utilities.ComServerProcess("No.Such.ComClass"), "ComServerProcess:StartFailed");
+        end
+
+        function DialogBoxIsClosedAndReportedTest(testCase)
+            %A library's message box would wait for a click - here it is closed, the call carries on, and what it said is kept
+            server = testCase.startServer();
+
+            timer = tic();
+            reply = server.CallDismissingDialogs("Warn");
+
+            testCase.verifyEqual(reply, 'after', "The call finished");
+            testCase.verifyLessThan(toc(timer), 20, "Didn't wait for a click");
+            testCase.verifySize(server.DialogsDismissed, [1 1]);
+            testCase.verifySubstring(server.DialogsDismissed, "Warning: Wrong instrument for this library");
+
+            server.CallDismissingDialogs("Echo", "x");
+            testCase.verifyEmpty(server.DialogsDismissed, "No boxes, none reported");
         end
 
         function ACrashReportsTheExitCodeAndTheRequestTest(testCase)

@@ -318,6 +318,23 @@ classdef test_PicoVNASoftware3 < matlab.unittest.TestCase
             testCase.verifyTrue(shared("Deleted"), "The process is stopped");
         end
 
+        function MessageTheLibraryShowedIsReportedTest(testCase)
+            %A library that dislikes the analyser can show a message box (closed by the process) - what it said helps explain the failure
+            server = InstrumentTestingInstruments.FakeComServer();
+            server.Replies("FND") = "0";
+            server.DialogsDismissed = "Warning: Wrong instrument";
+            backend = Palladium.Instruments.PicoVNA.Software3(Server = server);
+
+            message = "";
+            try
+                backend.Open();
+            catch err
+                testCase.verifyEqual(err.identifier, 'PicoVNA_NetworkAnalyser:PicoVNA3NoAnalyser');
+                message = string(err.message);
+            end
+            testCase.verifySubstring(message, "Warning: Wrong instrument");
+        end
+
         function AnalyserNotFoundByOneLibraryIsLookedForByTheNextTest(testCase)
             %Both PicoVNA 3's and PicoVNA 2's libraries can be installed, and only one may find a given analyser
             first = testCase.fakeLibrary("0", "");

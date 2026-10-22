@@ -12,6 +12,7 @@ classdef FakeComServer < handle
         Calls = strings(1, 0);                                  %Every call made, in order
         Replies = dictionary(string.empty, string.empty);       %Replies by call, as described above
         BusyChecks = 0;                                         %How many times IsBusy says true for a background call, before it says it has finished
+        DialogsDismissed = strings(1, 0);                       %What the boxes the last CallDismissingDialogs closed said - set it to test a library that complains
         Shared;                                                 %A containers.Map, which outlives the server being deleted (stopped): "Deleted" is true once it has been, and "Calls" has all the calls made
     end
 
@@ -36,6 +37,10 @@ classdef FakeComServer < handle
         function reply = Call(this, functionName, varargin)
             this.Record(functionName, varargin, "");
             reply = this.Lookup(functionName, varargin);
+        end
+
+        function reply = CallDismissingDialogs(this, functionName, varargin)
+            reply = this.Call(functionName, varargin{:});
         end
 
         function CallAsync(this, functionName, varargin)
