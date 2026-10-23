@@ -158,6 +158,24 @@ classdef test_VNAController < matlab.unittest.TestCase
             testCase.verifyEqual(struct(cont).Plotter.PlotKind, "Scatter");
         end
 
+        function SmithChartAfterAScanWithoutComplexDataIsQuietTest(testCase, InstrumentType)
+            %The last scan was in dB, so has nothing to show on a Smith chart: choosing it just leaves the chart empty
+            %until the next scan (which will be Real/Imaginary) - no warning
+            testCase.assumeTrue(Palladium.Utilities.GUIUtils.IsSmithPlotAvailable(), "Needs RF Toolbox");
+            [~, cont] = testCase.addAnalyser(InstrumentType);
+            testCase.startMeasurements();
+            fields = struct(cont).Fields;
+            fields.NumPoints.Value = 21;
+            cont.ScanRun();
+            testCase.waitForScan(cont);
+
+            output = evalc('testCase.choosePlot(fields.PlotType, "Smith chart")');
+
+            testCase.verifyFalse(contains(output, "Smith chart needs"), "No warning");
+            testCase.verifyEqual(struct(cont).Plotter.PlotKind, "Smith");
+            testCase.verifyEqual(string(fields.MeasUnit.Value), "Real/Imaginary");
+        end
+
         function SmithChartWithoutRFToolboxGoesBackToTheTraceTest(testCase, InstrumentType)
             %Palladium runs without RF Toolbox: choosing the Smith chart warns and leaves everything as it was
             testCase.assumeTrue(Palladium.Utilities.GUIUtils.IsSmithPlotAvailable(), "Needs RF Toolbox, to take away");

@@ -330,7 +330,11 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
                 return;
             end
             this.Plotter.SetPlotKind(kind);
-            if ~this.Running && ~isempty(this.DataArray)
+
+            %Replot the last scan the new way - unless it can't be shown that way (a Smith chart
+            %needs real and imaginary columns), when the plot stays empty until the next scan
+            canReplot = ~this.Running && ~isempty(this.DataArray) && (kind ~= "Smith" || size(this.DataArray, 2) >= 3);
+            if canReplot
                 this.PlotScanData(this.DataArray);
             end
         end
@@ -369,7 +373,8 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
         function PlotScanData(this, data)
             %Show a finished scan in the plotter, drawn as PlotKind says.
             %A Smith plot of data without real and imaginary columns is left
-            %empty, with a warning
+            %empty, with a warning (SetPlotKind and the VNA Control's units
+            %keep that from happening)
 
             switch(this.PlotterType)
                 case("Simple")
