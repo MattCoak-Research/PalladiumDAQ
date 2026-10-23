@@ -263,7 +263,8 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
             if this.SmithChosen() && ~Palladium.Utilities.GUIUtils.IsSmithPlotAvailable()
                 %Palladium runs without RF Toolbox - only this plot needs it. Go back to the trace
                 f.PlotType.Value = this.TracePlot;
-                Palladium.Utilities.GUIUtils.ShowWarning(f.PlotType, "The Smith chart needs RF Toolbox, which is not installed or licensed on this computer. The plot is left as a trace against frequency.", "Smith chart unavailable");
+                Palladium.Utilities.GUIUtils.ShowWarning(f.PlotType, "The Smith chart needs [RF Toolbox](https://www.mathworks.com/products/rftoolbox.html), an add-on toolbox for MATLAB that is not installed or licensed on this computer." + newline + newline + ...
+                    "Install it from that link, or with MATLAB's Add-On Explorer, to use the Smith chart. Until then the plot stays as a trace against frequency.", "Smith chart unavailable");
                 return;
             end
             if this.SmithChosen()

@@ -159,6 +159,12 @@ classdef test_GUIUtils < matlab.unittest.TestCase
             testCase.verifyEqual(html, "See <a href=""https://www.qdusa.com/pharos/"">https://www.qdusa.com/pharos/</a>.");
         end
 
+        function test_MessageToHTML_MakesNamedLinks(testCase)
+            %[text](address) shows the text, and the address isn't linked a second time
+            html = Palladium.Utilities.GUIUtils.MessageToHTML("Needs [RF Toolbox](https://www.mathworks.com/products/rftoolbox.html), and see https://example.com.");
+            testCase.verifyEqual(html, "Needs <a href=""https://www.mathworks.com/products/rftoolbox.html"">RF Toolbox</a>, and see <a href=""https://example.com"">https://example.com</a>.");
+        end
+
         %% GreekToLaTeX
         function test_GreekToLaTeX_Letters(testCase)
             toLaTeX = @Palladium.Utilities.GUIUtils.GreekToLaTeX;
