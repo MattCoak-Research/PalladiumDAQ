@@ -46,6 +46,7 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
     properties (Access = private)
         Data;
         Plotter;
+        PlotKind = "Scatter";       %How the Simple plotter draws a finished scan: Scatter (the values against frequency) or Smith (a Smith chart of data with real and imaginary columns) - see SetPlotKind
         DataWriter;
         CachedData = [];            %CachedData for the last iteration, ready to be written (need to wait until data fomr other instruments come in)
     end
@@ -216,12 +217,7 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
                 this.InsertEndMetadataIntoFile(this.DataWriter);
             end
 
-            switch(this.PlotterType)
-                case("Simple")
-                    this.Plotter.PlotData(this.DataArray(:,1), this.DataArray(:,2));
-                case("Default")
-                    this.Plotter.PlotData(this.DataArray);
-            end
+            this.PlotScanData(this.DataArray);
 
             %Update GUI and settings
             this.OnScanComplete();
@@ -313,6 +309,32 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             %   row        - the row of parentGrid to put them in
         end
 
+        function SetPlotKind(this, kind)
+            %Change how the finished scan is plotted, and replot the last scan that way - e.g. a subclass's plot type drop-down.
+            %Only for the Simple plotter (the Default one has its own axis
+            %selections). Scatter plots the values against frequency
+            %(every column after the first, as a separate series); Smith
+            %plots a Smith chart of the real and imaginary columns, so
+            %needs data with three columns (frequency, real, imaginary)
+            %
+            %Inputs:
+            %   kind - "Scatter" or "Smith"
+
+            arguments
+                this;
+                kind {mustBeMember(kind, ["Scatter", "Smith"])};
+            end
+
+            this.PlotKind = kind;
+            if this.PlotterType ~= "Simple" || isempty(this.Plotter) || ~isvalid(this.Plotter)
+                return;
+            end
+            this.Plotter.SetPlotKind(kind);
+            if ~this.Running && ~isempty(this.DataArray)
+                this.PlotScanData(this.DataArray);
+            end
+        end
+
         function OnInstrumentPropertyChanged(this) %#ok<MANU>
             %Called when one of the instrument's settings changes (e.g. in Instrument Options) - override to use it.
             %Does nothing by default
@@ -343,6 +365,28 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
 
     %% Methods (Private)
     methods (Access = private)
+
+        function PlotScanData(this, data)
+            %Show a finished scan in the plotter, drawn as PlotKind says.
+            %A Smith plot of data without real and imaginary columns is left
+            %empty, with a warning
+
+            switch(this.PlotterType)
+                case("Simple")
+                    if this.PlotKind == "Smith"
+                        if size(data, 2) >= 3
+                            this.Plotter.PlotData(data(:,2), data(:,3));
+                        else
+                            this.Plotter.ClearData();
+                            Palladium.Logging.Logger.Log("Warning", "The Smith chart needs the scan's real and imaginary parts, but its data has only " + size(data, 2) + " columns - choose Real/Imaginary units.");
+                        end
+                    else
+                        this.Plotter.PlotData(data(:,1), data(:,2:min(end, 5)));
+                    end
+                case("Default")
+                    this.Plotter.PlotData(data);
+            end
+        end
 
         function StartScanDataFile(this, writeToFile)
             %Write the new scan data file's metadata and headers, with the DataWriter made in OnScanRun.

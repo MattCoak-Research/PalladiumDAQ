@@ -126,7 +126,9 @@ classdef Software5 < Palladium.Instruments.PicoVNA.Backend
             %Start a sweep and ask for its data - LOGMAG for dB, MAG (linear magnitude) for Absolute. Returns without waiting.
 
             if unit == "dB";    type = "LOGMAG";
-            else;               type = "MAG";
+            elseif unit == "Absolute"; type = "MAG";
+            else
+                error("PicoVNA_NetworkAnalyser:UnitNotSupported", "%s", "PicoVNA 5 can give the data as dB or Absolute here, not as " + unit + ".");
             end
 
             this.Send("FORMat ASCii", "setting the data format");

@@ -119,6 +119,64 @@ classdef test_VNAController < matlab.unittest.TestCase
             testCase.verifyEqual(fields.StartFrequency.Value, 0.1, "Read back in the units chosen", RelTol=1e-12);
         end
 
+        function SmithChartScansRealAndImaginaryTest(testCase, InstrumentType)
+            %Choosing the Smith chart sets (and locks) the units to Real/Imaginary, the scan has real and imaginary columns,
+            %the plotter shows a Smith chart - and choosing the trace again puts the units back
+            testCase.assumeTrue(Palladium.Utilities.GUIUtils.IsSmithPlotAvailable(), "Needs RF Toolbox");
+            [~, cont] = testCase.addAnalyser(InstrumentType);
+            testCase.startMeasurements();
+            fields = struct(cont).Fields;
+            testCase.verifyEqual(string(fields.PlotType.Items), ["Trace against frequency", "Smith chart"], "Smith offered: the analyser can give complex data");
+            unitsBefore = string(fields.MeasUnit.Value);
+
+            testCase.choosePlot(fields.PlotType, "Smith chart");
+
+            testCase.verifyEqual(string(fields.MeasUnit.Value), "Real/Imaginary");
+            testCase.verifyEqual(string(fields.MeasUnit.Enable), "off", "Locked while the Smith chart needs it");
+            testCase.verifyEqual(struct(cont).Plotter.PlotKind, "Smith");
+
+            fields.NumPoints.Value = 21;
+            saveBox = struct(struct(cont).GUIView).SavetonewfileCheckBox;
+            saveBox.Value = true;
+            struct(cont).GUIView.SetNewSweepName(" - Smith " + InstrumentType);
+            before = string({dir(fullfile(testCase.DataDir, "*.dat")).name});
+            cont.ScanRun();
+            testCase.waitForScan(cont);
+
+            files = dir(fullfile(testCase.DataDir, "*.dat"));
+            files = files(~ismember(string({files.name}), before));
+            testCase.assertNumElements(files, 1);
+            [~, headers, data] = Palladium.DataWriting.DataReader().ReadFile(fullfile(files(1).folder, files(1).name));
+            testCase.verifySize(data, [21, 3]);
+            testCase.verifyTrue(contains(headers(2), "Real") && contains(headers(3), "Imaginary"));
+            testCase.verifyEqual(string(fields.MeasUnit.Enable), "off", "Still locked after the scan");
+
+            testCase.choosePlot(fields.PlotType, "Trace against frequency");
+
+            testCase.verifyEqual(string(fields.MeasUnit.Value), unitsBefore);
+            testCase.verifyEqual(string(fields.MeasUnit.Enable), "on");
+            testCase.verifyEqual(struct(cont).Plotter.PlotKind, "Scatter");
+        end
+
+        function SmithChartWithoutRFToolboxGoesBackToTheTraceTest(testCase, InstrumentType)
+            %Palladium runs without RF Toolbox: choosing the Smith chart warns and leaves everything as it was
+            testCase.assumeTrue(Palladium.Utilities.GUIUtils.IsSmithPlotAvailable(), "Needs RF Toolbox, to take away");
+            folder = fileparts(which("smithplot"));
+            rmpath(folder);
+            testCase.addTeardown(@() addpath(folder));
+            [~, cont] = testCase.addAnalyser(InstrumentType);
+            testCase.startMeasurements();
+            fields = struct(cont).Fields;
+            unitsBefore = string(fields.MeasUnit.Value);
+
+            testCase.choosePlot(fields.PlotType, "Smith chart");
+
+            testCase.verifyEqual(string(fields.PlotType.Value), "Trace against frequency", "Back to the trace");
+            testCase.verifyEqual(string(fields.MeasUnit.Value), unitsBefore, "Units untouched");
+            testCase.verifyEqual(string(fields.MeasUnit.Enable), "on");
+            testCase.verifyEqual(struct(cont).Plotter.PlotKind, "Scatter");
+        end
+
         function StopBelowStartIsRefusedTest(testCase, InstrumentType)
             [~, cont] = testCase.addAnalyser(InstrumentType);
             testCase.startMeasurements();
@@ -146,6 +204,13 @@ classdef test_VNAController < matlab.unittest.TestCase
             pd.Start();
             testCase.addTeardown(@() pd.Stop());
             pause(1);
+        end
+
+        function choosePlot(~, dropDown, plotType)
+            %Choose a plot type as the user would - setting Value alone doesn't run the drop-down's callback
+            previous = dropDown.Value;
+            dropDown.Value = plotType;
+            dropDown.ValueChangedFcn(dropDown, struct("PreviousValue", previous, "Value", plotType));
         end
 
         function chooseUnit(~, dropDown, unit)

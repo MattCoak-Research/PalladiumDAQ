@@ -26,6 +26,18 @@ classdef test_GUIUtils < matlab.unittest.TestCase
     %% Tests
     methods (Test)
 
+        %% IsSmithPlotAvailable
+        function test_IsSmithPlotAvailable_FollowsTheToolboxTest(testCase)
+            testCase.assumeTrue(exist("smithplot", "file") > 0, "Needs RF Toolbox, to take away");
+            testCase.verifyTrue(Palladium.Utilities.GUIUtils.IsSmithPlotAvailable());
+
+            folder = fileparts(which("smithplot"));
+            rmpath(folder);
+            testCase.addTeardown(@() addpath(folder));
+
+            testCase.verifyFalse(Palladium.Utilities.GUIUtils.IsSmithPlotAvailable());
+        end
+
         %% ComputePropertyList
         function test_ComputePropertyList_WithEmptyInstrument(testCase)
             instrument = [];

@@ -35,6 +35,49 @@ classdef test_HP8722ES < matlab.unittest.TestCase
             testCase.verifyEqual(connection.WrittenCommands(2), "LOGM;");
         end
 
+        function RealImaginaryUnitsSetThePolarFormatTest(testCase)
+            %A Smith chart needs the real and imaginary parts - polar format gives them
+            [instr, connection] = testCase.makeInstrument();
+            instr.MeasUnit = instr.MeasUnitType("Real/Imaginary");
+
+            instr.RunScan();
+
+            testCase.verifyEqual(connection.WrittenCommands(2), "POLA;");
+        end
+
+        function RealImaginaryScanDataHasThreeColumnsTest(testCase)
+            %In polar format OUTPFORM gives the real and imaginary parts of each point
+            [instr, connection] = testCase.makeInstrument();
+            instr.MeasUnit = instr.MeasUnitType("Real/Imaginary");
+            connection.QueryResponses("POIN?;") = "3";
+            connection.QueryResponses("OUTPFORM;") = "0.1,0.2";
+            connection.QueryResponses("OUTPLIML;") = "5E7,0,0,0";
+            connection.ReadQueue = ["0.3,0.4", "0.5,0.6", "1E8,0,0,0", "2E8,0,0,0"];
+
+            data = instr.GetCompletedScanData();
+            [headers, units] = instr.GetScanHeaders();
+
+            testCase.verifyEqual(data, [5e7, 0.1, 0.2; 1e8, 0.3, 0.4; 2e8, 0.5, 0.6]);
+            testCase.verifyEqual(headers, instr.Name + " - " + ["Frequency_Hz", "S11 Real", "S11 Imaginary"]);
+            testCase.verifyEqual(units, ["Hz", "", ""]);
+        end
+
+        function RealImaginarySimulatedScanTest(testCase)
+            instr = Palladium.Instruments.HP_8722ES_NetworkAnalyser();
+            instr.Connection_Type = Palladium.Enums.ConnectionType.Debug;
+            instr.MeasUnit = instr.MeasUnitType("Real/Imaginary");
+            evalc("instr.Connect()");
+
+            instr.RunScan(struct("NumPoints", 51));
+            for k = 1:500
+                if instr.CheckScanComplete(); break; end
+            end
+            data = instr.GetCompletedScanData();
+
+            testCase.verifySize(data, [51, 3]);
+            testCase.verifyLessThan(max(hypot(data(:, 2), data(:, 3))), 1);
+        end
+
         function CompleteOnceTheReplyIsWaitingTest(testCase)
             %Checked each tick without waiting: done once OPC?'s "1" has arrived
             [instr, connection] = testCase.makeInstrument();

@@ -1,8 +1,21 @@
 classdef MathsUtils
-    %MathsUtils - Static functions for maths and units, such as SI prefixes for plot axis labels.
+    %MathsUtils - Static functions for maths and units, such as SI prefixes for plot axis labels and a simulated reflection coefficient.
 
     %% Methods (Static, Public)
     methods(Static, Access = public)
+
+        function gamma = SimulatedReflection(numPoints)
+            %A made-up reflection coefficient trace of numPoints points, spiralling in towards the centre of a Smith chart - for a network analyser's simulation mode.
+            %
+            %Inputs:
+            %   numPoints - number of points
+            %
+            %Outputs:
+            %   gamma - column of complex reflection coefficients, all inside the unit circle
+
+            progress = linspace(0, 1, numPoints)';
+            gamma = 0.9 * (1 - 0.6 * progress) .* exp(-1i * 2 * pi * 2.5 * progress) + 0.005 * (randn(numPoints, 1) + 1i * randn(numPoints, 1));
+        end
 
         function prefixStr = ConvertExponentToSIPrefix(log103Max)
             %The SI prefix for a power of ten, e.g. `k` for 3 or `$\mu$` for -6.

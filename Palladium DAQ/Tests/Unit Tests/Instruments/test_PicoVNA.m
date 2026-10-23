@@ -37,6 +37,30 @@ classdef test_PicoVNA < matlab.unittest.TestCase
             testCase.verifyEqual(string(field.Value), fullfile("cals", "mine.pcal"));
         end
 
+        function RealImaginaryScanHasThreeColumnsInSimulationTest(testCase)
+            instr = Palladium.Instruments.PicoVNA_NetworkAnalyser();
+            instr.Connection_Type = Palladium.Enums.ConnectionType.Debug;
+            instr.MeasUnit = instr.MeasUnitType("Real/Imaginary");
+            evalc("instr.Connect()");
+
+            instr.RunScan(struct("StartFrequency_Hz", 1e6, "StopFrequency_Hz", 1e9, "NumPoints", 51));
+            data = instr.GetCompletedScanData();
+            [headers, units] = instr.GetScanHeaders();
+
+            testCase.verifySize(data, [51, 3]);
+            testCase.verifyLessThan(max(hypot(data(:, 2), data(:, 3))), 1);
+            testCase.verifyEqual(headers, instr.Name + " - " + ["Frequency_Hz", "S11 Real", "S11 Imaginary"]);
+            testCase.verifyEqual(units, ["Hz", "", ""]);
+        end
+
+        function PicoVNA5CannotGiveRealImaginaryTest(testCase)
+            %Not known to the SCPI interface here - says so, rather than sending a made-up command
+            [instr, ~] = testCase.makeInstrument();
+            instr.MeasUnit = instr.MeasUnitType("Real/Imaginary");
+
+            testCase.verifyError(@() instr.RunScan(struct("StartFrequency_Hz", 1e6, "StopFrequency_Hz", 1e9, "NumPoints", 101)), "PicoVNA_NetworkAnalyser:UnitNotSupported");
+        end
+
         function CalibrationFileIsNotInTheSettingsListTest(testCase)
             %It has its own buttons in the setup controls area, so isn't also a setting - but is still saved in presets (SetObservable)
             instr = Palladium.Instruments.PicoVNA_NetworkAnalyser();

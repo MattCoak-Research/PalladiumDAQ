@@ -187,7 +187,7 @@ classdef Software3 < Palladium.Instruments.PicoVNA.Backend
         end
 
         function data = CollectSweep(this)
-            %Read the finished sweep: frequency and value of each point (GetData) - the log magnitude for dB, or the magnitude worked out from the real and imaginary parts for Absolute (the library has no linear magnitude format).
+            %Read the finished sweep: frequency and value of each point (GetData) - the log magnitude for dB, the magnitude worked out from the real and imaginary parts for Absolute (the library has no linear magnitude format), or the real and imaginary parts themselves for Real/Imaginary (three columns).
             %Errors if the sweep failed - the library says only "Error" when
             %its calibration doesn't cover the measurement
 
@@ -196,6 +196,12 @@ classdef Software3 < Palladium.Instruments.PicoVNA.Backend
             assert(reply == "OK", "PicoVNA_NetworkAnalyser:MeasureFailed", "%s", ...
                 "measuring " + this.SParameter + " failed - the library replied """ + reply + """. It needs a calibration covering it (S12 and S22 need a two-port one): see Calibrate and LoadCalibration.");
 
+            if this.Unit == "Real/Imaginary"
+                [frequency, realPart] = this.GetSweepValues(this.SParameter, "real");
+                [~, imaginaryPart] = this.GetSweepValues(this.SParameter, "imag");
+                data = [frequency, realPart, imaginaryPart];
+                return;
+            end
             if this.Unit == "dB"
                 [frequency, values] = this.GetSweepValues(this.SParameter, "logmag");
             else

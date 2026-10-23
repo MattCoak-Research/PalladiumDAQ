@@ -148,6 +148,20 @@ classdef test_PicoVNASoftware3 < matlab.unittest.TestCase
             testCase.verifyEqual(data, [1e6, -1.5; 2e6, -2.5; 3e6, -3.5]);
         end
 
+        function RealImaginaryScanDataIsBothPartsTest(testCase)
+            %Three columns: frequency, real part, imaginary part - for a Smith chart
+            [instr, server] = testCase.makeInstrument();
+            testCase.setUpSweepData(server, 2);
+            server.Replies("GetData|S21|real|0") = "1000000,0.5,2000000,0.25";
+            server.Replies("GetData|S21|imag|0") = "1000000,-0.1,2000000,-0.2";
+            instr.RunScan(struct("StartFrequency_Hz", 1e6, "StopFrequency_Hz", 2e6, "NumPoints", 2, "MeasMode", "S21", "MeasUnit", "Real/Imaginary"));
+            instr.CheckScanComplete();
+
+            data = instr.GetCompletedScanData();
+
+            testCase.verifyEqual(data, [1e6, 0.5, -0.1; 2e6, 0.25, -0.2]);
+        end
+
         function AbsoluteScanDataIsMagnitudeFromRealAndImaginaryTest(testCase)
             %The library has no linear magnitude format
             [instr, server] = testCase.makeInstrument();

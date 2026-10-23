@@ -65,7 +65,7 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
         Connection_Type = Palladium.Enums.ConnectionType.Ethernet;  %Type of connection: Ethernet reaches the PicoVNA software (IP_Address and the port are for PicoVNA 5's SCPI interface; PicoVNA 3 is found on this PC). Debug allows testing without a physical instrument.
         Software;                                               %Which software to use: Auto (the PicoVNA 5 software if it is there, else PicoVNA 3), or PicoVNA 5 or PicoVNA 3 to use only that
         MeasMode;                                               %S-parameter measured: S11, S21, S12 or S22 - S12 and S22 need a two-port calibration
-        MeasUnit;                                               %dB (log magnitude) or Absolute (linear magnitude)
+        MeasUnit;                                               %dB (log magnitude), Absolute (linear magnitude) or Real/Imaginary (the complex value, for a Smith chart - PicoVNA 3 only)
         Power_dBm (1,1) double {mustBeBetween(Power_dBm, -20, 10)} = 0;     %PicoVNA 3 only (PicoVNA 5: set in its software): test signal power, -20 to +6 dBm (106) or +10 dBm (108), sent with the frequency plan before each sweep
         Bandwidth_Hz (1,1) double {mustBeMember(Bandwidth_Hz, [10 50 100 500 1000 5000 10000 15000 35000 70000 140000])} = 1000;  %PicoVNA 3 only (PicoVNA 5: set in its software): measurement (IF) bandwidth, sent with the frequency plan before each sweep - narrower is less noisy but slower
     end
@@ -95,7 +95,7 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
     methods
         function catOut = SoftwareType(this, inputStr);    catOut = this.ConvertToCategorical(inputStr, ["Auto", "PicoVNA 5", "PicoVNA 3"]); end
         function catOut = MeasType(this, inputStr);        catOut = this.ConvertToCategorical(inputStr, ["S11", "S21", "S12", "S22"]); end
-        function catOut = MeasUnitType(this, inputStr);    catOut = this.ConvertToCategorical(inputStr, ["dB", "Absolute"]); end
+        function catOut = MeasUnitType(this, inputStr);    catOut = this.ConvertToCategorical(inputStr, ["dB", "Absolute", "Real/Imaginary"]); end
     end
 
     %% Constructor
@@ -294,7 +294,8 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
             %Errors if the sweep failed - see CheckScanComplete - or gave no values
             %
             %Outputs:
-            %   data - one row per point: [frequency (Hz), value in MeasUnit]
+            %   data - one row per point: [frequency (Hz), value in MeasUnit], or
+            %          [frequency (Hz), real, imaginary] for Real/Imaginary
 
             if ~isempty(this.MeasureError)
                 err = this.MeasureError;
@@ -305,6 +306,11 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
             if this.SimulationMode
                 plan = this.SimulatedSettings;
                 frequency = linspace(plan.StartFrequency_Hz, plan.StopFrequency_Hz, plan.NumPoints)';
+                if this.MeasUnit == this.MeasUnitType("Real/Imaginary")
+                    gamma = Palladium.Utilities.MathsUtils.SimulatedReflection(plan.NumPoints);
+                    data = [frequency, real(gamma), imag(gamma)];
+                    return;
+                end
                 values = this.GenerateSimulatedData(plan.NumPoints, 1, Baseline=-3, Variance=0.1);
                 if this.MeasUnit == this.MeasUnitType("Absolute")
                     values = 10 .^ (values / 20);
@@ -336,9 +342,15 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
             %Column headers and units of the scan data files written by the Scan Control tab.
             %
             %Outputs:
-            %   Headers - frequency and S-parameter headers, e.g. "PicoVNA - S11 (dB)"
+            %   Headers - frequency and S-parameter headers, e.g. "PicoVNA - S11 (dB)",
+            %             or "PicoVNA - S11 Real" and "PicoVNA - S11 Imaginary" for Real/Imaginary
             %   Units   - their units: "Hz", and "dB" or "" for the S-parameter
 
+            if this.MeasUnit == this.MeasUnitType("Real/Imaginary")
+                Headers = [this.Name + " - Frequency_Hz", this.Name + " - " + string(this.MeasMode) + " Real", this.Name + " - " + string(this.MeasMode) + " Imaginary"];
+                Units = ["Hz", "", ""];
+                return;
+            end
             Headers = [this.Name + " - Frequency_Hz", this.Name + " - " + string(this.MeasMode) + " (" + string(this.MeasUnit) + ")"];
             if this.MeasUnit == this.MeasUnitType("dB")
                 Units = ["Hz", "dB"];

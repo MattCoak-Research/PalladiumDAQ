@@ -7,11 +7,22 @@ classdef GUIUtils
     %makes any text (e.g. a column header) show as typed in LaTeX-interpreted
     %labels (`GreekToLaTeX` converts just the Greek letters),
     %`ChooseFromList` asks the user to pick one item from a list,
-    %`ChooseFile` asks for a file or folder, and `ShowWarning` shows a
+    %`ChooseFile` asks for a file or folder, `IsSmithPlotAvailable` says
+    %whether RF Toolbox's Smith chart can be used, and `ShowWarning` shows a
     %warning in the window it concerns.
 
     %% Methods (Static, Public)
     methods (Static, Access = public)
+
+        function available = IsSmithPlotAvailable()
+            %True if RF Toolbox, which has the Smith chart plot (smithplot), is installed and licensed.
+            %Palladium runs without it - only the Smith chart option needs it
+            %
+            %Outputs:
+            %   available - true if smithplot can be used
+
+            available = exist("smithplot", "file") > 0 && license("test", "RF_Toolbox") == 1;
+        end
 
         function BringToFront(owner)
             %Bring the window holding owner back to the front, and give it focus.
