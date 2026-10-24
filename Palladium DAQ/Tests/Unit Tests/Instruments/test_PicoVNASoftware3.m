@@ -332,6 +332,19 @@ classdef test_PicoVNASoftware3 < matlab.unittest.TestCase
             testCase.verifyTrue(shared("Deleted"), "The process is stopped");
         end
 
+        function MessageBoxDuringARequestIsLoggedTest(testCase)
+            %The library comments on a request in a box (closed for the user) - what it said is logged, and the request carries on
+            Palladium.Logging.Logger.ResetForTest();      %Other tests may have changed where messages go
+            testCase.addTeardown(@() Palladium.Logging.Logger.ResetForTest());
+            [instr, server] = testCase.makeInstrument();
+            server.DialogsDismissed = "PicoControl2: Start frequency outside existing calibration span. Calibration values will be restored";
+
+            output = evalc("instr.RunScan(struct(""StartFrequency_Hz"", 1e6, ""StopFrequency_Hz"", 2e6, ""NumPoints"", 11));");
+
+            testCase.verifySubstring(output, "Start frequency outside existing calibration span");
+            testCase.verifyTrue(any(startsWith(server.Calls, "SetFreqPlan")), "The request was still made");
+        end
+
         function MessageTheLibraryShowedIsReportedTest(testCase)
             %A library that dislikes the analyser can show a message box (closed by the process) - what it said helps explain the failure
             server = InstrumentTestingInstruments.FakeComServer();

@@ -19,9 +19,8 @@ classdef test_InstrumentOptionsPanel < matlab.unittest.TestCase
 
             panel.OpenInstrument(instr);
 
-            testCase.verifyEqual(testCase.areaHeight(instr), 0);
-            testCase.verifyEqual(instr.SetupParent.Visible, matlab.lang.OnOffSwitchState.off);
-            testCase.verifyEmpty(instr.SetupParent.Children);
+            testCase.verifyFalse(isvalid(instr.SetupParent), "No area is left behind");
+            testCase.verifyNumElements(instr.SetupGrid.RowHeight, 4, "The designed layout, without the area's row");
         end
 
         function SetupControlsGetAnAreaTest(testCase)
@@ -30,18 +29,21 @@ classdef test_InstrumentOptionsPanel < matlab.unittest.TestCase
 
             panel.OpenInstrument(instr);
 
+            testCase.verifyNumElements(instr.SetupGrid.RowHeight, 5, "A row for the area");
             testCase.verifyEqual(testCase.areaHeight(instr), 70, "Room made");
-            testCase.verifyEqual(instr.SetupParent.Visible, matlab.lang.OnOffSwitchState.on);
             testCase.verifySize(instr.SetupParent.Children, [1 1]);
+            first = instr.SetupParent;
 
             %Drawn again (e.g. a setting changed): rebuilt, not added to
             panel.OpenInstrument(instr);
+            testCase.verifyFalse(isvalid(first), "The old area is replaced");
             testCase.verifySize(instr.SetupParent.Children, [1 1]);
+            grid = instr.SetupGrid;
 
             %Another instrument with none: the area goes again
             panel.OpenInstrument(Palladium.Instruments.Keithley2000());
-            testCase.verifyEqual(testCase.areaHeight(instr), 0);
-            testCase.verifyEmpty(instr.SetupParent.Children);
+            testCase.verifyFalse(isvalid(instr.SetupParent));
+            testCase.verifyNumElements(grid.RowHeight, 4);
         end
 
         function LockingDisablesTheSetupControlsTest(testCase)
@@ -62,7 +64,8 @@ classdef test_InstrumentOptionsPanel < matlab.unittest.TestCase
             instr = InstrumentTestingInstruments.SetupControlsInstrument();
             instr.SetupHeight = -1;     %Not an error itself - an unusable height means no area
             panel.OpenInstrument(instr);
-            testCase.verifyEqual(testCase.areaHeight(instr), 0);
+            testCase.verifyFalse(isvalid(instr.SetupParent));
+            testCase.verifyNumElements(instr.SetupGrid.RowHeight, 4);
         end
     end
 

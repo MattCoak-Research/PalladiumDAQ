@@ -43,6 +43,10 @@ classdef FakeComServer < handle
             reply = this.Call(functionName, varargin{:});
         end
 
+        function CallAsyncDismissingDialogs(this, functionName, varargin)
+            this.CallAsync(functionName, varargin{:});
+        end
+
         function CallAsync(this, functionName, varargin)
             this.Record(functionName, varargin, " [background]");
             this.PendingKey = {functionName, varargin};

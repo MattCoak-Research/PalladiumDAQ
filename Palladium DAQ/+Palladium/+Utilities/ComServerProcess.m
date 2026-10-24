@@ -136,6 +136,15 @@ classdef ComServerProcess < handle
             reply = Palladium.Utilities.ComServerProcess.ReplyOrError(result, functionName);
         end
 
+        function CallAsyncDismissingDialogs(this, functionName, varargin)
+            %As CallAsync, closing any dialogue box the library shows while it runs - what they said is in DialogsDismissed after GetAsyncReply.
+            %
+            %Inputs: as for CallAsync
+
+            this.PendingId = this.SendRequest(functionName, varargin, true);
+            this.AsyncResult = [];
+        end
+
         function CallAsync(this, functionName, varargin)
             %Start one of the COM object's methods in the background, returning at once - check IsBusy, then GetAsyncReply.
             %Waits first for any background call still running
@@ -159,6 +168,7 @@ classdef ComServerProcess < handle
             assert(~isempty(this.AsyncResult), "ComServerProcess:NoCall", "%s", "There is no finished background call to take the reply of.");
             result = this.AsyncResult;
             this.AsyncResult = [];
+            this.DialogsDismissed = result.dialogs;
             reply = Palladium.Utilities.ComServerProcess.ReplyOrError(result, "the background call");
         end
 
@@ -366,9 +376,12 @@ classdef ComServerProcess < handle
 
         function source = DialogCloserSource()
             %The C# of the class that closes the dialogue boxes the process shows (see CallDismissingDialogs), compiled into the PowerShell process.
-            %A thread looks for visible windows of this process every 50 ms
-            %while a call runs, notes what each says (its title and text),
-            %and closes it with WM_CLOSE (so an OK box takes it as OK)
+            %A hook on the calling thread catches a dialogue box as it is
+            %about to be shown, hides it before it is drawn (so the user never
+            %sees it) and closes it with WM_CLOSE (so an OK box takes it as
+            %OK); a thread also looks for visible windows of this process
+            %every 50 ms while a call runs, for any the hook missed. What
+            %each said (its title and text) is noted
 
             source = strjoin([
                 "using System;"
@@ -385,6 +398,14 @@ classdef ComServerProcess < handle
                 "    [DllImport(""user32.dll"", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr hwnd, StringBuilder text, int max);"
                 "    [DllImport(""user32.dll"")] static extern bool IsWindowVisible(IntPtr hwnd);"
                 "    [DllImport(""user32.dll"")] static extern bool PostMessage(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);"
+                "    [DllImport(""user32.dll"")] static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);"
+                "    [DllImport(""user32.dll"")] static extern IntPtr SetWindowsHookEx(int hookType, HookProc proc, IntPtr module, uint threadId);"
+                "    [DllImport(""user32.dll"")] static extern bool UnhookWindowsHookEx(IntPtr hook);"
+                "    [DllImport(""user32.dll"")] static extern IntPtr CallNextHookEx(IntPtr hook, int code, IntPtr wParam, IntPtr lParam);"
+                "    [DllImport(""kernel32.dll"")] static extern uint GetCurrentThreadId();"
+                "    delegate IntPtr HookProc(int code, IntPtr wParam, IntPtr lParam);"
+                "    static HookProc hookProc;"
+                "    static IntPtr hook = IntPtr.Zero;"
                 "    static readonly object gate = new object();"
                 "    static List<string> closed = new List<string>();"
                 "    static HashSet<IntPtr> handled = new HashSet<IntPtr>();"
@@ -392,6 +413,8 @@ classdef ComServerProcess < handle
                 "    static Thread worker;"
                 "    public static void Start() {"
                 "        lock (gate) { closed.Clear(); handled.Clear(); }"
+                "        hookProc = new HookProc(OnCbt);"
+                "        hook = SetWindowsHookEx(5, hookProc, IntPtr.Zero, GetCurrentThreadId());"
                 "        running = true;"
                 "        worker = new Thread(Loop);"
                 "        worker.IsBackground = true;"
@@ -399,27 +422,36 @@ classdef ComServerProcess < handle
                 "    }"
                 "    public static string[] Stop() {"
                 "        running = false;"
+                "        if (hook != IntPtr.Zero) { UnhookWindowsHookEx(hook); hook = IntPtr.Zero; }"
                 "        if (worker != null) { worker.Join(2000); worker = null; }"
                 "        lock (gate) { return closed.ToArray(); }"
                 "    }"
                 "    static string TextOf(IntPtr hwnd) { StringBuilder text = new StringBuilder(512); GetWindowText(hwnd, text, 512); return text.ToString(); }"
                 "    static string ClassOf(IntPtr hwnd) { StringBuilder text = new StringBuilder(64); GetClassName(hwnd, text, 64); return text.ToString(); }"
+                "    static IntPtr OnCbt(int code, IntPtr wParam, IntPtr lParam) {"
+                "        if (code == 5 && ClassOf(wParam) == ""#32770"") { Dismiss(wParam); }"
+                "        return CallNextHookEx(hook, code, wParam, lParam);"
+                "    }"
+                "    static void Dismiss(IntPtr hwnd) {"
+                "        lock (gate) { if (handled.Contains(hwnd)) { return; } handled.Add(hwnd); }"
+                "        string body = """";"
+                "        EnumChildWindows(hwnd, delegate(IntPtr child, IntPtr unused2) {"
+                "            string text = TextOf(child);"
+                "            if (text.Length > 0 && ClassOf(child) == ""Static"") { body += (body.Length > 0 ? "" "" : """") + text; }"
+                "            return true;"
+                "        }, IntPtr.Zero);"
+                "        lock (gate) { closed.Add(TextOf(hwnd) + "": "" + body); }"
+                "        SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0004 | 0x0010 | 0x0080);"
+                "        PostMessage(hwnd, 0x0010, IntPtr.Zero, IntPtr.Zero);"
+                "    }"
                 "    static void Loop() {"
                 "        uint me = (uint)System.Diagnostics.Process.GetCurrentProcess().Id;"
                 "        while (running) {"
                 "            EnumWindows(delegate(IntPtr hwnd, IntPtr unused) {"
                 "                uint processId;"
                 "                GetWindowThreadProcessId(hwnd, out processId);"
-                "                if (processId != me || !IsWindowVisible(hwnd) || handled.Contains(hwnd)) { return true; }"
-                "                handled.Add(hwnd);"
-                "                string body = """";"
-                "                EnumChildWindows(hwnd, delegate(IntPtr child, IntPtr unused2) {"
-                "                    string text = TextOf(child);"
-                "                    if (text.Length > 0 && ClassOf(child) == ""Static"") { body += (body.Length > 0 ? "" "" : """") + text; }"
-                "                    return true;"
-                "                }, IntPtr.Zero);"
-                "                lock (gate) { closed.Add(TextOf(hwnd) + "": "" + body); }"
-                "                PostMessage(hwnd, 0x0010, IntPtr.Zero, IntPtr.Zero);"
+                "                if (processId != me || !IsWindowVisible(hwnd)) { return true; }"
+                "                Dismiss(hwnd);"
                 "                return true;"
                 "            }, IntPtr.Zero);"
                 "            Thread.Sleep(50);"
