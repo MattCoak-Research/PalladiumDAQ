@@ -54,12 +54,24 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
     %% Constructor
     methods
         function this = ScanController()
-            this.RegisterCommandCompleteQuery("ScanRun", @this.IsComplete);
+            this.RegisterCommandCompleteQuery("Run", @this.IsComplete);
         end
     end
 
     %% Methods (Public)
     methods (Access = public)
+
+        function Abort(this)
+            %Abort the scan under way, as if the Run button (which reads Abort during a scan) were pressed - for sequences and scripts.
+            %It goes through the scan panel, so the button, the settings
+            %fields and the plot update exactly as they do for a press.
+            %Does nothing if no scan is running
+
+            if ~this.Running
+                return;
+            end
+            this.GUIView.Abort();
+        end
 
         function ClearData(this)
             this.Data.X = [];
@@ -100,8 +112,8 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             this.CreateSettingsPanel(scrollableGrid, 3);
 
             %Subscribe to events
-            this.AddGuardedListener(comp, 'RunPushed', @(src,evnt)this.ScanRun(src, evnt));
-            this.AddGuardedListener(comp, 'AbortPushed', @(src,evnt)this.ScanAbort(src, evnt));
+            this.AddGuardedListener(comp, 'RunPushed', @(src,evnt)this.OnRunPushed(src, evnt));
+            this.AddGuardedListener(comp, 'AbortPushed', @(src,evnt)this.OnAbortPushed(src, evnt));
             this.AddGuardedListener(comp, 'InsertSmartTag', @(src,evnt)this.InsertSmartTagRequest(src, evnt, controller));
             this.AddGuardedListener(comp, 'ScanDataChange', @(src,evnt)this.ScanDataChanged(src, evnt));
 
@@ -141,7 +153,7 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
         end
 
         function complete = IsComplete(this)
-            %For a sequence's ScanRun: true once the scan has been saved
+            %For a sequence's Run: true once the scan has been saved
             %(by ScanComplete) or aborted - not just when the Instrument
             %has finished it, so the next command cannot run first
             complete = ~this.Running;
@@ -193,11 +205,26 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             this.Starting = false;
         end
 
-        function ScanAbort(this, ~, ~)
-            this.Running = false;
-            this.Starting = false;
-            this.TimeElapsed_s = 0;
-            this.OnScanAbort();
+        function Run(this)
+            %Start a scan, as if the Run button were pressed - for sequences and scripts.
+            %It goes through the scan panel, so the button, the settings
+            %fields and the plot update exactly as they do for a press, and
+            %the same checks are made (e.g. a sweep name when saving to a
+            %file, which the panel shows a warning about). In a sequence the
+            %command waits until the scan has been saved or aborted. Set the
+            %scan up first with the Set... methods (a VNAController has
+            %them for the sweep). Errors if a scan is already running or
+            %this one could not be started
+
+            if this.Running
+                error("ScanController:AlreadyRunning", "%s", "A scan is already running - Abort it, or wait for it to finish, before starting another.");
+            end
+
+            this.GUIView.Run();
+
+            if ~this.Running
+                error("ScanController:ScanNotStarted", "%s", "The scan did not start - see the warning or error that was shown (e.g. a missing sweep name, or the analyser not being connected: start the measurements first).");
+            end
         end
 
         function ScanComplete(this)
@@ -235,34 +262,38 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             this.GUIView.OnScanDataChanged(this.ControlDetailsStruct.SweepDetails);
         end
 
-        function ScanRun(this, ~, ~)
-            %Not checked for completion (UpdateData) until OnScanRun has
-            %started the data file - a tick can run part-way through (e.g.
-            %while the window updates), and would save the data before the
-            %scan's settings or file exist
-            this.Starting = true;
-            this.Running = true;
-            this.TimeElapsed_s = 0;
-            this.timerVal = tic();
-
-            try
-                this.OnScanRun();
-            catch err
-                %A scan that could not be set up (eg it has no file name to
-                %save to) must not carry on as if it were running
-                try
-                    this.ScanAbort([], []);
-                catch
-                    this.Running = false;   %Whatever else fails, make sure of this
-                end
-                rethrow(err);
-            end
-        end
-
         function RemoveControl(this, ~)
             %Delete GUI objects
             delete(this.GUIView);
             this.GUIView = [];
+        end
+
+        function SetContinuous(this, continuous)
+            %Tick or untick Continuous (start the next scan as soon as one finishes) - for sequences and scripts.
+            %
+            %Inputs:
+            %   continuous - true or false
+
+            this.GUIView.SetContinuous(this.ToLogical(continuous, "continuous"));
+        end
+
+        function SetSaveSweepFile(this, saveToFile)
+            %Tick or untick Save to new file - each scan then writes its own data file, named by SetSweepName - for sequences and scripts.
+            %
+            %Inputs:
+            %   saveToFile - true or false
+
+            this.GUIView.SetSaveToFile(this.ToLogical(saveToFile, "saveToFile"));
+        end
+
+        function SetSweepName(this, name)
+            %Set the name of each scan's own file (Save to new file), as typed in the panel - for sequences and scripts.
+            %
+            %Inputs:
+            %   name - the sweep name, which follows the main file name
+
+            mustBeTextScalar(name);
+            this.GUIView.SetNewSweepName(string(name));
         end
 
         function UnlockRunButton(this)
@@ -307,6 +338,43 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             %Inputs:
             %   parentGrid - the tab's scrollable grid (one column)
             %   row        - the row of parentGrid to put them in
+        end
+
+        function OnAbortPushed(this, ~, ~)
+            %The panel's Abort was pressed (or Abort called): stop the scan and put the panel back to ready.
+            %An event handler - sequences and scripts call Abort, which comes here through the panel
+
+            this.Running = false;
+            this.Starting = false;
+            this.TimeElapsed_s = 0;
+            this.OnScanAbort();
+        end
+
+        function OnRunPushed(this, ~, ~)
+            %The panel's Run was pressed (or Run called): start the scan.
+            %An event handler - sequences and scripts call Run, which comes here through the panel
+
+            %Not checked for completion (UpdateData) until OnScanRun has
+            %started the data file - a tick can run part-way through (e.g.
+            %while the window updates), and would save the data before the
+            %scan's settings or file exist
+            this.Starting = true;
+            this.Running = true;
+            this.TimeElapsed_s = 0;
+            this.timerVal = tic();
+
+            try
+                this.OnScanRun();
+            catch err
+                %A scan that could not be set up (eg it has no file name to
+                %save to) must not carry on as if it were running
+                try
+                    this.OnAbortPushed([], []);
+                catch
+                    this.Running = false;   %Whatever else fails, make sure of this
+                end
+                rethrow(err);
+            end
         end
 
         function SetPlotKind(this, kind)
@@ -391,6 +459,13 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
                 case("Default")
                     this.Plotter.PlotData(data);
             end
+        end
+
+        function tf = ToLogical(~, value, name)
+            %True or false from a logical or a 0/1 - errors for anything else.
+
+            assert((islogical(value) || isnumeric(value)) && isscalar(value), "ScanController:NotTrueOrFalse", "%s", name + " must be true or false.");
+            tf = logical(value);
         end
 
         function StartScanDataFile(this, writeToFile)

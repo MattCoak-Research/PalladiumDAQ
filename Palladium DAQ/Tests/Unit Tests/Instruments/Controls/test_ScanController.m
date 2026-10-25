@@ -51,18 +51,18 @@ classdef test_ScanController < matlab.unittest.TestCase
     %% Tests
     methods (Test)
 
-        %% ScanRun with no sweep file name
-        function test_ScanRun_EmptyFileNameWhileSavingErrorsTest(testCase)
+        %% Run pressed with no sweep file name
+        function test_RunPushed_EmptyFileNameWhileSavingErrorsTest(testCase)
             testCase.View.ScanDetails = struct("SaveSweepFile", true, "FileName", "");
 
-            testCase.verifyError(@() testCase.Controller.ScanRun(), "InitialiseDataWriterError:EmptyFileNameSuffix");
+            testCase.verifyError(@() testCase.Controller.PressRunForTest(), "InitialiseDataWriterError:EmptyFileNameSuffix");
         end
 
-        function test_ScanRun_EmptyFileNameLeavesTheScanNotRunningTest(testCase)
+        function test_RunPushed_EmptyFileNameLeavesTheScanNotRunningTest(testCase)
             testCase.View.ScanDetails = struct("SaveSweepFile", true, "FileName", "");
 
             try
-                testCase.Controller.ScanRun();
+                testCase.Controller.PressRunForTest();
             catch
             end
 
@@ -70,11 +70,11 @@ classdef test_ScanController < matlab.unittest.TestCase
             testCase.verifyEqual(testCase.Controller.TimeElapsed_s, 0);
         end
 
-        function test_ScanRun_EmptyFileNamePutsTheGUIBackToReadyTest(testCase)
+        function test_RunPushed_EmptyFileNamePutsTheGUIBackToReadyTest(testCase)
             testCase.View.ScanDetails = struct("SaveSweepFile", true, "FileName", "");
 
             try
-                testCase.Controller.ScanRun();
+                testCase.Controller.PressRunForTest();
             catch
             end
 
@@ -82,11 +82,11 @@ classdef test_ScanController < matlab.unittest.TestCase
             testCase.verifyEqual(testCase.View.ReadyCount, 1);
         end
 
-        function test_ScanRun_EmptyFileNameWritesNoFileTest(testCase)
+        function test_RunPushed_EmptyFileNameWritesNoFileTest(testCase)
             testCase.View.ScanDetails = struct("SaveSweepFile", true, "FileName", "   ");
 
             try
-                testCase.Controller.ScanRun();
+                testCase.Controller.PressRunForTest();
             catch
             end
 
@@ -94,10 +94,10 @@ classdef test_ScanController < matlab.unittest.TestCase
             testCase.verifyEmpty(filesCreated, "Nothing may be written, least of all to the main data file's name");
         end
 
-        function test_ScanRun_CanBeRunAgainAfterAnEmptyFileNameWasRejectedTest(testCase)
+        function test_RunPushed_CanBeRunAgainAfterAnEmptyFileNameWasRejectedTest(testCase)
             testCase.View.ScanDetails = struct("SaveSweepFile", true, "FileName", "");
             try
-                testCase.Controller.ScanRun();
+                testCase.Controller.PressRunForTest();
             catch
             end
 
@@ -106,9 +106,50 @@ classdef test_ScanController < matlab.unittest.TestCase
             %which has no scan to run)
             testCase.View.ScanDetails = struct("SaveSweepFile", true, "FileName", " - Sweep File");
 
-            err = testCase.errorFrom(@() testCase.Controller.ScanRun());
+            err = testCase.errorFrom(@() testCase.Controller.PressRunForTest());
 
             testCase.verifyNotEqual(string(err.identifier), "InitialiseDataWriterError:EmptyFileNameSuffix");
+        end
+
+
+        %% Run and Abort, for sequences and scripts
+        function test_Run_GoesThroughThePanelLikeTheRunButtonTest(testCase)
+            testCase.verifyError(@() testCase.Controller.Run(), "ScanController:ScanNotStarted");
+
+            testCase.verifyEqual(testCase.View.RunCount, 1, "The panel's own Run was used, with its checks");
+        end
+
+        function test_Run_ErrorsWhenThePanelDoesNotStartAScanTest(testCase)
+            %E.g. the panel refused an empty sweep name: a sequence must not carry on as if a scan had been made
+            testCase.View.RunAction = [];
+
+            err = testCase.errorFrom(@() testCase.Controller.Run());
+
+            testCase.verifyEqual(string(err.identifier), "ScanController:ScanNotStarted");
+            testCase.verifyFalse(testCase.Controller.Running);
+        end
+
+        function test_Abort_WithNoScanRunningDoesNothingTest(testCase)
+            testCase.Controller.Abort();
+
+            testCase.verifyEqual(testCase.View.AbortCount, 0);
+        end
+
+        function test_SettersGoThroughThePanelTest(testCase)
+            testCase.Controller.SetSweepName("T_300K");
+            testCase.Controller.SetSaveSweepFile(false);
+            testCase.Controller.SetContinuous(true);
+
+            testCase.verifyEqual(testCase.View.SweepName, "T_300K");
+            testCase.verifyFalse(testCase.View.SaveToFile);
+            testCase.verifyTrue(testCase.View.Continuous);
+        end
+
+        function test_RunIsACommandThatWaitsForTheScanTest(testCase)
+            %A sequence calls Run and waits until the scan has been saved or aborted
+            testCase.verifyNotEmpty(testCase.Controller.GetCommandCompleteFn("Run()"));
+            testCase.verifyEmpty(testCase.Controller.GetCommandCompleteFn("ScanRun"), "The event handler is not a command any more");
+            testCase.verifyEmpty(testCase.Controller.GetCommandCompleteFn("Abort()"));
         end
 
     end

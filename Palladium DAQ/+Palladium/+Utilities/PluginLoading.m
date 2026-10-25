@@ -457,7 +457,9 @@ classdef PluginLoading
 
             instrNamesToExclude = ["CreateInstrumentControlGUI", "DataRowCollected", "GetCommandCompleteFn", "GetName", "MeasurementsInitialised", "MeasurementsPaused", "MeasurementsResumed", "MeasurementsStarted", "MeasurementsStopped",...
                 "OnParametersChanged", "OnSweepAbort", "OnSweepComplete", "OnSweepRun", "PlotterAxesSelectionChange",  "RegisterEventListener", "RegisterCommandCompleteQuery",...
-                "RemoveControl", "SweepDataChanged", "UnsubscribeFromEvents"];
+                "RemoveControl", "SweepDataChanged", "UnsubscribeFromEvents",...
+                "ClearData", "GetElapsedTime", "IsComplete", "LockRunButton", "OnScanAbort", "OnScanComplete", "OnScanRun", "PrintIdentifier", "ScanComplete", "ScanDataChanged",...
+                "TargetUpdateTimeChanged", "UnlockRunButton", "Update", "UpdateData"];     %The Scan Controls' own internals (their commands are Run, Abort and the Set... methods)
 
             meths = Palladium.Utilities.PluginLoading.GetClassMethodsClean(controlRef, builtInNamesToExclude, instrNamesToExclude);
         end
@@ -795,8 +797,8 @@ classdef PluginLoading
             function cleanSig = CleanMethodSignature(mName, mSig)
                 %The signature as a command: the name and its arguments,
                 %without the output (eg this = Keithley2000()), 'this' or
-                %trailing unused (~) arguments, eg ScanAbort(this, ~, ~) ->
-                %ScanAbort. A ~ before a used argument stays, as it holds
+                %trailing unused (~) arguments, eg SweepRun(this, ~, ~) ->
+                %SweepRun. A ~ before a used argument stays, as it holds
                 %that argument's place. With no arguments left, no brackets
                 %either - a command needs none
                 argStr = extractAfter(mSig, mName);
