@@ -158,4 +158,26 @@ There are two workflows in `.github/workflows`.
 1. `Toolbox` (Ubuntu): starts a virtual display (Xvfb) so `docrun` can capture figures, then runs `buildtool packageToolbox -skip check -skip test` - so the documentation and toolbox package are built. Uploads the toolbox (`toolbox`) and the built documentation (`docs`) as artifacts.
 2. `Installer` (Ubuntu and Windows, after `Toolbox`): downloads the `docs` artifact into `Palladium DAQ/Docs`, since the installers bundle the built documentation, then runs `buildtool deploy` with the check, test and documentation tasks skipped. Uploads the Runtime Web Installer as an artifact, `installer_<os>`. This needs the MATLAB Compiler licence token, `MLM_LICENSE_TOKEN`, from the `Palladium Build Environment` environment.
 3. `Pages` (after `Toolbox`): publishes the `docs` artifact to GitHub Pages. The repository's Pages source must be set to "GitHub Actions".
-4. `Release` (after `Toolbox` and `Installer`): attaches the toolbox, the installers and a zip of the documentation (`PalladiumDAQ-docs.zip`) to the GitHub release for the tag. The release is created once, here, so the parallel jobs can't race to create it.
+4. `Release` (after `Toolbox` and `Installer`): attaches the toolbox, the installers and a zip of the documentation (`PalladiumDAQ-docs.zip`) to the GitHub release for the tag. The release is created once, here, so the parallel jobs can't race to create it. It is created as a draft and only published once every file is attached (see below).
+
+### Making a release
+
+MATLAB File Exchange is linked to the repository through the "MATLAB and Simulink Integration" GitHub app, and has no settings of its own for this. When a release is published it serves the `.mltbx` attached to it, which is what lets the toolbox install from the Add-On Explorer. If the `.mltbx` isn't attached at the moment the release is published, File Exchange falls back to a zip of the source, which the Add-On Explorer can't install. It does not go back and look again.
+
+So, to make a release:
+
+1. Set the version in `Palladium.m` (`MajorVersionNo`, `MinorVersionNo`, `BuildVersionNo`), and commit and push it to `main` once `test.yml` has passed. The version inside the toolbox must match the tag.
+2. Create and push **only the tag**, either from Branch Manager (New Tag, then right-click the tag, Push Tag) or from a command line:
+
+```bash
+git tag v3.8.4
+git push origin v3.8.4
+```
+
+3. Wait for `release.yml` to finish. It creates the release, and publishes it after all the assets are uploaded.
+
+Things that go wrong:
+
+- **Do not create the release yourself in the GitHub web UI** ("Draft a new release" creates the tag and publishes an empty release at once). File Exchange sees the empty release, and the workflow's later upload of the `.mltbx` is too late. This is what happened with v3.6.4 to v3.8.3. The `draft: true` in `release.yml` cannot help if the release already exists.
+- **Tag names can't be reused, even if you delete the release.** Deleting a release on GitHub leaves its tag behind, so the tag still exists on the remote. Pushing a new local tag of the same name then fails (with "object is no commit object" from MATLAB's Branch Manager). Use a new version number instead.
+- If a release is wrong anyway, delete it and its tag on GitHub, and push the tag again. File Exchange should pick up the new release, but check its version history afterwards.
