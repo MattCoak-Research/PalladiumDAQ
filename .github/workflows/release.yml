@@ -147,6 +147,21 @@ jobs:
       - uses: matlab-actions/run-build@v2
         with:
           tasks: deploy -skip check -skip test -skip packageToolbox -skip doc -skip apidoc -skip gettingStarted
+      # On macOS the installers are .app bundles - folders, not single files.
+      # A release can only attach files (a folder is silently skipped), and
+      # upload-artifact would also strip the executable permissions inside the
+      # bundle. So zip each one here, on the Mac, with ditto (which keeps
+      # permissions and symlinks), and delete the folder so only the zip is
+      # uploaded (the ".*" in the paths below then matches "<name>.app.zip")
+      - name: Zip macOS app bundles
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          cd Release/Package
+          for app in */*.app; do
+            ditto -c -k --keepParent "$app" "$app.zip"
+            rm -rf "$app"
+          done
       # Saves the installer as an artifact, named per OS so the two don't
       # collide. deploy makes three installers (Runtime Bundled, Runtime Web,
       # No Runtime). The ".*" matches whatever
