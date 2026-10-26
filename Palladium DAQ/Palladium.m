@@ -44,7 +44,7 @@ classdef Palladium < handle
     properties (Constant, Access = private)
         MajorVersionNo = 3;     %Major version number (semantic versioning, major.minor.build)
         MinorVersionNo = 8;     %Minor version number (semantic versioning, major.minor.build)
-        BuildVersionNo = 5;     %Build version number (semantic versioning, major.minor.build)
+        BuildVersionNo = 6;     %Build version number (semantic versioning, major.minor.build)
         AuthorString = "M.J. Coak, University of Birmingham";  %Author, returned by ver() and passed to the GUI with the version
     end
 
