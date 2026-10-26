@@ -678,6 +678,7 @@ classdef Controller < handle
                 %the user once Palladium DAQ has loaded (see OnLoaded)
                 this.Log("Debug", "Initialising Python Instrument Classes", "Yellow", "Initialising Instruments...");
                 this.PythonSetupStatus = this.SetUpPython();
+                this.LogPythonDetails(this.PythonSetupStatus.Details);
                 if ismember(this.PythonSetupStatus.Status, ["OK", "PackagesMissing"])
                     this.InstrumentController.PythonInstrumentController = Palladium.PythonInstruments.PythonInstrumentController(this.PythonInstrumentNamespace, this.ApplicationDir);
                     this.InstrumentController.PythonInstrumentController.LoadInstrumentClasses(this.UserPythonInstrumentsDir);
@@ -1649,8 +1650,16 @@ classdef Controller < handle
         end
 
         function PythonSetupWarningClosed(this, evt)
-            %Remember in the config file if the user chose not to see the Python setup warning again.
+            %Act on the Python setup warning's buttons: browse for a Python, or remember in the config file not to show it again.
 
+            if evt.SelectedOption == "Browse for Python..."
+                try
+                    this.BrowseForPython();
+                catch err
+                    this.HandleError("Error choosing a Python", err);
+                end
+                return
+            end
             if evt.SelectedOption ~= "Don't show this again"
                 return
             end
@@ -1689,25 +1698,110 @@ classdef Controller < handle
             %Outputs:
             %   status - setup status struct (see PythonUtils.CheckPythonSetup)
 
+            utils = Palladium.Utilities.PythonUtils;
             executable = string(this.PythonSettings.PythonExecutable);
             if isempty(executable) || executable == ""
                 bundledPython = fullfile(this.ApplicationDir, "Python", "python.exe");
                 if isdeployed && isfile(bundledPython)
                     executable = bundledPython;
+                    source = "the Python bundled with the application (" + bundledPython + ")";
                 else
                     executable = "";
+                    source = "MATLAB's own choice (pyenv), as PythonSettings.PythonExecutable is blank in the config";
                 end
+            else
+                source = "PythonSettings.PythonExecutable in the config";
             end
+            sourceDetails = "Python chosen from: " + source;
 
+            probe = [];
             if executable ~= ""
-                [success, message] = Palladium.Utilities.PythonUtils.UsePythonExecutable(executable);
+                [success, message, probe] = utils.ApplyPythonExecutable(executable);
                 if ~success
-                    status = Palladium.Utilities.PythonUtils.MakeSetupStatus("LoadFailed", Executable=executable, ErrorMessage=message);
+                    status = utils.MakeSetupStatus("LoadFailed", Executable=executable, ErrorMessage=message, Details=[sourceDetails; probe.Details]);
                     return
                 end
             end
 
-            status = Palladium.Utilities.PythonUtils.CheckPythonSetup();
+            status = utils.CheckPythonSetup(Probe=probe);
+            status.Details = [sourceDetails; status.Details];
+        end
+
+        function LogPythonDetails(~, details)
+            %Write the lines describing how Python was checked to the log, at Debug level.
+            %
+            %Inputs:
+            %   details - the lines (string array), e.g. a Python setup status's Details
+
+            for line = string(details(:))'
+                Palladium.Logging.Logger.Log("Debug", "[Python] " + line);
+            end
+        end
+
+        function BrowseForPython(this)
+            %Let the user choose a Python executable, check it, and save it in the config.
+            %The chosen Python is run in a separate process first
+            %(PythonUtils.ApplyPythonExecutable), so one that is unusable
+            %is rejected and nothing is changed. A usable one is saved as
+            %PythonSettings.PythonExecutable and MATLAB's pyenv is pointed
+            %at it. Python instruments are only loaded when Palladium DAQ
+            %starts, so it must be restarted to use it - but not MATLAB,
+            %unless a different Python is already loaded into it
+
+            utils = Palladium.Utilities.PythonUtils;
+            uifg = this.UIFigureHandle;
+            if ispc
+                filter = {'python*.exe', 'Python executables'; '*.*', 'All Files'};
+            else
+                filter = {'*', 'All Files'};
+            end
+            current = string(this.PythonSettings.PythonExecutable);
+            if current == ""
+                current = string(this.PythonSetupStatus.Executable);
+            end
+            path = Palladium.Utilities.GUIUtils.ChooseFile("open", Filter=filter, Title="Choose the Python executable to use", ...
+                Default=current, Reference=uifg);
+            if path == ""
+                this.LogPythonDetails("Choosing a Python was cancelled");
+                this.ShowPythonSetupWarning();
+                return
+            end
+
+            this.LogPythonDetails("The user chose " + path);
+            [success, message, probe] = utils.ApplyPythonExecutable(path);
+            this.LogPythonDetails(probe.Details);
+            retry = @(~, ~) this.ShowPythonSetupWarning();
+
+            %It runs and is a supported version, but MATLAB has a different Python loaded
+            %already, which can't be changed until MATLAB restarts: it is
+            %still worth remembering for then
+            restartMatlab = ~success && probe.Runnable && utils.CheckVersionSupported(probe.VersionNumber) && string(pyenv().Status) == "Loaded";
+            if ~success && ~restartMatlab
+                this.Log("Warning", "Could not use the Python at " + path + ": " + message, "Yellow", "Python not changed");
+                uialert(uifg, Palladium.Utilities.GUIUtils.MessageToHTML(message + " Nothing was changed."), "Can't use that Python", ...
+                    "Icon", "warning", "Interpreter", "html", "CloseFcn", retry);
+                return
+            end
+
+            %It works - remember it
+            try
+                configIO = Palladium.Utilities.ConfigIO();
+                configIO.SetConfigValue("PythonSettings", "PythonExecutable", path, ConfigFilePath=this.ConfigFilePath);
+                this.PythonSettings.PythonExecutable = path;
+            catch err
+                this.HandleError("Error saving the Python setting", err);
+                return
+            end
+            this.Log("Info", "Python set to " + path + " (Python " + probe.Version + ", PythonSettings.PythonExecutable in " + this.ConfigFilePath + ")", "Green", "Python set");
+
+            text = "Palladium DAQ will use Python " + probe.Version + " at " + path + ". Restart Palladium DAQ to use it.";
+            if restartMatlab
+                text = "Palladium DAQ will use Python " + probe.Version + " at " + path + ", but MATLAB has already loaded a different Python in this session, which can't be changed. Close Palladium DAQ, then restart MATLAB.";
+            end
+            if ~isempty(probe.MissingPackages)
+                text = text + " That Python is missing the package(s) " + join(probe.MissingPackages, ", ") + " - install them with: `""" + path + """ -m pip install " + join(probe.MissingPackages, " ") + "`";
+            end
+            uialert(uifg, Palladium.Utilities.GUIUtils.MessageToHTML(text), "Python set", "Icon", "success", "Interpreter", "html");
         end
 
         function ShowPythonSetupWarning(this)
@@ -1726,7 +1820,7 @@ classdef Controller < handle
                     return
                 end
                 [title, msg] = Palladium.Utilities.PythonUtils.SetupHelpMessage(this.PythonSetupStatus, ConfigFilePath=this.ConfigFilePath);
-                uiconfirm(uifg, msg, title, "Options", ["OK", "Don't show this again"], "DefaultOption", 1, "CancelOption", 1, ...
+                uiconfirm(uifg, msg, title, "Options", ["Browse for Python...", "OK", "Don't show this again"], "DefaultOption", 2, "CancelOption", 2, ...
                     "Icon", "warning", "Interpreter", "html", "CloseFcn", @(~, evt) this.PythonSetupWarningClosed(evt));
             catch err
                 this.HandleError("Error showing the Python setup warning", err);

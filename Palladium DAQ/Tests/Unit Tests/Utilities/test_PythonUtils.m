@@ -79,6 +79,75 @@ classdef test_PythonUtils < matlab.unittest.TestCase
             testCase.verifyEqual(status.Status == "PackagesMissing", ~isempty(status.MissingPackages));
         end
 
+        function test_ProbePython(testCase)
+            %Running the Python MATLAB uses in a separate process reports its version, and says what it did
+            env = pyenv;
+            probe = Palladium.Utilities.PythonUtils.ProbePython(env.Executable);
+            testCase.verifyTrue(probe.Runnable, "Probe failed: " + probe.ErrorMessage);
+            testCase.verifyEqual(probe.ErrorMessage, "");
+            testCase.verifyEqual(probe.ExitCode, 0);
+            testCase.verifyTrue(startsWith(probe.Version, string(env.Version) + "."), "Version should start with pyenv's");
+            testCase.verifyEqual(probe.VersionNumber(1:2), double(split(string(env.Version), "."))');
+            testCase.verifyNotEqual(probe.ResolvedExecutable, "");
+            testCase.verifyTrue(any(contains(probe.Details, "Command:")));
+            testCase.verifyTrue(any(contains(probe.Details, "Exit code 0")));
+        end
+
+        function test_ProbePython_NotPython(testCase)
+            %A file that isn't there, or isn't a Python, is not runnable, with the reason
+            fixture = testCase.applyFixture(TestHelpers.DataFolderFixture);
+            missing = fullfile(string(fixture.Folder), "NoSuchPython", "python.exe");
+            probe = Palladium.Utilities.PythonUtils.ProbePython(missing);
+            testCase.verifyFalse(probe.Runnable);
+            testCase.verifySubstring(probe.ErrorMessage, "There is no file at");
+            testCase.verifyTrue(any(contains(probe.Details, missing)));
+
+            notPython = fullfile(string(fixture.Folder), "NotPython.txt");
+            writelines("This is not a program", notPython);
+            probe = Palladium.Utilities.PythonUtils.ProbePython(notPython);
+            testCase.verifyFalse(probe.Runnable);
+            testCase.verifySubstring(probe.ErrorMessage, "is not a program");
+        end
+
+        function test_CheckVersionSupported(testCase)
+            check = @Palladium.Utilities.PythonUtils.CheckVersionSupported;
+            [ok, msg] = check([3 10 0]);
+            testCase.verifyTrue(ok);
+            testCase.verifyEqual(msg, "");
+            testCase.verifyTrue(check([3 12 4]));
+            testCase.verifyTrue(check([3 14 8]));
+            [ok, msg] = check([3 9 6]);
+            testCase.verifyFalse(ok);
+            testCase.verifySubstring(msg, "Python 3.9.6 is not supported");
+            testCase.verifyFalse(check([3 15 0]));
+            testCase.verifyFalse(check([2 7 18]));
+            testCase.verifyFalse(check([4 0 0]));
+        end
+
+        function test_ApplyPythonExecutable(testCase)
+            %The Python already in use is accepted, and one that isn't there is refused without changing anything
+            env = pyenv;
+            [success, message, probe] = Palladium.Utilities.PythonUtils.ApplyPythonExecutable(env.Executable);
+            testCase.verifyTrue(success, message);
+            testCase.verifyTrue(probe.Runnable);
+            testCase.verifyTrue(any(contains(probe.Details, "pyenv now uses")));
+
+            missing = fullfile(tempdir, "NoSuchFolder", "python.exe");
+            [success, message, probe] = Palladium.Utilities.PythonUtils.ApplyPythonExecutable(missing);
+            testCase.verifyFalse(success);
+            testCase.verifySubstring(message, "There is no file at");
+            testCase.verifyFalse(probe.Runnable);
+            testCase.verifyEqual(string(pyenv().Executable), string(env.Executable), "pyenv should be unchanged");
+        end
+
+        function test_CheckPythonSetup_Details(testCase)
+            %The status says what was tried, for the Debug log, including the probe
+            status = Palladium.Utilities.PythonUtils.CheckPythonSetup();
+            testCase.verifyTrue(any(contains(status.Details, "Probing Python at")));
+            testCase.verifyTrue(any(contains(status.Details, "Loaded in MATLAB")));
+            testCase.verifyTrue(any(contains(status.Details, "pyenv:")));
+        end
+
         function test_MakeSetupStatus(testCase)
             status = Palladium.Utilities.PythonUtils.MakeSetupStatus("LoadFailed", Executable="C:\Python\python.exe", ErrorMessage="Oops");
             testCase.verifyEqual(status.Status, "LoadFailed");
@@ -86,6 +155,10 @@ classdef test_PythonUtils < matlab.unittest.TestCase
             testCase.verifyEqual(status.Executable, "C:\Python\python.exe");
             testCase.verifyEqual(status.ErrorMessage, "Oops");
             testCase.verifyEmpty(status.MissingPackages);
+            testCase.verifyEmpty(status.Details);
+
+            status = Palladium.Utilities.PythonUtils.MakeSetupStatus("NotFound", Details=["one", "two"]);
+            testCase.verifyEqual(status.Details, ["one"; "two"]);
         end
 
         function test_SetupHelpMessage(testCase)
@@ -97,6 +170,7 @@ classdef test_PythonUtils < matlab.unittest.TestCase
             testCase.verifySubstring(msg, "pip install pyvisa pyserial");
             testCase.verifySubstring(msg, "PythonSettings.PythonExecutable");
             testCase.verifySubstring(msg, "C:\Config.json");
+            testCase.verifySubstring(msg, "Browse for Python...");
 
             % LoadFailed: the error message, with HTML special characters escaped
             status = Palladium.Utilities.PythonUtils.MakeSetupStatus("LoadFailed", Executable="C:\Py\python.exe", ErrorMessage="Version <3.9> & older");
