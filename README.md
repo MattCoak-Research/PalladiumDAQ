@@ -51,6 +51,10 @@ Latest release downloads:
   * [Web Installer](https://github.com/MattCoak-Research/PalladiumDAQ/releases/latest/download/Palladium.DAQ.Installer.-.Runtime.Web.Installer.exe)
   * [Offline Installer - Runtime Bundled](https://github.com/MattCoak-Research/PalladiumDAQ/releases/latest/download/Palladium.DAQ.Installer.-.Runtime.Bundled.exe)
   * [Offline Installer - No Runtime](https://github.com/MattCoak-Research/PalladiumDAQ/releases/latest/download/Palladium.DAQ.Installer.-.No.Runtime.exe)
+* macOS:
+  * [Web installer](https://github.com/MattCoak-Research/PalladiumDAQ/releases/latest/download/Palladium.DAQ.Installer.-.Runtime.Web.Installer.app.zip)
+  * [Offline Installer - Runtime Bundled](https://github.com/MattCoak-Research/PalladiumDAQ/releases/latest/download/Palladium.DAQ.Installer.-.Runtime.Bundled.app.zip)
+  * [Offline Installer - No Runtime](https://github.com/MattCoak-Research/PalladiumDAQ/releases/latest/download/Palladium.DAQ.Installer.-.No.Runtime.app.zip)
 * Linux:
   * [Web installer](https://github.com/MattCoak-Research/PalladiumDAQ/releases/latest/download/Palladium.DAQ.Installer.-.Runtime.Web.Installer.install)
   * [Offline Installer - Runtime Bundled](https://github.com/MattCoak-Research/PalladiumDAQ/releases/latest/download/Palladium.DAQ.Installer.-.Runtime.Bundled.install)
@@ -65,6 +69,7 @@ Latest release downloads:
 
 * Toolbox version - manual install. Download the PalladiumDAQ.mltbx file in the Download section above. Double click the file to run (it will open via MATLAB) and it will install.
 * Standalone version (no MATLAB environment). Download the Installer for your operating system from the list above and run it.
+  * For macOS: unzip the download, then run the installer app inside. The installers are not signed or notarised by Apple, so macOS may refuse to open them ("cannot be opened because the developer cannot be verified"). Right-click (or Control-click) the app and choose Open, then confirm; or allow it under System Settings -> Privacy & Security -> Open Anyway; or run `xattr -dr com.apple.quarantine "<path to the unzipped app>"` in Terminal first.
 
 ## Run PalladiumDAQ
 
