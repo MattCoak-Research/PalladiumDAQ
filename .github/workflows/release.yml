@@ -248,6 +248,19 @@ jobs:
       # works that out itself), and attaches every file in dist: the
       # toolbox, the installers and the docs zip. GITHUB_TOKEN, with the
       # write permission above, is used automatically
+      #
+      # The release is created as a DRAFT, and only published (next step) once
+      # every file is uploaded. MATLAB File Exchange picks a release up the
+      # moment it is published, and serves the .mltbx only if it is already
+      # attached then - otherwise it falls back to a zip of the source. With
+      # the multi-GB installers uploading after the toolbox, publishing first
+      # meant File Exchange never saw the .mltbx.
       - uses: softprops/action-gh-release@v3
         with:
           files: dist/*
+          draft: true
+      # Publishes the draft, now that all the assets are attached
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "${{ github.ref_name }}" --repo "${{ github.repository }}" --draft=false
