@@ -300,9 +300,6 @@
                             </Category>
                         </Info>
                     </File>
-                    <File Location="InstrumentController.asv">
-                        <Info/>
-                    </File>
                     <File Location="CommandController.m">
                         <Info>
                             <Category UUID="FileClassCategory">
@@ -626,9 +623,6 @@
                                 <Info/>
                             </File>
                             <File Location="SweepSelectorSourceImage.png">
-                                <Info/>
-                            </File>
-                            <File Location="appDesigner.json">
                                 <Info/>
                             </File>
                         </File>
@@ -1359,9 +1353,6 @@
                                 <DIR_SIGNIFIER Location="1">
                                     <Info/>
                                 </DIR_SIGNIFIER>
-                                <File Location=".gitkeep">
-                                    <Info/>
-                                </File>
                             </File>
                             <File Location="SearchPathFolder">
                                 <Info/>
@@ -1415,9 +1406,6 @@
                                 <DIR_SIGNIFIER Location="1">
                                     <Info/>
                                 </DIR_SIGNIFIER>
-                                <File Location="pythontest.cpython-311.pyc">
-                                    <Info/>
-                                </File>
                                 <File Location="pythontest.cpython-314.pyc">
                                     <Info/>
                                 </File>
@@ -2164,13 +2152,6 @@
                         <DIR_SIGNIFIER Location="1">
                             <Info/>
                         </DIR_SIGNIFIER>
-                        <File Location="QDInstrument.dll">
-                            <Info>
-                                <Category UUID="FileClassCategory">
-                                    <Label UUID="derived"/>
-                                </Category>
-                            </Info>
-                        </File>
                         <File Location="QDInterface.dll">
                             <Info>
                                 <Category UUID="FileClassCategory">
