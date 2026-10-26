@@ -4,7 +4,7 @@ Instrument drivers can also be written in Python - useful when an instrument com
 
 ## Requirements
 
-**In the standalone application on Windows, there is nothing to set up.** It comes with its own copy of Python (version 3.14), with the packages Python instruments need: `pyvisa`, `pyvisa-py` and `pyserial`. It is installed in the `Python` folder of the installation's `application` folder, and doesn't affect any other Python on the computer.
+**In the standalone application on Windows, there is nothing to set up.** It comes with its own copy of Python (version 3.14), with the packages Python instruments need: `pyvisa`, `pyvisa-py` and `pyserial`, and with QCoDeS and its community drivers (see below). It is installed in the `Python` folder of the installation's `application` folder, and doesn't affect any other Python on the computer.
 
 **In the MATLAB toolbox, and the standalone application on Mac and Linux,** Palladium DAQ uses the Python that MATLAB finds (check it with `pyenv` in MATLAB). It needs:
 
@@ -109,7 +109,9 @@ If a Python instrument has the same name as a MATLAB one, the Python one is used
 
 [QCoDeS](https://microsoft.github.io/Qcodes/) is a Python data acquisition framework with drivers for a large number of instruments. Palladium DAQ can use them, with no instrument commands to write: you add the driver to the Instruments list like any instrument, then choose in the **Parameters** tab which of its parameters to record.
 
-**Install QCoDeS** in the Python that Palladium DAQ uses - one set in `PythonExecutable` as above, since the standalone application's own Python has no `pip`: `python -m pip install qcodes`. Drivers for more instruments are in the community package `qcodes_contrib_drivers`. Some drivers need other packages too, and say so with Python's error when you add them.
+**In the standalone application on Windows, QCoDeS is included**, with the community package `qcodes_contrib_drivers`, so its drivers are in the Instruments list with nothing to install. Two community drivers are left out because their licence (GPL) differs from the rest: the Tektronix AWG520 and the Keithley 2700. About 30 more need packages from their instrument's maker, such as `nidaqmx`, which aren't included, and give Python's error when you add them. For any of these, or a newer QCoDeS than the application's, use your own Python as above.
+
+**Anywhere else, install QCoDeS** in the Python that Palladium DAQ uses: `python -m pip install qcodes qcodes_contrib_drivers`. (The standalone application's own Python has no `pip`, so there you set `PythonExecutable` to a Python of your own.) Some drivers need other packages too, and say so with Python's error when you add them.
 
 ### Adding a driver
 

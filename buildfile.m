@@ -157,14 +157,64 @@ cfg.CompilerFolders = [ ...
 
 %% Python bundled with the Windows standalone application
 %Python's official "embeddable package", with the packages Python instruments
-%need. Versions are pinned and the download checked against its published
-%SHA-256, so every build bundles exactly the same Python. To update: pick a
+%need, and QCoDeS (the instrument drivers in the Instruments list). Versions
+%are pinned and the download checked against its published SHA-256, so every
+%build bundles exactly the same Python and packages. To update Python: pick a
 %Python version supported by the minimum MATLAB release, and take its
 %SHA-256 from python.org (the .spdx.json file next to the download)
 cfg.Python.Version = "3.14.8";
 cfg.Python.Sha256 = "a93abe456ab01bd96d7a085b3cdb6566b3063f4241360d114142fbdb07f0a310";
 cfg.Python.Packages = ["pyvisa==1.16.2", "pyvisa-py==0.8.1", "pyserial==3.5", "typing_extensions==4.16.0"]; %With all their dependencies, as installed with --no-deps
 cfg.Python.CacheFolder = fullfile(tempdir, "PalladiumDAQ build"); %Downloads are kept here between builds
+
+%% QCoDeS bundled with that Python
+%TO UPDATE THE QCoDeS THAT IS BUNDLED, CHANGE THESE TWO VERSIONS (the latest
+%are at pypi.org/project/qcodes and pypi.org/project/qcodes-contrib-drivers),
+%then run `buildtool bundledPython`: it builds the bundled Python and checks
+%that the drivers can still be imported. If the check names a missing package,
+%add it to QCoDeSDependencies. Users can always use a different QCoDeS by
+%setting PythonSettings.PythonExecutable in the config to their own Python.
+cfg.Python.QCoDeSVersion = "0.61.1";
+cfg.Python.QCoDeSContribVersion = "0.25.0";
+
+%The packages that QCoDeS and its contrib drivers import, pinned (installed
+%with --no-deps). This is deliberately less than QCoDeS says it requires: the
+%rest (matplotlib, xarray, h5py, pyarrow, Jupyter, ...) is only imported by
+%QCoDeS's data and plotting features, which Palladium DAQ doesn't use, and is
+%over 350 MB. The pins are what resolved when QCoDeS was last updated; after
+%changing the QCoDeS versions, a newer QCoDeS may need newer versions of these
+cfg.Python.QCoDeSDependencies = [ ...
+    "numpy==2.5.4", "packaging==26.3", "uncertainties==3.2.3", "websockets==17.3", ... %Used by QCoDeS itself
+    "jsonschema==4.26.0", "jsonschema-specifications==2025.9.1", "referencing==0.37.0", "rpds-py==2026.9.1", "attrs==26.1.0", "idna==3.20", ...
+    "opentelemetry-api==1.45.1", ...
+    "broadbean==0.15.0", "schema==0.7.8", ... %Tektronix AWG drivers
+    "tqdm==4.70.1", "colorama==0.4.6", "cffi==2.1.1", "pycparser==3.11", ... %Some contrib drivers (Andor, Lighthouse Photonics, Advantech)
+    "pandas==3.0.6", "python-dateutil==2.9.0.post0", "six==1.17.0", "tzdata==2026.5"]; %BlueFors and Triton, which are important to us
+
+%Files deleted from the bundled packages (relative to Lib/site-packages).
+%These two contrib drivers are GPL-2.0-or-later, unlike everything else
+%bundled (MIT, BSD, Apache, PSF), so they are left out of the installers
+cfg.Python.RemoveFiles = [ ...
+    fullfile("qcodes_contrib_drivers", "drivers", "Tektronix", "AWG520.py"), ...
+    fullfile("qcodes_contrib_drivers", "drivers", "Tektronix", "Keithley_2700.py")];
+
+%Bundled packages whose wheels carry no licence file, which the check of the
+%bundled Python warns about otherwise. Add a package here only after checking
+%its licence allows bundling it (pyserial is BSD-3-Clause)
+cfg.Python.NoLicenceFileOK = "pyserial-3.5";
+
+%What the check of the bundled Python (CheckBundledPython) insists on: these
+%drivers must import, and at least this many of the drivers in the
+%Instruments list must (about 30 more need vendor packages, such as
+%nidaqmx, that nobody bundles - the check lists them)
+cfg.Python.RequiredDrivers = [ ...
+    "qcodes.instrument_drivers.Keithley.Keithley_2450.Keithley2450", ...
+    "qcodes.instrument_drivers.Lakeshore.Lakeshore_model_336.LakeshoreModel336", ...
+    "qcodes.instrument_drivers.Lakeshore.Lakeshore_model_372.LakeshoreModel372", ...
+    "qcodes.instrument_drivers.Keysight.Keysight_34465A_submodules.Keysight34465A", ...
+    "qcodes_contrib_drivers.drivers.BlueFors.BlueFors.BlueFors", ...
+    "qcodes_contrib_drivers.drivers.OxfordInstruments.Triton.Triton"];
+cfg.Python.MinimumImportableDrivers = 250;
 end
 
 %% Tasks
@@ -352,6 +402,17 @@ buildOpts.OutputDir = exeDir;
 BuildDebugStandalone(buildOpts, cfg);
 end
 
+function bundledPythonTask(~)
+%Build the Python bundled with the Windows standalone application, with
+%QCoDeS, in Release/Build/Python, and check that it can use QCoDeS. Run this
+%after changing the bundled Python or QCoDeS versions in Settings - deploy
+%does the same as part of building the installers, but takes far longer
+cfg = Settings();
+assert(ispc, "BuildFile:WindowsOnly", "The bundled Python is only part of the Windows standalone application.");
+pythonDir = PrepareBundledPython(fullfile(cfg.BuildFolder, cfg.InstallPython), cfg);
+CheckBundledPython(pythonDir, cfg);
+end
+
 function deployTask(~)
 cfg = Settings();
 
@@ -431,7 +492,9 @@ copyfile(cfg.IconFile, graphicsDir);
 installFiles = [cfg.DocOutput, pythonCoreDir, fullfile(exeDir, cfg.InstallExamples), ...
     cfg.InstrumentDriversFolder, graphicsDir];
 if ispc
-    installFiles(end+1) = PrepareBundledPython(fullfile(exeDir, cfg.InstallPython), cfg);
+    pythonDir = PrepareBundledPython(fullfile(exeDir, cfg.InstallPython), cfg);
+    CheckBundledPython(pythonDir, cfg);
+    installFiles(end+1) = pythonDir;
 end
 packageOpts.AdditionalFiles = cellstr(installFiles);
 
@@ -692,7 +755,8 @@ function pythonDir = PrepareBundledPython(pythonDir, cfg)
 %how to update them)
 pythonVersion = cfg.Python.Version;
 pythonSha256 = cfg.Python.Sha256;
-packages = cfg.Python.Packages;
+packages = [cfg.Python.Packages, ...
+    "qcodes==" + cfg.Python.QCoDeSVersion, "qcodes-contrib-drivers==" + cfg.Python.QCoDeSContribVersion, cfg.Python.QCoDeSDependencies];
 
 %Download, or reuse an earlier download, and check it
 zipName = "python-" + pythonVersion + "-embed-amd64.zip";
@@ -721,20 +785,93 @@ shortVersion = versionParts(1) + versionParts(2);   %e.g. 314
 writelines(["python" + shortVersion + ".zip", ".", "Lib\site-packages"], fullfile(pythonDir, "python" + shortVersion + "._pth"));
 
 %Install the packages with the build computer's Python (the one MATLAB
-%uses, else python on the PATH). They are pure Python, so this works from
-%any Python version - asking pip for packages for the bundled Python's
-%version and platform
+%uses, else python on the PATH): asking pip for packages (all binary wheels,
+%no compiling) for the bundled Python's version and platform, so this works
+%from any Python version. --no-compile because pip would compile them for
+%the build computer's Python, which is no use to the bundled one (see below)
 buildPython = string(pyenv().Executable);
 if buildPython == ""
     buildPython = "python";
 end
 sitePackages = fullfile(pythonDir, "Lib", "site-packages");
-command = """" + buildPython + """ -m pip install --disable-pip-version-check --no-deps --only-binary=:all:" ...
+command = """" + buildPython + """ -m pip install --disable-pip-version-check --no-deps --only-binary=:all: --no-compile" ...
     + " --platform win_amd64 --implementation cp --python-version " + versionParts(1) + "." + versionParts(2) ...
     + " --target """ + sitePackages + """ " + join(packages, " ");
 [status, output] = system(command);
 assert(status == 0, "BuildFile:PipInstallFailed", "%s", "Installing the bundled Python's packages failed:" + newline + string(output));
+
+%Delete the files that mustn't be bundled (see Settings), and the scripts
+%folder that pip puts the packages' command line tools in
+for file = cfg.Python.RemoveFiles
+    assert(isfile(fullfile(sitePackages, file)), "BuildFile:RemoveFileNotFound", "%s", ...
+        "Expected to find " + file + " in the bundled Python's packages, to remove it - has a QCoDeS update moved it? Update cfg.Python.RemoveFiles.");
+    delete(fullfile(sitePackages, file));
+end
+if isfolder(fullfile(sitePackages, "bin"))
+    rmdir(fullfile(sitePackages, "bin"), "s");
+end
+
+%Delete the packages' own test suites (the folders called tests or test
+%inside each package: pandas's and numpy's are about 50 MB), which nothing
+%imports when running
+allEntries = dir(fullfile(sitePackages, "**", "*"));
+isTestFolder = [allEntries.isdir] & ismember(string({allEntries.name}), ["tests", "test"]) & string({allEntries.folder}) ~= string(sitePackages);
+for entry = reshape(allEntries(isTestFolder), 1, [])
+    testFolder = fullfile(entry.folder, entry.name);
+    if isfolder(testFolder)     %Not already deleted with a parent
+        rmdir(testFolder, "s");
+    end
+end
+assert(~isempty(allEntries(isTestFolder)), "BuildFile:NoTestFolders", "Expected to find test folders to delete in the bundled Python's packages - has the way they are found stopped working?");
+
+%Compile the packages to bytecode, with the bundled Python itself, so that
+%importing them (QCoDeS is slow to import without) doesn't compile them every
+%time Palladium DAQ starts: the installation folder may not be writable, so
+%Python couldn't save what it compiled. Unchecked hashes, because the
+%installer may change the files' dates, which would make Python think the
+%bytecode was out of date
+bundledPython = fullfile(pythonDir, "python.exe");
+[status, output] = system("""" + bundledPython + """ -m compileall -q --invalidation-mode unchecked-hash """ + sitePackages + """");
+assert(status == 0, "BuildFile:CompileFailed", "%s", "Compiling the bundled Python's packages failed:" + newline + string(output));
 fprintf(1, "Bundled Python %s, with %s\n", pythonVersion, join(packages, ", "));
+end
+
+function CheckBundledPython(pythonDir, cfg)
+%Check that the bundled Python can use QCoDeS, by running Tools/CheckBundledPython.py
+%with it: the QCoDeS drivers in cfg.Python.RequiredDrivers must import, at
+%least cfg.Python.MinimumImportableDrivers of all the drivers in the
+%Instruments list must, and a driver must be able to run with no instrument
+%(which Debug mode and the Parameters tab depend on). Errors if not. Lists the
+%drivers that don't import, grouped by the package they are missing, so
+%that after a QCoDeS update the maintainer can decide whether to bundle it
+resultFile = tempname + ".json";
+settingsFile = tempname + ".json";
+cleanup = onCleanup(@() delete([resultFile, settingsFile]));
+writelines(jsonencode(struct("RequiredDrivers", cfg.Python.RequiredDrivers)), settingsFile);
+
+command = """" + fullfile(pythonDir, "python.exe") + """ """ + fullfile(cfg.ToolsFolder, "CheckBundledPython.py") + """" ...
+    + " """ + fullfile(pwd, cfg.AppFolder) + """ """ + settingsFile + """ """ + resultFile + """";
+[status, output] = system(command);
+assert(status == 0 && isfile(resultFile), "BuildFile:BundledPythonCheckFailed", "%s", "The check of the bundled Python did not run:" + newline + string(output));
+result = jsondecode(fileread(resultFile));
+
+fprintf(1, "Bundled Python check: %d QCoDeS drivers in the Instruments list, %d import.\n", result.Entries, result.Importable);
+for missing = reshape(result.MissingPackages, 1, [])
+    fprintf(1, "  %d need %s\n", missing.Count, string(missing.Name));
+end
+noLicenceFile = strings(0, 1);
+if ~isempty(result.PackagesWithoutLicence)
+    noLicenceFile = setdiff(string(result.PackagesWithoutLicence), cfg.Python.NoLicenceFileOK);
+end
+if ~isempty(noLicenceFile)
+    warning("BuildFile:BundledLicenceMissing", "%s", "These bundled packages have no licence file, so check their licences allow bundling, then add them to cfg.Python.NoLicenceFileOK: " + join(noLicenceFile, ", "));
+end
+
+assert(isempty(result.RequiredFailed), "BuildFile:RequiredDriverFailed", "%s", ...
+    "These QCoDeS drivers must import in the bundled Python, but don't: " + join(string(result.RequiredFailed), "; ") + ". Add the package they need to cfg.Python.QCoDeSDependencies.");
+assert(result.Importable >= cfg.Python.MinimumImportableDrivers, "BuildFile:TooFewDrivers", "%s", ...
+    "Only " + result.Importable + " QCoDeS drivers import in the bundled Python, fewer than the " + cfg.Python.MinimumImportableDrivers + " expected. See the list above for the packages they need, and add them to cfg.Python.QCoDeSDependencies.");
+assert(result.OfflineWorks, "BuildFile:OfflineDriverFailed", "%s", "A QCoDeS driver can't run with no instrument in the bundled Python: " + string(result.OfflineMessage));
 end
 
 function filePathsStrArray = RemoveAdditionalFiles(strIn, stringsToRemove)
