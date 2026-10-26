@@ -11,6 +11,14 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
     %know how any instrument sets them - each instrument applies those it
     %can, in its own way.
     %
+    %A Plot drop-down chooses how the finished scan is plotted: the trace
+    %against frequency, or (if the instrument's MeasUnit has Real/Imaginary)
+    %a Smith chart (RF Toolbox's smithplot - Palladium works without the
+    %toolbox, and choosing the Smith chart without it shows a warning and
+    %goes back to the trace). A Smith chart needs the real and imaginary parts, so
+    %choosing it sets the units to Real/Imaginary, locked while it is
+    %chosen; choosing the trace again puts the units back.
+    %
     %The panel is filled in from the instrument when measurements start,
     %and again after each scan (showing what the analyser actually set),
     %if the instrument has a `GetScanSettings` method returning a struct
@@ -21,13 +29,17 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
 
     %% Properties (Private)
     properties (Access = private)
-        Fields = struct();      %The settings panel's components, by setting: StartFrequency, StartFrequencyUnit, StopFrequency, StopFrequencyUnit, NumPoints, SweepTime, SweepType, MeasMode, MeasUnit
+        Fields = struct();      %The settings panel's components, by setting: StartFrequency, StartFrequencyUnit, StopFrequency, StopFrequencyUnit, NumPoints, SweepTime, SweepType, MeasMode, MeasUnit, PlotType
+        UnitsBeforeSmith = "";  %The Units chosen before the Smith chart was (which needs Real/Imaginary), to go back to when it is not
     end
 
     %% Properties (Constant, Private)
     properties (Constant, Access = private)
         FrequencyUnits = ["Hz", "kHz", "MHz", "GHz"];     %Units offered for the start and stop frequencies
         FrequencyUnitScales = [1, 1e3, 1e6, 1e9];           %Hz in one of each of FrequencyUnits
+        TracePlot = "Trace against frequency";              %PlotType drop-down item: the values against frequency
+        SmithPlot = "Smith chart";                          %PlotType drop-down item: a Smith chart (needs the instrument's Real/Imaginary units)
+        ComplexUnits = "Real/Imaginary";                    %The MeasUnit that gives the real and imaginary parts - what a Smith chart plots
     end
 
     %% Constructor
@@ -38,6 +50,127 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
 
     %% Methods (Public)
     methods (Access = public)
+
+        function SetFrequencyRange(this, start_Hz, stop_Hz)
+            %Set the start and stop frequencies, in Hz, as typed in the panel (shown in the units chosen beside them) - for sequences and scripts.
+            %Like the other Set... methods, it errors while a scan is
+            %running, and acts on the panel as typing would
+            %
+            %Inputs:
+            %   start_Hz - start frequency, in Hz
+            %   stop_Hz  - stop frequency in Hz, above the start
+
+            this.CheckNumber(start_Hz, "start_Hz", @mustBePositive, @mustBeFinite);
+            this.CheckNumber(stop_Hz, "stop_Hz", @mustBePositive, @mustBeFinite);
+            assert(stop_Hz > start_Hz, "VNAController:InvalidFrequencyRange", "%s", ...
+                "The stop frequency (" + stop_Hz + " Hz) must be above the start frequency (" + start_Hz + " Hz).");
+            this.SetStartFrequency(start_Hz);
+            this.SetStopFrequency(stop_Hz);
+        end
+
+        function SetNumberOfPoints(this, numPoints)
+            %Set the number of points per sweep, as typed in the panel (an analyser with set choices uses the nearest) - for sequences and scripts.
+            %
+            %Inputs:
+            %   numPoints - number of points, a whole number
+
+            this.CheckNumber(numPoints, "numPoints", @mustBeInteger, @mustBePositive);
+            f = this.EditableFields();
+            f.NumPoints.Value = numPoints;
+        end
+
+        function SetPlotType(this, plotType)
+            %Choose how the finished scan is plotted, as the Plot drop-down does: the trace against frequency, or a Smith chart - for sequences and scripts.
+            %A Smith chart sets the units to Real/Imaginary and locks them
+            %(the units come back when the trace is chosen); it needs RF
+            %Toolbox, and errors without it
+            %
+            %Inputs:
+            %   plotType - "Trace" or "Smith" (or the drop-down's whole text)
+
+            f = this.EditableFields();
+            wanted = lower(string(plotType));
+            if startsWith(wanted, "smith")
+                chosen = this.SmithPlot;
+            elseif startsWith(wanted, "trace")
+                chosen = this.TracePlot;
+            else
+                chosen = this.MatchItem(f.PlotType, plotType, "plot type");
+            end
+            chosen = this.MatchItem(f.PlotType, chosen, "plot type");     %One this analyser offers
+
+            f.PlotType.Value = chosen;
+            this.OnPlotTypeChanged();
+            assert(string(f.PlotType.Value) == chosen, "VNAController:PlotTypeNotSet", "%s", "The plot type was not changed to " + chosen + " (see the warning shown).");
+        end
+
+        function SetSParameter(this, sParameter)
+            %Choose the S-parameter measured (the analyser's own list, e.g. S11, S21), as the S-parameter drop-down does - for sequences and scripts.
+            %
+            %Inputs:
+            %   sParameter - e.g. "S21"
+
+            f = this.EditableFields("MeasMode");
+            f.MeasMode.Value = this.MatchItem(f.MeasMode, sParameter, "S-parameter");
+        end
+
+        function SetStartFrequency(this, freq_Hz)
+            %Set the start frequency, in Hz, as typed in the panel (shown in the units chosen beside it) - for sequences and scripts.
+            %
+            %Inputs:
+            %   freq_Hz - start frequency, in Hz
+
+            this.CheckNumber(freq_Hz, "freq_Hz", @mustBePositive, @mustBeFinite);
+            f = this.EditableFields();
+            f.StartFrequency.Value = freq_Hz / this.UnitScale(f.StartFrequencyUnit);
+        end
+
+        function SetStopFrequency(this, freq_Hz)
+            %Set the stop frequency, in Hz, as typed in the panel (shown in the units chosen beside it) - for sequences and scripts.
+            %Checked to be above the start frequency when the scan runs
+            %
+            %Inputs:
+            %   freq_Hz - stop frequency, in Hz
+
+            this.CheckNumber(freq_Hz, "freq_Hz", @mustBePositive, @mustBeFinite);
+            f = this.EditableFields();
+            f.StopFrequency.Value = freq_Hz / this.UnitScale(f.StopFrequencyUnit);
+        end
+
+        function SetSweepTime(this, time_s)
+            %Set the sweep time, in seconds (0 for automatic, the fastest the analyser can), as typed in the panel - for sequences and scripts.
+            %
+            %Inputs:
+            %   time_s - sweep time in seconds
+
+            this.CheckNumber(time_s, "time_s", @mustBeNonnegative, @mustBeFinite);
+            f = this.EditableFields();
+            f.SweepTime.Value = time_s;
+        end
+
+        function SetSweepType(this, sweepType)
+            %Choose linear or logarithmic frequency steps, as the Sweep type drop-down does - for sequences and scripts.
+            %
+            %Inputs:
+            %   sweepType - "Linear" or "Log"
+
+            f = this.EditableFields();
+            f.SweepType.Value = this.MatchItem(f.SweepType, sweepType, "sweep type");
+        end
+
+        function SetUnits(this, units)
+            %Choose the units of the scan values (the analyser's own list, e.g. dB, Absolute, Real/Imaginary), as the Units drop-down does - for sequences and scripts.
+            %Errors while the Smith chart is the plot type, which keeps the
+            %units at Real/Imaginary
+            %
+            %Inputs:
+            %   units - e.g. "dB"
+
+            f = this.EditableFields("MeasUnit");
+            assert(~this.SmithChosen(), "VNAController:UnitsLocked", "%s", ...
+                "The units are Real/Imaginary while the plot type is the Smith chart. Change the plot type (SetPlotType) first.");
+            f.MeasUnit.Value = this.MatchItem(f.MeasUnit, units, "units");
+        end
 
         function OnScanAbort(this)
             OnScanAbort@Palladium.Instruments.Controls.ScanController(this);
@@ -99,7 +232,7 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
             parentGrid.RowHeight{row} = "fit";
             panel = uipanel(parentGrid, "Title", "Analyser Settings - sent on each Run", "FontName", "Georgia", "FontSize", 14);
             panel.Layout.Row = row;
-            grid = uigridlayout(panel, [7, 3], "ColumnWidth", {200, 160, 70}, "RowHeight", repmat({26}, 1, 7), "RowSpacing", 6);
+            grid = uigridlayout(panel, [8, 3], "ColumnWidth", {200, 160, 70}, "RowHeight", repmat({26}, 1, 8), "RowSpacing", 6);
 
             f.StartFrequency = this.AddNumberField(grid, 1, "Start frequency", "Start of the frequency sweep, in the units beside it", [0, Inf], "%.9g");
             f.StartFrequencyUnit = this.AddUnitDropDown(grid, 1, f.StartFrequency);
@@ -120,6 +253,14 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
                 f.MeasUnit = this.AddDropDown(grid, 7, "Units", "The units (display format) of the measured values", string(categories(instr.MeasUnit)));
                 f.MeasUnit.Value = string(instr.MeasUnit);
             end
+
+            %How the scan is plotted - a Smith chart only if the instrument can give the complex values
+            plotTypes = this.TracePlot;
+            if isfield(f, "MeasUnit") && any(string(f.MeasUnit.Items) == this.ComplexUnits)
+                plotTypes = [plotTypes, this.SmithPlot];
+            end
+            f.PlotType = this.AddDropDown(grid, 8, "Plot", "How the finished scan is plotted. A Smith chart needs the real and imaginary parts, so it sets the units to Real/Imaginary", plotTypes);
+            f.PlotType.ValueChangedFcn = @(~, ~) this.OnPlotTypeChanged();
             this.Fields = f;
 
             %Start from the instrument's settings, if it is already connected
@@ -133,7 +274,7 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
             if isfield(f, "MeasMode") && isvalid(f.MeasMode)
                 f.MeasMode.Value = string(this.Instrument.MeasMode);
             end
-            if isfield(f, "MeasUnit") && isvalid(f.MeasUnit)
+            if isfield(f, "MeasUnit") && isvalid(f.MeasUnit) && ~this.SmithChosen()
                 f.MeasUnit.Value = string(this.Instrument.MeasUnit);
             end
         end
@@ -148,6 +289,41 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
 
     %% Methods (Private)
     methods (Access = private)
+
+        function CheckNumber(~, value, name, varargin)
+            %Error unless value is a single real number that passes each of the validation functions (e.g. @mustBePositive).
+
+            assert(isnumeric(value) && isscalar(value) && isreal(value), "VNAController:NotANumber", "%s", name + " must be a single number.");
+            for validate = varargin
+                validate{1}(value);
+            end
+        end
+
+        function f = EditableFields(this, requiredField)
+            %The settings panel's components, once it is known that they can be changed: the panel exists, has the field asked for, and no scan is running.
+
+            arguments
+                this;
+                requiredField {mustBeTextScalar} = "";
+            end
+
+            f = this.Fields;
+            assert(~isempty(fieldnames(f)), "VNAController:NoPanel", "%s", "The VNA Control has no settings panel to change.");
+            assert(strlength(requiredField) == 0 || isfield(f, requiredField), "VNAController:NotOffered", "%s", ...
+                "This analyser does not offer " + requiredField + " in the VNA Control.");
+            assert(~this.Running, "VNAController:ScanRunning", "%s", "The settings cannot be changed while a scan is running - Abort it, or wait for it to finish.");
+        end
+
+        function item = MatchItem(~, dropDown, choice, what)
+            %The drop-down item that is choice (ignoring case) - errors, listing the items, if there is none.
+
+            items = string(dropDown.Items);
+            match = find(strcmpi(items, string(choice)), 1);
+            if isempty(match)
+                error("VNAController:UnknownChoice", "%s", "Unknown " + what + " """ + string(choice) + """ - choose from: " + strjoin(items, ", ") + ".");
+            end
+            item = items(match);
+        end
 
         function field = AddNumberField(~, grid, row, labelText, tooltip, limits, displayFormat)
             %A labelled number field in a row of the settings grid.
@@ -217,7 +393,9 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
             setIf("SweepTime_s", f.SweepTime, 1);
             pickIf("SweepType", "SweepType");
             pickIf("MeasMode", "MeasMode");
-            pickIf("MeasUnit", "MeasUnit");
+            if ~this.SmithChosen()
+                pickIf("MeasUnit", "MeasUnit");     %A Smith chart keeps its Real/Imaginary
+            end
 
             function setIf(name, field, scale)
                 %A number field, if the setting is there and a number
@@ -234,13 +412,50 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
             end
         end
 
+        function OnPlotTypeChanged(this)
+            %The Plot drop-down changed: a Smith chart sets the units to Real/Imaginary and locks them, and the last scan is plotted again.
+
+            f = this.Fields;
+            if this.SmithChosen() && ~Palladium.Utilities.GUIUtils.IsSmithPlotAvailable()
+                %Palladium runs without RF Toolbox - only this plot needs it. Go back to the trace
+                f.PlotType.Value = this.TracePlot;
+                Palladium.Utilities.GUIUtils.ShowWarning(f.PlotType, "The Smith chart needs [RF Toolbox](https://www.mathworks.com/products/rftoolbox.html), an add-on toolbox for MATLAB that is not installed or licensed on this computer." + newline + newline + ...
+                    "Install it from that link, or with MATLAB's Add-On Explorer, to use the Smith chart. Until then the plot stays as a trace against frequency.", "Smith chart unavailable");
+                return;
+            end
+            if this.SmithChosen()
+                if string(f.MeasUnit.Value) ~= this.ComplexUnits
+                    this.UnitsBeforeSmith = string(f.MeasUnit.Value);
+                end
+                f.MeasUnit.Value = this.ComplexUnits;
+                f.MeasUnit.Enable = false;
+                this.SetPlotKind("Smith");
+            else
+                if strlength(this.UnitsBeforeSmith) > 0 && any(string(f.MeasUnit.Items) == this.UnitsBeforeSmith)
+                    f.MeasUnit.Value = this.UnitsBeforeSmith;
+                end
+                this.UnitsBeforeSmith = "";
+                f.MeasUnit.Enable = true;
+                this.SetPlotKind("Scatter");
+            end
+        end
+
+        function chosen = SmithChosen(this)
+            %True if the Plot drop-down says Smith chart.
+
+            chosen = isfield(this.Fields, "PlotType") && isvalid(this.Fields.PlotType) && string(this.Fields.PlotType.Value) == this.SmithPlot;
+        end
+
         function SetFieldsEnabled(this, enabled)
-            %Enable or disable all the settings fields.
+            %Enable or disable all the settings fields - except the units while a Smith chart needs them to stay Real/Imaginary.
 
             for name = string(fieldnames(this.Fields))'
                 if isvalid(this.Fields.(name))
                     this.Fields.(name).Enable = enabled;
                 end
+            end
+            if enabled && this.SmithChosen()
+                this.Fields.MeasUnit.Enable = false;
             end
         end
 

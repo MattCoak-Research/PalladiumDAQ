@@ -12,7 +12,8 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
     %Before each sweep the driver selects a measurement on channel 1 of the
     %S-parameter in `MeasMode` - if channel 1 has none, its first
     %measurement is changed to that parameter - and sets the display format
-    %for `MeasUnit` (log magnitude for dB, linear magnitude for Absolute).
+    %for `MeasUnit` (log magnitude for dB, linear magnitude for Absolute, polar
+    %- real and imaginary parts, for a Smith chart - for Real/Imaginary).
     %The tab starts from the analyser's own settings (`GetScanSettings`).
     %Set the trigger source to Internal on the instrument.
     %
@@ -31,7 +32,7 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
         Name = 'PNA';                                           %Instrument name, used as the prefix of its scan data column headers
         Connection_Type = Palladium.Enums.ConnectionType.GPIB;  %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         MeasMode;                                               %S-parameter measured: S11, S21, S12 or S22 - a measurement of it is selected on channel 1 before each sweep
-        MeasUnit;                                               %dB (log magnitude) or Absolute (linear magnitude) - the display format is set to match before each sweep
+        MeasUnit;                                               %dB (log magnitude), Absolute (linear magnitude) or Real/Imaginary (the complex value, for a Smith chart) - the display format is set to match before each sweep
     end
 
     %% Properties (Private)
@@ -45,7 +46,7 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
     %% Categoricals
     methods
         function catOut = MeasType(this, inputStr);        catOut = this.ConvertToCategorical(inputStr, ["S11", "S21", "S12", "S22"]); end
-        function catOut = MeasUnitType(this, inputStr);    catOut = this.ConvertToCategorical(inputStr, ["dB", "Absolute"]); end
+        function catOut = MeasUnitType(this, inputStr);    catOut = this.ConvertToCategorical(inputStr, ["dB", "Absolute", "Real/Imaginary"]); end
     end
 
     %% Constructor
@@ -151,6 +152,13 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
             %          values per point, real and imaginary, for Polar and Smith chart formats)
 
             if this.SimulationMode
+                if this.MeasUnit == this.MeasUnitType("Real/Imaginary")
+                    %Two values per point, real then imaginary, as from the instrument
+                    gamma = Palladium.Utilities.MathsUtils.SimulatedReflection(this.GetNumPoints);
+                    data = reshape([real(gamma), imag(gamma)]', 1, []);
+                    return;
+                end
+
                 %One value per point, as from the instrument
                 data = this.GenerateSimulatedData(this.GetNumPoints, 1, Baseline=1, Variance=0.04);
                 data = data(:)';
@@ -195,7 +203,11 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
             %   format - the format's short form (string)
 
             if this.SimulationMode
-                format = "MLOG";
+                if this.MeasUnit == this.MeasUnitType("Real/Imaginary")
+                    format = "POL";
+                else
+                    format = "MLOG";
+                end
                 return;
             end
 
@@ -310,6 +322,7 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
                     switch this.GetDisplayFormat()
                         case "MLOG";    measUnit = "dB";
                         case "MLIN";    measUnit = "Absolute";
+                        case "POL";     measUnit = "Real/Imaginary";
                     end
                 end
             end
@@ -604,7 +617,7 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
         end
 
         function SetDisplayFormat(this)
-            %Set the selected measurement's display format for MeasUnit: log magnitude (dB) or linear magnitude (Absolute).
+            %Set the selected measurement's display format for MeasUnit: log magnitude (dB), linear magnitude (Absolute) or polar, which gives real and imaginary parts (Real/Imaginary).
 
             if this.SimulationMode
                 return;
@@ -613,6 +626,7 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
             switch(this.MeasUnit)
                 case(this.MeasUnitType("dB"));          this.WriteCommand("CALC1:FORM MLOG");
                 case(this.MeasUnitType("Absolute"));    this.WriteCommand("CALC1:FORM MLIN");
+                case(this.MeasUnitType("Real/Imaginary")); this.WriteCommand("CALC1:FORM POL");
             end
         end
 

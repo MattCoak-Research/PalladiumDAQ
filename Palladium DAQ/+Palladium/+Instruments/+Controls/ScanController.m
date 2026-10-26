@@ -46,6 +46,7 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
     properties (Access = private)
         Data;
         Plotter;
+        PlotKind = "Scatter";       %How the Simple plotter draws a finished scan: Scatter (the values against frequency) or Smith (a Smith chart of data with real and imaginary columns) - see SetPlotKind
         DataWriter;
         CachedData = [];            %CachedData for the last iteration, ready to be written (need to wait until data fomr other instruments come in)
     end
@@ -53,12 +54,24 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
     %% Constructor
     methods
         function this = ScanController()
-            this.RegisterCommandCompleteQuery("ScanRun", @this.IsComplete);
+            this.RegisterCommandCompleteQuery("Run", @this.IsComplete);
         end
     end
 
     %% Methods (Public)
     methods (Access = public)
+
+        function Abort(this)
+            %Abort the scan under way, as if the Run button (which reads Abort during a scan) were pressed - for sequences and scripts.
+            %It goes through the scan panel, so the button, the settings
+            %fields and the plot update exactly as they do for a press.
+            %Does nothing if no scan is running
+
+            if ~this.Running
+                return;
+            end
+            this.GUIView.Abort();
+        end
 
         function ClearData(this)
             this.Data.X = [];
@@ -99,8 +112,8 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             this.CreateSettingsPanel(scrollableGrid, 3);
 
             %Subscribe to events
-            this.AddGuardedListener(comp, 'RunPushed', @(src,evnt)this.ScanRun(src, evnt));
-            this.AddGuardedListener(comp, 'AbortPushed', @(src,evnt)this.ScanAbort(src, evnt));
+            this.AddGuardedListener(comp, 'RunPushed', @(src,evnt)this.OnRunPushed(src, evnt));
+            this.AddGuardedListener(comp, 'AbortPushed', @(src,evnt)this.OnAbortPushed(src, evnt));
             this.AddGuardedListener(comp, 'InsertSmartTag', @(src,evnt)this.InsertSmartTagRequest(src, evnt, controller));
             this.AddGuardedListener(comp, 'ScanDataChange', @(src,evnt)this.ScanDataChanged(src, evnt));
 
@@ -140,7 +153,7 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
         end
 
         function complete = IsComplete(this)
-            %For a sequence's ScanRun: true once the scan has been saved
+            %For a sequence's Run: true once the scan has been saved
             %(by ScanComplete) or aborted - not just when the Instrument
             %has finished it, so the next command cannot run first
             complete = ~this.Running;
@@ -192,11 +205,26 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             this.Starting = false;
         end
 
-        function ScanAbort(this, ~, ~)
-            this.Running = false;
-            this.Starting = false;
-            this.TimeElapsed_s = 0;
-            this.OnScanAbort();
+        function Run(this)
+            %Start a scan, as if the Run button were pressed - for sequences and scripts.
+            %It goes through the scan panel, so the button, the settings
+            %fields and the plot update exactly as they do for a press, and
+            %the same checks are made (e.g. a sweep name when saving to a
+            %file, which the panel shows a warning about). In a sequence the
+            %command waits until the scan has been saved or aborted. Set the
+            %scan up first with the Set... methods (a VNAController has
+            %them for the sweep). Errors if a scan is already running or
+            %this one could not be started
+
+            if this.Running
+                error("ScanController:AlreadyRunning", "%s", "A scan is already running - Abort it, or wait for it to finish, before starting another.");
+            end
+
+            this.GUIView.Run();
+
+            if ~this.Running
+                error("ScanController:ScanNotStarted", "%s", "The scan did not start - see the warning or error that was shown (e.g. a missing sweep name, or the analyser not being connected: start the measurements first).");
+            end
         end
 
         function ScanComplete(this)
@@ -216,12 +244,7 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
                 this.InsertEndMetadataIntoFile(this.DataWriter);
             end
 
-            switch(this.PlotterType)
-                case("Simple")
-                    this.Plotter.PlotData(this.DataArray(:,1), this.DataArray(:,2));
-                case("Default")
-                    this.Plotter.PlotData(this.DataArray);
-            end
+            this.PlotScanData(this.DataArray);
 
             %Update GUI and settings
             this.OnScanComplete();
@@ -239,34 +262,38 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             this.GUIView.OnScanDataChanged(this.ControlDetailsStruct.SweepDetails);
         end
 
-        function ScanRun(this, ~, ~)
-            %Not checked for completion (UpdateData) until OnScanRun has
-            %started the data file - a tick can run part-way through (e.g.
-            %while the window updates), and would save the data before the
-            %scan's settings or file exist
-            this.Starting = true;
-            this.Running = true;
-            this.TimeElapsed_s = 0;
-            this.timerVal = tic();
-
-            try
-                this.OnScanRun();
-            catch err
-                %A scan that could not be set up (eg it has no file name to
-                %save to) must not carry on as if it were running
-                try
-                    this.ScanAbort([], []);
-                catch
-                    this.Running = false;   %Whatever else fails, make sure of this
-                end
-                rethrow(err);
-            end
-        end
-
         function RemoveControl(this, ~)
             %Delete GUI objects
             delete(this.GUIView);
             this.GUIView = [];
+        end
+
+        function SetContinuous(this, continuous)
+            %Tick or untick Continuous (start the next scan as soon as one finishes) - for sequences and scripts.
+            %
+            %Inputs:
+            %   continuous - true or false
+
+            this.GUIView.SetContinuous(this.ToLogical(continuous, "continuous"));
+        end
+
+        function SetSaveSweepFile(this, saveToFile)
+            %Tick or untick Save to new file - each scan then writes its own data file, named by SetSweepName - for sequences and scripts.
+            %
+            %Inputs:
+            %   saveToFile - true or false
+
+            this.GUIView.SetSaveToFile(this.ToLogical(saveToFile, "saveToFile"));
+        end
+
+        function SetSweepName(this, name)
+            %Set the name of each scan's own file (Save to new file), as typed in the panel - for sequences and scripts.
+            %
+            %Inputs:
+            %   name - the sweep name, which follows the main file name
+
+            mustBeTextScalar(name);
+            this.GUIView.SetNewSweepName(string(name));
         end
 
         function UnlockRunButton(this)
@@ -313,6 +340,73 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             %   row        - the row of parentGrid to put them in
         end
 
+        function OnAbortPushed(this, ~, ~)
+            %The panel's Abort was pressed (or Abort called): stop the scan and put the panel back to ready.
+            %An event handler - sequences and scripts call Abort, which comes here through the panel
+
+            this.Running = false;
+            this.Starting = false;
+            this.TimeElapsed_s = 0;
+            this.OnScanAbort();
+        end
+
+        function OnRunPushed(this, ~, ~)
+            %The panel's Run was pressed (or Run called): start the scan.
+            %An event handler - sequences and scripts call Run, which comes here through the panel
+
+            %Not checked for completion (UpdateData) until OnScanRun has
+            %started the data file - a tick can run part-way through (e.g.
+            %while the window updates), and would save the data before the
+            %scan's settings or file exist
+            this.Starting = true;
+            this.Running = true;
+            this.TimeElapsed_s = 0;
+            this.timerVal = tic();
+
+            try
+                this.OnScanRun();
+            catch err
+                %A scan that could not be set up (eg it has no file name to
+                %save to) must not carry on as if it were running
+                try
+                    this.OnAbortPushed([], []);
+                catch
+                    this.Running = false;   %Whatever else fails, make sure of this
+                end
+                rethrow(err);
+            end
+        end
+
+        function SetPlotKind(this, kind)
+            %Change how the finished scan is plotted, and replot the last scan that way - e.g. a subclass's plot type drop-down.
+            %Only for the Simple plotter (the Default one has its own axis
+            %selections). Scatter plots the values against frequency
+            %(every column after the first, as a separate series); Smith
+            %plots a Smith chart of the real and imaginary columns, so
+            %needs data with three columns (frequency, real, imaginary)
+            %
+            %Inputs:
+            %   kind - "Scatter" or "Smith"
+
+            arguments
+                this;
+                kind {mustBeMember(kind, ["Scatter", "Smith"])};
+            end
+
+            this.PlotKind = kind;
+            if this.PlotterType ~= "Simple" || isempty(this.Plotter) || ~isvalid(this.Plotter)
+                return;
+            end
+            this.Plotter.SetPlotKind(kind);
+
+            %Replot the last scan the new way - unless it can't be shown that way (a Smith chart
+            %needs real and imaginary columns), when the plot stays empty until the next scan
+            canReplot = ~this.Running && ~isempty(this.DataArray) && (kind ~= "Smith" || size(this.DataArray, 2) >= 3);
+            if canReplot
+                this.PlotScanData(this.DataArray);
+            end
+        end
+
         function OnInstrumentPropertyChanged(this) %#ok<MANU>
             %Called when one of the instrument's settings changes (e.g. in Instrument Options) - override to use it.
             %Does nothing by default
@@ -343,6 +437,36 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
 
     %% Methods (Private)
     methods (Access = private)
+
+        function PlotScanData(this, data)
+            %Show a finished scan in the plotter, drawn as PlotKind says.
+            %A Smith plot of data without real and imaginary columns is left
+            %empty, with a warning (SetPlotKind and the VNA Control's units
+            %keep that from happening)
+
+            switch(this.PlotterType)
+                case("Simple")
+                    if this.PlotKind == "Smith"
+                        if size(data, 2) >= 3
+                            this.Plotter.PlotData(data(:,2), data(:,3));
+                        else
+                            this.Plotter.ClearData();
+                            Palladium.Logging.Logger.Log("Warning", "The Smith chart needs the scan's real and imaginary parts, but its data has only " + size(data, 2) + " columns - choose Real/Imaginary units.");
+                        end
+                    else
+                        this.Plotter.PlotData(data(:,1), data(:,2:min(end, 5)));
+                    end
+                case("Default")
+                    this.Plotter.PlotData(data);
+            end
+        end
+
+        function tf = ToLogical(~, value, name)
+            %True or false from a logical or a 0/1 - errors for anything else.
+
+            assert((islogical(value) || isnumeric(value)) && isscalar(value), "ScanController:NotTrueOrFalse", "%s", name + " must be true or false.");
+            tf = logical(value);
+        end
 
         function StartScanDataFile(this, writeToFile)
             %Write the new scan data file's metadata and headers, with the DataWriter made in OnScanRun.

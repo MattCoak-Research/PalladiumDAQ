@@ -139,6 +139,35 @@ classdef test_PNA_L < matlab.unittest.TestCase
             testCase.verifyEqual(units, ["Hz", "", ""]);
         end
 
+        function RealImaginaryUnitsSetThePolarFormatTest(testCase)
+            %A Smith chart needs the real and imaginary parts - polar format gives them
+            [instr, connection] = testCase.makeInstrument();
+            connection.QueryResponses("CALC1:PAR:CAT?") = """CH1_S11_1,S11""";
+            instr.MeasUnit = instr.MeasUnitType("Real/Imaginary");
+
+            instr.RunScan();
+
+            testCase.verifyEqual(connection.WrittenCommands(2), "CALC1:FORM POL");
+        end
+
+        function RealImaginarySimulatedScanTest(testCase)
+            %In Debug mode: three columns (frequency, real, imaginary) inside the Smith chart, with headers to match
+            instr = Palladium.Instruments.PNA_L_NetworkAnalyser();
+            instr.Connection_Type = Palladium.Enums.ConnectionType.Debug;
+            instr.MeasUnit = instr.MeasUnitType("Real/Imaginary");
+            evalc("instr.Connect()");
+
+            instr.RunScan();
+            pause(0.3);
+            data = instr.GetCompletedScanData();
+            headers = instr.GetScanHeaders();
+
+            testCase.verifySize(data, [20, 3]);
+            testCase.verifyLessThan(max(hypot(data(:, 2), data(:, 3))), 1);
+            testCase.verifyEqual(headers, "PNA - " + ["Frequency_Hz", "S11 Real", "S11 Imaginary"]);
+            testCase.verifyEqual(string(instr.GetScanSettings().MeasUnit), "Real/Imaginary");
+        end
+
         function OneValueFormatHeadersTest(testCase)
             [instr, connection] = testCase.makeInstrument();
             connection.QueryResponses("CALCulate1:FORMat?") = "MLOG";

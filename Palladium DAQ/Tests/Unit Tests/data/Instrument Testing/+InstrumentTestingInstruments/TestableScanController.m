@@ -8,5 +8,15 @@ classdef TestableScanController < Palladium.Instruments.Controls.ScanController
             this.Instrument = instrument;
             this.ControlDetailsStruct = struct("Name", "Scan");
         end
+
+        function PressRunForTest(this)
+            %What the panel's RunPushed event does (the handler is protected, and a guarded listener would swallow its errors)
+            this.OnRunPushed([], []);
+        end
+
+        function PressAbortForTest(this)
+            %What the panel's AbortPushed event does
+            this.OnAbortPushed([], []);
+        end
     end
 end

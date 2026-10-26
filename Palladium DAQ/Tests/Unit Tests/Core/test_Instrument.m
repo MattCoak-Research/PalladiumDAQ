@@ -711,6 +711,17 @@ classdef test_Instrument < matlab.unittest.TestCase
             testCase.verifyErrorWithMessage(@() testCase.Instrument.GrabMetadataString(), "GrabMetadataStringError:MetadataNotStruct", "not Struct on Instrument Stub");
         end
 
+        function test_CreateSetupControls_AddsNothingByDefaultTest(testCase)
+            fig = uifigure("Visible", "off");
+            testCase.addTeardown(@() delete(fig));
+            panel = uipanel(fig);
+
+            height = testCase.Instrument.CreateSetupControls(panel);
+
+            testCase.verifyEqual(height, 0, "No area asked for");
+            testCase.verifyEmpty(panel.Children);
+        end
+
         %% Instrument Control definitions
         function test_GetAvailableControlOptions_EmptyByDefaultTest(testCase)
             testCase.verifyEmpty(testCase.Instrument.GetAvailableControlOptions());

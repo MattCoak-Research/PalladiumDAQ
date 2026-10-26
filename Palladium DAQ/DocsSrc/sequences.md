@@ -88,8 +88,25 @@ Each command runs when the previous one has finished. Most instrument commands f
 
 * PPMS `SetTemperature(...)` and `SetField(...)` wait until the temperature or field is stable
 * An Instrument Control's `SweepRun()` waits until the sweep is complete
+* A network analyser's VNA Control `Run()` waits until the scan has been saved (or aborted)
 
 `[RUN]` commands are expanded when the sequence starts, so a nested sequence's commands run in its place. When the last command finishes, the Run Sequence button is enabled again. **Abort Sequence** clears the remaining commands and stops the one that is running.
+
+## Scanning with a network analyser
+
+A VNA Control (the Instrument Control of the PNA-L, HP 8722ES and PicoVNA) can be driven from a sequence. Its commands act on the VNA Control's tab exactly as if you had used it, so the Run button turns to Abort, the settings lock while a scan runs, and the plot updates when it finishes:
+
+| Command | What it does |
+| --- | --- |
+| `SetFrequencyRange(start_Hz, stop_Hz)`, `SetStartFrequency(freq_Hz)`, `SetStopFrequency(freq_Hz)` | The sweep's frequencies, in Hz |
+| `SetNumberOfPoints(numPoints)`, `SetSweepTime(time_s)`, `SetSweepType(sweepType)` | Points, sweep time (0 for automatic), `Linear` or `Log` |
+| `SetSParameter(sParameter)`, `SetUnits(units)` | e.g. `S21`, and `dB`, `Absolute` or `Real/Imaginary` |
+| `SetPlotType(plotType)` | `Trace` or `Smith` (a Smith chart sets the units to `Real/Imaginary`, and needs RF Toolbox) |
+| `SetSaveSweepFile(saveToFile)`, `SetSweepName(name)` | Whether each scan is saved to its own file, and its name |
+| `Run()` | Starts a scan, and waits until it has been saved |
+| `Abort()` | Stops the scan under way |
+
+The settings are checked as they are set (an unknown S-parameter, or a stop frequency below the start, is an error) and cannot be changed while a scan is running. Measurements must be running, so that the analyser is connected, before `Run()`.
 
 ## From a script
 

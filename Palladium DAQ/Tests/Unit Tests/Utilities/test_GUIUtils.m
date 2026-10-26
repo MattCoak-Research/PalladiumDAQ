@@ -26,6 +26,18 @@ classdef test_GUIUtils < matlab.unittest.TestCase
     %% Tests
     methods (Test)
 
+        %% IsSmithPlotAvailable
+        function test_IsSmithPlotAvailable_FollowsTheToolboxTest(testCase)
+            testCase.assumeTrue(exist("smithplot", "file") > 0, "Needs RF Toolbox, to take away");
+            testCase.verifyTrue(Palladium.Utilities.GUIUtils.IsSmithPlotAvailable());
+
+            folder = fileparts(which("smithplot"));
+            rmpath(folder);
+            testCase.addTeardown(@() addpath(folder));
+
+            testCase.verifyFalse(Palladium.Utilities.GUIUtils.IsSmithPlotAvailable());
+        end
+
         %% ComputePropertyList
         function test_ComputePropertyList_WithEmptyInstrument(testCase)
             instrument = [];
@@ -145,6 +157,12 @@ classdef test_GUIUtils < matlab.unittest.TestCase
             %Trailing punctuation is not part of the link
             html = Palladium.Utilities.GUIUtils.MessageToHTML("See https://www.qdusa.com/pharos/.");
             testCase.verifyEqual(html, "See <a href=""https://www.qdusa.com/pharos/"">https://www.qdusa.com/pharos/</a>.");
+        end
+
+        function test_MessageToHTML_MakesNamedLinks(testCase)
+            %[text](address) shows the text, and the address isn't linked a second time
+            html = Palladium.Utilities.GUIUtils.MessageToHTML("Needs [RF Toolbox](https://www.mathworks.com/products/rftoolbox.html), and see https://example.com.");
+            testCase.verifyEqual(html, "Needs <a href=""https://www.mathworks.com/products/rftoolbox.html"">RF Toolbox</a>, and see <a href=""https://example.com"">https://example.com</a>.");
         end
 
         %% GreekToLaTeX

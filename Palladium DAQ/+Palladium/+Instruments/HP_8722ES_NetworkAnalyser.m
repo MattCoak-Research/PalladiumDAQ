@@ -36,7 +36,7 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
         Name = 'HP_8722ES_NetworkAnalyser';                     %Instrument name, used as the prefix of its scan data column headers
         Connection_Type = Palladium.Enums.ConnectionType.GPIB;  %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
         MeasMode;                                               %S-parameter to measure: S11, S21, S12 or S22 - selected on the analyser before each sweep
-        MeasUnit;                                               %dB (log magnitude) or Absolute (linear magnitude) - the display format is set to match before each sweep
+        MeasUnit;                                               %dB (log magnitude), Absolute (linear magnitude) or Real/Imaginary (the complex value, for a Smith chart) - the display format is set to match before each sweep
     end
 
     %% Properties (Private)
@@ -49,7 +49,7 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
     %% Categoricals
     methods
         function catOut = MeasType(this, inputStr);        catOut = this.ConvertToCategorical(inputStr, ["S11", "S21", "S12", "S22"]); end
-        function catOut = MeasUnitType(this, inputStr);    catOut = this.ConvertToCategorical(inputStr, ["dB", "Absolute"]); end
+        function catOut = MeasUnitType(this, inputStr);    catOut = this.ConvertToCategorical(inputStr, ["dB", "Absolute", "Real/Imaginary"]); end
     end
 
     %% Constructor
@@ -126,11 +126,19 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
             %(see QueryNumbers), so every point is read, not just the first
             %
             %Outputs:
-            %   data - one row per point: [frequency in Hz, S-parameter in MeasUnit]
+            %   data - one row per point: [frequency in Hz, S-parameter in MeasUnit], or
+            %          [frequency in Hz, real, imaginary] for Real/Imaginary (polar format,
+            %          where OUTPFORM gives the real and imaginary parts)
 
+            complexValues = this.MeasUnit == this.MeasUnitType("Real/Imaginary");
             if this.SimulationMode
                 numPoints = this.GetNumPoints();
                 frequency = linspace(this.GetStartFrequency(), this.GetStopFrequency(), numPoints)';
+                if complexValues
+                    gamma = Palladium.Utilities.MathsUtils.SimulatedReflection(numPoints);
+                    data = [frequency, real(gamma), imag(gamma)];
+                    return;
+                end
                 values = this.GenerateSimulatedData(numPoints, 1, Baseline=-3, Variance=0.1);
                 data = [frequency, values(:)];
                 return;
@@ -146,7 +154,11 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
             frequency = limits(1:4:end);
             assert(numel(values) == numel(frequency), "HP_8722ES_NetworkAnalyser:DataSizeMismatch", "%s", ...
                 this.Name + ": the trace has " + numel(values) + " points but the frequency list " + numel(frequency) + ".");
-            data = [frequency(:), values(:)];
+            if complexValues
+                data = [frequency(:), values(:), reshape(trace(2:2:end), [], 1)];
+            else
+                data = [frequency(:), values(:)];
+            end
         end
 
         function [Headers, Units] = GetHeaders(~)
@@ -164,9 +176,15 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
             %Column headers and units of the scan data files written by the Scan Control tab.
             %
             %Outputs:
-            %   Headers - frequency and S-parameter headers, e.g. "HP_8722ES_NetworkAnalyser - S11 (dB)"
+            %   Headers - frequency and S-parameter headers, e.g. "HP_8722ES_NetworkAnalyser - S11 (dB)",
+            %             or "... - S11 Real" and "... - S11 Imaginary" for Real/Imaginary
             %   Units   - their units: "Hz", and "dB" or "" for the S-parameter
 
+            if this.MeasUnit == this.MeasUnitType("Real/Imaginary")
+                Headers = [this.Name + " - Frequency_Hz", this.Name + " - " + string(this.MeasMode) + " Real", this.Name + " - " + string(this.MeasMode) + " Imaginary"];
+                Units = ["Hz", "", ""];
+                return;
+            end
             Headers = [this.Name + " - Frequency_Hz", this.Name + " - " + string(this.MeasMode) + " (" + string(this.MeasUnit) + ")"];
             if this.MeasUnit == this.MeasUnitType("dB")
                 Units = ["Hz", "dB"];
@@ -217,6 +235,8 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
                     measUnit = "dB";
                 elseif this.QueryDouble("LINM?;") == 1
                     measUnit = "Absolute";
+                elseif this.QueryDouble("POLA?;") == 1
+                    measUnit = "Real/Imaginary";
                 end
             end
             settings.MeasMode = measMode;
@@ -365,13 +385,14 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
         end
 
         function command = DisplayFormatCommand(this)
-            %The display format command for MeasUnit: LOGM (log magnitude, dB) or LINM (linear magnitude).
+            %The display format command for MeasUnit: LOGM (log magnitude, dB), LINM (linear magnitude) or POLA (polar, whose OUTPFORM data is real and imaginary parts).
 
             switch(this.MeasUnit)
                 case(this.MeasUnitType("dB"));          command = "LOGM";
                 case(this.MeasUnitType("Absolute"));    command = "LINM";
+                case(this.MeasUnitType("Real/Imaginary")); command = "POLA";
                 otherwise
-                    error("HP_8722ES_NetworkAnalyser:InvalidMeasUnit", "%s", "MeasUnit must be dB or Absolute, received " + string(this.MeasUnit));
+                    error("HP_8722ES_NetworkAnalyser:InvalidMeasUnit", "%s", "MeasUnit must be dB, Absolute or Real/Imaginary, received " + string(this.MeasUnit));
             end
         end
 

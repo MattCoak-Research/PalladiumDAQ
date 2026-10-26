@@ -7,11 +7,22 @@ classdef GUIUtils
     %makes any text (e.g. a column header) show as typed in LaTeX-interpreted
     %labels (`GreekToLaTeX` converts just the Greek letters),
     %`ChooseFromList` asks the user to pick one item from a list,
-    %`ChooseFile` asks for a file or folder, and `ShowWarning` shows a
+    %`ChooseFile` asks for a file or folder, `IsSmithPlotAvailable` says
+    %whether RF Toolbox's Smith chart can be used, and `ShowWarning` shows a
     %warning in the window it concerns.
 
     %% Methods (Static, Public)
     methods (Static, Access = public)
+
+        function available = IsSmithPlotAvailable()
+            %True if RF Toolbox, which has the Smith chart plot (smithplot), is installed and licensed.
+            %Palladium runs without it - only the Smith chart option needs it
+            %
+            %Outputs:
+            %   available - true if smithplot can be used
+
+            available = exist("smithplot", "file") > 0 && license("test", "RF_Toolbox") == 1;
+        end
 
         function BringToFront(owner)
             %Bring the window holding owner back to the front, and give it focus.
@@ -79,7 +90,8 @@ classdef GUIUtils
             %Show a warning box in the window holding owner (a uialert) - or log it if there is no window.
             %Use in place of warndlg: that is an old-style figure, which can
             %send Palladium's (uifigure) windows to the back when it closes.
-            %With no window to show it in - e.g. running without a GUI, or a
+            %The message is shown as MessageToHTML formats it (links, code
+            %in backticks). With no window to show it in - e.g. running without a GUI, or a
             %hidden window - the warning is logged instead
             %
             %Inputs:
@@ -98,7 +110,7 @@ classdef GUIUtils
             if isempty(fig)
                 Palladium.Logging.Logger.Log("Warning", message);
             else
-                uialert(fig, message, title, "Icon", "warning");
+                uialert(fig, Palladium.Utilities.GUIUtils.MessageToHTML(message), title, "Icon", "warning", "Interpreter", "html");
             end
         end
 
@@ -390,7 +402,8 @@ classdef GUIUtils
             %* `<`, `>` and `&` are shown as typed (e.g. "value < 0")
             %* text in backticks is shown as code (a monospaced font), for
             %  file names and paths
-            %* http(s) web addresses become links
+            %* `[text](https://address)` becomes a link showing the text
+            %* other http(s) web addresses become links
             %* line breaks are kept
             %
             %Backslashes are left alone, so Windows paths show correctly.
@@ -404,7 +417,8 @@ classdef GUIUtils
             html = string(msg);
             html = replace(html, ["&", "<", ">"], ["&amp;", "&lt;", "&gt;"]);
             html = regexprep(html, "`([^`]+)`", "<code>$1</code>");
-            html = regexprep(html, "(https?://[^\s<]*[^\s<.,;:)])", "<a href=""$1"">$1</a>");
+            html = regexprep(html, "\[([^\]]+)\]\((https?://[^)\s]+)\)", "<a href=""$2"">$1</a>");
+            html = regexprep(html, "(?<!"")(https?://[^\s<]*[^\s<.,;:)])", "<a href=""$1"">$1</a>");
             html = replace(html, [sprintf("\r\n"), newline], "<br>");
         end
 

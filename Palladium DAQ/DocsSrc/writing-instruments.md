@@ -156,9 +156,25 @@ this.DefineInstrumentControl(Name = "Sweep Control", ClassName = "SweepControlle
 
 See the drivers that use each control for examples - Keithley2410 for the stepped sweep, MercuryIPS for ramps and the magnet controller, HP_8722ES_NetworkAnalyser for scans, and Lakeshore331 for the heater control.
 
+A scan with three columns - frequency, real part, imaginary part - can be shown as a Smith chart. The VNA Control (a `ScanController` for network analysers) offers a Plot drop-down with a Smith chart choice when the instrument's `MeasUnit` has a `Real/Imaginary` category; choosing it sets the units to Real/Imaginary, so `GetCompletedScanData` returns those three columns (and `GetScanHeaders` names them). The PNA-L, HP 8722ES and PicoVNA (PicoVNA 3) drivers do this. The chart is RF Toolbox's `smithplot`; Palladium runs without the toolbox, and choosing the Smith chart without it shows a warning and stays on the trace.
+
 Controls send settings to the instrument with its `SettingsInput` method. The settings are stored, and applied at the start of the next measurement tick by calling the driver's protected `ApplySettings(settings)` method - so all communication with the instrument happens from the measurement loop, in order.
 
 For a [Sequence](sequences.md) to wait for a slow command - such as setting a temperature - to finish, register a function that reports when it is done, in the constructor: `this.RegisterCommandCompleteQuery("SetTemperature", @this.IsTemperatureStable)`. The PPMS driver does this.
+
+## Buttons for things to do before measuring
+
+Some instruments need an action before measurements start - browsing for a calibration file, running a calibration. Override `CreateSetupControls(parent)` to add controls for it to the Instrument Options panel. It is called each time the panel draws the instrument (so show current values), is given a `uipanel` to fill, and returns the height in pixels the controls need:
+
+```matlab
+function height = CreateSetupControls(this, parent)
+    grid = uigridlayout(parent, [1 1]);
+    uibutton(grid, "Text", "Zero the offset", "ButtonPushedFcn", @(~, ~) this.ZeroOffset());
+    height = 60;
+end
+```
+
+The area appears between the settings and the Instrument Controls, and the settings shrink to make room. By default the method adds nothing and returns 0, and there is no area. The controls are disabled while measurements run. The PicoVNA driver uses this for its calibration file and Run Calibration buttons.
 
 ## Testing a driver
 
