@@ -15,7 +15,11 @@ GPIB and VISA connections also need a VISA library for pyvisa to use: NI-VISA, i
 
 ### Using a different Python
 
-To use a particular Python instead - for example one with extra packages that your instruments need - set `PythonExecutable` in the `PythonSettings` section of [Config.json](presets-and-config.md) to the path of its executable, such as `C:\Users\<you>\AppData\Local\Programs\Python\Python314\python.exe`, and restart Palladium DAQ. In MATLAB, this only works if Python hasn't been loaded in the MATLAB session yet - restart MATLAB if it has. The standalone application's own Python has no `pip`, so to add packages, use your own Python this way.
+To use a particular Python instead - for example one with extra packages that your instruments need - set `PythonExecutable` in the `PythonSettings` section of [Config.json](presets-and-config.md) to the path of its executable, such as `C:\Users\<you>\AppData\Local\Programs\Python\Python314\python.exe` (or `/opt/homebrew/bin/python3.12` on a Mac), and restart Palladium DAQ. If Python can't be used, the warning shown at start-up has a **Browse for Python...** button that does this for you: it checks the Python you choose (version and packages), saves it in the config and points MATLAB at it. Restart Palladium DAQ to use it. In MATLAB, this only works if Python hasn't been loaded in the MATLAB session yet - restart MATLAB if it has. The standalone application's own Python has no `pip`, so to add packages, use your own Python this way.
+
+This matters on a Mac: the Python that comes with macOS is too old (3.9), and MATLAB will find it first. Install a newer Python (for example from [python.org](https://www.python.org/downloads/) or Homebrew) and choose it as above. Note that MATLAB may remember the Python it is pointed at between sessions, so this can also change the Python MATLAB uses outside Palladium DAQ - check with `pyenv`, and point it elsewhere with `pyenv(Version="/path/to/python3")`.
+
+If something about Python is confusing, set the log level to Debug: Palladium DAQ logs everything it tried, line by line, with the prefix `[Python]` - the Python it chose and why, the command it ran to test it, what that printed, and whether MATLAB loaded the same Python.
 
 ### If Python can't be used
 
