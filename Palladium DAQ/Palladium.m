@@ -1,5 +1,5 @@
 classdef Palladium < handle
-    %Palladium - The Palladium DAQ program: create one to launch it, then control it from scripts.
+    %Palladium - The entry point to the Palladium DAQ programme: call to launch an instance of Palladium, then control it from scripts by referring to that instance.
     %Typing `Palladium` in the Command Window starts Palladium DAQ with its
     %GUI. `pd = Palladium(...)` does the same and returns the object, whose
     %public methods do from a script what the GUI's buttons do: add
@@ -44,7 +44,7 @@ classdef Palladium < handle
     properties (Constant, Access = private)
         MajorVersionNo = 3;     %Major version number (semantic versioning, major.minor.build)
         MinorVersionNo = 8;     %Minor version number (semantic versioning, major.minor.build)
-        BuildVersionNo = 6;     %Build version number (semantic versioning, major.minor.build)
+        BuildVersionNo = 7;     %Build version number (semantic versioning, major.minor.build)
         AuthorString = "M.J. Coak, University of Birmingham";  %Author, returned by ver() and passed to the GUI with the version
     end
 

@@ -21,7 +21,7 @@ To use a particular Python instead - for example one with extra packages that yo
 
 Python is optional: if there is no usable Python, Palladium DAQ starts without Python instruments - everything else works normally. When it has loaded, it shows a warning saying what is wrong (no Python found, a Python that MATLAB can't load, or missing packages) and how to fix it, with links. Click **Don't show this again** to stop the warning; this sets `SuppressPythonSetupWarning` in the `WarningSettings` section of Config.json to `true` - set it back to `false` to see the warning again. The warning is also written to the log.
 
-## Writing one
+## Writing a new Python Instrument
 
 A Python instrument is a class in its own `.py` file, in the `PythonInstruments` folder of your [user files folder](installation.md). The **class name must match the file name** - `MyDMM.py` contains `class MyDMM` - and it inherits from Palladium DAQ's Python `Instrument` base class.
 
@@ -94,7 +94,7 @@ With the connection type set to **Debug**, `self.SimulationMode` is `True` and n
 
 To record the instrument's settings in the [data file's header](data-files.md), override `collect_metadata()` to return a dictionary of settings.
 
-## Using it
+## Using the Python Instrument in Palladium
 
 Python instruments are loaded when Palladium DAQ starts - restart it after adding or changing one. It then appears in the Instruments list, and can be added like any other instrument, from the GUI, a Preset (`"Type": "MyDMM"`) or a script:
 
