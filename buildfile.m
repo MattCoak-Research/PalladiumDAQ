@@ -443,20 +443,70 @@ end
 %% Helper functions
 
 function AddContentsLinks(html, out)
-%Add a link back to the contents page (index.html) at the top of every other
-%page. MATLAB's Help browser shows a contents sidebar, but a web browser -
-%used for the docs installed with the standalone application - does not
+%Add a navigation bar at the top of every page except the contents page
+%(index.html): Back (the browser's history), Back to the page above this one
+%in the contents (helptoc.md - or to the API reference, for a class page),
+%and the contents. MATLAB's Help browser shows a contents sidebar, but a web
+%browser - used for the docs installed with the standalone application - does
+%not
 indexPage = fullfile(out, "index.html");
+parents = ContentsParents(fullfile(out, "helptoc.md"));
 for i = 1 : numel(html)
     if html(i) == indexPage
         continue
     end
-    depth = count(extractAfter(html(i), strlength(out) + 1), filesep);
-    href = join([repmat("..", 1, depth), "index.html"], "/");
+    relPath = replace(extractAfter(html(i), strlength(out) + 1), filesep, "/");
+    depth = count(relPath, "/");
+    if depth > 0
+        root = join(repmat("..", 1, depth), "/");
+    else
+        root = ".";
+    end
+
+    %The parent page, as [Markdown path, title]. The contents page itself
+    %isn't linked here - the contents link covers it
+    mdPath = char(regexprep(relPath, "\.html$", ".md"));
+    up = strings(0, 1);
+    if isKey(parents, mdPath)
+        up = parents(mdPath);
+    elseif startsWith(relPath, "reference/") && relPath ~= "reference/index.html"
+        up = ["reference/index.md", "API reference"];
+    end
+
+    links = '<a href="#" onclick="history.back(); return false;">&#8592; Back</a>';
+    if ~isempty(up) && up(1) ~= "index.md"
+        upHref = root + "/" + regexprep(up(1), "\.md$", ".html");
+        links = links + ' &nbsp;|&nbsp; <a href="' + upHref + '">&#8593; Back to ' + up(2) + '</a>';
+    end
+    links = links + ' &nbsp;|&nbsp; <a href="' + root + '/index.html">Palladium DAQ documentation contents</a>';
+
     text = fileread(html(i), Encoding="UTF-8");
     text = replace(text, '<main class="markdown-body">', ...
-        '<main class="markdown-body"><p><a href="' + href + '">&#8592; Palladium DAQ documentation contents</a></p>');
+        '<main class="markdown-body"><p>' + links + '</p>');
     writelines(text, html(i), Encoding="UTF-8");
+end
+end
+
+function parents = ContentsParents(tocFile)
+%Read the contents (helptoc.md, a nested bullet list of links) into a map:
+%each page's Markdown path -> [its parent's path, its parent's title]
+parents = containers.Map("KeyType", "char", "ValueType", "any");
+lines = readlines(tocFile, EmptyLineRule="skip", Encoding="UTF-8");
+stackPath = strings(0, 1);
+stackTitle = strings(0, 1);
+for i = 1 : numel(lines)
+    tok = regexp(lines(i), '^(\s*)\*\s+\[(.+?)\]\((.+?)\)', 'tokens', 'once');
+    if isempty(tok)
+        continue
+    end
+    level = floor(strlength(tok(1)) / 4) + 1; %Indented four spaces per level
+    stackPath = stackPath(1 : min(level - 1, end));
+    stackTitle = stackTitle(1 : min(level - 1, end));
+    if ~isempty(stackPath)
+        parents(char(tok(3))) = [stackPath(end), stackTitle(end)];
+    end
+    stackPath(end+1) = tok(3); %#ok<AGROW>
+    stackTitle(end+1) = tok(2); %#ok<AGROW>
 end
 end
 

@@ -83,7 +83,7 @@ The pages are converted with [MathWorks DocMaker](https://github.com/mathworks/d
 3. Converts each page to HTML with `docconvert`, using the light theme (which suits MATLAB's Help browser). Links to `.md` pages become links to `.html` pages.
 4. Runs the MATLAB code blocks in the pages with `docrun`, inserting their output and figures (not in the API reference).
 5. Builds `info.xml`, `helptoc.xml` and the search database from `helptoc.md` with `docindex`.
-6. Adds a link back to the contents page (`index.html`) at the top of every other page (`AddContentsLinks`). The Help browser shows a contents sidebar, but a web browser - used for the documentation installed with the standalone application - does not. This is done after indexing, so that the link text stays out of the search database.
+6. Adds a navigation bar at the top of every other page (`AddContentsLinks`): **Back** (the browser's history), **Back to** the page above it in `helptoc.md` (or the API reference, for a class page), and the contents page (`index.html`). The Help browser shows a contents sidebar, but a web browser - used for the documentation installed with the standalone application - does not. This is done after indexing, so that the link text stays out of the search database.
 7. Deletes the Markdown copies.
 
 Points to know:
