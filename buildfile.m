@@ -473,16 +473,17 @@ for i = 1 : numel(html)
         up = ["reference/index.md", "API reference"];
     end
 
-    links = '<a href="#" onclick="history.back(); return false;">&#8592; Back</a>';
+    %Strings (double quotes), so that + joins text rather than adding chars
+    links = "<a href=""#"" onclick=""history.back(); return false;"">&#8592; Back</a>";
     if ~isempty(up) && up(1) ~= "index.md"
         upHref = root + "/" + regexprep(up(1), "\.md$", ".html");
-        links = links + ' &nbsp;|&nbsp; <a href="' + upHref + '">&#8593; Back to ' + up(2) + '</a>';
+        links = links + " &nbsp;|&nbsp; <a href=""" + upHref + """>&#8593; Back to " + up(2) + "</a>";
     end
-    links = links + ' &nbsp;|&nbsp; <a href="' + root + '/index.html">Palladium DAQ documentation contents</a>';
+    links = links + " &nbsp;|&nbsp; <a href=""" + root + "/index.html"">Palladium DAQ documentation contents</a>";
 
     text = fileread(html(i), Encoding="UTF-8");
     text = replace(text, '<main class="markdown-body">', ...
-        '<main class="markdown-body"><p>' + links + '</p>');
+        "<main class=""markdown-body""><p>" + links + "</p>");
     writelines(text, html(i), Encoding="UTF-8");
 end
 end
