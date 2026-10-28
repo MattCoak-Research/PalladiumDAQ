@@ -147,6 +147,72 @@ jobs:
       - uses: matlab-actions/run-build@v2
         with:
           tasks: deploy -skip check -skip test -skip packageToolbox -skip doc -skip apidoc -skip gettingStarted
+      # MATLAB Compiler leaves the .app bundles carrying MathWorks' original
+      # signature, which no longer matches their contents (the compiled
+      # Palladium app was added afterwards). Gatekeeper treats a bundle whose
+      # signature doesn't match as tampered with, and says the app "is damaged
+      # and can't be opened". So strip that signature and sign again, before
+      # zipping (the zip must hold the final signed bundle).
+      #
+      # With the APPLE_* secrets set (a "Developer ID Application" certificate
+      # from a paid Apple Developer account), the app gets a proper signature
+      # and is notarized, so it opens without warnings. Without them it is
+      # signed ad hoc ("-"): that fixes the "damaged" error, but users still
+      # get an "unidentified developer" warning, and must allow the app in
+      # System Settings > Privacy & Security (or right-click > Open) once.
+      #
+      # Secrets needed for a full signature (all in the build environment):
+      #   APPLE_CERTIFICATE_P12       the certificate and key, exported as .p12
+      #                               and base64-encoded
+      #   APPLE_CERTIFICATE_PASSWORD  the password set on that export
+      #   APPLE_SIGNING_IDENTITY      e.g. "Developer ID Application: Name (TEAMID)"
+      #   APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD
+      #                               for notarization (an app-specific password)
+      - name: Sign macOS app bundles
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE_P12: ${{secrets.APPLE_CERTIFICATE_P12}}
+          APPLE_CERTIFICATE_PASSWORD: ${{secrets.APPLE_CERTIFICATE_PASSWORD}}
+          APPLE_SIGNING_IDENTITY: ${{secrets.APPLE_SIGNING_IDENTITY}}
+          APPLE_ID: ${{secrets.APPLE_ID}}
+          APPLE_TEAM_ID: ${{secrets.APPLE_TEAM_ID}}
+          APPLE_APP_PASSWORD: ${{secrets.APPLE_APP_PASSWORD}}
+        run: |
+          cd Release/Package
+          identity="-"
+          opts=()
+          if [ -n "$APPLE_CERTIFICATE_P12" ]; then
+            # Import the certificate into a temporary keychain
+            keychain="$RUNNER_TEMP/signing.keychain-db"
+            security create-keychain -p temp-pass "$keychain"
+            security set-keychain-settings -lut 21600 "$keychain"
+            security unlock-keychain -p temp-pass "$keychain"
+            echo "$APPLE_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+            security import "$RUNNER_TEMP/cert.p12" -k "$keychain" \
+              -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+            security set-key-partition-list -S apple-tool:,apple: -s \
+              -k temp-pass "$keychain"
+            security list-keychains -d user -s "$keychain" login.keychain
+            identity="$APPLE_SIGNING_IDENTITY"
+            # Hardened runtime and a secure timestamp are required to notarize
+            opts=(--options runtime --timestamp)
+          fi
+          for app in */*.app; do
+            # Remove the old signature and any download-quarantine flags
+            codesign --remove-signature "$app" || true
+            xattr -cr "$app"
+            # --deep signs the nested code too, replacing its signatures
+            codesign --force --deep "${opts[@]}" --sign "$identity" "$app"
+            codesign --verify --deep --strict --verbose=2 "$app"
+            if [ -n "$APPLE_CERTIFICATE_P12" ] && [ -n "$APPLE_ID" ]; then
+              ditto -c -k --keepParent "$app" "$RUNNER_TEMP/notarize.zip"
+              xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" --wait \
+                --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" \
+                --password "$APPLE_APP_PASSWORD"
+              xcrun stapler staple "$app"
+            fi
+          done
       # On macOS the installers are .app bundles - folders, not single files.
       # A release can only attach files (a folder is silently skipped), and
       # upload-artifact would also strip the executable permissions inside the
