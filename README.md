@@ -1,5 +1,7 @@
 # Palladium Data Acquisition
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/MattCoak-Research/PalladiumDAQ/test.yml?label=Tests) ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/MattCoak-Research/PalladiumDAQ/total)
+
+[![DOI](https://zenodo.org/badge/1184471182.svg)](https://zenodo.org/badge/latestdoi/1184471182)
  [![View Palladium DAQ on File Exchange](https://www.mathworks.com/matlabcentral/images/matlab-file-exchange.svg)](https://www.mathworks.com/matlabcentral/fileexchange/184469-palladium-daq)
 ## Description
 This is a modular framework for laboratory data acquisition. A library of Instrument files (basically drivers) is included for the hardware added so far, and adding more based on the InstrumentTemplate class is straightforward. A default GUI is included, but alternatives can easily be added and switched to, and in fact the programme can be run without a GUI at all (though graphing isn't so useful then).
