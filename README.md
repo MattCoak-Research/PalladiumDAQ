@@ -73,6 +73,7 @@ Latest release downloads:
 * Toolbox version - manual install. Download the PalladiumDAQ.mltbx file in the Download section above. Double click the file to run (it will open via MATLAB) and it will install.
 * Standalone version (no MATLAB environment). Download the Installer for your operating system from the list above and run it.
   * For macOS: unzip the download, then run the installer app inside. The installers are not signed or notarised by Apple, so macOS may refuse to open them ("cannot be opened because the developer cannot be verified"). Right-click (or Control-click) the app and choose Open, then confirm; or allow it under System Settings -> Privacy & Security -> Open Anyway; or run `xattr -dr com.apple.quarantine "<path to the unzipped app>"` in Terminal first.
+  * For Linux (tested on Ubuntu): you may need to right click the .install file, select Properties, and enable 'Run as Executable' before double-clicking the file or invoking it from the terminal. It may take a significant time to launch, with nothing apparently happening.
 
 ## Run PalladiumDAQ
 
@@ -84,6 +85,7 @@ Latest release downloads:
 
 ### Standalone Version
 * Launch the programme via the shortcut created on installation, or via the list of installed programmes on your computer.
+  * For Linux (tested on Ubuntu): browse to the installation folder, which contains the file `run_PalladiumDAQ.sh`. Open a terminal window here and enter `./run_PalladiumDAQ.sh PATH_TO_MATLAB_RUNTIME`, where `PATH_TO_MATLAB_RUNTIME` will be something like `home/matt/MATLABRuntime/R2026b`; exact path will have been chosen in the installer for the Runtime. 
 
 ## Customising and adding new functionality, new Instruments
 
