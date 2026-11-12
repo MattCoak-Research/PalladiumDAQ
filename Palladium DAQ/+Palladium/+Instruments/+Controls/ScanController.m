@@ -40,6 +40,7 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
         RestartNextTick = false;
         Aborted = false;
         Starting = false;   %True from Run until the scan's data file is started - completion isn't checked until then (see UpdateData)
+        OneShotScan = false;    %True for a scan a subclass's CollectScanDetails marked as not to be repeated by Continuous (e.g. loading saved data rather than measuring) - reset at each Run
     end
 
     %% Properties (Private)
@@ -181,6 +182,7 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
         function OnScanRun(this)
             %Reset the current step number
             this.Aborted = false;
+            this.OneShotScan = false;
             this.ClearData();
 
             %Get parameter
@@ -250,7 +252,7 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             this.OnScanComplete();
 
             %Loop the next Scan to start if in Continuous mode
-            if this.GUIView.IsContinuousSelected() && ~this.Aborted
+            if this.GUIView.IsContinuousSelected() && ~this.Aborted && ~this.OneShotScan
                 this.RestartNextTick = true;
             end
         end
