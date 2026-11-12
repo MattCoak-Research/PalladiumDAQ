@@ -35,6 +35,14 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
             this.OnSweepAbort();
         end
 
+        function CacheSweepRunFunction(this, sweepData)
+            %Run commands will come asynchronously, as they are event
+            %based. Cache the function to run, don't run it immediately, to
+            %make sure it always executes at a well-defined time in the
+            %measurement tick cycle
+            this.CachedSweepRunFunction = @()this.StartSweep(sweepData);
+        end
+
         function CreateInstrumentControlGUI(this, controller, tab, instrRef)
             %Make a specific reference to and from the Instrument Class
             this.Instrument = instrRef;
@@ -65,6 +73,9 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
             this.RegisterEventListener(ltr);
         end
 
+        function LockRunButton(this)
+            this.GUIView.LockRunButton();
+        end
 
         function OnSweepAbort(this)
 
@@ -94,14 +105,6 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
             if this.GUIView.IsContinuousSelected()
                 this.GUIView.RunSweep();
             end
-        end
-
-        function CacheSweepRunFunction(this, sweepData)
-            %Run commands will come asynchronously, as they are event
-            %based. Cache the function to run, don't run it immediately, to
-            %make sure it always executes at a well-defined time in the
-            %measurement tick cycle
-            this.CachedSweepRunFunction = @()this.StartSweep(sweepData);
         end
 
         function OnSweepRun(this, sweepData)
@@ -144,6 +147,10 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
                 end
                 rethrow(err);
             end
+        end
+
+        function UnlockRunButton(this)
+            this.GUIView.UnlockRunButton();
         end
 
         function Update(this)
@@ -204,14 +211,6 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
         function UpdateData(this, dataRow, headers) %#ok<INUSD>
         end
 
-        function LockRunButton(this)
-            this.GUIView.LockRunButton();
-        end
-
-        function UnlockRunButton(this)
-            this.GUIView.UnlockRunButton();
-        end
-
     end
 
     %% Methods (Protected)
@@ -243,6 +242,10 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
     %% Methods (Private)
     methods (Access = private)
 
+        function ClearData(this)
+            %   this.Plotter.ClearData();
+        end
+
         function CreateDataFile(this, sweepParams, writeToFile)
             %Create or reset the data writer class
             fileNameSuffix = this.ControlDetailsStruct.SweepDetails.FileName;
@@ -265,12 +268,6 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
             extraMetadataLines = [sweepMetadataDescLine, sweepMetadataLine];
             this.StartNewDataFile(this.DataWriter, headers, extraMetadataLines, writeToFile);
         end
-
-        function ClearData(this)
-            %   this.Plotter.ClearData();
-        end
-
-
 
         function stringLine = CreateSweepMetaDataLine(this, sweepParams) %#ok<INUSD>
             SweepName = sweepParams.SweepName;
@@ -311,6 +308,7 @@ classdef MFLI_SweepController < Palladium.Core.InstrumentControlBase
             %Update the plotter axes labels
             %            this.Plotter.LabelAxes(xAx, "Amplitude (V)");
         end
+
         function StartSweep(this, eventData)
             %Actually launch a sweep. This is called only via
             %CachedSweepRunFunction, to ensure it gets calls synchronously in

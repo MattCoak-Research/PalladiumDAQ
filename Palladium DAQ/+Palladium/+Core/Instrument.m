@@ -381,6 +381,32 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             connectionTypes = this.AllowedConnectionTypes;
         end
 
+        function tf = IsReplyWaiting(this)
+            %Check, without blocking, whether the instrument has a reply waiting to be read.
+            %Over GPIB/VISA this is a serial poll (the status byte's message
+            %available bit), which works even while the instrument is busy -
+            %e.g. running a Keithley 2450 TSP script, or an HP 8722ES sweep
+            %started with OPC?;SING; - so it can be used to wait for a reply
+            %while staying responsive (e.g. to an Abort button). Over Ethernet,
+            %checks MATLAB's receive buffer instead. True in SimulationMode
+            %
+            %Outputs:
+            %   tf - true if a reply is waiting
+
+            if (this.SimulationMode)
+                tf = true;
+                return;
+            end
+
+            try
+                tf = visastatus(this.DeviceHandle);
+            catch
+                %No serial poll for Ethernet (tcpclient) - check MATLAB's
+                %receive buffer instead
+                tf = this.DeviceHandle.NumBytesAvailable > 0;
+            end
+        end
+
         function str = PrintIdentifier(this)
             %Print the instrument's full name to the Command Window, for debugging.
             %
@@ -445,32 +471,6 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
 
                 %Strip any leading or trailing whitespace or newlines
                 val = strip(val);
-            end
-        end
-
-        function tf = IsReplyWaiting(this)
-            %Check, without blocking, whether the instrument has a reply waiting to be read.
-            %Over GPIB/VISA this is a serial poll (the status byte's message
-            %available bit), which works even while the instrument is busy -
-            %e.g. running a Keithley 2450 TSP script, or an HP 8722ES sweep
-            %started with OPC?;SING; - so it can be used to wait for a reply
-            %while staying responsive (e.g. to an Abort button). Over Ethernet,
-            %checks MATLAB's receive buffer instead. True in SimulationMode
-            %
-            %Outputs:
-            %   tf - true if a reply is waiting
-
-            if (this.SimulationMode)
-                tf = true;
-                return;
-            end
-
-            try
-                tf = visastatus(this.DeviceHandle);
-            catch
-                %No serial poll for Ethernet (tcpclient) - check MATLAB's
-                %receive buffer instead
-                tf = this.DeviceHandle.NumBytesAvailable > 0;
             end
         end
 
@@ -797,6 +797,15 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
     %% Methods (Protected)
     methods(Access = protected)
 
+        function ApplySettings(this, settings) %#ok<INUSD>
+            %Apply settings entered in an Instrument Control - override to use them.
+            %Called on the next tick after SettingsInput, between readings.
+            %Does nothing by default
+            %
+            %Inputs:
+            %   settings - struct of settings, as the Instrument Control sends them
+        end
+
         function CloseConnection(this)
             %Close the connection to the instrument - called by Disconnect, which outside code uses.
             %Drivers can override it (as protected) to do more first, e.g.
@@ -823,85 +832,6 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
                     catch e
                         error("CloseError:DisconnectFailed", "%s", "Error disconnecting from " + this.Name + ": " + e.message);
                     end
-            end
-        end
-
-        function ApplySettings(this, settings) %#ok<INUSD>
-            %Apply settings entered in an Instrument Control - override to use them.
-            %Called on the next tick after SettingsInput, between readings.
-            %Does nothing by default
-            %
-            %Inputs:
-            %   settings - struct of settings, as the Instrument Control sends them
-        end
-
-        function OpenGPIBConnection(this)
-            %Open a GPIB connection, using GPIB_Address and ConnectionSettings.
-            %Uses GPIB_BoardIndex, GPIB_SecondaryAddress, GPIB_Terminators
-            %and GPIB_Timeout. The VISA resource name is built by
-            %GPIBResourceName
-
-            this.DeviceHandle = visadev(Palladium.Core.Instrument.GPIBResourceName(this.ConnectionSettings.GPIB_BoardIndex, ...
-                this.GPIB_Address, this.ConnectionSettings.GPIB_SecondaryAddress));
-            configureTerminator(this.DeviceHandle, this.ConnectionSettings.GPIB_Terminators(1), this.ConnectionSettings.GPIB_Terminators(2));
-            this.DeviceHandle.Timeout = this.ConnectionSettings.GPIB_Timeout;%In seconds
-        end
-
-        function OpenSerialConnection(this)
-            %Open a serial (COM) port connection, using Serial_Address and ConnectionSettings.SerialSettings.
-
-            this.DeviceHandle = serialport(this.Serial_Address, this.ConnectionSettings.SerialSettings.BaudRate);
-
-            %Configure serial settings
-            this.DeviceHandle.DataBits = this.ConnectionSettings.SerialSettings.DataBits;
-            this.DeviceHandle.Parity = this.ConnectionSettings.SerialSettings.Parity;
-            this.DeviceHandle.StopBits = this.ConnectionSettings.SerialSettings.StopBits;
-            configureTerminator(this.DeviceHandle, this.ConnectionSettings.SerialSettings.Terminator);
-        end
-
-        function OpenTCPIPConnection(this)
-            %Open an Ethernet (TCP) connection, using IP_Address and ConnectionSettings.Port.
-            %Reuses an existing connection to the same address and port if
-            %there is one
-
-            %Note that 2022 Matlab has changed the syntax for these -
-            %removing fopen and fclose in particular:
-            %https://uk.mathworks.com/help/instrument/transition-your-code-to-tcpclient-interface.html
-
-            %Check for existing connection -  Find a tcpip object at this address and port.
-            existingHandle = tcpclientfind("Address", char(this.IP_Address), 'RemotePort', this.ConnectionSettings.Port); %This requires Matlab 2024a
-
-            if(~isempty(existingHandle))    %If we already are connected, don't try to connect again - will error
-                this.DeviceHandle = existingHandle;
-                disp("Existing connection to " + this.Name + " found, using that");
-            else                            %Make a new connection
-                %Connect to the device
-                this.DeviceHandle = tcpclient(char(this.IP_Address), this.ConnectionSettings.Port);
-                this.DeviceHandle.ByteOrder = "big-endian";
-            end
-        end
-
-        function OpenUSBConnection(this)
-            %Open a USB connection, through VISA, using VISA_Address.
-
-            this.OpenVISAConnection();
-        end
-
-        function OpenVISAConnection(this)
-            %Open a VISA connection, using VISA_Address.
-            %Reuses an existing connection to the same resource if there is one
-
-            %Note that 2022 Matlab has changed the syntax for these -
-            %removing fopen and fclose in particular:
-            %https://uk.mathworks.com/help/instrument/transition-your-code-to-visadev-interface.html
-
-            %Check for an existing connection to this VISA resource
-            existingHandle = visadevfind(Name=this.VISA_Address);   %This requires Matlab 2024a
-            if(~isempty(existingHandle))    %If we already are connected, don't try to connect again - will error
-                this.DeviceHandle = existingHandle;
-                disp("Existing connection to " + this.Name + " found, using that");
-            else
-                this.DeviceHandle = visadev(this.VISA_Address);
             end
         end
 
@@ -1018,6 +948,75 @@ classdef(Abstract) Instrument < Palladium.Core.Entity
             end
         end
 
+        function OpenGPIBConnection(this)
+            %Open a GPIB connection, using GPIB_Address and ConnectionSettings.
+            %Uses GPIB_BoardIndex, GPIB_SecondaryAddress, GPIB_Terminators
+            %and GPIB_Timeout. The VISA resource name is built by
+            %GPIBResourceName
+
+            this.DeviceHandle = visadev(Palladium.Core.Instrument.GPIBResourceName(this.ConnectionSettings.GPIB_BoardIndex, ...
+                this.GPIB_Address, this.ConnectionSettings.GPIB_SecondaryAddress));
+            configureTerminator(this.DeviceHandle, this.ConnectionSettings.GPIB_Terminators(1), this.ConnectionSettings.GPIB_Terminators(2));
+            this.DeviceHandle.Timeout = this.ConnectionSettings.GPIB_Timeout;%In seconds
+        end
+
+        function OpenSerialConnection(this)
+            %Open a serial (COM) port connection, using Serial_Address and ConnectionSettings.SerialSettings.
+
+            this.DeviceHandle = serialport(this.Serial_Address, this.ConnectionSettings.SerialSettings.BaudRate);
+
+            %Configure serial settings
+            this.DeviceHandle.DataBits = this.ConnectionSettings.SerialSettings.DataBits;
+            this.DeviceHandle.Parity = this.ConnectionSettings.SerialSettings.Parity;
+            this.DeviceHandle.StopBits = this.ConnectionSettings.SerialSettings.StopBits;
+            configureTerminator(this.DeviceHandle, this.ConnectionSettings.SerialSettings.Terminator);
+        end
+
+        function OpenTCPIPConnection(this)
+            %Open an Ethernet (TCP) connection, using IP_Address and ConnectionSettings.Port.
+            %Reuses an existing connection to the same address and port if
+            %there is one
+
+            %Note that 2022 Matlab has changed the syntax for these -
+            %removing fopen and fclose in particular:
+            %https://uk.mathworks.com/help/instrument/transition-your-code-to-tcpclient-interface.html
+
+            %Check for existing connection -  Find a tcpip object at this address and port.
+            existingHandle = tcpclientfind("Address", char(this.IP_Address), 'RemotePort', this.ConnectionSettings.Port); %This requires Matlab 2024a
+
+            if(~isempty(existingHandle))    %If we already are connected, don't try to connect again - will error
+                this.DeviceHandle = existingHandle;
+                disp("Existing connection to " + this.Name + " found, using that");
+            else                            %Make a new connection
+                %Connect to the device
+                this.DeviceHandle = tcpclient(char(this.IP_Address), this.ConnectionSettings.Port);
+                this.DeviceHandle.ByteOrder = "big-endian";
+            end
+        end
+
+        function OpenUSBConnection(this)
+            %Open a USB connection, through VISA, using VISA_Address.
+
+            this.OpenVISAConnection();
+        end
+
+        function OpenVISAConnection(this)
+            %Open a VISA connection, using VISA_Address.
+            %Reuses an existing connection to the same resource if there is one
+
+            %Note that 2022 Matlab has changed the syntax for these -
+            %removing fopen and fclose in particular:
+            %https://uk.mathworks.com/help/instrument/transition-your-code-to-visadev-interface.html
+
+            %Check for an existing connection to this VISA resource
+            existingHandle = visadevfind(Name=this.VISA_Address);   %This requires Matlab 2024a
+            if(~isempty(existingHandle))    %If we already are connected, don't try to connect again - will error
+                this.DeviceHandle = existingHandle;
+                disp("Existing connection to " + this.Name + " found, using that");
+            else
+                this.DeviceHandle = visadev(this.VISA_Address);
+            end
+        end
 
         function val = RetrieveSimulatedDataValue(this, propName, defaultValue)
             %Get a value stored in SimulatedData, storing a default if it isn't there yet.

@@ -30,6 +30,7 @@ The header lists the block's attributes in the order *modifiers* (`Abstract`, `C
 * **Enumeration classes** (in `+Enums`) have a class help block, then a `%% Enumeration` section with one member per line, each with a trailing comment describing it. Member order is the order shown in GUI drop-downs, so keep it stable.
 * **Dependent** property blocks sit next to the block with the same access, e.g. `%% Properties (Dependent, Public)` beside `%% Properties (Public)`.
 * **Access lists** that grant extra classes access, such as `Access = {?Palladium, ?matlab.unittest.TestCase}` to let tests in, are labelled `Private`.
+* **Methods within a block are in alphabetical order** by name, ignoring case (`CheckScanComplete`, `Clear`, `GetExtraScanControls`, ...), so a method is easy to find. This goes for each `methods` block separately - the Public, Protected and Private blocks are each sorted, and the Categoricals and Get and Set Accessors blocks too. Properties are not sorted: they are grouped by purpose, and the order of `SetObservable` ones is the GUI order (next point).
 * **The order of `SetObservable` properties is the order their fields appear in the GUI.** When reordering blocks, do not change the order of GUI-editable properties unless that is the intention.
 
 A skeleton instrument driver:

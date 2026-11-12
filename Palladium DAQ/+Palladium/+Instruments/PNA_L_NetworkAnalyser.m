@@ -284,6 +284,20 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
             Units = [];
         end
 
+        function numOfPoints = GetNumPoints(this)
+            %Read the number of points per sweep.
+            %
+            %Outputs:
+            %   numOfPoints - number of points (20 in SimulationMode, until set)
+
+            if this.SimulationMode
+                numOfPoints = this.SimulatedSettings.NumPoints;
+                return;
+            end
+
+            numOfPoints = this.QueryDouble("SENS:SWE:POIN?");
+        end
+
         function [Headers, Units] = GetScanHeaders(this)
             %Column headers and units of the scan data files written by the Scan Control tab.
             %Read when a scan starts. In Polar and Smith chart display
@@ -366,20 +380,6 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
                 case "CW";      type = "CW";
                 case "SEGM";    type = "Segment";
             end
-        end
-
-        function numOfPoints = GetNumPoints(this)
-            %Read the number of points per sweep.
-            %
-            %Outputs:
-            %   numOfPoints - number of points (20 in SimulationMode, until set)
-
-            if this.SimulationMode
-                numOfPoints = this.SimulatedSettings.NumPoints;
-                return;
-            end
-
-            numOfPoints = this.QueryDouble("SENS:SWE:POIN?");
         end
 
         function [dataRow] = Measure(~)
@@ -480,6 +480,20 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
             this.RunMeasurement(args{:});
         end
 
+        function SelectMeasurement(this, name)
+            %Select a measurement on channel 1, for the CALCulate commands (e.g. FetchData) to act on.
+            %
+            %Inputs:
+            %   name - name of the measurement, e.g. "CH1_S11_1"
+
+            arguments
+                this;
+                name {mustBeTextScalar} = "CH1_S11_1";
+            end
+
+            this.WriteCommand("CALC:PAR:SEL " + """" + name + """");
+        end
+
         function SetFrequencyStartAndStop(this, start_Hz, stop_Hz)
             %Set the channel 1 start and stop frequencies.
             %
@@ -562,20 +576,6 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
                 otherwise
                     error("PNA_L_NetworkAnalyser:UnsupportedSweepType", "%s", "Sweep type " + string(type) + " not supported");
             end
-        end
-
-        function SelectMeasurement(this, name)
-            %Select a measurement on channel 1, for the CALCulate commands (e.g. FetchData) to act on.
-            %
-            %Inputs:
-            %   name - name of the measurement, e.g. "CH1_S11_1"
-
-            arguments
-                this;
-                name {mustBeTextScalar} = "CH1_S11_1";
-            end
-
-            this.WriteCommand("CALC:PAR:SEL " + """" + name + """");
         end
 
         function TriggerSingle(this, waitForCompletion)
@@ -673,6 +673,24 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
             end
         end
 
+        function [names, parameters] = GetMeasurements(this)
+            %The names and parameters of the measurements on channel 1 (CALC1:PAR:CAT?), e.g. "CH1_S11_1" and "S11".
+
+            reply = erase(string(this.QueryString("CALC1:PAR:CAT?")), [string(char(34)), "'"]);
+            items = strip(split(reply, ","));
+            items = items(strlength(items) > 0);
+            names = items(1:2:end)';
+            parameters = items(2:2:end)';
+            names = names(1:numel(parameters));
+        end
+
+        function numbers = QueryNumbers(this, command)
+            %Send a query and read its reply as a list of comma-separated numbers (ASCII data format).
+
+            reply = string(this.QueryString(command));
+            numbers = str2double(split(strip(reply), ","))';
+        end
+
         function [measMode, measUnit, recognised] = ReadSelectedMeasurement(this)
             %The S-parameter and units of the selected measurement on channel 1, as text - each kept as MeasMode or MeasUnit is if the analyser's isn't one of ours.
             %MeasUnit follows the display format: dB for log magnitude,
@@ -701,17 +719,6 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
                     case "POL";     measUnit = "Real/Imaginary";    recognised(2) = true;
                 end
             end
-        end
-
-        function [names, parameters] = GetMeasurements(this)
-            %The names and parameters of the measurements on channel 1 (CALC1:PAR:CAT?), e.g. "CH1_S11_1" and "S11".
-
-            reply = erase(string(this.QueryString("CALC1:PAR:CAT?")), [string(char(34)), "'"]);
-            items = strip(split(reply, ","));
-            items = items(strlength(items) > 0);
-            names = items(1:2:end)';
-            parameters = items(2:2:end)';
-            names = names(1:numel(parameters));
         end
 
         function SelectMeasurementOf(this, sParameter)
@@ -750,13 +757,6 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
                 case(this.MeasUnitType("Absolute"));    this.WriteCommand("CALC1:FORM MLIN");
                 case(this.MeasUnitType("Real/Imaginary")); this.WriteCommand("CALC1:FORM POL");
             end
-        end
-
-        function numbers = QueryNumbers(this, command)
-            %Send a query and read its reply as a list of comma-separated numbers (ASCII data format).
-
-            reply = string(this.QueryString(command));
-            numbers = str2double(split(strip(reply), ","))';
         end
 
         function WaitForSystemReady(this)

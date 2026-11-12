@@ -58,13 +58,9 @@ classdef (Abstract) Backend < handle
     %% Methods (Public)
     methods(Access = public)
 
-        function SetSweepOptions(~, ~, ~)
-            %Give the backend the power and bandwidth asked for - ignored unless the software can't be set by the user itself (see CanSetSweepOptions).
-            %Called before each sweep's plan is set. Does nothing by default
-            %
-            %Inputs:
-            %   power_dBm    - test signal power, or empty to keep the software's
-            %   bandwidth_Hz - measurement bandwidth, or empty to keep the software's
+        function Calibrate(this) %#ok<MANU>
+            %Calibrate the analyser, if the software can do it from here - by default it can't, and says where it is done.
+            error("PicoVNA_NetworkAnalyser:CalibrateInTheSoftware", "%s", "Calibrate the analyser in the PicoVNA software, then load the calibration (LoadCalibration, or the CalibrationFile setting).");
         end
 
         function can = CanSetSweepOptions(~)
@@ -72,14 +68,18 @@ classdef (Abstract) Backend < handle
             can = false;
         end
 
-        function Calibrate(this) %#ok<MANU>
-            %Calibrate the analyser, if the software can do it from here - by default it can't, and says where it is done.
-            error("PicoVNA_NetworkAnalyser:CalibrateInTheSoftware", "%s", "Calibrate the analyser in the PicoVNA software, then load the calibration (LoadCalibration, or the CalibrationFile setting).");
-        end
-
         function SaveCalibration(this, ~) %#ok<MANU>
             %Save the calibration, if the software can do it from here - by default it can't, and says where it is done.
             error("PicoVNA_NetworkAnalyser:CalibrateInTheSoftware", "%s", "Save calibrations in the PicoVNA software.");
+        end
+
+        function SetSweepOptions(~, ~, ~)
+            %Give the backend the power and bandwidth asked for - ignored unless the software can't be set by the user itself (see CanSetSweepOptions).
+            %Called before each sweep's plan is set. Does nothing by default
+            %
+            %Inputs:
+            %   power_dBm    - test signal power, or empty to keep the software's
+            %   bandwidth_Hz - measurement bandwidth, or empty to keep the software's
         end
 
     end

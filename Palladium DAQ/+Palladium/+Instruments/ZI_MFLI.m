@@ -162,6 +162,14 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             this.SetInt(['/sigouts/' num2str(sigoutIndex) '/autorange'], 1); % turn on
         end
 
+        function ClearDAQ(~)
+            %Reset the whole LabOne MATLAB API, disconnecting all Data Servers.
+            %This disconnects every Zurich Instruments device in this MATLAB
+            %session, not only this one
+
+            clear ziDAQ;
+        end
+
         function metadataStruct = CollectMetaData(this)
             %Main demodulator, input and output settings, recorded in the data-file header.
             %
@@ -195,78 +203,6 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             metadataStruct.SignalOut_Offset = zi_Params.sigouts(1).offset.value;
             metadataStruct.SignalOut_On = zi_Params.sigouts(1).on.value;
             metadataStruct.TimeConstant_s = zi_Params.demods(1).timeconstant.value;
-        end
-
-        function ClearDAQ(~)
-            %Reset the whole LabOne MATLAB API, disconnecting all Data Servers.
-            %This disconnects every Zurich Instruments device in this MATLAB
-            %session, not only this one
-
-            clear ziDAQ;
-        end
-
-        function DAQHandle = DAQ_Initialise_Both(this, DemodSignal, demodIndex)
-            %Set up a Data Acquisition Module recording of a demodulator signal in time and frequency.
-            %Records the time trace and its FFT together, on a trigger from the
-            %demodulator's R. Run it with DAQ_Execute_Both
-            %
-            %Inputs:
-            %   DemodSignal - signal to record: 'X', 'Y', 'R' or 'Phase'
-            %   demodIndex  - demodulator index, 0 for Demodulator 1 (default)
-            %
-            %Outputs:
-            %   DAQHandle - handle of the Data Acquisition Module, empty in simulation
-
-            arguments
-                this;
-                DemodSignal  {mustBeText};  % 'X','Y','R','Phase', 'XiY'
-                demodIndex (1,1) double = 0;
-            end
-
-            if(this.SimulationMode)
-                disp('Set up simulated MFLI DAQ');
-                DAQHandle = []; % define empty DAQHandle
-                return;
-            end
-
-            [demod_path_time, ~, ~] = this.DemodPath_Time(DemodSignal, demodIndex);
-            [demod_path_freq, ~, ~] = this.DemodPath_FFT(DemodSignal, demodIndex);
-
-            % create a handle for the dataAcquisitionModule
-            DAQHandle = ziDAQ('dataAcquisitionModule');
-            % device on which dataAcquisitionModule will be performed
-            ziDAQ('set', DAQHandle, 'device', this.DeviceHandle);
-
-            % 4 = exact grid mode is chosen - this is most suitable for FFTs
-            % the subscribed signal with the highest sampling rate (as sent from the device) defines
-            % the interval between samples on the DAQ Module's grid.
-            ziDAQ('set', DAQHandle, 'grid/mode', 4);
-            % specify the number of columns in the returned data grid. Data along horizontal grid is
-            % resampled to number of samples defined by grid/cols.
-            % number of bins =  2^bits
-            ziDAQ('set', DAQHandle, 'grid/cols', 2^16);
-
-            % subcribe to time node
-            ziDAQ('subscribe', DAQHandle, demod_path_time);
-            % subcribe to frequency node
-            ziDAQ('subscribe', DAQHandle, demod_path_freq);
-
-            % set the trigger node as the demodulated signal R, of the same
-            % demodulator, and subscribe to it. (It used to be set twice,
-            % the second time always to demodulator 1, so demodIndex had no
-            % effect.) The dots in the signal paths are replaced by
-            % underscores in the data returned by MATLAB to prevent
-            % conflicts with the MATLAB syntax
-            triggernode = ['/' this.DeviceHandle '/demods/' num2str(demodIndex) '/sample.r'];
-            ziDAQ('set', DAQHandle, 'triggernode', triggernode);
-            ziDAQ('subscribe', DAQHandle, triggernode);
-
-            % return preview - useful to display the progress of high resolution FFTs
-            % that take a long time to capture. Successively higher resolution FFTs are calculated and returned.
-            ziDAQ('set', DAQHandle, 'preview', 1);
-
-            % enable the dataAcquisitionModule's module.
-            ziDAQ('set', DAQHandle, 'enable', 1);
         end
 
         function [daqData_time, daqData_freq] = DAQ_Execute_Both(this, DemodSignal, DAQHandle, time, demodIndex)
@@ -350,62 +286,6 @@ classdef ZI_MFLI < Palladium.Core.Instrument
 
         end
 
-        function DAQHandle = DAQ_Initialise_Time(this, DemodSignal, GridColumns)
-            %Set up a continuous Data Acquisition Module recording of a demodulator signal in time.
-            %Run it with DAQ_Execute_Time
-            %
-            %Inputs:
-            %   DemodSignal - signal to record: 'X', 'Y', 'R', 'Phase', or 'XiY' for X and Y together
-            %   GridColumns - number of samples in the recording (default 2^16)
-            %
-            %Outputs:
-            %   DAQHandle - handle of the Data Acquisition Module, empty in simulation
-
-            arguments
-                this;
-                DemodSignal  {mustBeText};  % 'X','Y','R','Phase', 'XiY'
-                GridColumns = 2^16;
-            end
-
-            if(this.SimulationMode)
-                disp('Set up simulated MFLI DAQ');
-                DAQHandle = []; % define empty DAQHandle
-                return;
-            end
-
-            if strcmp(DemodSignal,"XiY")
-                [demod_path_time_x, ~, ~] = this.DemodPath_Time("X");
-                [demod_path_time_y, ~, ~] = this.DemodPath_Time("Y");
-            else
-                [demod_path_time, ~, ~] = this.DemodPath_Time(DemodSignal);
-            end
-
-            % create a handle for the dataAcquisitionModule
-            DAQHandle = ziDAQ('dataAcquisitionModule');
-            % device on which dataAcquisitionModule will be performed
-            ziDAQ('set', DAQHandle, 'dataAcquisitionModule/device', this.DeviceHandle);
-
-            % 4 = exact grid mode is chosen - this is most suitable for FFTs
-            % the subscribed signal with the highest sampling rate (as sent from the device) defines
-            % the interval between samples on the DAQ Module's grid.
-            ziDAQ('set', DAQHandle, 'dataAcquisitionModule/grid/mode', 4);
-            % specify the number of columns in the returned data grid. Data along horizontal grid is
-            % resampled to number of samples defined by grid/cols.
-            % number of bins =  2^bits
-            ziDAQ('set', DAQHandle, 'dataAcquisitionModule/grid/cols', GridColumns);
-
-            % 0 = continuous acquisition (trigger off)
-            ziDAQ('set',DAQHandle,'dataAcquisitionModule/type',0);
-
-            % subcribe to time node
-            if strcmp(DemodSignal,"XiY")
-                ziDAQ('subscribe', DAQHandle, demod_path_time_x);
-                ziDAQ('subscribe', DAQHandle, demod_path_time_y);
-            else
-                ziDAQ('subscribe', DAQHandle, demod_path_time);
-            end
-        end
-
         function daqData_time = DAQ_Execute_Time(this, DemodSignal, DAQHandle)
             %Run a recording set up by DAQ_Initialise_Time and return the time-domain data.
             %
@@ -464,6 +344,126 @@ classdef ZI_MFLI < Palladium.Core.Instrument
 
         end
 
+        function DAQHandle = DAQ_Initialise_Both(this, DemodSignal, demodIndex)
+            %Set up a Data Acquisition Module recording of a demodulator signal in time and frequency.
+            %Records the time trace and its FFT together, on a trigger from the
+            %demodulator's R. Run it with DAQ_Execute_Both
+            %
+            %Inputs:
+            %   DemodSignal - signal to record: 'X', 'Y', 'R' or 'Phase'
+            %   demodIndex  - demodulator index, 0 for Demodulator 1 (default)
+            %
+            %Outputs:
+            %   DAQHandle - handle of the Data Acquisition Module, empty in simulation
+
+            arguments
+                this;
+                DemodSignal  {mustBeText};  % 'X','Y','R','Phase', 'XiY'
+                demodIndex (1,1) double = 0;
+            end
+
+            if(this.SimulationMode)
+                disp('Set up simulated MFLI DAQ');
+                DAQHandle = []; % define empty DAQHandle
+                return;
+            end
+
+            [demod_path_time, ~, ~] = this.DemodPath_Time(DemodSignal, demodIndex);
+            [demod_path_freq, ~, ~] = this.DemodPath_FFT(DemodSignal, demodIndex);
+
+            % create a handle for the dataAcquisitionModule
+            DAQHandle = ziDAQ('dataAcquisitionModule');
+            % device on which dataAcquisitionModule will be performed
+            ziDAQ('set', DAQHandle, 'device', this.DeviceHandle);
+
+            % 4 = exact grid mode is chosen - this is most suitable for FFTs
+            % the subscribed signal with the highest sampling rate (as sent from the device) defines
+            % the interval between samples on the DAQ Module's grid.
+            ziDAQ('set', DAQHandle, 'grid/mode', 4);
+            % specify the number of columns in the returned data grid. Data along horizontal grid is
+            % resampled to number of samples defined by grid/cols.
+            % number of bins =  2^bits
+            ziDAQ('set', DAQHandle, 'grid/cols', 2^16);
+
+            % subcribe to time node
+            ziDAQ('subscribe', DAQHandle, demod_path_time);
+            % subcribe to frequency node
+            ziDAQ('subscribe', DAQHandle, demod_path_freq);
+
+            % set the trigger node as the demodulated signal R, of the same
+            % demodulator, and subscribe to it. (It used to be set twice,
+            % the second time always to demodulator 1, so demodIndex had no
+            % effect.) The dots in the signal paths are replaced by
+            % underscores in the data returned by MATLAB to prevent
+            % conflicts with the MATLAB syntax
+            triggernode = ['/' this.DeviceHandle '/demods/' num2str(demodIndex) '/sample.r'];
+            ziDAQ('set', DAQHandle, 'triggernode', triggernode);
+            ziDAQ('subscribe', DAQHandle, triggernode);
+
+            % return preview - useful to display the progress of high resolution FFTs
+            % that take a long time to capture. Successively higher resolution FFTs are calculated and returned.
+            ziDAQ('set', DAQHandle, 'preview', 1);
+
+            % enable the dataAcquisitionModule's module.
+            ziDAQ('set', DAQHandle, 'enable', 1);
+        end
+
+        function DAQHandle = DAQ_Initialise_Time(this, DemodSignal, GridColumns)
+            %Set up a continuous Data Acquisition Module recording of a demodulator signal in time.
+            %Run it with DAQ_Execute_Time
+            %
+            %Inputs:
+            %   DemodSignal - signal to record: 'X', 'Y', 'R', 'Phase', or 'XiY' for X and Y together
+            %   GridColumns - number of samples in the recording (default 2^16)
+            %
+            %Outputs:
+            %   DAQHandle - handle of the Data Acquisition Module, empty in simulation
+
+            arguments
+                this;
+                DemodSignal  {mustBeText};  % 'X','Y','R','Phase', 'XiY'
+                GridColumns = 2^16;
+            end
+
+            if(this.SimulationMode)
+                disp('Set up simulated MFLI DAQ');
+                DAQHandle = []; % define empty DAQHandle
+                return;
+            end
+
+            if strcmp(DemodSignal,"XiY")
+                [demod_path_time_x, ~, ~] = this.DemodPath_Time("X");
+                [demod_path_time_y, ~, ~] = this.DemodPath_Time("Y");
+            else
+                [demod_path_time, ~, ~] = this.DemodPath_Time(DemodSignal);
+            end
+
+            % create a handle for the dataAcquisitionModule
+            DAQHandle = ziDAQ('dataAcquisitionModule');
+            % device on which dataAcquisitionModule will be performed
+            ziDAQ('set', DAQHandle, 'dataAcquisitionModule/device', this.DeviceHandle);
+
+            % 4 = exact grid mode is chosen - this is most suitable for FFTs
+            % the subscribed signal with the highest sampling rate (as sent from the device) defines
+            % the interval between samples on the DAQ Module's grid.
+            ziDAQ('set', DAQHandle, 'dataAcquisitionModule/grid/mode', 4);
+            % specify the number of columns in the returned data grid. Data along horizontal grid is
+            % resampled to number of samples defined by grid/cols.
+            % number of bins =  2^bits
+            ziDAQ('set', DAQHandle, 'dataAcquisitionModule/grid/cols', GridColumns);
+
+            % 0 = continuous acquisition (trigger off)
+            ziDAQ('set',DAQHandle,'dataAcquisitionModule/type',0);
+
+            % subcribe to time node
+            if strcmp(DemodSignal,"XiY")
+                ziDAQ('subscribe', DAQHandle, demod_path_time_x);
+                ziDAQ('subscribe', DAQHandle, demod_path_time_y);
+            else
+                ziDAQ('subscribe', DAQHandle, demod_path_time);
+            end
+        end
+
         function Disable50ImpedIn(this, siginIndex)
             %Set Signal Input 1 to its high (10 MOhm) input impedance.
             %
@@ -490,6 +490,19 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             this.SetInt(['/sigouts/' num2str(sigoutIndex) '/imp50'], 0); % turn off
         end
 
+        function DisableAC(this, siginIndex)
+            %Set Signal Input 1 to DC coupling.
+            %
+            %Inputs:
+            %   siginIndex - signal input index, 0 for Signal Input 1 (default)
+
+            arguments
+                this; siginIndex (1,1) double = 0;
+            end
+            if(this.SimulationMode); return; end
+            this.SetInt(['/sigins/' num2str(siginIndex) '/ac'], 0); % turn off
+        end
+
         function DisableAmplitude(this, channelName)
             %Turn off the sine amplitude of a signal output, leaving any DC offset.
             %
@@ -503,19 +516,6 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             channelIdx = this.ConvertChannelNameToChannelIndex(channelName);
             % Only one output amplitude /1
             this.SetInt(['/sigouts/' num2str(channelIdx) '/enables/1'], 0)
-        end
-
-        function DisableAC(this, siginIndex)
-            %Set Signal Input 1 to DC coupling.
-            %
-            %Inputs:
-            %   siginIndex - signal input index, 0 for Signal Input 1 (default)
-
-            arguments
-                this; siginIndex (1,1) double = 0;
-            end
-            if(this.SimulationMode); return; end
-            this.SetInt(['/sigins/' num2str(siginIndex) '/ac'], 0); % turn off
         end
 
         function DisableAuxOut(this, channelName)
@@ -820,29 +820,6 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             end
         end
 
-        function [R, theta] = GetAmplitudePhase(this, demodIndex)
-            %Read the latest demodulator sample as amplitude and phase.
-            %Call AllowDemodToSettle first after changing settings
-            %
-            %Inputs:
-            %   demodIndex - demodulator index, 0 for Demodulator 1 (default)
-            %
-            %Outputs:
-            %   R     - amplitude, RMS, in V (or A on the current input)
-            %   theta - phase, in degrees
-
-            arguments
-                this;
-                demodIndex (1,1) double = 0;
-            end
-
-            %Get xy values
-            [X, Y] = this.GetXY(demodIndex);
-
-            % convert to polar coordinates
-            [R, theta] = this.ConvertCartesian(X,Y); % R is RMS value
-        end
-
         function amp_RMS = GetAmplitudeOutput(this, channelName)
             %Read the sine amplitude of a signal output, in V RMS (0 if the output is off).
             %
@@ -869,6 +846,29 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             else
                 amp_RMS = 0;
             end
+        end
+
+        function [R, theta] = GetAmplitudePhase(this, demodIndex)
+            %Read the latest demodulator sample as amplitude and phase.
+            %Call AllowDemodToSettle first after changing settings
+            %
+            %Inputs:
+            %   demodIndex - demodulator index, 0 for Demodulator 1 (default)
+            %
+            %Outputs:
+            %   R     - amplitude, RMS, in V (or A on the current input)
+            %   theta - phase, in degrees
+
+            arguments
+                this;
+                demodIndex (1,1) double = 0;
+            end
+
+            %Get xy values
+            [X, Y] = this.GetXY(demodIndex);
+
+            % convert to polar coordinates
+            [R, theta] = this.ConvertCartesian(X,Y); % R is RMS value
         end
 
         function aux_voltage = GetAuxOutVoltage(this, channelName)
@@ -1300,6 +1300,407 @@ classdef ZI_MFLI < Palladium.Core.Instrument
                     resistance_Ohms = R / (output * this.AmplifierGain);
                     dataRow = [dataRow resistance_Ohms];
             end
+        end
+
+        function daqData = Scope_AssembleData_FFT(this, tmp, demod_path_us, path)
+            %Extract the FFT amplitude and its bandwidth from Data Acquisition Module data.
+            %
+            %Inputs:
+            %   tmp           - data struct read from the module
+            %   demod_path_us - subscribed node path, with dots replaced by underscores
+            %   path          - name of the signal's field, e.g. 'sample_r_fft_abs'
+            %
+            %Outputs:
+            %   daqData - the data struct, with fields Amplitude and bandwidth (in Hz) added
+
+            arguments
+                this; tmp; demod_path_us; path;
+            end
+            if(this.SimulationMode); return; end
+
+            daqData = tmp;
+
+            if ziCheckPathInData(tmp, demod_path_us)
+                devID = this.DeviceHandle;
+                sample = tmp.(devID).demods(1).(path){1};
+                disp(sample)
+                if ~isempty(sample)
+                    daqData = tmp;
+                end
+
+                % Get the amplitude of the demodulator signal
+                daqData.Amplitude = daqData.(devID).demods(1).(path){1}.value;
+
+                % Frequency data is calculated from the grid column delta.
+                bin_resolution = daqData.(devID).demods(1).(path){1}.header.gridcoldelta;
+
+                daqData.bandwidth = bin_resolution * length(daqData.Amplitude);
+            end
+        end
+
+        function daqData = Scope_AssembleData_Time(this, tmp, demod_path_us, path, clockbase)
+            %Extract the amplitude and time, in s, from Data Acquisition Module data.
+            %
+            %Inputs:
+            %   tmp           - data struct read from the module
+            %   demod_path_us - subscribed node path, with dots replaced by underscores
+            %   path          - name of the signal's field, e.g. 'sample_r_avg'
+            %   clockbase     - instrument clock frequency, in Hz, to convert timestamps to s
+            %
+            %Outputs:
+            %   daqData - the data struct, with fields Amplitude and Time (in s, from 0) added
+
+            arguments
+                this; tmp; demod_path_us; path; clockbase;
+            end
+            if(this.SimulationMode); return; end
+
+            % assign data
+            daqData = tmp;
+
+            if ziCheckPathInData(tmp, demod_path_us)
+                devID = this.DeviceHandle;
+                sample = tmp.(devID).demods(1).(path){1};
+                if ~isempty(sample)
+                    % Get the amplitude of the demodulator signal
+                    daqData = tmp;
+                end
+                % obtain amplitude data
+                daqData.Amplitude = tmp.(devID).demods(1).(path){1}.value;
+
+                % Set the first timestamp to the first timestamp obtained.
+                timestamp0 = double(tmp.(devID).demods(1).(path){1}.timestamp(1, 1));
+
+                % Convert from device ticks to time in seconds.
+                daqData.Time = (double(tmp.(devID).demods(1).(path){1}.timestamp(1, :)) - timestamp0)/clockbase;
+            end
+        end
+
+        function data = Scope_Execute(this, scopeModule, SamplingRate)
+            %Record scope shots with a Scope Module set up by Scope_Initialise, and return the first.
+            %Waits for up to 20 records, or 30 s
+            %
+            %Inputs:
+            %   scopeModule  - handle returned by Scope_Initialise
+            %   SamplingRate - scope time base index, as set by Scope_Initialise (default 6, 938 kHz)
+            %
+            %Outputs:
+            %   data - the Scope Module data struct, with fields Amplitude (the
+            %          first record, in V or A), Frequency (FFT frequency axis,
+            %          in Hz) and time (in s) added
+
+            arguments
+                this;
+                scopeModule;
+                SamplingRate (1,1) double = 6;
+            end
+
+            if(this.SimulationMode)
+                data.Frequency = linspace(0, 400e3, 2048);
+                data.Amplitude = this.GenerateSimulatedData(2048, Baseline=1e-5, Variance=3e-6);
+                return;
+            end
+
+            % minimum number of records obtained
+            min_num_records = 20;
+
+            % execute scope handle
+            ziDAQ('execute', scopeModule);
+
+            % enable the scope - scope ready to record data upon receiving triggers.
+            this.SetInt('/scopes/0/enable', 1);
+            ziDAQ('sync');
+
+            time_start = tic;
+            timeout = 30;  % [s]
+            records = 0;
+            % wait until the Scope Module has received and processed the desired number of records.
+            while records < min_num_records
+                pause(0.5)
+                records = ziDAQ('getInt', scopeModule, 'records');
+
+                if toc(time_start) > timeout
+                    % break out of the loop if no longer receiving scope data from the device.
+                    fprintf('\nScope Module did not return %d records after %f s - forcing stop.', min_num_records, timeout);
+                    break
+                end
+            end
+
+            % read out the scope data from the module.
+            data = ziDAQ('read', scopeModule);
+            % stop the module - to use again, call execute()
+            ziDAQ('finish', scopeModule);
+
+            % dividing by timestamp by clockbase gives time in seconds
+            clockbase = this.GetInt('/clockbase');
+
+            % obtain data. The data struct's device field is the lower-case
+            % device ID, i.e. DeviceHandle
+            records = data.(this.DeviceHandle).scopes(1).wave;
+
+            % take first sample as data
+            totalsamples = double(records{1}.totalsamples);
+            dt = double(records{1}.dt);
+
+            % rate or frequency = (clockbase / 2^SamplingRate)/2
+            scope_rate = double(clockbase)/2^SamplingRate;
+
+            % frequency
+            data.Frequency = linspace(0, scope_rate/2, totalsamples); % in Hz
+            % amplitude in V - first sample is data
+            data.Amplitude = records{1}.wave(:, 1);
+            % time
+            data.time = linspace(0, dt*totalsamples, totalsamples);
+
+            % disable scope after obtained data to stop running in LabOne
+            this.SetInt('/scopes/0/enable', 0);
+        end
+
+        function length = Scope_GetScopeLength(this)
+            %Read the length of a scope shot, in samples.
+            %
+            %Outputs:
+            %   length - number of samples per scope shot
+
+            arguments
+                this;
+            end
+            if(this.SimulationMode); length = 1000; return; end
+
+            length = this.GetInt('/scopes/0/length');
+        end
+
+        function resolution = Scope_GetScopeResolution(this)
+            %Calculate the scope's FFT frequency resolution, in Hz, from its sample rate and shot length.
+            %
+            %Outputs:
+            %   resolution - frequency resolution, in Hz (the reciprocal of the shot duration)
+
+            arguments
+                this
+            end
+            if(this.SimulationMode); resolution = 14; return; end % in [Hz]
+
+            % sample rate of scope
+            sample_rate = this.Scope_GetScopeSampleRate();
+
+            % length of recorded scope shot
+            length = this.GetDouble('/scopes/0/length');
+
+            % calculate acquistion time
+            acq_time = length/double(sample_rate);
+            % reciprocal of acquistion time
+            resolution = 1/acq_time;
+        end
+
+        function sample_rate = Scope_GetScopeSampleRate(this)
+            %Read the scope's sample rate, in Hz (60 MHz / 2^n for time base index n).
+            %
+            %Outputs:
+            %   sample_rate - sample rate, in Hz
+
+            arguments
+                this;
+            end
+            if(this.SimulationMode); sample_rate = 938000; return; end % in [Hz]
+
+            sample_index = this.GetInt('/scopes/0/time');
+            % calculate sample rate from index
+            sample_rate = 60e6/2^sample_index;
+        end
+
+        function int = Scope_GetScopeSampleRateInt(this)
+            %Read the scope's time base index n, 0 to 15 - the sample rate is 60 MHz / 2^n.
+            %
+            %Outputs:
+            %   int - time base index
+
+            arguments
+                this;
+            end
+            if(this.SimulationMode); int = 6; return; end
+            int = this.GetInt('/scopes/0/time');
+        end
+
+        function scope_value = Scope_GetScopeTimeData(this, Calculation, ScopeParams)
+            %Record a scope shot of demodulator 1's input and return its maximum, mean or minimum.
+            %
+            %Inputs:
+            %   Calculation - 'Max', 'Avg' or 'Min'
+            %   ScopeParams - name-value scope settings, as for Scope_Initialise
+            %
+            %Outputs:
+            %   scope_value - the result, in V or A
+
+            arguments
+                this;
+                Calculation {mustBeText};
+                ScopeParams.Length     (1,1) double = 10e3;
+                ScopeParams.SamplingRate        (1,1) int64 = 6; % 938 kHz
+                ScopeParams.Weight      (1,1) double = 1;
+                ScopeParams.Window      (1,1) double = 1;
+                ScopeParams.SpectralDensity     (1,1) double = false; % turned off as default
+                ScopeParams.Power     (1,1) double = false; % turned off as default
+            end
+
+            if(this.SimulationMode)
+                scope_value = 0.01;
+                return;
+            end
+            channelName = this.GetSignalSource();
+
+            % obtain the scope handle for defualt parameters
+            scopeHandle = this.Scope_Initialise('Time','ChannelIdx', channelName,'Length', ...
+                ScopeParams.Length,'SamplingRate', ScopeParams.SamplingRate,'Window', ScopeParams.Window, ...
+                'SpectralDensity', ScopeParams.SpectralDensity, 'Power', ScopeParams.Power, ...
+                'Weight', ScopeParams.Weight);
+
+            % obtain data in time domain by executing the handle
+            timeData = this.Scope_Execute(scopeHandle, ScopeParams.SamplingRate);
+
+            switch(Calculation)
+                case('Max');    scope_value = max(timeData.Amplitude);
+                case('Avg');    scope_value = mean(timeData.Amplitude);
+                case('Min');    scope_value = min(timeData.Amplitude);
+                otherwise
+                    error("MFLI_Scope_GetScopeTimeData_Error:InvalidCalculation", "%s", "Calculation must be Max, Avg or Min, was " + string(Calculation));
+            end
+        end
+
+        function scopeModule = Scope_Initialise(this, DomainSignal, ScopeParams)
+            %Set up the scope and a Scope Module to record an input in the time or frequency domain.
+            %Run it with Scope_Execute
+            %
+            %Inputs:
+            %   DomainSignal - 'Time' or 'FFT'
+            %   ScopeParams  - name-value settings: ChannelIdx (input name:
+            %                  'SignalInput1' or 'CurrentInput1'),
+            %                  Length (samples per shot), SamplingRate (time base
+            %                  index n, rate 60 MHz / 2^n), Weight (averaging weight,
+            %                  1 for none), Window (FFT window, 1 = Hann),
+            %                  SpectralDensity and Power (FFT options)
+            %
+            %Outputs:
+            %   scopeModule - handle of the Scope Module, empty in simulation
+
+            arguments
+                this;
+                DomainSignal {mustBeText};
+                % channel into Scope. 'Signal Input 1' = 0, 'Current Input 1' = 1, 'Signal Output 1' 12.
+                ScopeParams.ChannelIdx  {mustBeText} = 'CurrentInput1';
+                % length - the length of each segment - length of recorded scope shot
+                % decreasing this gives less points on scope graph.
+                % Increasing gives a smaller resolution.
+                ScopeParams.Length     (1,1) double = 10e3;
+                % sampling rate of the scope - given as an integer
+                ScopeParams.SamplingRate        (1,1) int64 = 6; % 938 kHz
+
+                % for weight = 1, don't average. if weight > 1 average the scope record segments using an
+                % exponentially weighted moving average.
+                ScopeParams.Weight      (1,1) double = 1;
+                % use a Hann window function.
+                ScopeParams.Window      (1,1) double = 1;
+                % spectral density of data used to analyse noise
+                ScopeParams.SpectralDensity     (1,1) double = false; % turned off as default
+                % calculation of power value
+                ScopeParams.Power     (1,1) double = false; % turned off as default
+            end
+
+            if(this.SimulationMode)
+                disp('Set up simulated MFLI Scope FFT');
+                scopeModule = []; % define empty scopeModule
+                return;
+            end
+
+            % convert channel string to index
+            channel = this.ConvertScopeInputNameToIndex(ScopeParams.ChannelIdx);
+
+            this.SetInt('/scopes/0/length', ScopeParams.Length);
+
+            % channel - select the scope channel/s to enable.
+            %  1 - enable scope channel 0, 2 - enable scope channel 1, 3 - enable both scope channels
+            this.SetInt('/scopes/0/channel', 1); % only interested in one scope channel
+
+            % bandwidth limit the scope data - avoids antialiasing effects due to subsampling when the scope
+            % sample rate is less than the input channel's sample rate.
+            % 0 turns it on (sample averaging) and 1 turns it off (sample
+            % decimation) - MFLI manual, SCOPES/n/CHANNELS/n/BWLIMIT. It used
+            % to be set to 1, turning it off
+            this.SetInt('/scopes/0/channels/0/bwlimit', 0);
+            this.SetInt('/scopes/0/channels/0/inputselect', channel);
+            this.SetInt('/scopes/0/time', ScopeParams.SamplingRate);
+
+            % only get a single scope record.
+            this.SetInt('/scopes/0/single', 0); % turned off - want multiple to get error
+            % the scope's trigger
+            this.SetInt('/scopes/0/trigenable', 0); % turned off  - acquire continuous records
+
+            % set the scope trigger hold off time inbetween acquiring triggers (still
+            % relevant if triggering is disabled).
+            this.SetDouble('/scopes/0/trigholdoff', 0.05);
+            % perform a global synchronisation between the device and the data server:
+            ziDAQ('sync');
+
+            % initialize and configure the Scope Module.
+            scopeModule = ziDAQ('scopeModule');
+            % Scope data processing mode.
+            % 1 - time domain of scope
+            % 3 - FFT is applied to every segment of the scope
+            if(strcmp(DomainSignal, 'Time'))
+                ziDAQ('set', scopeModule, 'mode', 1); % time mode
+            elseif(strcmp(DomainSignal, 'FFT'))
+                ziDAQ('set', scopeModule, 'mode', 3); % FFT mode
+            end
+            % as weight = 1, don't average. if weight > 1 average the scope record segments using an
+            % exponentially weighted moving average.
+            ziDAQ('set', scopeModule, 'averager/weight', ScopeParams.Weight);
+            % keep 1 scope record in the Scope Module's memory
+            ziDAQ('set', scopeModule, 'historylength', 1)
+            ziDAQ('set', scopeModule, 'fft/window', ScopeParams.Window);
+
+            ziDAQ('set', scopeModule, 'fft/spectraldensity', ScopeParams.SpectralDensity);
+            ziDAQ('set', scopeModule, 'fft/power', ScopeParams.Power);
+
+            % subscribe to the scope's data in the module. The node path
+            % uses the lower-case device ID, DeviceHandle, as a char
+            wave_nodepath = ['/' this.DeviceHandle '/scopes/0/wave'];
+            ziDAQ('subscribe', scopeModule, wave_nodepath);
+        end
+
+        function Scope_SetScopeFreqMax(this, maxFreq)
+            %Set the scope sample rate so its FFT reaches at least maxFreq, in Hz.
+            %Uses the slowest time base that samples at least twice maxFreq
+            %(see ScopeTimeBaseForMaxFreq)
+            %
+            %Inputs:
+            %   maxFreq - highest frequency wanted in the FFT, in Hz (up to 30 MHz)
+
+            arguments
+                this;
+                maxFreq (1,1) double {mustBePositive};
+            end
+            timeBase = Palladium.Instruments.ZI_MFLI.ScopeTimeBaseForMaxFreq(maxFreq);
+            if(this.SimulationMode); return; end
+
+            this.SetInt('/scopes/0/time', timeBase);
+        end
+
+        function Scope_SetScopeResolution(this, resolution)
+            %Set the scope shot length to give a frequency resolution, in Hz, at the present sample rate.
+            %
+            %Inputs:
+            %   resolution - frequency resolution, in Hz
+
+            arguments
+                this; resolution;
+            end
+            if(this.SimulationMode); return; end
+
+            sample_rate = this.Scope_GetScopeSampleRate();
+
+            length = sample_rate/resolution;
+
+            this.SetInt('/scopes/0/length', length);
         end
 
         function SetAuxOutVoltage(this, channelName, value)
@@ -1859,446 +2260,10 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             %well ran the sweep twice)
         end
 
-        function daqData = Scope_AssembleData_FFT(this, tmp, demod_path_us, path)
-            %Extract the FFT amplitude and its bandwidth from Data Acquisition Module data.
-            %
-            %Inputs:
-            %   tmp           - data struct read from the module
-            %   demod_path_us - subscribed node path, with dots replaced by underscores
-            %   path          - name of the signal's field, e.g. 'sample_r_fft_abs'
-            %
-            %Outputs:
-            %   daqData - the data struct, with fields Amplitude and bandwidth (in Hz) added
-
-            arguments
-                this; tmp; demod_path_us; path;
-            end
-            if(this.SimulationMode); return; end
-
-            daqData = tmp;
-
-            if ziCheckPathInData(tmp, demod_path_us)
-                devID = this.DeviceHandle;
-                sample = tmp.(devID).demods(1).(path){1};
-                disp(sample)
-                if ~isempty(sample)
-                    daqData = tmp;
-                end
-
-                % Get the amplitude of the demodulator signal
-                daqData.Amplitude = daqData.(devID).demods(1).(path){1}.value;
-
-                % Frequency data is calculated from the grid column delta.
-                bin_resolution = daqData.(devID).demods(1).(path){1}.header.gridcoldelta;
-
-                daqData.bandwidth = bin_resolution * length(daqData.Amplitude);
-            end
-        end
-
-        function daqData = Scope_AssembleData_Time(this, tmp, demod_path_us, path, clockbase)
-            %Extract the amplitude and time, in s, from Data Acquisition Module data.
-            %
-            %Inputs:
-            %   tmp           - data struct read from the module
-            %   demod_path_us - subscribed node path, with dots replaced by underscores
-            %   path          - name of the signal's field, e.g. 'sample_r_avg'
-            %   clockbase     - instrument clock frequency, in Hz, to convert timestamps to s
-            %
-            %Outputs:
-            %   daqData - the data struct, with fields Amplitude and Time (in s, from 0) added
-
-            arguments
-                this; tmp; demod_path_us; path; clockbase;
-            end
-            if(this.SimulationMode); return; end
-
-            % assign data
-            daqData = tmp;
-
-            if ziCheckPathInData(tmp, demod_path_us)
-                devID = this.DeviceHandle;
-                sample = tmp.(devID).demods(1).(path){1};
-                if ~isempty(sample)
-                    % Get the amplitude of the demodulator signal
-                    daqData = tmp;
-                end
-                % obtain amplitude data
-                daqData.Amplitude = tmp.(devID).demods(1).(path){1}.value;
-
-                % Set the first timestamp to the first timestamp obtained.
-                timestamp0 = double(tmp.(devID).demods(1).(path){1}.timestamp(1, 1));
-
-                % Convert from device ticks to time in seconds.
-                daqData.Time = (double(tmp.(devID).demods(1).(path){1}.timestamp(1, :)) - timestamp0)/clockbase;
-            end
-        end
-
-        function data = Scope_Execute(this, scopeModule, SamplingRate)
-            %Record scope shots with a Scope Module set up by Scope_Initialise, and return the first.
-            %Waits for up to 20 records, or 30 s
-            %
-            %Inputs:
-            %   scopeModule  - handle returned by Scope_Initialise
-            %   SamplingRate - scope time base index, as set by Scope_Initialise (default 6, 938 kHz)
-            %
-            %Outputs:
-            %   data - the Scope Module data struct, with fields Amplitude (the
-            %          first record, in V or A), Frequency (FFT frequency axis,
-            %          in Hz) and time (in s) added
-
-            arguments
-                this;
-                scopeModule;
-                SamplingRate (1,1) double = 6;
-            end
-
-            if(this.SimulationMode)
-                data.Frequency = linspace(0, 400e3, 2048);
-                data.Amplitude = this.GenerateSimulatedData(2048, Baseline=1e-5, Variance=3e-6);
-                return;
-            end
-
-            % minimum number of records obtained
-            min_num_records = 20;
-
-            % execute scope handle
-            ziDAQ('execute', scopeModule);
-
-            % enable the scope - scope ready to record data upon receiving triggers.
-            this.SetInt('/scopes/0/enable', 1);
-            ziDAQ('sync');
-
-            time_start = tic;
-            timeout = 30;  % [s]
-            records = 0;
-            % wait until the Scope Module has received and processed the desired number of records.
-            while records < min_num_records
-                pause(0.5)
-                records = ziDAQ('getInt', scopeModule, 'records');
-
-                if toc(time_start) > timeout
-                    % break out of the loop if no longer receiving scope data from the device.
-                    fprintf('\nScope Module did not return %d records after %f s - forcing stop.', min_num_records, timeout);
-                    break
-                end
-            end
-
-            % read out the scope data from the module.
-            data = ziDAQ('read', scopeModule);
-            % stop the module - to use again, call execute()
-            ziDAQ('finish', scopeModule);
-
-            % dividing by timestamp by clockbase gives time in seconds
-            clockbase = this.GetInt('/clockbase');
-
-            % obtain data. The data struct's device field is the lower-case
-            % device ID, i.e. DeviceHandle
-            records = data.(this.DeviceHandle).scopes(1).wave;
-
-            % take first sample as data
-            totalsamples = double(records{1}.totalsamples);
-            dt = double(records{1}.dt);
-
-            % rate or frequency = (clockbase / 2^SamplingRate)/2
-            scope_rate = double(clockbase)/2^SamplingRate;
-
-            % frequency
-            data.Frequency = linspace(0, scope_rate/2, totalsamples); % in Hz
-            % amplitude in V - first sample is data
-            data.Amplitude = records{1}.wave(:, 1);
-            % time
-            data.time = linspace(0, dt*totalsamples, totalsamples);
-
-            % disable scope after obtained data to stop running in LabOne
-            this.SetInt('/scopes/0/enable', 0);
-        end
-
-        function length = Scope_GetScopeLength(this)
-            %Read the length of a scope shot, in samples.
-            %
-            %Outputs:
-            %   length - number of samples per scope shot
-
-            arguments
-                this;
-            end
-            if(this.SimulationMode); length = 1000; return; end
-
-            length = this.GetInt('/scopes/0/length');
-        end
-
-        function resolution = Scope_GetScopeResolution(this)
-            %Calculate the scope's FFT frequency resolution, in Hz, from its sample rate and shot length.
-            %
-            %Outputs:
-            %   resolution - frequency resolution, in Hz (the reciprocal of the shot duration)
-
-            arguments
-                this
-            end
-            if(this.SimulationMode); resolution = 14; return; end % in [Hz]
-
-            % sample rate of scope
-            sample_rate = this.Scope_GetScopeSampleRate();
-
-            % length of recorded scope shot
-            length = this.GetDouble('/scopes/0/length');
-
-            % calculate acquistion time
-            acq_time = length/double(sample_rate);
-            % reciprocal of acquistion time
-            resolution = 1/acq_time;
-        end
-
-        function sample_rate = Scope_GetScopeSampleRate(this)
-            %Read the scope's sample rate, in Hz (60 MHz / 2^n for time base index n).
-            %
-            %Outputs:
-            %   sample_rate - sample rate, in Hz
-
-            arguments
-                this;
-            end
-            if(this.SimulationMode); sample_rate = 938000; return; end % in [Hz]
-
-            sample_index = this.GetInt('/scopes/0/time');
-            % calculate sample rate from index
-            sample_rate = 60e6/2^sample_index;
-        end
-
-        function int = Scope_GetScopeSampleRateInt(this)
-            %Read the scope's time base index n, 0 to 15 - the sample rate is 60 MHz / 2^n.
-            %
-            %Outputs:
-            %   int - time base index
-
-            arguments
-                this;
-            end
-            if(this.SimulationMode); int = 6; return; end
-            int = this.GetInt('/scopes/0/time');
-        end
-
-        function scope_value = Scope_GetScopeTimeData(this, Calculation, ScopeParams)
-            %Record a scope shot of demodulator 1's input and return its maximum, mean or minimum.
-            %
-            %Inputs:
-            %   Calculation - 'Max', 'Avg' or 'Min'
-            %   ScopeParams - name-value scope settings, as for Scope_Initialise
-            %
-            %Outputs:
-            %   scope_value - the result, in V or A
-
-            arguments
-                this;
-                Calculation {mustBeText};
-                ScopeParams.Length     (1,1) double = 10e3;
-                ScopeParams.SamplingRate        (1,1) int64 = 6; % 938 kHz
-                ScopeParams.Weight      (1,1) double = 1;
-                ScopeParams.Window      (1,1) double = 1;
-                ScopeParams.SpectralDensity     (1,1) double = false; % turned off as default
-                ScopeParams.Power     (1,1) double = false; % turned off as default
-            end
-
-            if(this.SimulationMode)
-                scope_value = 0.01;
-                return;
-            end
-            channelName = this.GetSignalSource();
-
-            % obtain the scope handle for defualt parameters
-            scopeHandle = this.Scope_Initialise('Time','ChannelIdx', channelName,'Length', ...
-                ScopeParams.Length,'SamplingRate', ScopeParams.SamplingRate,'Window', ScopeParams.Window, ...
-                'SpectralDensity', ScopeParams.SpectralDensity, 'Power', ScopeParams.Power, ...
-                'Weight', ScopeParams.Weight);
-
-            % obtain data in time domain by executing the handle
-            timeData = this.Scope_Execute(scopeHandle, ScopeParams.SamplingRate);
-
-            switch(Calculation)
-                case('Max');    scope_value = max(timeData.Amplitude);
-                case('Avg');    scope_value = mean(timeData.Amplitude);
-                case('Min');    scope_value = min(timeData.Amplitude);
-                otherwise
-                    error("MFLI_Scope_GetScopeTimeData_Error:InvalidCalculation", "%s", "Calculation must be Max, Avg or Min, was " + string(Calculation));
-            end
-        end
-
-        function scopeModule = Scope_Initialise(this, DomainSignal, ScopeParams)
-            %Set up the scope and a Scope Module to record an input in the time or frequency domain.
-            %Run it with Scope_Execute
-            %
-            %Inputs:
-            %   DomainSignal - 'Time' or 'FFT'
-            %   ScopeParams  - name-value settings: ChannelIdx (input name:
-            %                  'SignalInput1' or 'CurrentInput1'),
-            %                  Length (samples per shot), SamplingRate (time base
-            %                  index n, rate 60 MHz / 2^n), Weight (averaging weight,
-            %                  1 for none), Window (FFT window, 1 = Hann),
-            %                  SpectralDensity and Power (FFT options)
-            %
-            %Outputs:
-            %   scopeModule - handle of the Scope Module, empty in simulation
-
-            arguments
-                this;
-                DomainSignal {mustBeText};
-                % channel into Scope. 'Signal Input 1' = 0, 'Current Input 1' = 1, 'Signal Output 1' 12.
-                ScopeParams.ChannelIdx  {mustBeText} = 'CurrentInput1';
-                % length - the length of each segment - length of recorded scope shot
-                % decreasing this gives less points on scope graph.
-                % Increasing gives a smaller resolution.
-                ScopeParams.Length     (1,1) double = 10e3;
-                % sampling rate of the scope - given as an integer
-                ScopeParams.SamplingRate        (1,1) int64 = 6; % 938 kHz
-
-                % for weight = 1, don't average. if weight > 1 average the scope record segments using an
-                % exponentially weighted moving average.
-                ScopeParams.Weight      (1,1) double = 1;
-                % use a Hann window function.
-                ScopeParams.Window      (1,1) double = 1;
-                % spectral density of data used to analyse noise
-                ScopeParams.SpectralDensity     (1,1) double = false; % turned off as default
-                % calculation of power value
-                ScopeParams.Power     (1,1) double = false; % turned off as default
-            end
-
-            if(this.SimulationMode)
-                disp('Set up simulated MFLI Scope FFT');
-                scopeModule = []; % define empty scopeModule
-                return;
-            end
-
-            % convert channel string to index
-            channel = this.ConvertScopeInputNameToIndex(ScopeParams.ChannelIdx);
-
-            this.SetInt('/scopes/0/length', ScopeParams.Length);
-
-            % channel - select the scope channel/s to enable.
-            %  1 - enable scope channel 0, 2 - enable scope channel 1, 3 - enable both scope channels
-            this.SetInt('/scopes/0/channel', 1); % only interested in one scope channel
-
-            % bandwidth limit the scope data - avoids antialiasing effects due to subsampling when the scope
-            % sample rate is less than the input channel's sample rate.
-            % 0 turns it on (sample averaging) and 1 turns it off (sample
-            % decimation) - MFLI manual, SCOPES/n/CHANNELS/n/BWLIMIT. It used
-            % to be set to 1, turning it off
-            this.SetInt('/scopes/0/channels/0/bwlimit', 0);
-            this.SetInt('/scopes/0/channels/0/inputselect', channel);
-            this.SetInt('/scopes/0/time', ScopeParams.SamplingRate);
-
-            % only get a single scope record.
-            this.SetInt('/scopes/0/single', 0); % turned off - want multiple to get error
-            % the scope's trigger
-            this.SetInt('/scopes/0/trigenable', 0); % turned off  - acquire continuous records
-
-            % set the scope trigger hold off time inbetween acquiring triggers (still
-            % relevant if triggering is disabled).
-            this.SetDouble('/scopes/0/trigholdoff', 0.05);
-            % perform a global synchronisation between the device and the data server:
-            ziDAQ('sync');
-
-            % initialize and configure the Scope Module.
-            scopeModule = ziDAQ('scopeModule');
-            % Scope data processing mode.
-            % 1 - time domain of scope
-            % 3 - FFT is applied to every segment of the scope
-            if(strcmp(DomainSignal, 'Time'))
-                ziDAQ('set', scopeModule, 'mode', 1); % time mode
-            elseif(strcmp(DomainSignal, 'FFT'))
-                ziDAQ('set', scopeModule, 'mode', 3); % FFT mode
-            end
-            % as weight = 1, don't average. if weight > 1 average the scope record segments using an
-            % exponentially weighted moving average.
-            ziDAQ('set', scopeModule, 'averager/weight', ScopeParams.Weight);
-            % keep 1 scope record in the Scope Module's memory
-            ziDAQ('set', scopeModule, 'historylength', 1)
-            ziDAQ('set', scopeModule, 'fft/window', ScopeParams.Window);
-
-            ziDAQ('set', scopeModule, 'fft/spectraldensity', ScopeParams.SpectralDensity);
-            ziDAQ('set', scopeModule, 'fft/power', ScopeParams.Power);
-
-            % subscribe to the scope's data in the module. The node path
-            % uses the lower-case device ID, DeviceHandle, as a char
-            wave_nodepath = ['/' this.DeviceHandle '/scopes/0/wave'];
-            ziDAQ('subscribe', scopeModule, wave_nodepath);
-        end
-
-        function Scope_SetScopeResolution(this, resolution)
-            %Set the scope shot length to give a frequency resolution, in Hz, at the present sample rate.
-            %
-            %Inputs:
-            %   resolution - frequency resolution, in Hz
-
-            arguments
-                this; resolution;
-            end
-            if(this.SimulationMode); return; end
-
-            sample_rate = this.Scope_GetScopeSampleRate();
-
-            length = sample_rate/resolution;
-
-            this.SetInt('/scopes/0/length', length);
-        end
-
-        function Scope_SetScopeFreqMax(this, maxFreq)
-            %Set the scope sample rate so its FFT reaches at least maxFreq, in Hz.
-            %Uses the slowest time base that samples at least twice maxFreq
-            %(see ScopeTimeBaseForMaxFreq)
-            %
-            %Inputs:
-            %   maxFreq - highest frequency wanted in the FFT, in Hz (up to 30 MHz)
-
-            arguments
-                this;
-                maxFreq (1,1) double {mustBePositive};
-            end
-            timeBase = Palladium.Instruments.ZI_MFLI.ScopeTimeBaseForMaxFreq(maxFreq);
-            if(this.SimulationMode); return; end
-
-            this.SetInt('/scopes/0/time', timeBase);
-        end
-
     end
 
     %% Methods (Protected)
     methods (Access = protected)
-
-        function OpenConnection(this)
-            %Open the connection through the LabOne Data Server running on this PC.
-            %Ethernet and USB both connect to the local Data Server (which
-            %reaches the instrument over either), so several MFLIs can be
-            %connected at once. Debug connects to a simulated instrument
-
-            %Make sure DeviceID is a string, and do some error
-            %checking/verification
-            this.DeviceID = string(this.DeviceID);
-            assert(startsWith(this.DeviceID, "DEV"), "MFLI_Connect_Error:InvalidDeviceID", "%s", "Invalid Device ID:" + newline + string(this.DeviceID) + newline + "in MFLI connect. Device ID must start with ""DEV"" - form is DEV123, as a string");
-
-            switch(this.Connection_Type)
-                case(Palladium.Enums.ConnectionType.Debug)
-                    %Do not make a physical connection to a real instrument
-                    %- this places the class into SimulationMode, for
-                    %testing without a real piece of hardware connected
-                    disp("Connecting to simulated " + this.Name + " instrument....");
-                    pause(0.3);
-                    disp("Connected to simulated " + this.Name + " instrument.");
-                    this.SimulationMode = true;
-
-                case(Palladium.Enums.ConnectionType.Ethernet)
-                    %Connect to instrument via ZI Matlab API
-                    this.DeviceHandle = this.ZIConnect(this.DeviceID, '1GbE');
-
-                case(Palladium.Enums.ConnectionType.USB)
-                    %Connect to instrument via ZI Matlab API
-                    this.DeviceHandle = this.ZIConnect(this.DeviceID, '1GbE'); %Don't tell it USB, keep it 1GbE instead - we actually connect to the dataserver on LocalHost (to allow connecting multiple instruments) - so USB errors out, even if the device is connected to the dataserver by USB. Let's hide the user from this, stop them panicking that USB is not a supported option
-
-                otherwise
-                    error("MFLI_Connect_Error:UnsupportedConnectionType", "%s", "Unsupported connection type: " + string(this.Connection_Type));
-            end
-
-        end
 
         function CloseConnection(this)
             %Leave the device connected to the Data Server, so LabOne and other MFLIs are unaffected.
@@ -2342,25 +2307,6 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             end
         end
 
-        function channelIdx = ConvertInputChannelNameToChannelIndex(~, channelName)
-            %Demodulator input select (ADCSELECT) value of an input name, e.g. 1 for 'CurrentInput1'.
-
-            switch(channelName)
-                case('SignalInput1');   channelIdx = 0;
-                case('CurrentInput1');  channelIdx = 1;
-                case('Trigger1');       channelIdx = 2;
-                case('Trigger2');       channelIdx = 3;
-                case('AuxOut1');        channelIdx = 4;
-                case('AuxOut2');        channelIdx = 5;
-                case('AuxOut3');        channelIdx = 6;
-                case('AuxOut4');        channelIdx = 7;
-                case('AuxIn1');         channelIdx = 8;
-                case('AuxIn2');         channelIdx = 9;
-                otherwise
-                    error("MFLI_ConvertInputChannelNameToChannelIndex_Error:InvalidChannelName", "%s", ['Invalid channelName in ZI_MFLI ConvertInputChannelNameToChannelIndex, was ' num2str(channelName)]);
-            end
-        end
-
         function channelName = ConvertInputChannelIndexToChannelName(~, channelIdx)
             %Input name of a demodulator input select (ADCSELECT) value, e.g. 'CurrentInput1' for 1.
 
@@ -2377,6 +2323,25 @@ classdef ZI_MFLI < Palladium.Core.Instrument
                 case(9);    channelName = 'AuxIn2';
                 otherwise
                     error("MFLI_ConvertInputChannelIndexToChannelName_Error:InvalidChannelIndex", 'Invalid channel index in ZI_MFLI ConvertInputChannelIndexToChannelName');
+            end
+        end
+
+        function channelIdx = ConvertInputChannelNameToChannelIndex(~, channelName)
+            %Demodulator input select (ADCSELECT) value of an input name, e.g. 1 for 'CurrentInput1'.
+
+            switch(channelName)
+                case('SignalInput1');   channelIdx = 0;
+                case('CurrentInput1');  channelIdx = 1;
+                case('Trigger1');       channelIdx = 2;
+                case('Trigger2');       channelIdx = 3;
+                case('AuxOut1');        channelIdx = 4;
+                case('AuxOut2');        channelIdx = 5;
+                case('AuxOut3');        channelIdx = 6;
+                case('AuxOut4');        channelIdx = 7;
+                case('AuxIn1');         channelIdx = 8;
+                case('AuxIn2');         channelIdx = 9;
+                otherwise
+                    error("MFLI_ConvertInputChannelNameToChannelIndex_Error:InvalidChannelName", "%s", ['Invalid channelName in ZI_MFLI ConvertInputChannelNameToChannelIndex, was ' num2str(channelName)]);
             end
         end
 
@@ -2430,6 +2395,41 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             end
         end
 
+        function OpenConnection(this)
+            %Open the connection through the LabOne Data Server running on this PC.
+            %Ethernet and USB both connect to the local Data Server (which
+            %reaches the instrument over either), so several MFLIs can be
+            %connected at once. Debug connects to a simulated instrument
+
+            %Make sure DeviceID is a string, and do some error
+            %checking/verification
+            this.DeviceID = string(this.DeviceID);
+            assert(startsWith(this.DeviceID, "DEV"), "MFLI_Connect_Error:InvalidDeviceID", "%s", "Invalid Device ID:" + newline + string(this.DeviceID) + newline + "in MFLI connect. Device ID must start with ""DEV"" - form is DEV123, as a string");
+
+            switch(this.Connection_Type)
+                case(Palladium.Enums.ConnectionType.Debug)
+                    %Do not make a physical connection to a real instrument
+                    %- this places the class into SimulationMode, for
+                    %testing without a real piece of hardware connected
+                    disp("Connecting to simulated " + this.Name + " instrument....");
+                    pause(0.3);
+                    disp("Connected to simulated " + this.Name + " instrument.");
+                    this.SimulationMode = true;
+
+                case(Palladium.Enums.ConnectionType.Ethernet)
+                    %Connect to instrument via ZI Matlab API
+                    this.DeviceHandle = this.ZIConnect(this.DeviceID, '1GbE');
+
+                case(Palladium.Enums.ConnectionType.USB)
+                    %Connect to instrument via ZI Matlab API
+                    this.DeviceHandle = this.ZIConnect(this.DeviceID, '1GbE'); %Don't tell it USB, keep it 1GbE instead - we actually connect to the dataserver on LocalHost (to allow connecting multiple instruments) - so USB errors out, even if the device is connected to the dataserver by USB. Let's hide the user from this, stop them panicking that USB is not a supported option
+
+                otherwise
+                    error("MFLI_Connect_Error:UnsupportedConnectionType", "%s", "Unsupported connection type: " + string(this.Connection_Type));
+            end
+
+        end
+
         function SetDouble(this, command, value)
             %Set a double node of this device, e.g. '/oscs/0/freq' (nothing in simulation).
 
@@ -2456,45 +2456,6 @@ classdef ZI_MFLI < Palladium.Core.Instrument
 
     %% Methods (Private)
     methods (Access = private)
-
-        function [demod_path, demod_path_us, path] = DemodPath_Time(this, DemodSignal, demodIndex)
-            %Data Acquisition Module node path, underscored path and field name of a time-domain demodulator signal.
-
-            arguments
-                this;
-                DemodSignal {mustBeText}; % 'X','Y','R','Phase'
-                demodIndex (1,1) double = 0; % only 1 demodulator
-            end
-            if(this.SimulationMode); return; end
-
-            if(strcmp(DemodSignal, 'X'))
-                % node from which data will be recorded
-                demod_path = ['/' this.DeviceHandle '/demods/' num2str(demodIndex) '/sample.x.avg'];
-                % dots in the signal paths replaced by underscores in the data returned by MATLAB to
-                % prevent conflicts with the MATLAB syntax.
-                demod_path_us = strrep(demod_path,'.','_');
-                path = 'sample_x_avg' ;
-
-            elseif(strcmp(DemodSignal,'Y'))
-                demod_path = ['/' this.DeviceHandle '/demods/' num2str(demodIndex) '/sample.y.avg'];
-                demod_path_us = strrep(demod_path,'.','_');
-                path = 'sample_y_avg' ;
-
-            elseif(strcmp(DemodSignal, 'R'))
-                demod_path = ['/' this.DeviceHandle '/demods/' num2str(demodIndex) '/sample.r.avg'];
-                demod_path_us = strrep(demod_path,'.','_');
-                path = 'sample_r_avg' ;
-
-            elseif(strcmp(DemodSignal, 'Phase'))
-                demod_path = ['/' this.DeviceHandle '/demods/' num2str(demodIndex) '/sample.theta.avg'];
-                demod_path_us = strrep(demod_path,'.','_');
-                path = 'sample_theta_avg' ;
-
-            else
-                error("MFLI_DemodPath_Time_Error:InvalidDemodSignal", 'Invalid DemodSignal name - can be X, Y, R or Phase')
-            end
-
-        end
 
         function [demod_path, demod_path_us, path] = DemodPath_FFT(this, DemodSignal, demodIndex)
             %Data Acquisition Module node path, underscored path and field name of a demodulator signal's FFT.
@@ -2540,53 +2501,49 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             end
         end
 
+        function [demod_path, demod_path_us, path] = DemodPath_Time(this, DemodSignal, demodIndex)
+            %Data Acquisition Module node path, underscored path and field name of a time-domain demodulator signal.
+
+            arguments
+                this;
+                DemodSignal {mustBeText}; % 'X','Y','R','Phase'
+                demodIndex (1,1) double = 0; % only 1 demodulator
+            end
+            if(this.SimulationMode); return; end
+
+            if(strcmp(DemodSignal, 'X'))
+                % node from which data will be recorded
+                demod_path = ['/' this.DeviceHandle '/demods/' num2str(demodIndex) '/sample.x.avg'];
+                % dots in the signal paths replaced by underscores in the data returned by MATLAB to
+                % prevent conflicts with the MATLAB syntax.
+                demod_path_us = strrep(demod_path,'.','_');
+                path = 'sample_x_avg' ;
+
+            elseif(strcmp(DemodSignal,'Y'))
+                demod_path = ['/' this.DeviceHandle '/demods/' num2str(demodIndex) '/sample.y.avg'];
+                demod_path_us = strrep(demod_path,'.','_');
+                path = 'sample_y_avg' ;
+
+            elseif(strcmp(DemodSignal, 'R'))
+                demod_path = ['/' this.DeviceHandle '/demods/' num2str(demodIndex) '/sample.r.avg'];
+                demod_path_us = strrep(demod_path,'.','_');
+                path = 'sample_r_avg' ;
+
+            elseif(strcmp(DemodSignal, 'Phase'))
+                demod_path = ['/' this.DeviceHandle '/demods/' num2str(demodIndex) '/sample.theta.avg'];
+                demod_path_us = strrep(demod_path,'.','_');
+                path = 'sample_theta_avg' ;
+
+            else
+                error("MFLI_DemodPath_Time_Error:InvalidDemodSignal", 'Invalid DemodSignal name - can be X, Y, R or Phase')
+            end
+
+        end
+
     end
 
     %% Methods (Static, Public)
     methods(Static, Access = public)
-
-        function timeBase = ScopeTimeBaseForMaxFreq(maxFreq)
-            %The scope time base (the SCOPES/n/TIME setting) for an FFT reaching at least maxFreq, in Hz.
-            %The slowest that samples at least twice maxFreq (the Nyquist
-            %limit). Time base n samples at 60 MHz / 2^n, n = 0 (60 MHz) to 15
-            %(1.83 kHz) - MFLI manual, SCOPES/n/TIME
-            %
-            %Inputs:
-            %   maxFreq - highest frequency wanted in the FFT, in Hz (up to 30 MHz)
-            %
-            %Outputs:
-            %   timeBase - 0 to 15
-
-            arguments
-                maxFreq (1,1) double {mustBePositive};
-            end
-
-            clockbase = 60e6;
-            requiredRate = 2 * maxFreq;
-            assert(requiredRate <= clockbase, "MFLI_Scope_SetScopeFreqMax_Error:FrequencyOutOfRange", "%s", ...
-                "The scope samples at up to 60 MHz, so its FFT reaches up to 30 MHz - " + maxFreq + " Hz was asked for");
-
-            %The largest n with 60 MHz / 2^n still at least the rate needed
-            timeBase = min(floor(log2(clockbase / requiredRate)), 15);
-        end
-
-        function [R, theta] = ConvertCartesian(x, y)
-            %Convert demodulator X and Y to amplitude R and phase in degrees.
-            %
-            %Inputs:
-            %   x - in-phase component X
-            %   y - quadrature component Y, in the same units
-            %
-            %Outputs:
-            %   R     - amplitude, sqrt(x^2 + y^2), in the units of x and y
-            %   theta - phase, in degrees, from -180 to 180
-
-            arguments
-                x; y;
-            end
-            R = sqrt(x^2 + y^2);
-            theta = atan2d(y, x); % degrees, in all four quadrants
-        end
 
         function TC_convert = ConvertBWtoTC(BW, order)
             %Convert a demodulator filter's 3 dB bandwidth to its time constant.
@@ -2618,6 +2575,24 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             end
             % equation to give time constant from bandwidth frequency
             TC_convert = FO / (2*pi*BW);
+        end
+
+        function [R, theta] = ConvertCartesian(x, y)
+            %Convert demodulator X and Y to amplitude R and phase in degrees.
+            %
+            %Inputs:
+            %   x - in-phase component X
+            %   y - quadrature component Y, in the same units
+            %
+            %Outputs:
+            %   R     - amplitude, sqrt(x^2 + y^2), in the units of x and y
+            %   theta - phase, in degrees, from -180 to 180
+
+            arguments
+                x; y;
+            end
+            R = sqrt(x^2 + y^2);
+            theta = atan2d(y, x); % degrees, in all four quadrants
         end
 
         function channelIdx = ConvertScopeInputNameToIndex(channelName)
@@ -2671,35 +2646,35 @@ classdef ZI_MFLI < Palladium.Core.Instrument
             BW_convert = FO / (2*pi*TC);
         end
 
+        function timeBase = ScopeTimeBaseForMaxFreq(maxFreq)
+            %The scope time base (the SCOPES/n/TIME setting) for an FFT reaching at least maxFreq, in Hz.
+            %The slowest that samples at least twice maxFreq (the Nyquist
+            %limit). Time base n samples at 60 MHz / 2^n, n = 0 (60 MHz) to 15
+            %(1.83 kHz) - MFLI manual, SCOPES/n/TIME
+            %
+            %Inputs:
+            %   maxFreq - highest frequency wanted in the FFT, in Hz (up to 30 MHz)
+            %
+            %Outputs:
+            %   timeBase - 0 to 15
+
+            arguments
+                maxFreq (1,1) double {mustBePositive};
+            end
+
+            clockbase = 60e6;
+            requiredRate = 2 * maxFreq;
+            assert(requiredRate <= clockbase, "MFLI_Scope_SetScopeFreqMax_Error:FrequencyOutOfRange", "%s", ...
+                "The scope samples at up to 60 MHz, so its FFT reaches up to 30 MHz - " + maxFreq + " Hz was asked for");
+
+            %The largest n with 60 MHz / 2^n still at least the rate needed
+            timeBase = min(floor(log2(clockbase / requiredRate)), 15);
+        end
+
     end
 
     %% Methods (Static, Private)
     methods (Static, Access = private)
-
-        function deviceHandle = ZIConnect(deviceID, interface)
-            %Check the LabOne API is on the path, connect to the local Data Server and the device, and return the lower-case device ID.
-
-            % Check the ziDAQ MEX (DLL) and Utility functions can be found in Matlab's path.
-            if ~(exist('ziDAQ', 'file') == 3) || ~(exist('ziCreateAPISession', 'file') == 2)
-                error("MFLI_ZIConnect_Error:LabOneApiNotFound", "%s", "Failed to find the LabOne MATLAB API (the ziDAQ mex file or its utility functions). " + ...
-                    "Add it to the MATLAB path with the ziAddPath function in the API subfolder of the LabOne installation - on Windows this is typically " + ...
-                    "C:\Program Files\Zurich Instruments\LabOne\API\MATLAB2012\");
-            end
-
-            % The API level 5 gives full functionality for an MFLI
-            % according to the ziDAQ.m metadata comments
-            supported_apilevel = 5;
-
-            %Connect to a dataserver if not already connected, then connect
-            %this device to that. Assumes LabOne is installed and running on
-            %the PC, not internally on the MFLI. See comments in ZI_HandleConnect_LabOneServerRunningOnPC
-            deviceHandle = Palladium.Instruments.ZI_MFLI.ZI_HandleConnect_LabOneServerRunningOnPC(deviceID, interface, supported_apilevel);
-
-            %Check the API and firmware are the same version. Not required but
-            %a nice error check
-            ziApiServerVersionCheck();
-
-        end
 
         function deviceHandle = ZI_HandleConnect_LabOneServerRunningOnPC(device_serial, interface, apilevel, server_address, port_number)
             %Connect to the Data Server on this PC and the device through it, and return the lower-case device ID.
@@ -2726,6 +2701,31 @@ classdef ZI_MFLI < Palladium.Core.Instrument
 
             % Determine the device identifier from it's serial/id
             deviceHandle = lower(ziDAQ('discoveryFind', char(device_serial)));
+        end
+
+        function deviceHandle = ZIConnect(deviceID, interface)
+            %Check the LabOne API is on the path, connect to the local Data Server and the device, and return the lower-case device ID.
+
+            % Check the ziDAQ MEX (DLL) and Utility functions can be found in Matlab's path.
+            if ~(exist('ziDAQ', 'file') == 3) || ~(exist('ziCreateAPISession', 'file') == 2)
+                error("MFLI_ZIConnect_Error:LabOneApiNotFound", "%s", "Failed to find the LabOne MATLAB API (the ziDAQ mex file or its utility functions). " + ...
+                    "Add it to the MATLAB path with the ziAddPath function in the API subfolder of the LabOne installation - on Windows this is typically " + ...
+                    "C:\Program Files\Zurich Instruments\LabOne\API\MATLAB2012\");
+            end
+
+            % The API level 5 gives full functionality for an MFLI
+            % according to the ziDAQ.m metadata comments
+            supported_apilevel = 5;
+
+            %Connect to a dataserver if not already connected, then connect
+            %this device to that. Assumes LabOne is installed and running on
+            %the PC, not internally on the MFLI. See comments in ZI_HandleConnect_LabOneServerRunningOnPC
+            deviceHandle = Palladium.Instruments.ZI_MFLI.ZI_HandleConnect_LabOneServerRunningOnPC(deviceID, interface, supported_apilevel);
+
+            %Check the API and firmware are the same version. Not required but
+            %a nice error check
+            ziApiServerVersionCheck();
+
         end
 
     end

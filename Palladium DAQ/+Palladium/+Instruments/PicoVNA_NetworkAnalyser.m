@@ -115,9 +115,9 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
 
     %% Categoricals
     methods
-        function catOut = SoftwareType(this, inputStr);    catOut = this.ConvertToCategorical(inputStr, ["Auto", "PicoVNA 5", "PicoVNA 3"]); end
         function catOut = MeasType(this, inputStr);        catOut = this.ConvertToCategorical(inputStr, ["S11", "S21", "S12", "S22"]); end
         function catOut = MeasUnitType(this, inputStr);    catOut = this.ConvertToCategorical(inputStr, ["dB", "Absolute", "Real/Imaginary"]); end
+        function catOut = SoftwareType(this, inputStr);    catOut = this.ConvertToCategorical(inputStr, ["Auto", "PicoVNA 5", "PicoVNA 3"]); end
     end
 
     %% Constructor
@@ -144,18 +144,6 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
     %% Methods (Public)
     methods (Access = public)
 
-        function Calibrate(this)
-            %Open the PicoVNA 3 library's calibration dialogue, to set the frequency plan and calibrate - not while a scan is running.
-            %PicoVNA 3 only: with PicoVNA 5, calibrate in its software.
-            %Keep the calibration with SaveCalibration
-
-            if this.SimulationMode
-                return;
-            end
-
-            this.Backend.Calibrate();
-        end
-
         function BrowseForCalibration(this, owner)
             %Ask for a calibration file and set CalibrationFile to it - the Browse button in the Instrument Options panel.
             %Does nothing if cancelled
@@ -168,6 +156,58 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
             if strlength(path) > 0
                 this.CalibrationFile = path;
             end
+        end
+
+        function Calibrate(this)
+            %Open the PicoVNA 3 library's calibration dialogue, to set the frequency plan and calibrate - not while a scan is running.
+            %PicoVNA 3 only: with PicoVNA 5, calibrate in its software.
+            %Keep the calibration with SaveCalibration
+
+            if this.SimulationMode
+                return;
+            end
+
+            this.Backend.Calibrate();
+        end
+
+        function complete = CheckScanComplete(this)
+            %Check, without waiting, whether the sweep started by RunScan has finished - for the Scan Control tab.
+            %If the sweep failed (e.g. no calibration covers it) this is
+            %also true, and GetCompletedScanData raises the error
+            %
+            %Outputs:
+            %   complete - true once the sweep has finished
+
+            if ~this.ScanComplete && this.Backend.IsSweepDone()
+                try
+                    this.ScanData = this.Backend.CollectSweep();
+                catch err
+                    identifier = err.identifier;
+                    if strlength(identifier) == 0
+                        identifier = "PicoVNA_NetworkAnalyser:MeasureFailed";
+                    end
+                    this.MeasureError = MException(identifier, "%s", this.Name + ": " + err.message);
+                end
+                this.ScanComplete = true;
+            end
+            complete = this.ScanComplete;
+        end
+
+        function metadataStruct = CollectMetaData(this)
+            %Sweep settings, recorded in the data-file header.
+            %While a sweep is under way, those read back before it started
+            %
+            %Outputs:
+            %   metadataStruct - struct with fields Freq_Start_Hz, Freq_Stop_Hz,
+            %   NumPoints, Power_dBm, Bandwidth_Hz and CalType
+
+            settings = this.ReadSweepSettings();
+            metadataStruct.Freq_Start_Hz = settings.StartFrequency_Hz;
+            metadataStruct.Freq_Stop_Hz = settings.StopFrequency_Hz;
+            metadataStruct.NumPoints = settings.NumPoints;
+            metadataStruct.Power_dBm = settings.Power_dBm;
+            metadataStruct.Bandwidth_Hz = settings.Bandwidth_Hz;
+            metadataStruct.CalType = settings.CalType;
         end
 
         function height = CreateSetupControls(this, parent)
@@ -210,90 +250,6 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
             browseButton.Layout.Column = 3;
 
             height = 100;
-        end
-
-        function RunCalibrationFromGUI(this, owner)
-            %Connect, open the library's calibration dialogue, save the result to a file chosen by the user, set CalibrationFile to it and disconnect - the Run Calibration button in the Instrument Options panel.
-            %The calibration lives only in the library while it is
-            %connected, so it is saved to a file to use at the next
-            %Connect. Problems (not connected to hardware, PicoVNA 5, a
-            %measurement running) are shown in the window
-            %
-            %Inputs:
-            %   owner - the control pressed, to show messages in its window
-
-            gui = Palladium.Utilities.GUIUtils;
-            if this.IsConnected
-                gui.ShowWarning(owner, "The analyser is in use. Stop the measurements before running a calibration.", "Calibration");
-                return;
-            end
-            if this.Connection_Type == Palladium.Enums.ConnectionType.Debug
-                gui.ShowWarning(owner, "A calibration needs the analyser: set the Connection_Type to Ethernet (the Debug connection is simulated).", "Calibration");
-                return;
-            end
-
-            this.SkipCalibrationFile = true;
-            cleanup = onCleanup(@() this.EndGUICalibration());
-            savedFile = "";
-            try
-                this.Connect();
-                this.Calibrate();
-                savedFile = gui.ChooseFile("save", Title = "Save the calibration as", Reference = owner, ...
-                    Filter = {'*.pcal', 'Calibration files'}, Default = "Calibration.pcal");
-                if strlength(savedFile) == 0
-                    gui.ShowWarning(owner, "The calibration was not saved, so it is lost when the analyser disconnects. Run it again and choose a file to save it to.", "Calibration");
-                else
-                    this.SaveCalibration(savedFile);
-                end
-            catch err
-                gui.ShowWarning(owner, string(err.message), "Calibration");
-                savedFile = "";
-            end
-
-            clear cleanup;      %Disconnects
-            if strlength(savedFile) > 0
-                this.CalibrationFile = savedFile;
-            end
-        end
-
-        function complete = CheckScanComplete(this)
-            %Check, without waiting, whether the sweep started by RunScan has finished - for the Scan Control tab.
-            %If the sweep failed (e.g. no calibration covers it) this is
-            %also true, and GetCompletedScanData raises the error
-            %
-            %Outputs:
-            %   complete - true once the sweep has finished
-
-            if ~this.ScanComplete && this.Backend.IsSweepDone()
-                try
-                    this.ScanData = this.Backend.CollectSweep();
-                catch err
-                    identifier = err.identifier;
-                    if strlength(identifier) == 0
-                        identifier = "PicoVNA_NetworkAnalyser:MeasureFailed";
-                    end
-                    this.MeasureError = MException(identifier, "%s", this.Name + ": " + err.message);
-                end
-                this.ScanComplete = true;
-            end
-            complete = this.ScanComplete;
-        end
-
-        function metadataStruct = CollectMetaData(this)
-            %Sweep settings, recorded in the data-file header.
-            %While a sweep is under way, those read back before it started
-            %
-            %Outputs:
-            %   metadataStruct - struct with fields Freq_Start_Hz, Freq_Stop_Hz,
-            %   NumPoints, Power_dBm, Bandwidth_Hz and CalType
-
-            settings = this.ReadSweepSettings();
-            metadataStruct.Freq_Start_Hz = settings.StartFrequency_Hz;
-            metadataStruct.Freq_Stop_Hz = settings.StopFrequency_Hz;
-            metadataStruct.NumPoints = settings.NumPoints;
-            metadataStruct.Power_dBm = settings.Power_dBm;
-            metadataStruct.Bandwidth_Hz = settings.Bandwidth_Hz;
-            metadataStruct.CalType = settings.CalType;
         end
 
         function description = GetActiveSoftware(this)
@@ -349,6 +305,27 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
                 this.Name + ": the software sent no data for " + string(this.MeasMode) + " - it needs a calibration covering it (S12 and S22 need a two-port one).");
         end
 
+        function controls = GetExtraScanControls(this)
+            %Extra settings for the VNA Control tab to offer, beside the sweep settings - the power and the bandwidth.
+            %With PicoVNA 5 these are set in its software, so the tab shows
+            %what it has (GetScanSettings) and a different value is warned
+            %about on Run. Changing one doesn't refresh the tab: the value
+            %is sent on the next Run
+            %
+            %Outputs:
+            %   controls - struct array: Name, Label, Tooltip, Type, Items, Limits, Value, RefreshOnChange
+
+            controls = struct("Name", {"Power_dBm"; "Bandwidth_Hz"}, ...
+                "Label", {"Power (dBm)"; "Bandwidth (Hz)"}, ...
+                "Tooltip", {"Test signal power, " + this.PowerLimits_dBm(1) + " to +6 dBm (PicoVNA 106) or +" + this.PowerLimits_dBm(2) + " dBm (108). PicoVNA 3 only - with PicoVNA 5 set it in the software";
+                    "Measurement (IF) bandwidth - narrower is less noisy but slower. PicoVNA 3 only - with PicoVNA 5 set it in the software"}, ...
+                "Type", {"number"; "dropdown"}, ...
+                "Items", {strings(1, 0); string(this.BandwidthChoices_Hz)}, ...
+                "Limits", {this.PowerLimits_dBm; []}, ...
+                "Value", {0; "1000"}, ...
+                "RefreshOnChange", {false; false});
+        end
+
         function [Headers, Units] = GetHeaders(~)
             %No per-tick data columns - scans are recorded through the Scan Control tab.
             %
@@ -379,27 +356,6 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
             else
                 Units = ["Hz", ""];
             end
-        end
-
-        function controls = GetExtraScanControls(this)
-            %Extra settings for the VNA Control tab to offer, beside the sweep settings - the power and the bandwidth.
-            %With PicoVNA 5 these are set in its software, so the tab shows
-            %what it has (GetScanSettings) and a different value is warned
-            %about on Run. Changing one doesn't refresh the tab: the value
-            %is sent on the next Run
-            %
-            %Outputs:
-            %   controls - struct array: Name, Label, Tooltip, Type, Items, Limits, Value, RefreshOnChange
-
-            controls = struct("Name", {"Power_dBm"; "Bandwidth_Hz"}, ...
-                "Label", {"Power (dBm)"; "Bandwidth (Hz)"}, ...
-                "Tooltip", {"Test signal power, " + this.PowerLimits_dBm(1) + " to +6 dBm (PicoVNA 106) or +" + this.PowerLimits_dBm(2) + " dBm (108). PicoVNA 3 only - with PicoVNA 5 set it in the software";
-                    "Measurement (IF) bandwidth - narrower is less noisy but slower. PicoVNA 3 only - with PicoVNA 5 set it in the software"}, ...
-                "Type", {"number"; "dropdown"}, ...
-                "Items", {strings(1, 0); string(this.BandwidthChoices_Hz)}, ...
-                "Limits", {this.PowerLimits_dBm; []}, ...
-                "Value", {0; "1000"}, ...
-                "RefreshOnChange", {false; false});
         end
 
         function settings = GetScanSettings(this, ~)
@@ -452,6 +408,50 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
             %   dataRow - empty, matching GetHeaders
 
             dataRow = [];
+        end
+
+        function RunCalibrationFromGUI(this, owner)
+            %Connect, open the library's calibration dialogue, save the result to a file chosen by the user, set CalibrationFile to it and disconnect - the Run Calibration button in the Instrument Options panel.
+            %The calibration lives only in the library while it is
+            %connected, so it is saved to a file to use at the next
+            %Connect. Problems (not connected to hardware, PicoVNA 5, a
+            %measurement running) are shown in the window
+            %
+            %Inputs:
+            %   owner - the control pressed, to show messages in its window
+
+            gui = Palladium.Utilities.GUIUtils;
+            if this.IsConnected
+                gui.ShowWarning(owner, "The analyser is in use. Stop the measurements before running a calibration.", "Calibration");
+                return;
+            end
+            if this.Connection_Type == Palladium.Enums.ConnectionType.Debug
+                gui.ShowWarning(owner, "A calibration needs the analyser: set the Connection_Type to Ethernet (the Debug connection is simulated).", "Calibration");
+                return;
+            end
+
+            this.SkipCalibrationFile = true;
+            cleanup = onCleanup(@() this.EndGUICalibration());
+            savedFile = "";
+            try
+                this.Connect();
+                this.Calibrate();
+                savedFile = gui.ChooseFile("save", Title = "Save the calibration as", Reference = owner, ...
+                    Filter = {'*.pcal', 'Calibration files'}, Default = "Calibration.pcal");
+                if strlength(savedFile) == 0
+                    gui.ShowWarning(owner, "The calibration was not saved, so it is lost when the analyser disconnects. Run it again and choose a file to save it to.", "Calibration");
+                else
+                    this.SaveCalibration(savedFile);
+                end
+            catch err
+                gui.ShowWarning(owner, string(err.message), "Calibration");
+                savedFile = "";
+            end
+
+            clear cleanup;      %Disconnects
+            if strlength(savedFile) > 0
+                this.CalibrationFile = savedFile;
+            end
         end
 
         function data = RunMeasurement(this, options)
@@ -767,26 +767,6 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
                 "Download and install them from https://www.picotech.com/downloads#t9" + newline + newline + "What happened:" + newline + strjoin(failures, newline));
         end
 
-        function number = ToNumber(~, value, name)
-            %A setting as a number: empty stays empty, text (a drop-down's value) is converted - an error for anything else.
-
-            if isempty(value)
-                number = [];
-                return;
-            end
-            number = str2double(string(value));
-            assert(isscalar(number) && isfinite(number), "PicoVNA_NetworkAnalyser:NotANumber", "%s", name + " must be a single number.");
-        end
-
-        function WarnIfNotSet(this, what, units, asked, actual)
-            %PicoVNA 5's power and bandwidth are set in its software - say so if a different one was asked for.
-
-            if ~isempty(asked) && abs(asked - actual) > 1e-9 * max(1, abs(actual))
-                Palladium.Logging.Logger.Log("Warning", this.Name + ": the " + what + " can't be set from here with this software (set it in the PicoVNA software) - it is " + ...
-                    actual + " " + units + ", not " + asked + " " + units + ".");
-            end
-        end
-
         function plan = ReadPlan(this)
             %The frequency plan: from the last read-back while a sweep is under way, else asked for (or the simulated one).
 
@@ -810,6 +790,26 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
                 settings = this.SweepSettings;
             else
                 settings = this.Backend.ReadSweepSettings();
+            end
+        end
+
+        function number = ToNumber(~, value, name)
+            %A setting as a number: empty stays empty, text (a drop-down's value) is converted - an error for anything else.
+
+            if isempty(value)
+                number = [];
+                return;
+            end
+            number = str2double(string(value));
+            assert(isscalar(number) && isfinite(number), "PicoVNA_NetworkAnalyser:NotANumber", "%s", name + " must be a single number.");
+        end
+
+        function WarnIfNotSet(this, what, units, asked, actual)
+            %PicoVNA 5's power and bandwidth are set in its software - say so if a different one was asked for.
+
+            if ~isempty(asked) && abs(asked - actual) > 1e-9 * max(1, abs(actual))
+                Palladium.Logging.Logger.Log("Warning", this.Name + ": the " + what + " can't be set from here with this software (set it in the PicoVNA software) - it is " + ...
+                    actual + " " + units + ", not " + asked + " " + units + ".");
             end
         end
 

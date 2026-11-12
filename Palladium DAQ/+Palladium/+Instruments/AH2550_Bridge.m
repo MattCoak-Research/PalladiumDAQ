@@ -54,18 +54,6 @@ classdef AH2550_Bridge < Palladium.Core.Instrument
 
     %% Get and Set Accessors
     methods
-        function unitStr = get.LossUnit(this)
-            switch(this.Loss_Units)
-                case(this.LossUnitsType("TanDelta"));   unitStr = "";
-                case(this.LossUnitsType("kOhm"));       unitStr = "kΩ";
-                case(this.LossUnitsType("nS"));         unitStr = "nS";
-                case(this.LossUnitsType("GOhm"));       unitStr = "GΩ";
-                case(this.LossUnitsType("jpF"));        unitStr = "jpF";
-                otherwise
-                    error("AH2550_Bridge:UnsupportedLossUnits", 'Unsupported Loss Units');
-            end
-        end
-
         function label = get.LossLabel(this)
             %As the bridge labels each of its UNITS settings (2500A manual, UNITS)
             switch(this.Loss_Units)
@@ -74,6 +62,18 @@ classdef AH2550_Bridge < Palladium.Core.Instrument
                 case(this.LossUnitsType("kOhm"));       label = "KO";
                 case(this.LossUnitsType("GOhm"));       label = "GO";
                 case(this.LossUnitsType("jpF"));        label = "GW";
+                otherwise
+                    error("AH2550_Bridge:UnsupportedLossUnits", 'Unsupported Loss Units');
+            end
+        end
+
+        function unitStr = get.LossUnit(this)
+            switch(this.Loss_Units)
+                case(this.LossUnitsType("TanDelta"));   unitStr = "";
+                case(this.LossUnitsType("kOhm"));       unitStr = "kΩ";
+                case(this.LossUnitsType("nS"));         unitStr = "nS";
+                case(this.LossUnitsType("GOhm"));       unitStr = "GΩ";
+                case(this.LossUnitsType("jpF"));        unitStr = "jpF";
                 otherwise
                     error("AH2550_Bridge:UnsupportedLossUnits", 'Unsupported Loss Units');
             end
@@ -197,6 +197,24 @@ classdef AH2550_Bridge < Palladium.Core.Instrument
     %% Methods (Private)
     methods (Access = private)
 
+        function CheckLossUnits(this, lossLabel)
+            %Check a result's loss units label matches Loss_Units - stop with a message if not.
+            %No label (e.g. labels turned off with FORMAT) can't be checked
+
+            if lossLabel == "" || lossLabel == this.LossLabel
+                return;
+            end
+            labels = ["NS", "DS", "KO", "GO", "GW"];
+            names = ["nS", "TanDelta", "kOhm", "GOhm", "jpF"];
+            bridgeUnits = names(labels == lossLabel);
+            if isempty(bridgeUnits)
+                bridgeUnits = lossLabel;
+            end
+            error("AH2550_Bridge:LossUnitsMismatch", "%s", this.Name + " reports loss in " + bridgeUnits + " (" + lossLabel + ...
+                "), but its Loss_Units setting is " + string(this.Loss_Units) + ", which names the loss column. Set Loss_Units to " + ...
+                bridgeUnits + ", or change the bridge's units to match (UNITS command: 1 nS, 2 TanDelta, 3 kOhm, 4 GOhm, 5 jpF).");
+        end
+
         function data = ReadNewestResult(this)
             %The newest result the bridge has sent, in continuous mode.
             %Over GPIB the bridge keeps only its newest result - an unread one
@@ -220,24 +238,6 @@ classdef AH2550_Bridge < Palladium.Core.Instrument
             if data == ""
                 data = this.ReadString();
             end
-        end
-
-        function CheckLossUnits(this, lossLabel)
-            %Check a result's loss units label matches Loss_Units - stop with a message if not.
-            %No label (e.g. labels turned off with FORMAT) can't be checked
-
-            if lossLabel == "" || lossLabel == this.LossLabel
-                return;
-            end
-            labels = ["NS", "DS", "KO", "GO", "GW"];
-            names = ["nS", "TanDelta", "kOhm", "GOhm", "jpF"];
-            bridgeUnits = names(labels == lossLabel);
-            if isempty(bridgeUnits)
-                bridgeUnits = lossLabel;
-            end
-            error("AH2550_Bridge:LossUnitsMismatch", "%s", this.Name + " reports loss in " + bridgeUnits + " (" + lossLabel + ...
-                "), but its Loss_Units setting is " + string(this.Loss_Units) + ", which names the loss column. Set Loss_Units to " + ...
-                bridgeUnits + ", or change the bridge's units to match (UNITS command: 1 nS, 2 TanDelta, 3 kOhm, 4 GOhm, 5 jpF).");
         end
 
     end

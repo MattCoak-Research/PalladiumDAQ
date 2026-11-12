@@ -66,6 +66,82 @@ classdef Software3 < Palladium.Instruments.PicoVNA.Backend
     %% Methods (Public)
     methods(Access = public)
 
+        function AbortSweep(this)
+            %Give up on a sweep not collected - the library can't stop it, so the next call waits for it to end.
+
+            this.Outstanding = false;
+        end
+
+        function Calibrate(this)
+            %Open the library's calibration dialogue, to set the frequency plan and calibrate (SelectCal "?") - not while a scan is running.
+            %The dialogue measures the standards you connect, and applies the
+            %calibration when you finish. Keep it with SaveCalibration
+
+            this.ExpectOK(this.Server.Call("SelectCal", "?"), "calibrating");
+        end
+
+        function can = CanSetSweepOptions(~)
+            %True: the application can't be used to set them, so the driver sends them with the frequency plan.
+            can = true;
+        end
+
+        function Close(this)
+            %Close the analyser's USB port and stop the library's process - cutting off a sweep still going.
+
+            if isempty(this.Server)
+                return;
+            end
+            try
+                %A sweep still under way is cut off with the process, not waited for
+                if ~this.Server.IsBusy()
+                    this.Ask("CloseVNA");
+                end
+            catch
+                %Stop the process anyway
+            end
+            this.ReleaseServer();
+        end
+
+        function data = CollectSweep(this)
+            %Read the finished sweep: frequency and value of each point (GetData) - the log magnitude for dB, the magnitude worked out from the real and imaginary parts for Absolute (the library has no linear magnitude format), or the real and imaginary parts themselves for Real/Imaginary (three columns).
+            %Errors if the sweep failed - the library says only "Error" when
+            %its calibration doesn't cover the measurement
+
+            this.Outstanding = false;
+            reply = strip(string(this.Server.GetAsyncReply()));
+            this.ReportDialogs("Measure");
+            assert(reply == "OK", "PicoVNA_NetworkAnalyser:MeasureFailed", "%s", ...
+                "measuring " + this.SParameter + " failed - the library replied """ + reply + """. It needs a calibration covering it (S12 and S22 need a two-port one): see Calibrate and LoadCalibration.");
+
+            if this.Unit == "Real/Imaginary"
+                [frequency, realPart] = this.GetSweepValues(this.SParameter, "real");
+                [~, imaginaryPart] = this.GetSweepValues(this.SParameter, "imag");
+                data = [frequency, realPart, imaginaryPart];
+                return;
+            end
+            if this.Unit == "dB"
+                [frequency, values] = this.GetSweepValues(this.SParameter, "logmag");
+            else
+                [frequency, realPart] = this.GetSweepValues(this.SParameter, "real");
+                [~, imaginaryPart] = this.GetSweepValues(this.SParameter, "imag");
+                values = hypot(realPart, imaginaryPart);
+            end
+            data = [frequency, values];
+        end
+
+        function done = IsSweepDone(this)
+            %True once the library's Measure has returned (a check, without waiting).
+
+            done = ~this.Outstanding || ~this.Server.IsBusy();
+        end
+
+        function LoadCalibration(this, fileName)
+            %Load a calibration and frequency plan saved with SaveCalibration (LoadCal) - not one saved by the PicoVNA application.
+
+            assert(isfile(fileName), "PicoVNA_NetworkAnalyser:CalibrationFileMissing", "%s", "The calibration file `" + string(fileName) + "` does not exist.");
+            this.ExpectOK(this.Ask("LoadCal", char(fileName)), "loading the calibration file " + string(fileName));
+        end
+
         function Open(this)
             %Start the library's process and find the analyser on USB, trying each of the libraries in turn - errors with the reason for each if none works.
             %A library that starts but doesn't find the analyser is let go and
@@ -102,23 +178,6 @@ classdef Software3 < Palladium.Instruments.PicoVNA.Backend
             error("PicoVNA_NetworkAnalyser:PicoVNA3NotFound", "%s", "PicoVNA 3 software's library not found - " + strjoin(failures, newline));
         end
 
-        function Close(this)
-            %Close the analyser's USB port and stop the library's process - cutting off a sweep still going.
-
-            if isempty(this.Server)
-                return;
-            end
-            try
-                %A sweep still under way is cut off with the process, not waited for
-                if ~this.Server.IsBusy()
-                    this.Ask("CloseVNA");
-                end
-            catch
-                %Stop the process anyway
-            end
-            this.ReleaseServer();
-        end
-
         function plan = ReadPlan(this)
             %The frequency plan, from the library (GetInfo "FreqPlan").
             %It replies <start Hz>, <stop Hz>, <step Hz>, <points>, <test
@@ -144,23 +203,10 @@ classdef Software3 < Palladium.Instruments.PicoVNA.Backend
             settings.CalType = strip(string(this.Ask("GetInfo", "CalType")));
         end
 
-        function SetSweepOptions(this, power_dBm, bandwidth_Hz)
-            %Remember the power and bandwidth to send with the frequency plan - one that is empty is the library's present one, read from it.
+        function SaveCalibration(this, fileName)
+            %Save the calibration and frequency plan, to load again with LoadCalibration or the CalibrationFile setting (SaveCal).
 
-            if isempty(power_dBm)           %The plan's test level
-                power_dBm = this.ParseNumbers(this.Ask("GetInfo", "FreqPlan"));
-                power_dBm = power_dBm(end);
-            end
-            if isempty(bandwidth_Hz)
-                bandwidth_Hz = str2double(strip(string(this.Ask("GetInfo", "BWSet"))));
-            end
-            this.Power_dBm = power_dBm;
-            this.Bandwidth_Hz = bandwidth_Hz;
-        end
-
-        function can = CanSetSweepOptions(~)
-            %True: the application can't be used to set them, so the driver sends them with the frequency plan.
-            can = true;
+            this.ExpectOK(this.Ask("SaveCal", char(fileName)), "saving the calibration to " + string(fileName));
         end
 
         function SetFrequencyPlan(this, start_Hz, stop_Hz, numPoints)
@@ -174,6 +220,20 @@ classdef Software3 < Palladium.Instruments.PicoVNA.Backend
             reply = this.Ask("SetFreqPlan", start_Hz / 1e6, step_MHz, numPoints, this.Power_dBm, this.Bandwidth_Hz);
             this.ExpectOK(reply, "setting the frequency plan (" + start_Hz / 1e6 + " to " + stop_Hz / 1e6 + " MHz, " + numPoints + " points, " + ...
                 this.Power_dBm + " dBm, " + this.Bandwidth_Hz + " Hz bandwidth)");
+        end
+
+        function SetSweepOptions(this, power_dBm, bandwidth_Hz)
+            %Remember the power and bandwidth to send with the frequency plan - one that is empty is the library's present one, read from it.
+
+            if isempty(power_dBm)           %The plan's test level
+                power_dBm = this.ParseNumbers(this.Ask("GetInfo", "FreqPlan"));
+                power_dBm = power_dBm(end);
+            end
+            if isempty(bandwidth_Hz)
+                bandwidth_Hz = str2double(strip(string(this.Ask("GetInfo", "BWSet"))));
+            end
+            this.Power_dBm = power_dBm;
+            this.Bandwidth_Hz = bandwidth_Hz;
         end
 
         function StartSweep(this, sParameter, unit, ~)
@@ -192,70 +252,21 @@ classdef Software3 < Palladium.Instruments.PicoVNA.Backend
             this.Outstanding = true;
         end
 
-        function done = IsSweepDone(this)
-            %True once the library's Measure has returned (a check, without waiting).
-
-            done = ~this.Outstanding || ~this.Server.IsBusy();
-        end
-
-        function data = CollectSweep(this)
-            %Read the finished sweep: frequency and value of each point (GetData) - the log magnitude for dB, the magnitude worked out from the real and imaginary parts for Absolute (the library has no linear magnitude format), or the real and imaginary parts themselves for Real/Imaginary (three columns).
-            %Errors if the sweep failed - the library says only "Error" when
-            %its calibration doesn't cover the measurement
-
-            this.Outstanding = false;
-            reply = strip(string(this.Server.GetAsyncReply()));
-            this.ReportDialogs("Measure");
-            assert(reply == "OK", "PicoVNA_NetworkAnalyser:MeasureFailed", "%s", ...
-                "measuring " + this.SParameter + " failed - the library replied """ + reply + """. It needs a calibration covering it (S12 and S22 need a two-port one): see Calibrate and LoadCalibration.");
-
-            if this.Unit == "Real/Imaginary"
-                [frequency, realPart] = this.GetSweepValues(this.SParameter, "real");
-                [~, imaginaryPart] = this.GetSweepValues(this.SParameter, "imag");
-                data = [frequency, realPart, imaginaryPart];
-                return;
-            end
-            if this.Unit == "dB"
-                [frequency, values] = this.GetSweepValues(this.SParameter, "logmag");
-            else
-                [frequency, realPart] = this.GetSweepValues(this.SParameter, "real");
-                [~, imaginaryPart] = this.GetSweepValues(this.SParameter, "imag");
-                values = hypot(realPart, imaginaryPart);
-            end
-            data = [frequency, values];
-        end
-
-        function AbortSweep(this)
-            %Give up on a sweep not collected - the library can't stop it, so the next call waits for it to end.
-
-            this.Outstanding = false;
-        end
-
-        function LoadCalibration(this, fileName)
-            %Load a calibration and frequency plan saved with SaveCalibration (LoadCal) - not one saved by the PicoVNA application.
-
-            assert(isfile(fileName), "PicoVNA_NetworkAnalyser:CalibrationFileMissing", "%s", "The calibration file `" + string(fileName) + "` does not exist.");
-            this.ExpectOK(this.Ask("LoadCal", char(fileName)), "loading the calibration file " + string(fileName));
-        end
-
-        function Calibrate(this)
-            %Open the library's calibration dialogue, to set the frequency plan and calibrate (SelectCal "?") - not while a scan is running.
-            %The dialogue measures the standards you connect, and applies the
-            %calibration when you finish. Keep it with SaveCalibration
-
-            this.ExpectOK(this.Server.Call("SelectCal", "?"), "calibrating");
-        end
-
-        function SaveCalibration(this, fileName)
-            %Save the calibration and frequency plan, to load again with LoadCalibration or the CalibrationFile setting (SaveCal).
-
-            this.ExpectOK(this.Ask("SaveCal", char(fileName)), "saving the calibration to " + string(fileName));
-        end
-
     end
 
     %% Methods (Private)
     methods(Access = private)
+
+        function reply = Ask(this, functionName, varargin)
+            %Call a library function, closing any message box it shows (so the user isn't left to click it) and logging what it said.
+            %The library can comment on a request in a box, e.g. "Start
+            %frequency outside existing calibration span. Calibration values
+            %will be restored" - the function carries on after it. Not for
+            %SelectCal, whose dialogue is the point
+
+            reply = this.Server.CallDismissingDialogs(functionName, varargin{:});
+            this.ReportDialogs(functionName);
+        end
 
         function CheckCalibrationCovers(this, sParameter)
             %Error, saying what is needed, unless the library's calibration covers the S-parameter - a one-port calibration covers S11 only.
@@ -288,30 +299,28 @@ classdef Software3 < Palladium.Instruments.PicoVNA.Backend
                 ". Calibrate (Calibrate, then SaveCalibration to keep it) or load a calibration (LoadCalibration, or the CalibrationFile setting) that covers " + sParameter + ".");
         end
 
-        function reply = Ask(this, functionName, varargin)
-            %Call a library function, closing any message box it shows (so the user isn't left to click it) and logging what it said.
-            %The library can comment on a request in a box, e.g. "Start
-            %frequency outside existing calibration span. Calibration values
-            %will be restored" - the function carries on after it. Not for
-            %SelectCal, whose dialogue is the point
-
-            reply = this.Server.CallDismissingDialogs(functionName, varargin{:});
-            this.ReportDialogs(functionName);
-        end
-
-        function ReportDialogs(this, functionName)
-            %Log what the message boxes closed during a call said.
-
-            for text = this.Server.DialogsDismissed
-                Palladium.Logging.Logger.Log("Warning", "The PicoVNA library said, in " + functionName + ": " + text);
-            end
-        end
-
         function ExpectOK(~, reply, action)
             %Error, naming the action, unless a library function's reply is "OK".
 
             reply = strip(string(reply));
             assert(reply == "OK", "PicoVNA_NetworkAnalyser:CommandFailed", "%s", action + " failed - the library replied """ + reply + """.");
+        end
+
+        function FindAnalyser(this, libraryName)
+            %Ask the library to find the analyser on USB (FND, which takes a few seconds) - errors if it finds none. libraryName is for the description.
+
+            %A library that finds the wrong kind of analyser for it can
+            %complain in a message box - closed, as the next library is
+            %then tried, and what it said goes in the error
+            serialNumber = str2double(string(this.Server.CallDismissingDialogs("FND")));
+            said = "";
+            if ~isempty(this.Server.DialogsDismissed)
+                said = " - it showed a message: " + strjoin(this.Server.DialogsDismissed, "; ");
+            end
+            assert(serialNumber > 0, "PicoVNA_NetworkAnalyser:PicoVNA3NoAnalyser", "%s", ...
+                "the library started, but FND found no PicoVNA on USB (it returned " + serialNumber + ")" + said);
+            model = strip(string(this.Ask("GetInfo", "Model")));
+            this.Description = "PicoVNA software's library " + libraryName + " (" + model + ", serial number " + serialNumber + ")";
         end
 
         function [frequency, values] = GetSweepValues(this, sParameter, format)
@@ -332,28 +341,19 @@ classdef Software3 < Palladium.Instruments.PicoVNA.Backend
             numbers = str2double(split(strip(string(reply)), ","))';
         end
 
-        function FindAnalyser(this, libraryName)
-            %Ask the library to find the analyser on USB (FND, which takes a few seconds) - errors if it finds none. libraryName is for the description.
-
-            %A library that finds the wrong kind of analyser for it can
-            %complain in a message box - closed, as the next library is
-            %then tried, and what it said goes in the error
-            serialNumber = str2double(string(this.Server.CallDismissingDialogs("FND")));
-            said = "";
-            if ~isempty(this.Server.DialogsDismissed)
-                said = " - it showed a message: " + strjoin(this.Server.DialogsDismissed, "; ");
-            end
-            assert(serialNumber > 0, "PicoVNA_NetworkAnalyser:PicoVNA3NoAnalyser", "%s", ...
-                "the library started, but FND found no PicoVNA on USB (it returned " + serialNumber + ")" + said);
-            model = strip(string(this.Ask("GetInfo", "Model")));
-            this.Description = "PicoVNA software's library " + libraryName + " (" + model + ", serial number " + serialNumber + ")";
-        end
-
         function ReleaseServer(this)
             %Stop the library's process.
 
             delete(this.Server);
             this.Server = [];
+        end
+
+        function ReportDialogs(this, functionName)
+            %Log what the message boxes closed during a call said.
+
+            for text = this.Server.DialogsDismissed
+                Palladium.Logging.Logger.Log("Warning", "The PicoVNA library said, in " + functionName + ": " + text);
+            end
         end
 
     end

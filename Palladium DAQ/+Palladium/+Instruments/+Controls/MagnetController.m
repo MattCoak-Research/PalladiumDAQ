@@ -47,17 +47,17 @@ classdef MagnetController < Palladium.Core.InstrumentControlBase
             %Pass event-triggered function call through to the Instrument
             this.Instrument.SetState_Hold();
         end
- 
-        function RampToZeroCommandGiven(this, ~, ~)
-            %Pass event-triggered function call through to the Instrument
-            this.Instrument.SetState_RampToZero();
-        end         
-  
+
         function RampRateChanged(this, ~, eventData)
             %Pass event-triggered function call through to the Instrument
             rampRate_Tmin = eventData.Value;
             this.Instrument.SetRampRate_TeslaMin(rampRate_Tmin);
         end  
+
+        function RampToZeroCommandGiven(this, ~, ~)
+            %Pass event-triggered function call through to the Instrument
+            this.Instrument.SetState_RampToZero();
+        end         
 
         function RemoveControl(this, ~)
             %Delete GUI objects

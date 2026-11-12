@@ -71,33 +71,45 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
     %% Methods (Public)
     methods (Access = public)
 
-        function SetFrequencyRange(this, start_Hz, stop_Hz)
-            %Set the start and stop frequencies, in Hz, as typed in the panel (shown in the units chosen beside them) - for sequences and scripts.
-            %Like the other Set... methods, it errors while a scan is
-            %running, and acts on the panel as typing would
+        function LoadSavedData(this, register)
+            %Load the trace saved in one of the analyser's registers instead of measuring, as the Load button does - for sequences and scripts.
+            %Run as a scan, so it is plotted and (if Save to new file is
+            %ticked) saved like one, and in a sequence the command waits
+            %until that is done. The settings are not sent - the analyser
+            %takes on the register's state. See the instrument's
+            %RecallRegister for what the register must hold
             %
             %Inputs:
-            %   start_Hz - start frequency, in Hz
-            %   stop_Hz  - stop frequency in Hz, above the start
+            %   register - the register number, a whole number (1-31 for the 8722ES)
 
-            this.CheckNumber(start_Hz, "start_Hz", @mustBePositive, @mustBeFinite);
-            this.CheckNumber(stop_Hz, "stop_Hz", @mustBePositive, @mustBeFinite);
-            assert(stop_Hz > start_Hz, "VNAController:InvalidFrequencyRange", "%s", ...
-                "The stop frequency (" + stop_Hz + " Hz) must be above the start frequency (" + start_Hz + " Hz).");
-            this.SetStartFrequency(start_Hz);
-            this.SetStopFrequency(stop_Hz);
+            f = this.EditableFields("LoadRegister");
+            this.CheckNumber(register, "register", @mustBeInteger, @(r) mustBeInRange(r, f.LoadRegister.Limits(1), f.LoadRegister.Limits(2)));
+            f.LoadRegister.Value = register;
+            this.PendingRegister = register;
+            try
+                this.Run();
+            catch err
+                this.PendingRegister = [];
+                rethrow(err);
+            end
         end
 
-        function SetNumberOfPoints(this, numPoints)
-            %Set the number of points per sweep, as typed in the panel (an analyser with set choices uses the nearest) - for sequences and scripts.
-            %
-            %Inputs:
-            %   numPoints - number of points, a whole number
+        function OnScanAbort(this)
+            OnScanAbort@Palladium.Instruments.Controls.ScanController(this);
+            this.SetFieldsEnabled(true);
+        end
 
-            this.CheckNumber(numPoints, "numPoints", @mustBeInteger, @mustBePositive);
-            f = this.EditableFields();
-            f.NumPoints.Value = numPoints;
-            this.SnapNumPoints(f.NumPoints);
+        function OnScanComplete(this)
+            %Show what the analyser actually set (e.g. the 8722ES rounds the number of points), and allow changes again.
+            OnScanComplete@Palladium.Instruments.Controls.ScanController(this);
+            this.RefreshFromInstrument();
+            this.SetFieldsEnabled(true);
+        end
+
+        function OnScanRun(this)
+            %No changes to the settings while a scan is under way.
+            this.SetFieldsEnabled(false);
+            OnScanRun@Palladium.Instruments.Controls.ScanController(this);
         end
 
         function SetChannel(this, channel)
@@ -144,27 +156,33 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
             end
         end
 
-        function LoadSavedData(this, register)
-            %Load the trace saved in one of the analyser's registers instead of measuring, as the Load button does - for sequences and scripts.
-            %Run as a scan, so it is plotted and (if Save to new file is
-            %ticked) saved like one, and in a sequence the command waits
-            %until that is done. The settings are not sent - the analyser
-            %takes on the register's state. See the instrument's
-            %RecallRegister for what the register must hold
+        function SetFrequencyRange(this, start_Hz, stop_Hz)
+            %Set the start and stop frequencies, in Hz, as typed in the panel (shown in the units chosen beside them) - for sequences and scripts.
+            %Like the other Set... methods, it errors while a scan is
+            %running, and acts on the panel as typing would
             %
             %Inputs:
-            %   register - the register number, a whole number (1-31 for the 8722ES)
+            %   start_Hz - start frequency, in Hz
+            %   stop_Hz  - stop frequency in Hz, above the start
 
-            f = this.EditableFields("LoadRegister");
-            this.CheckNumber(register, "register", @mustBeInteger, @(r) mustBeInRange(r, f.LoadRegister.Limits(1), f.LoadRegister.Limits(2)));
-            f.LoadRegister.Value = register;
-            this.PendingRegister = register;
-            try
-                this.Run();
-            catch err
-                this.PendingRegister = [];
-                rethrow(err);
-            end
+            this.CheckNumber(start_Hz, "start_Hz", @mustBePositive, @mustBeFinite);
+            this.CheckNumber(stop_Hz, "stop_Hz", @mustBePositive, @mustBeFinite);
+            assert(stop_Hz > start_Hz, "VNAController:InvalidFrequencyRange", "%s", ...
+                "The stop frequency (" + stop_Hz + " Hz) must be above the start frequency (" + start_Hz + " Hz).");
+            this.SetStartFrequency(start_Hz);
+            this.SetStopFrequency(stop_Hz);
+        end
+
+        function SetNumberOfPoints(this, numPoints)
+            %Set the number of points per sweep, as typed in the panel (an analyser with set choices uses the nearest) - for sequences and scripts.
+            %
+            %Inputs:
+            %   numPoints - number of points, a whole number
+
+            this.CheckNumber(numPoints, "numPoints", @mustBeInteger, @mustBePositive);
+            f = this.EditableFields();
+            f.NumPoints.Value = numPoints;
+            this.SnapNumPoints(f.NumPoints);
         end
 
         function SetPlotType(this, plotType)
@@ -258,24 +276,6 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
             assert(~this.SmithChosen(), "VNAController:UnitsLocked", "%s", ...
                 "The units are Real/Imaginary while the plot type is the Smith chart. Change the plot type (SetPlotType) first.");
             f.MeasUnit.Value = this.MatchItem(f.MeasUnit, units, "units");
-        end
-
-        function OnScanAbort(this)
-            OnScanAbort@Palladium.Instruments.Controls.ScanController(this);
-            this.SetFieldsEnabled(true);
-        end
-
-        function OnScanComplete(this)
-            %Show what the analyser actually set (e.g. the 8722ES rounds the number of points), and allow changes again.
-            OnScanComplete@Palladium.Instruments.Controls.ScanController(this);
-            this.RefreshFromInstrument();
-            this.SetFieldsEnabled(true);
-        end
-
-        function OnScanRun(this)
-            %No changes to the settings while a scan is under way.
-            this.SetFieldsEnabled(false);
-            OnScanRun@Palladium.Instruments.Controls.ScanController(this);
         end
 
     end
@@ -434,6 +434,102 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
     %% Methods (Private)
     methods (Access = private)
 
+        function dropDown = AddDropDown(~, grid, row, labelText, tooltip, items)
+            %A labelled drop-down list in a row of the settings grid.
+
+            label = uilabel(grid, "Text", labelText, "Tooltip", tooltip);
+            label.Layout.Row = row;
+            label.Layout.Column = 1;
+            dropDown = uidropdown(grid, "Items", items, "Tooltip", tooltip);
+            dropDown.Layout.Row = row;
+            dropDown.Layout.Column = 2;
+        end
+
+        function component = AddExtraSetting(this, grid, row, control)
+            %A labelled control in a row of the settings grid, for one of the instrument's extra settings (see GetExtraScanControls).
+            %Changing it refreshes the panel from the instrument, unless
+            %the control's RefreshOnChange is false
+            %
+            %Inputs:
+            %   control - struct with Name, Label, Tooltip, Type ("dropdown", "number" or "checkbox"), Items (a drop-down's), Limits (a number's, [minimum, maximum]), Value and RefreshOnChange (default true)
+
+            switch string(control.Type)
+                case "dropdown"
+                    component = this.AddDropDown(grid, row, control.Label, control.Tooltip, string(control.Items));
+                    if any(string(control.Items) == string(control.Value))
+                        component.Value = string(control.Value);
+                    end
+                case "number"
+                    limits = [-Inf, Inf];
+                    if isfield(control, "Limits") && numel(control.Limits) == 2
+                        limits = control.Limits;
+                    end
+                    component = this.AddNumberField(grid, row, control.Label, control.Tooltip, limits, "%.6g");
+                    component.Value = control.Value;
+                case "checkbox"
+                    label = uilabel(grid, "Text", control.Label, "Tooltip", control.Tooltip);
+                    label.Layout.Row = row;
+                    label.Layout.Column = 1;
+                    component = uicheckbox(grid, "Text", "", "Value", logical(control.Value), "Tooltip", control.Tooltip);
+                    component.Layout.Row = row;
+                    component.Layout.Column = 2;
+                otherwise
+                    error("VNAController:UnknownControlType", "%s", "The instrument's extra setting " + string(control.Name) + " has an unknown type """ + string(control.Type) + """ - use dropdown, number or checkbox.");
+            end
+            name = string(control.Name);
+            if this.RefreshesOnChange(control)
+                component.ValueChangedFcn = @(~, event) this.OnExtraSettingChanged(name, event);
+            end
+        end
+
+        function field = AddNumberField(~, grid, row, labelText, tooltip, limits, displayFormat)
+            %A labelled number field in a row of the settings grid.
+
+            label = uilabel(grid, "Text", labelText, "Tooltip", tooltip);
+            label.Layout.Row = row;
+            label.Layout.Column = 1;
+            field = uieditfield(grid, "numeric", "Limits", limits, "ValueDisplayFormat", displayFormat, "Tooltip", tooltip, ...
+                "HorizontalAlignment", "center");
+            field.Layout.Row = row;
+            field.Layout.Column = 2;
+        end
+
+        function dropDown = AddUnitDropDown(this, grid, row, valueField)
+            %A frequency units drop-down (MHz to start with) in the third column of a row, beside its value field.
+            %Changing the units converts the value shown, so the frequency
+            %stays the same (300 MHz becomes 0.3 GHz)
+
+            dropDown = uidropdown(grid, "Items", this.FrequencyUnits, "Value", "MHz", "Tooltip", "Units of the frequency beside it", ...
+                "ValueChangedFcn", @(~, event) convertValue(event));
+            dropDown.Layout.Row = row;
+            dropDown.Layout.Column = 3;
+
+            function convertValue(event)
+                scales = this.FrequencyUnitScales;
+                valueField.Value = valueField.Value * scales(this.FrequencyUnits == event.PreviousValue) / scales(this.FrequencyUnits == event.Value);
+            end
+        end
+
+        function ApplyExtraSetting(this, name) %#ok<INUSD>
+            %Have the instrument switch to the extra settings' values and refresh the panel to show what it reports - errors if it refuses one.
+            %(Nothing happens if the instrument is not connected yet: the
+            %value is sent on the next Run)
+
+            if ~any(this.ExtraRefreshing == name)
+                return;     %Nothing to show: its value goes with the next Run
+            end
+
+            selection = struct();
+            for each = this.ExtraNames
+                value = this.Fields.(each).Value;
+                if isa(this.Fields.(each), "matlab.ui.control.DropDown")
+                    value = string(value);
+                end
+                selection.(each) = value;
+            end
+            this.RefreshFromInstrument(selection);
+        end
+
         function CheckNumber(~, value, name, varargin)
             %Error unless value is a single real number that passes each of the validation functions (e.g. @mustBePositive).
 
@@ -469,49 +565,69 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
             item = items(match);
         end
 
-        function field = AddNumberField(~, grid, row, labelText, tooltip, limits, displayFormat)
-            %A labelled number field in a row of the settings grid.
+        function choices = NumPointsChoices(this)
+            %The numbers of points the instrument takes, if it has set choices (its NumPointsChoices), else empty.
 
-            label = uilabel(grid, "Text", labelText, "Tooltip", tooltip);
-            label.Layout.Row = row;
-            label.Layout.Column = 1;
-            field = uieditfield(grid, "numeric", "Limits", limits, "ValueDisplayFormat", displayFormat, "Tooltip", tooltip, ...
-                "HorizontalAlignment", "center");
-            field.Layout.Row = row;
-            field.Layout.Column = 2;
-        end
-
-        function dropDown = AddUnitDropDown(this, grid, row, valueField)
-            %A frequency units drop-down (MHz to start with) in the third column of a row, beside its value field.
-            %Changing the units converts the value shown, so the frequency
-            %stays the same (300 MHz becomes 0.3 GHz)
-
-            dropDown = uidropdown(grid, "Items", this.FrequencyUnits, "Value", "MHz", "Tooltip", "Units of the frequency beside it", ...
-                "ValueChangedFcn", @(~, event) convertValue(event));
-            dropDown.Layout.Row = row;
-            dropDown.Layout.Column = 3;
-
-            function convertValue(event)
-                scales = this.FrequencyUnitScales;
-                valueField.Value = valueField.Value * scales(this.FrequencyUnits == event.PreviousValue) / scales(this.FrequencyUnits == event.Value);
+            choices = [];
+            if ~isempty(this.Instrument) && isprop(this.Instrument, "NumPointsChoices")
+                choices = this.Instrument.NumPointsChoices;
             end
         end
 
-        function scale = UnitScale(this, unitDropDown)
-            %Hz in one of the units chosen in a frequency units drop-down.
+        function OnExtraSettingChanged(this, name, event)
+            %An extra setting's control was changed by the user: refresh the panel from the instrument - or, if it refuses, warn and put the control back.
 
-            scale = this.FrequencyUnitScales(this.FrequencyUnits == string(unitDropDown.Value));
+            component = this.Fields.(name);
+            try
+                this.ApplyExtraSetting(name);
+            catch err
+                component.Value = event.PreviousValue;
+                Palladium.Utilities.GUIUtils.ShowWarning(component, err.message, "Cannot change " + name);
+            end
         end
 
-        function dropDown = AddDropDown(~, grid, row, labelText, tooltip, items)
-            %A labelled drop-down list in a row of the settings grid.
+        function OnLoadPushed(this)
+            %The Load button: load the chosen register's trace as a scan, warning rather than erroring if it can't.
 
-            label = uilabel(grid, "Text", labelText, "Tooltip", tooltip);
-            label.Layout.Row = row;
-            label.Layout.Column = 1;
-            dropDown = uidropdown(grid, "Items", items, "Tooltip", tooltip);
-            dropDown.Layout.Row = row;
-            dropDown.Layout.Column = 2;
+            try
+                this.LoadSavedData(this.Fields.LoadRegister.Value);
+            catch err
+                Palladium.Utilities.GUIUtils.ShowWarning(this.Fields.LoadRegister, err.message, "Cannot load saved data");
+            end
+        end
+
+        function OnPlotTypeChanged(this)
+            %The Plot drop-down changed: a Smith chart sets the units to Real/Imaginary and locks them, and the last scan is plotted again.
+
+            f = this.Fields;
+            if this.SmithChosen() && ~Palladium.Utilities.GUIUtils.IsSmithPlotAvailable()
+                %Palladium runs without RF Toolbox - only this plot needs it. Go back to the trace
+                f.PlotType.Value = this.TracePlot;
+                Palladium.Utilities.GUIUtils.ShowWarning(f.PlotType, "The Smith chart needs [RF Toolbox](https://www.mathworks.com/products/rftoolbox.html), an add-on toolbox for MATLAB that is not installed or licensed on this computer." + newline + newline + ...
+                    "Install it from that link, or with MATLAB's Add-On Explorer, to use the Smith chart. Until then the plot stays as a trace against frequency.", "Smith chart unavailable");
+                return;
+            end
+            if this.SmithChosen()
+                if string(f.MeasUnit.Value) ~= this.ComplexUnits
+                    this.UnitsBeforeSmith = string(f.MeasUnit.Value);
+                end
+                f.MeasUnit.Value = this.ComplexUnits;
+                f.MeasUnit.Enable = false;
+                this.SetPlotKind("Smith");
+            else
+                if strlength(this.UnitsBeforeSmith) > 0 && any(string(f.MeasUnit.Items) == this.UnitsBeforeSmith)
+                    f.MeasUnit.Value = this.UnitsBeforeSmith;
+                end
+                this.UnitsBeforeSmith = "";
+                f.MeasUnit.Enable = true;
+                this.SetPlotKind("Scatter");
+            end
+        end
+
+        function refreshes = RefreshesOnChange(~, control)
+            %True unless an extra setting says (RefreshOnChange false) that changing it needs no look at the instrument - its value is just sent on the next Run.
+
+            refreshes = ~isfield(control, "RefreshOnChange") || isempty(control.RefreshOnChange) || logical(control.RefreshOnChange);
         end
 
         function RefreshFromInstrument(this, selection)
@@ -586,88 +702,23 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
             end
         end
 
-        function component = AddExtraSetting(this, grid, row, control)
-            %A labelled control in a row of the settings grid, for one of the instrument's extra settings (see GetExtraScanControls).
-            %Changing it refreshes the panel from the instrument, unless
-            %the control's RefreshOnChange is false
-            %
-            %Inputs:
-            %   control - struct with Name, Label, Tooltip, Type ("dropdown", "number" or "checkbox"), Items (a drop-down's), Limits (a number's, [minimum, maximum]), Value and RefreshOnChange (default true)
+        function SetFieldsEnabled(this, enabled)
+            %Enable or disable all the settings fields - except the units while a Smith chart needs them to stay Real/Imaginary.
 
-            switch string(control.Type)
-                case "dropdown"
-                    component = this.AddDropDown(grid, row, control.Label, control.Tooltip, string(control.Items));
-                    if any(string(control.Items) == string(control.Value))
-                        component.Value = string(control.Value);
-                    end
-                case "number"
-                    limits = [-Inf, Inf];
-                    if isfield(control, "Limits") && numel(control.Limits) == 2
-                        limits = control.Limits;
-                    end
-                    component = this.AddNumberField(grid, row, control.Label, control.Tooltip, limits, "%.6g");
-                    component.Value = control.Value;
-                case "checkbox"
-                    label = uilabel(grid, "Text", control.Label, "Tooltip", control.Tooltip);
-                    label.Layout.Row = row;
-                    label.Layout.Column = 1;
-                    component = uicheckbox(grid, "Text", "", "Value", logical(control.Value), "Tooltip", control.Tooltip);
-                    component.Layout.Row = row;
-                    component.Layout.Column = 2;
-                otherwise
-                    error("VNAController:UnknownControlType", "%s", "The instrument's extra setting " + string(control.Name) + " has an unknown type """ + string(control.Type) + """ - use dropdown, number or checkbox.");
-            end
-            name = string(control.Name);
-            if this.RefreshesOnChange(control)
-                component.ValueChangedFcn = @(~, event) this.OnExtraSettingChanged(name, event);
-            end
-        end
-
-        function refreshes = RefreshesOnChange(~, control)
-            %True unless an extra setting says (RefreshOnChange false) that changing it needs no look at the instrument - its value is just sent on the next Run.
-
-            refreshes = ~isfield(control, "RefreshOnChange") || isempty(control.RefreshOnChange) || logical(control.RefreshOnChange);
-        end
-
-        function OnExtraSettingChanged(this, name, event)
-            %An extra setting's control was changed by the user: refresh the panel from the instrument - or, if it refuses, warn and put the control back.
-
-            component = this.Fields.(name);
-            try
-                this.ApplyExtraSetting(name);
-            catch err
-                component.Value = event.PreviousValue;
-                Palladium.Utilities.GUIUtils.ShowWarning(component, err.message, "Cannot change " + name);
-            end
-        end
-
-        function ApplyExtraSetting(this, name) %#ok<INUSD>
-            %Have the instrument switch to the extra settings' values and refresh the panel to show what it reports - errors if it refuses one.
-            %(Nothing happens if the instrument is not connected yet: the
-            %value is sent on the next Run)
-
-            if ~any(this.ExtraRefreshing == name)
-                return;     %Nothing to show: its value goes with the next Run
-            end
-
-            selection = struct();
-            for each = this.ExtraNames
-                value = this.Fields.(each).Value;
-                if isa(this.Fields.(each), "matlab.ui.control.DropDown")
-                    value = string(value);
+            for name = string(fieldnames(this.Fields))'
+                if isvalid(this.Fields.(name))
+                    this.Fields.(name).Enable = enabled;
                 end
-                selection.(each) = value;
             end
-            this.RefreshFromInstrument(selection);
+            if enabled && this.SmithChosen()
+                this.Fields.MeasUnit.Enable = false;
+            end
         end
 
-        function choices = NumPointsChoices(this)
-            %The numbers of points the instrument takes, if it has set choices (its NumPointsChoices), else empty.
+        function chosen = SmithChosen(this)
+            %True if the Plot drop-down says Smith chart.
 
-            choices = [];
-            if ~isempty(this.Instrument) && isprop(this.Instrument, "NumPointsChoices")
-                choices = this.Instrument.NumPointsChoices;
-            end
+            chosen = isfield(this.Fields, "PlotType") && isvalid(this.Fields.PlotType) && string(this.Fields.PlotType.Value) == this.SmithPlot;
         end
 
         function SnapNumPoints(this, field)
@@ -680,61 +731,10 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
             end
         end
 
-        function OnLoadPushed(this)
-            %The Load button: load the chosen register's trace as a scan, warning rather than erroring if it can't.
+        function scale = UnitScale(this, unitDropDown)
+            %Hz in one of the units chosen in a frequency units drop-down.
 
-            try
-                this.LoadSavedData(this.Fields.LoadRegister.Value);
-            catch err
-                Palladium.Utilities.GUIUtils.ShowWarning(this.Fields.LoadRegister, err.message, "Cannot load saved data");
-            end
-        end
-
-        function OnPlotTypeChanged(this)
-            %The Plot drop-down changed: a Smith chart sets the units to Real/Imaginary and locks them, and the last scan is plotted again.
-
-            f = this.Fields;
-            if this.SmithChosen() && ~Palladium.Utilities.GUIUtils.IsSmithPlotAvailable()
-                %Palladium runs without RF Toolbox - only this plot needs it. Go back to the trace
-                f.PlotType.Value = this.TracePlot;
-                Palladium.Utilities.GUIUtils.ShowWarning(f.PlotType, "The Smith chart needs [RF Toolbox](https://www.mathworks.com/products/rftoolbox.html), an add-on toolbox for MATLAB that is not installed or licensed on this computer." + newline + newline + ...
-                    "Install it from that link, or with MATLAB's Add-On Explorer, to use the Smith chart. Until then the plot stays as a trace against frequency.", "Smith chart unavailable");
-                return;
-            end
-            if this.SmithChosen()
-                if string(f.MeasUnit.Value) ~= this.ComplexUnits
-                    this.UnitsBeforeSmith = string(f.MeasUnit.Value);
-                end
-                f.MeasUnit.Value = this.ComplexUnits;
-                f.MeasUnit.Enable = false;
-                this.SetPlotKind("Smith");
-            else
-                if strlength(this.UnitsBeforeSmith) > 0 && any(string(f.MeasUnit.Items) == this.UnitsBeforeSmith)
-                    f.MeasUnit.Value = this.UnitsBeforeSmith;
-                end
-                this.UnitsBeforeSmith = "";
-                f.MeasUnit.Enable = true;
-                this.SetPlotKind("Scatter");
-            end
-        end
-
-        function chosen = SmithChosen(this)
-            %True if the Plot drop-down says Smith chart.
-
-            chosen = isfield(this.Fields, "PlotType") && isvalid(this.Fields.PlotType) && string(this.Fields.PlotType.Value) == this.SmithPlot;
-        end
-
-        function SetFieldsEnabled(this, enabled)
-            %Enable or disable all the settings fields - except the units while a Smith chart needs them to stay Real/Imaginary.
-
-            for name = string(fieldnames(this.Fields))'
-                if isvalid(this.Fields.(name))
-                    this.Fields.(name).Enable = enabled;
-                end
-            end
-            if enabled && this.SmithChosen()
-                this.Fields.MeasUnit.Enable = false;
-            end
+            scale = this.FrequencyUnitScales(this.FrequencyUnits == string(unitDropDown.Value));
         end
 
     end

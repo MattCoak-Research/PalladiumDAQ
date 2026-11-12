@@ -429,6 +429,28 @@ classdef Lakeshore340 < Palladium.Core.Instrument
     %% Methods (Protected)
     methods (Access = protected)
 
+        function ApplySettings(this, settings)
+            %Send the Heater Control tab's settings to the instrument.
+            %They go to the control loop set by ControlChannel. The ramp is set
+            %before the setpoint, so a new setpoint ramps
+            %
+            %Inputs:
+            %   settings - struct with the fields returned by
+            %              CollectHeaterControlSettings
+
+            this.SetControlMode(this.ControlChannel, settings.ControlMode);
+            this.SetHeaterRange(settings.HeaterRange);
+            this.SetRamp(settings.RampEnabled, settings.RampRate);
+            pause(0.05);
+            this.SetHeaterSetpoint(settings.SetPoint);
+
+            if(settings.ControlMode == this.ControlMode("Open Loop"))
+                this.SetManualOutputPercent(this.ControlChannel, settings.ManualOutput);
+            end
+
+            this.SetPIDValues(this.ControlChannel, settings.PID_Settings.P, settings.PID_Settings.I, settings.PID_Settings.D);
+        end
+
         function OpenConnection(this)
             %Open the connection and read the heater's maximum current and display mode.
             %Both are needed by GetHeaterPower
@@ -459,28 +481,6 @@ classdef Lakeshore340 < Palladium.Core.Instrument
             %where current/power is 1 = current, 2 = power
             cdisp = strsplit(strtrim(this.QueryString("CDISP? 1")), ",");
             this.HeaterOutputIsPower = str2double(cdisp{3}) == 2;
-        end
-
-        function ApplySettings(this, settings)
-            %Send the Heater Control tab's settings to the instrument.
-            %They go to the control loop set by ControlChannel. The ramp is set
-            %before the setpoint, so a new setpoint ramps
-            %
-            %Inputs:
-            %   settings - struct with the fields returned by
-            %              CollectHeaterControlSettings
-
-            this.SetControlMode(this.ControlChannel, settings.ControlMode);
-            this.SetHeaterRange(settings.HeaterRange);
-            this.SetRamp(settings.RampEnabled, settings.RampRate);
-            pause(0.05);
-            this.SetHeaterSetpoint(settings.SetPoint);
-
-            if(settings.ControlMode == this.ControlMode("Open Loop"))
-                this.SetManualOutputPercent(this.ControlChannel, settings.ManualOutput);
-            end
-
-            this.SetPIDValues(this.ControlChannel, settings.PID_Settings.P, settings.PID_Settings.I, settings.PID_Settings.D);
         end
 
     end

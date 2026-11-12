@@ -476,34 +476,6 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             end
         end
 
-        function script = BuildLoop2450_Meas_Script(this, numMeasurements, idleState, pulseState)
-            %TIMING LOOP for the Main instrument - has to go as a single TSP
-            %script, since it's the part that has to run without any
-            %MATLAB/GPIB round-trip per point for speed. Everything it
-            %references (measBuffer, digio mode, smu settings) was already
-            %configured via individual commands in ConfigureMainInstrument.
-            nStr = Palladium.Core.Instrument.NumberToCommandString(numMeasurements);
-            lineStr = Palladium.Core.Instrument.NumberToCommandString(this.DigioLine);
-            nl = newline;
-
-            %After the last reading, either leave the output on (the level
-            %is still Bias_V, as it never changes during the sweep), or
-            %turn it off
-            if this.KeepMainAtBiasWhenComplete
-                finalStateStr = "";
-            else
-                finalStateStr = "smu.source.output = smu.OFF";
-            end
-
-            script = "for i = 1, " + nStr + " do" + nl + ...
-                "    while digio.line[" + lineStr + "].state == digio." + idleState + " do end" + nl + ...
-                "    smu.measure.read(measBuffer)" + nl + ...
-                "    while digio.line[" + lineStr + "].state == digio." + pulseState + " do end" + nl + ...
-                "end" + nl + ...
-                finalStateStr + nl + ...
-                "print(""DONE"")" + nl;
-        end
-
         function script = BuildLoop2450_Gate_Script(this, idleState, pulseState)
             %TIMING LOOP for the Gate instrument - see note on
             %BuildLoop2450_Meas_Script. zig-zag baseline/pulse stepping from
@@ -552,6 +524,34 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
                 "    do_point(v,true)" + nl + ...
                 "end" + nl + ...
                 nl + ...
+                finalStateStr + nl + ...
+                "print(""DONE"")" + nl;
+        end
+
+        function script = BuildLoop2450_Meas_Script(this, numMeasurements, idleState, pulseState)
+            %TIMING LOOP for the Main instrument - has to go as a single TSP
+            %script, since it's the part that has to run without any
+            %MATLAB/GPIB round-trip per point for speed. Everything it
+            %references (measBuffer, digio mode, smu settings) was already
+            %configured via individual commands in ConfigureMainInstrument.
+            nStr = Palladium.Core.Instrument.NumberToCommandString(numMeasurements);
+            lineStr = Palladium.Core.Instrument.NumberToCommandString(this.DigioLine);
+            nl = newline;
+
+            %After the last reading, either leave the output on (the level
+            %is still Bias_V, as it never changes during the sweep), or
+            %turn it off
+            if this.KeepMainAtBiasWhenComplete
+                finalStateStr = "";
+            else
+                finalStateStr = "smu.source.output = smu.OFF";
+            end
+
+            script = "for i = 1, " + nStr + " do" + nl + ...
+                "    while digio.line[" + lineStr + "].state == digio." + idleState + " do end" + nl + ...
+                "    smu.measure.read(measBuffer)" + nl + ...
+                "    while digio.line[" + lineStr + "].state == digio." + pulseState + " do end" + nl + ...
+                "end" + nl + ...
                 finalStateStr + nl + ...
                 "print(""DONE"")" + nl;
         end
@@ -945,10 +945,22 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             stringLine = stringLine + " || Parameters: " + sweepParamsStr;
         end
 
-        function headersString = GetHeaders(this)
-            %Data file headers, as a single tab-separated string (the
-            %DataWriter writes the headers argument as one line)
-            headersString = strjoin(this.GetHeaderNames(), sprintf('\t'));
+        function gates = GateCandidates(this, listOfAllInstrs)
+            %The instruments that can be the Gate: the Keithley 2450s added, other than this control's own (the Main).
+            %
+            %Inputs:
+            %   listOfAllInstrs - cell array of all the instruments added
+            %
+            %Outputs:
+            %   gates - 1-by-N array of Keithley2450 (empty 1-by-0 if none)
+
+            gates = Palladium.Instruments.Keithley2450.empty(1, 0);
+            for i = 1 : numel(listOfAllInstrs)
+                instr = listOfAllInstrs{i};
+                if isa(instr, "Palladium.Instruments.Keithley2450") && isvalid(instr) && instr ~= this.Instrument
+                    gates(end+1) = instr; %#ok<AGROW>
+                end
+            end
         end
 
         function hdrs = GetHeaderNames(~)
@@ -957,6 +969,12 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             hdrs = ["Gate_Voltage_V", "Current_A", ...
                 "Gate_Leakage_Current_A", "Bias_Voltage_V", ...
                 "Time_s", "Time_Gate_Instr_s"];
+        end
+
+        function headersString = GetHeaders(this)
+            %Data file headers, as a single tab-separated string (the
+            %DataWriter writes the headers argument as one line)
+            headersString = strjoin(this.GetHeaderNames(), sprintf('\t'));
         end
 
         function tf = IsMeasurementLoopRunning(this)
@@ -1020,7 +1038,6 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             this.FileSettings.FileName = sweepData.FileName;
         end
 
-
         function SetInstrumentList(this, listOfAllInstrs)
             %Fill the GUI's Gate instrument drop-down with the Keithley 2450s that can be the Gate (see GateCandidates).
             %Called when the control is created, and whenever an instrument
@@ -1036,24 +1053,6 @@ classdef Keithley2450_Double_GateSweep < Palladium.Core.InstrumentControlBase
             end
 
             this.GUIView.SetInstrumentList(this.GateCandidates(listOfAllInstrs));
-        end
-
-        function gates = GateCandidates(this, listOfAllInstrs)
-            %The instruments that can be the Gate: the Keithley 2450s added, other than this control's own (the Main).
-            %
-            %Inputs:
-            %   listOfAllInstrs - cell array of all the instruments added
-            %
-            %Outputs:
-            %   gates - 1-by-N array of Keithley2450 (empty 1-by-0 if none)
-
-            gates = Palladium.Instruments.Keithley2450.empty(1, 0);
-            for i = 1 : numel(listOfAllInstrs)
-                instr = listOfAllInstrs{i};
-                if isa(instr, "Palladium.Instruments.Keithley2450") && isvalid(instr) && instr ~= this.Instrument
-                    gates(end+1) = instr; %#ok<AGROW>
-                end
-            end
         end
 
         function UpdatePlotterSavedPlotTitle(this)

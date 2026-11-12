@@ -331,6 +331,17 @@ classdef PPMS < Palladium.Core.Instrument
     %% Methods (Protected)
     methods (Access = protected)
 
+        function CloseConnection(this)
+            %Release the connection to the Quantum Design instrument server.
+
+            delete(this.Interface);
+            this.Interface = [];
+
+            if this.SimulationMode
+                disp("Disconnected from simulated PPMS");
+            end
+        end
+
         function OpenConnection(this)
             %Load the Quantum Design .NET files and connect to the instrument server.
             %In Debug mode, connects to Quantum Design's simulated PPMS instead.
@@ -351,17 +362,6 @@ classdef PPMS < Palladium.Core.Instrument
 
                 otherwise
                     error("PPMS:UnsupportedConnectionType", "%s", "Unsupported connection type on PPMS: " + this.Connection_Type);
-            end
-        end
-
-        function CloseConnection(this)
-            %Release the connection to the Quantum Design instrument server.
-
-            delete(this.Interface);
-            this.Interface = [];
-
-            if this.SimulationMode
-                disp("Disconnected from simulated PPMS");
             end
         end
 

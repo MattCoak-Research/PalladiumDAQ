@@ -134,25 +134,6 @@ classdef Keithley6220 < Palladium.Core.Instrument
     %% Methods (Private)
     methods (Access = private)
 
-        function ReadUnits(this)
-            %Set Units from the reading units selected on the instrument - V, OHMS, W or SIEM.
-
-            reply = upper(strtrim(string(this.QueryString("UNIT?"))));
-            switch reply
-                case "V";                       units = "Volts";
-                case "OHMS";                    units = "Ohms";
-                case "W";                       units = "Watts";
-                case {"SIEM", "S", "SIEMENS"};  units = "Siemens";
-                otherwise
-                    error("Keithley6220:UnexpectedUnits", "%s", this.Name + " gave unexpected reading units: """ + reply + """ (expected V, OHMS, W or SIEM).");
-            end
-
-            if this.Units ~= this.UnitsType(units)
-                Palladium.Logging.Logger.Log("Info", this.Name + ": the instrument's reading units are " + units + ", so Units is set to " + units + " (was " + string(this.Units) + ").");
-            end
-            this.Units = this.UnitsType(units);
-        end
-
         function value = QueryDeltaModeMeasurementValue(this)
             %Read the latest Delta reading - NaN if it is the same reading as last time.
             %SENS:DATA? returns the latest reading again if there is no new
@@ -176,6 +157,25 @@ classdef Keithley6220 < Palladium.Core.Instrument
             if value >= 9.9e37
                 value = NaN;
             end
+        end
+
+        function ReadUnits(this)
+            %Set Units from the reading units selected on the instrument - V, OHMS, W or SIEM.
+
+            reply = upper(strtrim(string(this.QueryString("UNIT?"))));
+            switch reply
+                case "V";                       units = "Volts";
+                case "OHMS";                    units = "Ohms";
+                case "W";                       units = "Watts";
+                case {"SIEM", "S", "SIEMENS"};  units = "Siemens";
+                otherwise
+                    error("Keithley6220:UnexpectedUnits", "%s", this.Name + " gave unexpected reading units: """ + reply + """ (expected V, OHMS, W or SIEM).");
+            end
+
+            if this.Units ~= this.UnitsType(units)
+                Palladium.Logging.Logger.Log("Info", this.Name + ": the instrument's reading units are " + units + ", so Units is set to " + units + " (was " + string(this.Units) + ").");
+            end
+            this.Units = this.UnitsType(units);
         end
     end
 end

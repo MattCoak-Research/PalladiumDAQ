@@ -152,22 +152,6 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
             clrdevice(this.DeviceHandle);
         end
 
-        function controls = GetExtraScanControls(~)
-            %Extra settings for the VNA Control tab to offer, beside the sweep settings - a Channel drop-down.
-            %The tab adds a control for each, passes its value in
-            %scanDetails under the Name (and to GetScanSettings as the
-            %selection), and refreshes its settings from the analyser when
-            %it changes. Types: "dropdown" (Items), "number" (Limits) and
-            %"checkbox"
-            %
-            %Outputs:
-            %   controls - struct array: Name, Label, Tooltip, Type, Items, Value
-
-            controls = struct("Name", "Channel", "Label", "Channel", ...
-                "Tooltip", "The analyser's channel to measure - the settings below are that channel's. 3 and 4 are the auxiliary channels of 1 and 2 (Display, AUX CHAN ON on the analyser)", ...
-                "Type", "dropdown", "Items", {["1", "2", "3", "4"]}, "Value", "1");
-        end
-
         function metadataStruct = CollectMetaData(this)
             %Sweep settings, recorded in the data-file header.
             %
@@ -180,6 +164,22 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
             metadataStruct.Freq_Start_Hz = this.GetStartFrequency();
             metadataStruct.Freq_Stop_Hz = this.GetStopFrequency();
             metadataStruct.NumPoints = this.GetNumPoints();
+        end
+
+        function channel = GetActiveChannel(this)
+            %The analyser's active channel (OUTPCHAN).
+            %
+            %Outputs:
+            %   channel - 1, 2, 3 or 4 (the selected channel in SimulationMode)
+
+            if this.SimulationMode
+                channel = this.SimulatedChannel;
+                return;
+            end
+
+            channel = this.QueryDouble("OUTPCHAN;");
+            assert(ismember(channel, 1:4), "HP_8722ES_NetworkAnalyser:NoActiveChannel", "%s", ...
+                this.Name + ": could not read the active channel - OUTPCHAN gave """ + string(channel) + """.");
         end
 
         function data = GetCompletedScanData(this)
@@ -235,6 +235,22 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
             end
         end
 
+        function controls = GetExtraScanControls(~)
+            %Extra settings for the VNA Control tab to offer, beside the sweep settings - a Channel drop-down.
+            %The tab adds a control for each, passes its value in
+            %scanDetails under the Name (and to GetScanSettings as the
+            %selection), and refreshes its settings from the analyser when
+            %it changes. Types: "dropdown" (Items), "number" (Limits) and
+            %"checkbox"
+            %
+            %Outputs:
+            %   controls - struct array: Name, Label, Tooltip, Type, Items, Value
+
+            controls = struct("Name", "Channel", "Label", "Channel", ...
+                "Tooltip", "The analyser's channel to measure - the settings below are that channel's. 3 and 4 are the auxiliary channels of 1 and 2 (Display, AUX CHAN ON on the analyser)", ...
+                "Type", "dropdown", "Items", {["1", "2", "3", "4"]}, "Value", "1");
+        end
+
         function [Headers, Units] = GetHeaders(~)
             %No per-tick data columns - scans are recorded through the Scan Control tab.
             %
@@ -244,6 +260,20 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
 
             Headers = [];
             Units = [];
+        end
+
+        function numOfPoints = GetNumPoints(this)
+            %Read the number of points per sweep.
+            %
+            %Outputs:
+            %   numOfPoints - number of points (201 in SimulationMode, until set)
+
+            if this.SimulationMode || ~this.ScanComplete
+                numOfPoints = this.SweepSettings.NumPoints;
+                return;
+            end
+
+            numOfPoints = this.QueryDouble("POIN?;");
         end
 
         function [Headers, Units] = GetScanHeaders(this)
@@ -265,20 +295,6 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
             else
                 Units = ["Hz", ""];
             end
-        end
-
-        function numOfPoints = GetNumPoints(this)
-            %Read the number of points per sweep.
-            %
-            %Outputs:
-            %   numOfPoints - number of points (201 in SimulationMode, until set)
-
-            if this.SimulationMode || ~this.ScanComplete
-                numOfPoints = this.SweepSettings.NumPoints;
-                return;
-            end
-
-            numOfPoints = this.QueryDouble("POIN?;");
         end
 
         function settings = GetScanSettings(this, selection)
@@ -348,6 +364,20 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
             stopFreq_Hz = this.QueryDouble("STOP?;");
         end
 
+        function data = LoadSavedData(this, register)
+            %Recall an analyser save/recall register and read its trace, without sweeping - for scripts (the VNA Control's Load does it as a scan).
+            %See RecallRegister for what the register must hold
+            %
+            %Inputs:
+            %   register - whole number, 1 to 31
+            %
+            %Outputs:
+            %   data - as GetCompletedScanData
+
+            this.RecallRegister(register);
+            data = this.GetCompletedScanData();
+        end
+
         function [dataRow] = Measure(~)
             %Return no values - scans are recorded through the Scan Control tab instead.
             %
@@ -356,7 +386,49 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
 
             dataRow = [];
         end
-        
+
+        function RecallRegister(this, register)
+            %Recall one of the analyser's save/recall registers (1-31), taking on its channel, measurement and display format - for loading saved data.
+            %The analyser is put in hold so that the register's trace stays
+            %on screen rather than being swept over (the trace is there
+            %only if the register was saved with the data array: Save/Recall,
+            %DEFINE DISK-SAVE DATA, DATA ARRAY ON or FORMATTED ARRAY ON). Read
+            %it with GetCompletedScanData, or use LoadSavedData. An empty
+            %register is an error (the analyser reports error 55). The
+            %scan's channel becomes the register's active channel, and
+            %MeasMode and MeasUnit are set to what it measured, so the data's
+            %headers are right. Do not call during a sweep
+            %
+            %Inputs:
+            %   register - whole number, 1 to 31
+
+            arguments
+                this;
+                register (1,1) {mustBeInteger, mustBeInRange(register, 1, 31)};
+            end
+
+            if this.SimulationMode
+                return;
+            end
+
+            this.Clear();
+            this.ReadErrorQueue();      %Old errors are not this recall's
+
+            %RECAREG01-31 are OPC-compatible: reply 1 when done
+            this.QueryDouble(sprintf("OPC?;RECAREG%02d;", register));
+            this.WriteCommand("HOLD;");
+            errors = this.ReadErrorQueue();
+            assert(~any(errors == 55), "HP_8722ES_NetworkAnalyser:EmptyRegister", "%s", ...
+                this.Name + ": register " + register + " has no saved instrument state (analyser error 55).");
+
+            this.ScanChannel = this.GetActiveChannel();
+            [measMode, measUnit] = this.ReadMeasurementFormat();
+            this.MeasMode = this.MeasType(measMode);
+            this.MeasUnit = this.MeasUnitType(measUnit);
+            this.SweepSettings = this.ReadSweepSettings();
+            this.ScanComplete = true;
+        end
+
         function data = RunMeasurement(this, options)
             %Start one measurement - a sweep on a channel with the settings given - from a script or the VNA Control tab.
             %Selects the channel (the active one if not given), applies each
@@ -500,78 +572,6 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
                 "Channels 3 and 4 are the auxiliary channels of 1 and 2: switch them on at the analyser (Display, AUX CHAN ON).");
         end
 
-        function channel = GetActiveChannel(this)
-            %The analyser's active channel (OUTPCHAN).
-            %
-            %Outputs:
-            %   channel - 1, 2, 3 or 4 (the selected channel in SimulationMode)
-
-            if this.SimulationMode
-                channel = this.SimulatedChannel;
-                return;
-            end
-
-            channel = this.QueryDouble("OUTPCHAN;");
-            assert(ismember(channel, 1:4), "HP_8722ES_NetworkAnalyser:NoActiveChannel", "%s", ...
-                this.Name + ": could not read the active channel - OUTPCHAN gave """ + string(channel) + """.");
-        end
-
-        function RecallRegister(this, register)
-            %Recall one of the analyser's save/recall registers (1-31), taking on its channel, measurement and display format - for loading saved data.
-            %The analyser is put in hold so that the register's trace stays
-            %on screen rather than being swept over (the trace is there
-            %only if the register was saved with the data array: Save/Recall,
-            %DEFINE DISK-SAVE DATA, DATA ARRAY ON or FORMATTED ARRAY ON). Read
-            %it with GetCompletedScanData, or use LoadSavedData. An empty
-            %register is an error (the analyser reports error 55). The
-            %scan's channel becomes the register's active channel, and
-            %MeasMode and MeasUnit are set to what it measured, so the data's
-            %headers are right. Do not call during a sweep
-            %
-            %Inputs:
-            %   register - whole number, 1 to 31
-
-            arguments
-                this;
-                register (1,1) {mustBeInteger, mustBeInRange(register, 1, 31)};
-            end
-
-            if this.SimulationMode
-                return;
-            end
-
-            this.Clear();
-            this.ReadErrorQueue();      %Old errors are not this recall's
-
-            %RECAREG01-31 are OPC-compatible: reply 1 when done
-            this.QueryDouble(sprintf("OPC?;RECAREG%02d;", register));
-            this.WriteCommand("HOLD;");
-            errors = this.ReadErrorQueue();
-            assert(~any(errors == 55), "HP_8722ES_NetworkAnalyser:EmptyRegister", "%s", ...
-                this.Name + ": register " + register + " has no saved instrument state (analyser error 55).");
-
-            this.ScanChannel = this.GetActiveChannel();
-            [measMode, measUnit] = this.ReadMeasurementFormat();
-            this.MeasMode = this.MeasType(measMode);
-            this.MeasUnit = this.MeasUnitType(measUnit);
-            this.SweepSettings = this.ReadSweepSettings();
-            this.ScanComplete = true;
-        end
-
-        function data = LoadSavedData(this, register)
-            %Recall an analyser save/recall register and read its trace, without sweeping - for scripts (the VNA Control's Load does it as a scan).
-            %See RecallRegister for what the register must hold
-            %
-            %Inputs:
-            %   register - whole number, 1 to 31
-            %
-            %Outputs:
-            %   data - as GetCompletedScanData
-
-            this.RecallRegister(register);
-            data = this.GetCompletedScanData();
-        end
-
     end
 
     %% Methods (Protected)
@@ -594,6 +594,182 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
 
     %% Methods (Private)
     methods(Access = private)
+
+        function numPoints = AllowedNumPoints(this, requested)
+            %The analyser's number of points nearest a requested number - it takes only 3, 11, 21, 26, 51, 101, 201, 401, 801 or 1601 (POIN).
+
+            [~, idx] = min(abs(this.NumPointsChoices - requested));
+            numPoints = this.NumPointsChoices(idx);
+        end
+
+        function ApplyMeasurementFormat(this, measMode, measUnit)
+            %Select the S-parameter and display format of the measurement, and record them as MeasMode and MeasUnit.
+            %One not given (empty) is the channel's own, read from the
+            %analyser - unless that isn't one of ours (e.g. a phase display),
+            %when the last measurement's is set so the data matches its label
+
+            given = [~isempty(measMode), ~isempty(measUnit)];
+            recognised = [false, false];
+            if ~all(given)
+                [readMode, readUnit, recognised] = this.ReadMeasurementFormat();
+                if ~given(1) && recognised(1);  measMode = this.MeasType(readMode);    end
+                if ~given(2) && recognised(2);  measUnit = this.MeasUnitType(readUnit);  end
+            end
+            if ~isempty(measMode);  this.MeasMode = measMode;   end
+            if ~isempty(measUnit);  this.MeasUnit = measUnit;   end
+
+            if given(1) || ~recognised(1);  this.WriteCommand(string(this.MeasMode) + ";");                end
+            if given(2) || ~recognised(2);  this.WriteCommand(this.DisplayFormatCommand() + ";");          end
+        end
+
+        function ApplySimulatedSettings(this, scanDetails, has)
+            %In SimulationMode, remember the sweep settings scanDetails has, as the analyser would set them.
+
+            for name = ["StartFrequency_Hz", "StopFrequency_Hz", "SweepTime_s", "SweepType"]
+                if has(name)
+                    this.SweepSettings.(name) = scanDetails.(name);
+                end
+            end
+            if has("NumPoints")
+                this.SweepSettings.NumPoints = this.AllowedNumPoints(scanDetails.NumPoints);
+            end
+        end
+
+        function channel = ChannelNumber(this, channel)
+            %A channel as a number 1-4 from a number or text ("3") - errors for anything else.
+
+            if ~isnumeric(channel)
+                channel = str2double(string(channel));
+            end
+            assert(isscalar(channel) && ismember(channel, 1:4), "HP_8722ES_NetworkAnalyser:InvalidChannel", "%s", ...
+                this.Name + ": the channel must be 1, 2, 3 or 4.");
+        end
+
+        function DiscardUnexpectedReplies(this)
+            %Read and drop anything the analyser still has to send after a data transfer, with a warning - it would otherwise be taken as the reply to the next command.
+
+            discarded = 0;
+            while discarded < 20000 && this.IsReplyWaiting()
+                this.ReadString();
+                discarded = discarded + 1;
+            end
+            if discarded > 0
+                Palladium.Logging.Logger.Log("Warning", this.Name + ": the analyser sent " + discarded + " more lines than expected after the trace (more points than POIN reported?) - they were discarded.");
+            end
+        end
+
+        function command = DisplayFormatCommand(this)
+            %The display format command for MeasUnit: LOGM (log magnitude, dB), LINM (linear magnitude) or POLA (polar, whose OUTPFORM data is real and imaginary parts).
+
+            switch(this.MeasUnit)
+                case(this.MeasUnitType("dB"));          command = "LOGM";
+                case(this.MeasUnitType("Absolute"));    command = "LINM";
+                case(this.MeasUnitType("Real/Imaginary")); command = "POLA";
+                otherwise
+                    error("HP_8722ES_NetworkAnalyser:InvalidMeasUnit", "%s", "MeasUnit must be dB, Absolute or Real/Imaginary, received " + string(this.MeasUnit));
+            end
+        end
+
+        function EnsureChannel(this, channel)
+            %Select a channel unless it is already the active one - the analyser's front panel can change it between a scan's start and its data being read.
+
+            if this.GetActiveChannel() ~= channel
+                this.SelectChannel(channel);
+            end
+        end
+
+        function numbers = ParseNumbers(~, text)
+            %The comma-separated numbers in a line of text, as a row vector.
+
+            numbers = str2double(strsplit(strtrim(string(text)), ","));
+            numbers = numbers(:)';
+        end
+
+        function numbers = QueryNumbers(this, command, expectedCount)
+            %Send an output command and read its reply as a list of numbers (FORM4 ASCII), however many lines it comes in.
+            %The analyser ends each pair of numbers in a trace with a line
+            %feed, and ends the transmission only with the GPIB EOI line
+            %(Programmer's Guide, "Output Syntax") - so a single read
+            %gets just the first point. Lines are read, adding their
+            %comma-separated numbers, until expectedCount have arrived (or a
+            %read comes back empty, so the caller finds the shortfall).
+            %Reading everything also leaves nothing behind in the buffer
+            %for the next command to find
+            %
+            %Inputs:
+            %   command       - the output command, e.g. "OUTPFORM;"
+            %   expectedCount - how many numbers the reply holds
+            %
+            %Outputs:
+            %   numbers - row vector of the numbers
+
+            numbers = this.ParseNumbers(this.QueryString(command));
+            while numel(numbers) < expectedCount
+                line = strtrim(string(this.ReadString()));
+                if strlength(line) == 0
+                    break;
+                end
+                numbers = [numbers, this.ParseNumbers(line)]; %#ok<AGROW>
+            end
+        end
+
+        function errors = ReadErrorQueue(this)
+            %Read, and so clear, the analyser's error queue (OUTPERRO gives the oldest as "number,message") - the error numbers, oldest first.
+            %Stops at error 0 (none), or after ten, so a reply that is
+            %always the same can't loop forever
+
+            errors = [];
+            for k = 1:10
+                number = str2double(strtok(this.QueryString("OUTPERRO;"), ","));
+                if isnan(number) || number == 0
+                    break;
+                end
+                errors(end + 1) = number; %#ok<AGROW>
+            end
+        end
+
+        function [measMode, measUnit, recognised] = ReadMeasurementFormat(this)
+            %The S-parameter and display format of the active channel, as text - if one of ours, else MeasMode and MeasUnit as they are.
+            %
+            %Outputs:
+            %   measMode   - "S11", "S21", "S12" or "S22"
+            %   measUnit   - "dB", "Absolute" or "Real/Imaginary"
+            %   recognised - [mode, unit]: true for each that the analyser is showing one of ours (not, say, a phase display)
+
+            measMode = string(this.MeasMode);
+            measUnit = string(this.MeasUnit);
+            recognised = [false, false];
+            for sParameter = string(categories(this.MeasMode))'
+                if this.QueryDouble(sParameter + "?;") == 1
+                    measMode = sParameter;
+                    recognised(1) = true;
+                end
+            end
+            if this.QueryDouble("LOGM?;") == 1
+                measUnit = "dB";
+                recognised(2) = true;
+            elseif this.QueryDouble("LINM?;") == 1
+                measUnit = "Absolute";
+                recognised(2) = true;
+            elseif this.QueryDouble("POLA?;") == 1
+                measUnit = "Real/Imaginary";
+                recognised(2) = true;
+            end
+        end
+
+        function settings = ReadSweepSettings(this)
+            %Read the sweep settings from the analyser: frequency range, points, sweep time and sweep type.
+
+            settings.StartFrequency_Hz = this.QueryDouble("STAR?;");
+            settings.StopFrequency_Hz = this.QueryDouble("STOP?;");
+            settings.NumPoints = this.QueryDouble("POIN?;");
+            settings.SweepTime_s = this.QueryDouble("SWET?;");
+            if this.QueryDouble("LOGFREQ?;") == 1
+                settings.SweepType = "Log";
+            else
+                settings.SweepType = "Linear";
+            end
+        end
 
         function StartSweep(this, options, has, measMode, measUnit)
             %Send RunMeasurement's settings to the analyser, then start the sweep without waiting.
@@ -650,182 +826,6 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
             %several sweeps (e.g. a 2-port calibration). The manual says to
             %wait two sweeps after a change of POIN, so then two groups
             this.WriteCommand("OPC?;NUMG" + (1 + pointsChanged) + ";");
-        end
-
-        function ApplyMeasurementFormat(this, measMode, measUnit)
-            %Select the S-parameter and display format of the measurement, and record them as MeasMode and MeasUnit.
-            %One not given (empty) is the channel's own, read from the
-            %analyser - unless that isn't one of ours (e.g. a phase display),
-            %when the last measurement's is set so the data matches its label
-
-            given = [~isempty(measMode), ~isempty(measUnit)];
-            recognised = [false, false];
-            if ~all(given)
-                [readMode, readUnit, recognised] = this.ReadMeasurementFormat();
-                if ~given(1) && recognised(1);  measMode = this.MeasType(readMode);    end
-                if ~given(2) && recognised(2);  measUnit = this.MeasUnitType(readUnit);  end
-            end
-            if ~isempty(measMode);  this.MeasMode = measMode;   end
-            if ~isempty(measUnit);  this.MeasUnit = measUnit;   end
-
-            if given(1) || ~recognised(1);  this.WriteCommand(string(this.MeasMode) + ";");                end
-            if given(2) || ~recognised(2);  this.WriteCommand(this.DisplayFormatCommand() + ";");          end
-        end
-
-        function ApplySimulatedSettings(this, scanDetails, has)
-            %In SimulationMode, remember the sweep settings scanDetails has, as the analyser would set them.
-
-            for name = ["StartFrequency_Hz", "StopFrequency_Hz", "SweepTime_s", "SweepType"]
-                if has(name)
-                    this.SweepSettings.(name) = scanDetails.(name);
-                end
-            end
-            if has("NumPoints")
-                this.SweepSettings.NumPoints = this.AllowedNumPoints(scanDetails.NumPoints);
-            end
-        end
-
-        function settings = ReadSweepSettings(this)
-            %Read the sweep settings from the analyser: frequency range, points, sweep time and sweep type.
-
-            settings.StartFrequency_Hz = this.QueryDouble("STAR?;");
-            settings.StopFrequency_Hz = this.QueryDouble("STOP?;");
-            settings.NumPoints = this.QueryDouble("POIN?;");
-            settings.SweepTime_s = this.QueryDouble("SWET?;");
-            if this.QueryDouble("LOGFREQ?;") == 1
-                settings.SweepType = "Log";
-            else
-                settings.SweepType = "Linear";
-            end
-        end
-
-        function command = DisplayFormatCommand(this)
-            %The display format command for MeasUnit: LOGM (log magnitude, dB), LINM (linear magnitude) or POLA (polar, whose OUTPFORM data is real and imaginary parts).
-
-            switch(this.MeasUnit)
-                case(this.MeasUnitType("dB"));          command = "LOGM";
-                case(this.MeasUnitType("Absolute"));    command = "LINM";
-                case(this.MeasUnitType("Real/Imaginary")); command = "POLA";
-                otherwise
-                    error("HP_8722ES_NetworkAnalyser:InvalidMeasUnit", "%s", "MeasUnit must be dB, Absolute or Real/Imaginary, received " + string(this.MeasUnit));
-            end
-        end
-
-        function numPoints = AllowedNumPoints(this, requested)
-            %The analyser's number of points nearest a requested number - it takes only 3, 11, 21, 26, 51, 101, 201, 401, 801 or 1601 (POIN).
-
-            [~, idx] = min(abs(this.NumPointsChoices - requested));
-            numPoints = this.NumPointsChoices(idx);
-        end
-
-        function channel = ChannelNumber(this, channel)
-            %A channel as a number 1-4 from a number or text ("3") - errors for anything else.
-
-            if ~isnumeric(channel)
-                channel = str2double(string(channel));
-            end
-            assert(isscalar(channel) && ismember(channel, 1:4), "HP_8722ES_NetworkAnalyser:InvalidChannel", "%s", ...
-                this.Name + ": the channel must be 1, 2, 3 or 4.");
-        end
-
-        function EnsureChannel(this, channel)
-            %Select a channel unless it is already the active one - the analyser's front panel can change it between a scan's start and its data being read.
-
-            if this.GetActiveChannel() ~= channel
-                this.SelectChannel(channel);
-            end
-        end
-
-        function [measMode, measUnit, recognised] = ReadMeasurementFormat(this)
-            %The S-parameter and display format of the active channel, as text - if one of ours, else MeasMode and MeasUnit as they are.
-            %
-            %Outputs:
-            %   measMode   - "S11", "S21", "S12" or "S22"
-            %   measUnit   - "dB", "Absolute" or "Real/Imaginary"
-            %   recognised - [mode, unit]: true for each that the analyser is showing one of ours (not, say, a phase display)
-
-            measMode = string(this.MeasMode);
-            measUnit = string(this.MeasUnit);
-            recognised = [false, false];
-            for sParameter = string(categories(this.MeasMode))'
-                if this.QueryDouble(sParameter + "?;") == 1
-                    measMode = sParameter;
-                    recognised(1) = true;
-                end
-            end
-            if this.QueryDouble("LOGM?;") == 1
-                measUnit = "dB";
-                recognised(2) = true;
-            elseif this.QueryDouble("LINM?;") == 1
-                measUnit = "Absolute";
-                recognised(2) = true;
-            elseif this.QueryDouble("POLA?;") == 1
-                measUnit = "Real/Imaginary";
-                recognised(2) = true;
-            end
-        end
-
-        function errors = ReadErrorQueue(this)
-            %Read, and so clear, the analyser's error queue (OUTPERRO gives the oldest as "number,message") - the error numbers, oldest first.
-            %Stops at error 0 (none), or after ten, so a reply that is
-            %always the same can't loop forever
-
-            errors = [];
-            for k = 1:10
-                number = str2double(strtok(this.QueryString("OUTPERRO;"), ","));
-                if isnan(number) || number == 0
-                    break;
-                end
-                errors(end + 1) = number; %#ok<AGROW>
-            end
-        end
-
-        function DiscardUnexpectedReplies(this)
-            %Read and drop anything the analyser still has to send after a data transfer, with a warning - it would otherwise be taken as the reply to the next command.
-
-            discarded = 0;
-            while discarded < 20000 && this.IsReplyWaiting()
-                this.ReadString();
-                discarded = discarded + 1;
-            end
-            if discarded > 0
-                Palladium.Logging.Logger.Log("Warning", this.Name + ": the analyser sent " + discarded + " more lines than expected after the trace (more points than POIN reported?) - they were discarded.");
-            end
-        end
-
-        function numbers = QueryNumbers(this, command, expectedCount)
-            %Send an output command and read its reply as a list of numbers (FORM4 ASCII), however many lines it comes in.
-            %The analyser ends each pair of numbers in a trace with a line
-            %feed, and ends the transmission only with the GPIB EOI line
-            %(Programmer's Guide, "Output Syntax") - so a single read
-            %gets just the first point. Lines are read, adding their
-            %comma-separated numbers, until expectedCount have arrived (or a
-            %read comes back empty, so the caller finds the shortfall).
-            %Reading everything also leaves nothing behind in the buffer
-            %for the next command to find
-            %
-            %Inputs:
-            %   command       - the output command, e.g. "OUTPFORM;"
-            %   expectedCount - how many numbers the reply holds
-            %
-            %Outputs:
-            %   numbers - row vector of the numbers
-
-            numbers = this.ParseNumbers(this.QueryString(command));
-            while numel(numbers) < expectedCount
-                line = strtrim(string(this.ReadString()));
-                if strlength(line) == 0
-                    break;
-                end
-                numbers = [numbers, this.ParseNumbers(line)]; %#ok<AGROW>
-            end
-        end
-
-        function numbers = ParseNumbers(~, text)
-            %The comma-separated numbers in a line of text, as a row vector.
-
-            numbers = str2double(strsplit(strtrim(string(text)), ","));
-            numbers = numbers(:)';
         end
 
     end
