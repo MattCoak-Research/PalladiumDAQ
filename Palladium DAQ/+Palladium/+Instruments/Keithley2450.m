@@ -66,9 +66,9 @@ classdef Keithley2450 < Palladium.Core.Instrument
 
     %% Categoricals
     methods
+        function catOut = LanguageType(this, inputStr); catOut = this.ConvertToCategorical(inputStr, ["TSP", "SCPI"]); end
         function catOut = MeasType(this, inputStr);     catOut = this.ConvertToCategorical(inputStr, ["Resistance", "Voltage", "Current", "Power"]); end
         function catOut = SourceType(this, inputStr);   catOut = this.ConvertToCategorical(inputStr, ["Voltage", "Current"]); end
-        function catOut = LanguageType(this, inputStr); catOut = this.ConvertToCategorical(inputStr, ["TSP", "SCPI"]); end
     end
 
     %% Constructor
@@ -470,41 +470,6 @@ classdef Keithley2450 < Palladium.Core.Instrument
             integrationTime_s = nplc / lineFrequency_Hz;
         end
 
-        function [str, limits, xlabelStr, ylabelStr] = GetSweepUnitsString(this)
-            %Units, limits and plot labels of the swept source level, for a Sweep Control.
-            %Before connecting, when the source function is not yet known, the
-            %units and x label are empty. When sourcing voltage and connected,
-            %the limits are the most the instrument will output (see
-            %GetSourceVoltageLimit); otherwise the most the 2450 can source:
-            %210 V, or 1.05 A
-            %
-            %Outputs:
-            %   str       - units of the source level, "V" or "A"
-            %   limits    - lowest and highest source levels allowed in the Sweep Control, [min, max]
-            %   xlabelStr - label for the source level on plots, e.g. "Source Voltage (V)"
-            %   ylabelStr - label for the measured value on plots (the first data column header)
-
-            %Handle the case of having not yet connected - so we don't yet
-            %know the source and measurement mode
-            if isempty(this.SourceMode)
-                xlabelStr = "";
-                str = "";
-                limits = [-0.1, 0.1];
-                ylabelStr = "Measured value";
-                return;
-            end
-
-            switch(this.SourceMode)
-                case(this.SourceType("Voltage"));   xlabelStr = "Source Voltage (V)";   str = "V";  limits = this.GetSourceVoltageLimit() * [-1, 1];
-                case(this.SourceType("Current"));   xlabelStr = "Source Current (A)";   str = "A";  limits = this.MaxSourceCurrent_A * [-1, 1];
-                otherwise
-                    error("Keithley2450:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
-            end
-
-            hdrs = this.GetHeaders();
-            ylabelStr = hdrs(1);
-        end
-
         function srcLevel = GetSourceLevel(this)
             %Read the programmed source level.
             %
@@ -575,6 +540,66 @@ classdef Keithley2450 < Palladium.Core.Instrument
             end
         end
 
+        function limit_V = GetSourceVoltageLimit(this)
+            %The most voltage the instrument will output, in V - the Sweep Control's limit.
+            %The lowest of: 210 V; the overvoltage protection level set on the
+            %instrument (GetVoltageSourceOVP); and 42 V if the rear interlock
+            %isn't engaged, as the 2450 then limits its output to that,
+            %silently. 210 V when not connected (or in Debug mode), or if
+            %either can't be read
+            %
+            %Outputs:
+            %   limit_V - the limit, as a positive voltage
+
+            limit_V = this.MaxSourceVoltage_V;
+            if this.SimulationMode || isempty(this.DeviceHandle)
+                return;
+            end
+            try
+                limit_V = min(limit_V, this.GetVoltageSourceOVP());
+                if ~this.IsInterlockEngaged()
+                    limit_V = min(limit_V, this.NoInterlockMaxVoltage_V);
+                end
+            catch err
+                Palladium.Logging.Logger.Log("Warning", this.Name + " could not read its voltage protection or interlock, so the Sweep Control allows up to " + limit_V + " V: " + err.message);
+            end
+        end
+
+        function [str, limits, xlabelStr, ylabelStr] = GetSweepUnitsString(this)
+            %Units, limits and plot labels of the swept source level, for a Sweep Control.
+            %Before connecting, when the source function is not yet known, the
+            %units and x label are empty. When sourcing voltage and connected,
+            %the limits are the most the instrument will output (see
+            %GetSourceVoltageLimit); otherwise the most the 2450 can source:
+            %210 V, or 1.05 A
+            %
+            %Outputs:
+            %   str       - units of the source level, "V" or "A"
+            %   limits    - lowest and highest source levels allowed in the Sweep Control, [min, max]
+            %   xlabelStr - label for the source level on plots, e.g. "Source Voltage (V)"
+            %   ylabelStr - label for the measured value on plots (the first data column header)
+
+            %Handle the case of having not yet connected - so we don't yet
+            %know the source and measurement mode
+            if isempty(this.SourceMode)
+                xlabelStr = "";
+                str = "";
+                limits = [-0.1, 0.1];
+                ylabelStr = "Measured value";
+                return;
+            end
+
+            switch(this.SourceMode)
+                case(this.SourceType("Voltage"));   xlabelStr = "Source Voltage (V)";   str = "V";  limits = this.GetSourceVoltageLimit() * [-1, 1];
+                case(this.SourceType("Current"));   xlabelStr = "Source Current (A)";   str = "A";  limits = this.MaxSourceCurrent_A * [-1, 1];
+                otherwise
+                    error("Keithley2450:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
+            end
+
+            hdrs = this.GetHeaders();
+            ylabelStr = hdrs(1);
+        end
+
         function [ovp_V, ovpSetting] = GetVoltageSourceOVP(this)
             %Read the overvoltage protection level of the voltage source function.
             %OVP is stored per source function - this reads the voltage function's,
@@ -606,31 +631,6 @@ classdef Keithley2450 < Palladium.Core.Instrument
                 if isnan(ovp_V)
                     error("Keithley2450:UnexpectedOVPSetting", "%s", "Unexpected overvoltage protection setting: " + ovpSetting);
                 end
-            end
-        end
-
-        function limit_V = GetSourceVoltageLimit(this)
-            %The most voltage the instrument will output, in V - the Sweep Control's limit.
-            %The lowest of: 210 V; the overvoltage protection level set on the
-            %instrument (GetVoltageSourceOVP); and 42 V if the rear interlock
-            %isn't engaged, as the 2450 then limits its output to that,
-            %silently. 210 V when not connected (or in Debug mode), or if
-            %either can't be read
-            %
-            %Outputs:
-            %   limit_V - the limit, as a positive voltage
-
-            limit_V = this.MaxSourceVoltage_V;
-            if this.SimulationMode || isempty(this.DeviceHandle)
-                return;
-            end
-            try
-                limit_V = min(limit_V, this.GetVoltageSourceOVP());
-                if ~this.IsInterlockEngaged()
-                    limit_V = min(limit_V, this.NoInterlockMaxVoltage_V);
-                end
-            catch err
-                Palladium.Logging.Logger.Log("Warning", this.Name + " could not read its voltage protection or interlock, so the Sweep Control allows up to " + limit_V + " V: " + err.message);
             end
         end
 
@@ -894,46 +894,6 @@ classdef Keithley2450 < Palladium.Core.Instrument
 
     %% Methods (Protected)
     methods (Access = protected)
-        function WriteSourceLevel(this, level)
-            %Send the source level, in V or A depending on SourceMode (see SetSourceLevel).
-
-            switch(this.Language)
-                case(this.LanguageType("SCPI"))
-                    switch(this.SourceMode)
-                        case(this.SourceType("Voltage"));   this.WriteCommand("SOUR:VOLT:LEV " + Palladium.Core.Instrument.NumberToCommandString(level));
-                        case(this.SourceType("Current"));   this.WriteCommand("SOUR:CURR:LEV " + Palladium.Core.Instrument.NumberToCommandString(level));
-                        otherwise
-                            error("Keithley2450:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
-                    end
-                case(this.LanguageType("TSP"))
-                    this.WriteCommand("smu.source.level = " + Palladium.Core.Instrument.NumberToCommandString(level));
-                otherwise
-                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
-            end
-        end
-
-        function WriteOutputState(this, enableOutput)
-            %Turn the output on (true) or off (false) (see SetSourceLevel).
-
-            switch(this.Language)
-                case(this.LanguageType("SCPI"))
-                    if(enableOutput)
-                        this.WriteCommand("OUTP ON");
-                    else
-                        this.WriteCommand("OUTP OFF");
-                    end
-                case(this.LanguageType("TSP"))
-                    if(enableOutput)
-                        this.WriteCommand("smu.source.output = smu.ON");
-                    else
-                        this.WriteCommand("smu.source.output = smu.OFF");
-                    end
-                otherwise
-                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
-            end
-        end
-
-
         function OpenConnection(this)
             %Open the connection, check the command set, and read the source and measure settings.
             %Clears the interface and the instrument's event log, errors if the
@@ -969,6 +929,45 @@ classdef Keithley2450 < Palladium.Core.Instrument
             %MeasurementMode based on this
             this.SourceMode = this.GetSourceMode();
             this.MeasMode = this.GetMeasurementMode();
+        end
+
+        function WriteOutputState(this, enableOutput)
+            %Turn the output on (true) or off (false) (see SetSourceLevel).
+
+            switch(this.Language)
+                case(this.LanguageType("SCPI"))
+                    if(enableOutput)
+                        this.WriteCommand("OUTP ON");
+                    else
+                        this.WriteCommand("OUTP OFF");
+                    end
+                case(this.LanguageType("TSP"))
+                    if(enableOutput)
+                        this.WriteCommand("smu.source.output = smu.ON");
+                    else
+                        this.WriteCommand("smu.source.output = smu.OFF");
+                    end
+                otherwise
+                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
+            end
+        end
+
+        function WriteSourceLevel(this, level)
+            %Send the source level, in V or A depending on SourceMode (see SetSourceLevel).
+
+            switch(this.Language)
+                case(this.LanguageType("SCPI"))
+                    switch(this.SourceMode)
+                        case(this.SourceType("Voltage"));   this.WriteCommand("SOUR:VOLT:LEV " + Palladium.Core.Instrument.NumberToCommandString(level));
+                        case(this.SourceType("Current"));   this.WriteCommand("SOUR:CURR:LEV " + Palladium.Core.Instrument.NumberToCommandString(level));
+                        otherwise
+                            error("Keithley2450:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
+                    end
+                case(this.LanguageType("TSP"))
+                    this.WriteCommand("smu.source.level = " + Palladium.Core.Instrument.NumberToCommandString(level));
+                otherwise
+                    error("Keithley2450:UnsupportedLanguage", "%s", "Unsupported language type " + string(this.Language));
+            end
         end
 
     end

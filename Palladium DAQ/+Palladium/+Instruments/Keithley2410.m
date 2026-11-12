@@ -453,44 +453,13 @@ classdef Keithley2410 < Palladium.Core.Instrument
 
     %% Methods (Protected)
     methods (Access = protected)
-        function WriteSourceLevel(this, level)
-            %Send the source level, in V or A depending on SourceMode (see SetSourceLevel).
+        function CloseConnection(this)
+            %Return the instrument to local (front panel) control, then disconnect.
 
-            switch(this.SourceMode)
-                case(this.SourceType("Voltage"));   this.WriteCommand("SOUR:VOLT:LEV " + Palladium.Core.Instrument.NumberToCommandString(level));
-                case(this.SourceType("Current"));   this.WriteCommand("SOUR:CURR:LEV " + Palladium.Core.Instrument.NumberToCommandString(level));
-                otherwise
-                    error("Keithley2410:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
+            if ~isempty(this.DeviceHandle)
+                this.SetLocal();
             end
-        end
-
-        function WriteOutputState(this, enableOutput)
-            %Turn the output on (true) or off (false) (see SetSourceLevel).
-
-            if(enableOutput)
-                this.WriteCommand("OUTP ON");
-            else
-                this.WriteCommand("OUTP OFF");
-            end
-        end
-
-
-        function OpenConnection(this)
-            %Open the connection, set the data elements and offset compensation, and check SourceMode.
-            %Sets :READ? replies to voltage, current and resistance, in that
-            %order, and the instrument's offset-compensated ohms to OffsetComp.
-            %Errors if OffsetComp is on outside Resistance MeasMode, or if the
-            %source function set on the instrument is not SourceMode
-
-            if this.OffsetComp && this.MeasMode ~= this.MeasType("Resistance")
-                error("Keithley2410:OffsetCompNotResistanceMode", "%s", this.Name + ": OffsetComp only works in Resistance MeasMode - turn it off, or measure resistance.");
-            end
-
-            OpenConnection@Palladium.Core.Instrument(this);
-            if ~this.SimulationMode
-                this.ConfigureReadings();
-            end
-            this.VerifyConnectionSettings();
+            CloseConnection@Palladium.Core.Instrument(this);
         end
 
         function ConfigureReadings(this)
@@ -511,19 +480,71 @@ classdef Keithley2410 < Palladium.Core.Instrument
             end
         end
 
-        function CloseConnection(this)
-            %Return the instrument to local (front panel) control, then disconnect.
+        function OpenConnection(this)
+            %Open the connection, set the data elements and offset compensation, and check SourceMode.
+            %Sets :READ? replies to voltage, current and resistance, in that
+            %order, and the instrument's offset-compensated ohms to OffsetComp.
+            %Errors if OffsetComp is on outside Resistance MeasMode, or if the
+            %source function set on the instrument is not SourceMode
 
-            if ~isempty(this.DeviceHandle)
-                this.SetLocal();
+            if this.OffsetComp && this.MeasMode ~= this.MeasType("Resistance")
+                error("Keithley2410:OffsetCompNotResistanceMode", "%s", this.Name + ": OffsetComp only works in Resistance MeasMode - turn it off, or measure resistance.");
             end
-            CloseConnection@Palladium.Core.Instrument(this);
+
+            OpenConnection@Palladium.Core.Instrument(this);
+            if ~this.SimulationMode
+                this.ConfigureReadings();
+            end
+            this.VerifyConnectionSettings();
+        end
+
+        function WriteOutputState(this, enableOutput)
+            %Turn the output on (true) or off (false) (see SetSourceLevel).
+
+            if(enableOutput)
+                this.WriteCommand("OUTP ON");
+            else
+                this.WriteCommand("OUTP OFF");
+            end
+        end
+
+        function WriteSourceLevel(this, level)
+            %Send the source level, in V or A depending on SourceMode (see SetSourceLevel).
+
+            switch(this.SourceMode)
+                case(this.SourceType("Voltage"));   this.WriteCommand("SOUR:VOLT:LEV " + Palladium.Core.Instrument.NumberToCommandString(level));
+                case(this.SourceType("Current"));   this.WriteCommand("SOUR:CURR:LEV " + Palladium.Core.Instrument.NumberToCommandString(level));
+                otherwise
+                    error("Keithley2410:InvalidSourceMode", "%s", "Source mode must be Voltage or Current, received " + string(this.SourceMode));
+            end
         end
 
     end
 
     %% Methods (Private)
     methods (Access = private)
+
+        function limit_V = GetSourceVoltageLimit(this)
+            %Read the V-source protection limit set on the instrument, in V.
+            %Falls back to the 2410's maximum source voltage when not connected
+            %(or in Debug mode), or if the query fails
+            %
+            %Outputs:
+            %   limit_V - the limit, as a positive voltage
+
+            limit_V = this.MaxSourceVoltage_V;
+            if this.SimulationMode || isempty(this.DeviceHandle)
+                return;
+            end
+            try
+                reading = abs(this.QueryDouble(":SOUR:VOLT:PROT?"));
+                if ~isnan(reading) && reading > 0
+                    limit_V = reading;
+                end
+            catch err
+                Palladium.Logging.Logger.Log("Warning", this.Name + " could not read its voltage protection limit, so the Sweep Control allows up to " + limit_V + " V: " + err.message);
+            end
+        end
 
         function [voltage, current, resistance] = ParseDataString(this, data)
             %Split a reading into voltage, current and resistance.
@@ -551,28 +572,6 @@ classdef Keithley2410 < Palladium.Core.Instrument
                 case(this.MeasType("Current"));     resistance = NaN;
                 otherwise
                     error("Keithley2410:InvalidMeasureMode", "%s", "Mode must be Resistance, Voltage, or Current, this was " + string(this.MeasMode));
-            end
-        end
-
-        function limit_V = GetSourceVoltageLimit(this)
-            %Read the V-source protection limit set on the instrument, in V.
-            %Falls back to the 2410's maximum source voltage when not connected
-            %(or in Debug mode), or if the query fails
-            %
-            %Outputs:
-            %   limit_V - the limit, as a positive voltage
-
-            limit_V = this.MaxSourceVoltage_V;
-            if this.SimulationMode || isempty(this.DeviceHandle)
-                return;
-            end
-            try
-                reading = abs(this.QueryDouble(":SOUR:VOLT:PROT?"));
-                if ~isnan(reading) && reading > 0
-                    limit_V = reading;
-                end
-            catch err
-                Palladium.Logging.Logger.Log("Warning", this.Name + " could not read its voltage protection limit, so the Sweep Control allows up to " + limit_V + " V: " + err.message);
             end
         end
 

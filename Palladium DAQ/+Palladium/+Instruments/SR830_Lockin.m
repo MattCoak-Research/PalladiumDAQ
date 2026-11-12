@@ -71,6 +71,20 @@ classdef SR830_Lockin < Palladium.Core.Instrument
             metadataStruct.Frequency_Hz = this.GetFrequency();
         end
 
+        function freq_Hz = GetFrequency(this)
+            %Read the reference frequency, in Hz.
+            %
+            %Outputs:
+            %   freq_Hz - reference frequency, in Hz
+
+            if(this.SimulationMode)
+                freq_Hz = 78.67;
+                return;
+            end
+
+            freq_Hz = this.QueryDouble("FREQ?");
+        end
+
         function [Headers, Units] = GetHeaders(this)
             %Data column headers and units for the values returned by Measure.
             %X, Y and the output level, plus a resistance column when a current
@@ -106,20 +120,6 @@ classdef SR830_Lockin < Palladium.Core.Instrument
                 Headers = [Headers, this.Name + " - Resistance (Ω)"];
                 Units = [Units "Ω"];
             end
-        end
-
-        function freq_Hz = GetFrequency(this)
-            %Read the reference frequency, in Hz.
-            %
-            %Outputs:
-            %   freq_Hz - reference frequency, in Hz
-
-            if(this.SimulationMode)
-                freq_Hz = 78.67;
-                return;
-            end
-
-            freq_Hz = this.QueryDouble("FREQ?");
         end
 
         function level = GetOutputLevel(this)

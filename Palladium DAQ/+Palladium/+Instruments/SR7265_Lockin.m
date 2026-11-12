@@ -126,35 +126,6 @@ classdef SR7265_Lockin < Palladium.Core.Instrument
     %% Methods (Private)
     methods (Access = private)
 
-        function ReadInputMode(this)
-            %Read the input mode (IMODE): 0 voltage, 1 high-bandwidth current, 2 low-noise current (manual page 6-10).
-            %The first replies after connecting, so they are checked: over
-            %RS-232, character echo puts the command into the reply, and the
-            %prompt adds a * or ? after it, read as the start of the next
-            %reply - so it is read twice. Either way the reply isn't just
-            %0, 1 or 2, and connecting stops with a message saying what to
-            %change
-
-            replies = strings(1, 2);
-            for i = 1 : 2
-                replies(i) = strtrim(string(this.QueryString("IMODE")));
-            end
-            mode = str2double(replies);
-
-            if ~all(ismember(mode, [0 1 2])) || mode(1) ~= mode(2)
-                msg = this.Name + " gave unexpected replies to the IMODE query: """ + join(replies, """, """) + """ (expected 0, 1 or 2).";
-                if this.Connection_Type == Palladium.Enums.ConnectionType.Serial
-                    msg = msg + " Over RS-232, turn off Echo and Prompt in the instrument's RS232 Settings menu (in the Communications menu) - they are read as part of every reply.";
-                else
-                    msg = msg + " Check the connection settings, such as the terminator, match the instrument's.";
-                end
-                error("SR7265_Lockin:UnexpectedReply", "%s", msg);
-            end
-
-            modes = ["Voltage", "Current HB", "Current LN"];
-            this.InputMode = this.InputModeType(modes(mode(1) + 1));
-        end
-
         function AutoTuneSensitivity(this)
             %Step the sensitivity range up or down by one if the signal is near its limits.
             %Uses the magnitude as a percentage of full scale, so works the same on
@@ -216,6 +187,35 @@ classdef SR7265_Lockin < Palladium.Core.Instrument
             else
                 sensitivityIndex = this.QueryDouble("SEN");
             end
+        end
+
+        function ReadInputMode(this)
+            %Read the input mode (IMODE): 0 voltage, 1 high-bandwidth current, 2 low-noise current (manual page 6-10).
+            %The first replies after connecting, so they are checked: over
+            %RS-232, character echo puts the command into the reply, and the
+            %prompt adds a * or ? after it, read as the start of the next
+            %reply - so it is read twice. Either way the reply isn't just
+            %0, 1 or 2, and connecting stops with a message saying what to
+            %change
+
+            replies = strings(1, 2);
+            for i = 1 : 2
+                replies(i) = strtrim(string(this.QueryString("IMODE")));
+            end
+            mode = str2double(replies);
+
+            if ~all(ismember(mode, [0 1 2])) || mode(1) ~= mode(2)
+                msg = this.Name + " gave unexpected replies to the IMODE query: """ + join(replies, """, """) + """ (expected 0, 1 or 2).";
+                if this.Connection_Type == Palladium.Enums.ConnectionType.Serial
+                    msg = msg + " Over RS-232, turn off Echo and Prompt in the instrument's RS232 Settings menu (in the Communications menu) - they are read as part of every reply.";
+                else
+                    msg = msg + " Check the connection settings, such as the terminator, match the instrument's.";
+                end
+                error("SR7265_Lockin:UnexpectedReply", "%s", msg);
+            end
+
+            modes = ["Voltage", "Current HB", "Current LN"];
+            this.InputMode = this.InputModeType(modes(mode(1) + 1));
         end
 
         function SetSensitivityLevel(this, levelIndexInt)

@@ -109,15 +109,6 @@ classdef SweepController_Ramp < Palladium.Instruments.Controls.SweepController
             end
         end
 
-        function OrderInstrumentAbort(this)
-            this.Instrument.AbortRamp();
-        end
-
-        function OrderInstrumentRamp(this, target, rate)
-            settings.Placeholder = "";
-            this.Instrument.SetRampingToTarget(target, rate, settings);
-        end
-
         function OnRampToZero(this)
             %hard coded ramp straight to zero
             this.TargetValue = 0;
@@ -158,6 +149,15 @@ classdef SweepController_Ramp < Palladium.Instruments.Controls.SweepController
                 this.SetNextTargetPoint(targetValue);
                 sweepCompleted = false;
             end
+        end
+
+        function OrderInstrumentAbort(this)
+            this.Instrument.AbortRamp();
+        end
+
+        function OrderInstrumentRamp(this, target, rate)
+            settings.Placeholder = "";
+            this.Instrument.SetRampingToTarget(target, rate, settings);
         end
 
         function RampToZero(this, ~, ~)

@@ -437,22 +437,6 @@ classdef Lakeshore331 < Palladium.Core.Instrument
     %% Methods (Protected)
     methods (Access = protected)
 
-        function OpenConnection(this)
-            %Open the connection and read the heater output display mode.
-            %Whether the heater output is a percentage of power or of current is
-            %needed by GetHeaterPower
-
-            OpenConnection@Palladium.Core.Instrument(this);
-            if this.SimulationMode
-                return;
-            end
-
-            %Reply is "<input>,<units>,<powerup enable>,<current/power>",
-            %where current/power is 1 = current, 2 = power
-            cset = strsplit(strtrim(this.QueryString("CSET? " + this.HeaterLoop)), ",");
-            this.HeaterOutputIsPower = str2double(cset{4}) == 2;
-        end
-
         function ApplySettings(this, settings)
             %Send the Heater Control tab's settings to the instrument.
             %Also sets the sensor input to regulate on, from ControlChannel
@@ -475,6 +459,22 @@ classdef Lakeshore331 < Palladium.Core.Instrument
             this.SetPIDValues(settings.PID_Settings.P, settings.PID_Settings.I, settings.PID_Settings.D);
         end
 
+        function OpenConnection(this)
+            %Open the connection and read the heater output display mode.
+            %Whether the heater output is a percentage of power or of current is
+            %needed by GetHeaterPower
+
+            OpenConnection@Palladium.Core.Instrument(this);
+            if this.SimulationMode
+                return;
+            end
+
+            %Reply is "<input>,<units>,<powerup enable>,<current/power>",
+            %where current/power is 1 = current, 2 = power
+            cset = strsplit(strtrim(this.QueryString("CSET? " + this.HeaterLoop)), ",");
+            this.HeaterOutputIsPower = str2double(cset{4}) == 2;
+        end
+
     end
 
     %% Methods (Private)
@@ -490,25 +490,6 @@ classdef Lakeshore331 < Palladium.Core.Instrument
             %   channelStr - "A" or "B"
 
             channelStr = string(channel);
-        end
-
-        function maxPower = GetMaxPowerInto50Ohms(this, heaterRange)
-            %Maximum heater power of a heater range, into a 50 Ohm heater
-            %
-            %Inputs:
-            %   heaterRange - HeaterRange categorical
-            %
-            %Outputs:
-            %   maxPower - in W
-
-            switch(heaterRange)
-                case(this.HeaterRange("Off"));      maxPower = 0;
-                case(this.HeaterRange("Low"));      maxPower = 0.5;
-                case(this.HeaterRange("Medium"));   maxPower = 5;
-                case(this.HeaterRange("High"));     maxPower = 50;
-                otherwise
-                    error("Lakeshore331:UnsupportedHeaterRange", "%s", "Unsupported heater range in " + this.Name + ": " + string(heaterRange));
-            end
         end
 
         function index = GetHeaterRangeIndex(this, heaterRange)
@@ -527,6 +508,25 @@ classdef Lakeshore331 < Palladium.Core.Instrument
                 case(this.HeaterRange("High"));     index = 3;
                 otherwise
                     error("Lakeshore331:UnsupportedHeaterRange", "%s", "Unsupported heater range, should be Off, Low, Medium or High. Was " + string(heaterRange));
+            end
+        end
+
+        function maxPower = GetMaxPowerInto50Ohms(this, heaterRange)
+            %Maximum heater power of a heater range, into a 50 Ohm heater
+            %
+            %Inputs:
+            %   heaterRange - HeaterRange categorical
+            %
+            %Outputs:
+            %   maxPower - in W
+
+            switch(heaterRange)
+                case(this.HeaterRange("Off"));      maxPower = 0;
+                case(this.HeaterRange("Low"));      maxPower = 0.5;
+                case(this.HeaterRange("Medium"));   maxPower = 5;
+                case(this.HeaterRange("High"));     maxPower = 50;
+                otherwise
+                    error("Lakeshore331:UnsupportedHeaterRange", "%s", "Unsupported heater range in " + this.Name + ": " + string(heaterRange));
             end
         end
 

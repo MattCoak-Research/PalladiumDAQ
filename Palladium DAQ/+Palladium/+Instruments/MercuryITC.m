@@ -727,37 +727,6 @@ classdef MercuryITC < Palladium.Core.Instrument
             confirmedValue = this.ParseSignalResponse(responseString);
         end
 
-        function mult = UnitMultiplier(this, unit)
-            %Multiplier to base units for a reply's units, e.g. 1e-3 for "mV" and 1 for "K".
-            %Replies give a value followed by its scale: n, u, m, none, k or
-            %M before the unit (manual 10.3.5). Units that aren't SI -
-            %"mB" (mbar) for pressure - are matched whole first, so the "m"
-            %isn't taken as milli. Units not recognised are left unscaled,
-            %with a warning logged once for each
-            %
-            %Inputs:
-            %   unit - the units text, e.g. "mV", "kOhm" or "mB"
-            %
-            %Outputs:
-            %   mult - the multiplier
-
-            baseUnits = ["K", "V", "A", "W", "%", "Ohm", "O", string(char(937)), string(char(8486)), "mB"];   %char(937) and char(8486) are the two Unicode ohm signs
-            prefixes = dictionary(["n", "u", string(char(181)), "m", "k", "M"], [1e-9, 1e-6, 1e-6, 1e-3, 1e3, 1e6]);   %char(181) is the micro sign
-
-            unit = strip(string(unit));
-            if any(unit == baseUnits)
-                mult = 1;
-            elseif strlength(unit) >= 2 && isKey(prefixes, extractBefore(unit, 2)) && any(extractAfter(unit, 1) == baseUnits)
-                mult = prefixes(extractBefore(unit, 2));
-            else
-                mult = 1;
-                if ~any(unit == this.WarnedUnits)
-                    this.WarnedUnits(end+1) = unit;
-                    Palladium.Logging.Logger.Log("Warning", this.Name + ": units '" + unit + "' in a reply are not recognised - the value is recorded unscaled");
-                end
-            end
-        end
-
         function tokens = StripAndCheckStatusToken(~, tokens, originalResponse)
             %Remove a trailing VALID from a split reply, or raise an error for an invalid-command reply.
             %The invalid replies are INVALID, NOT_FOUND, N/A and DENIED (manual
@@ -787,6 +756,37 @@ classdef MercuryITC < Palladium.Core.Instrument
                     error("MercuryITC:FunctionNotApplicable", "%s", "MercuryiTC - function does not apply to this device (N/A): " + string(originalResponse));
                 case "DENIED"
                     error("MercuryITC:PermissionDenied", "%s", "MercuryiTC denied permission to change this parameter (DENIED): " + string(originalResponse));
+            end
+        end
+
+        function mult = UnitMultiplier(this, unit)
+            %Multiplier to base units for a reply's units, e.g. 1e-3 for "mV" and 1 for "K".
+            %Replies give a value followed by its scale: n, u, m, none, k or
+            %M before the unit (manual 10.3.5). Units that aren't SI -
+            %"mB" (mbar) for pressure - are matched whole first, so the "m"
+            %isn't taken as milli. Units not recognised are left unscaled,
+            %with a warning logged once for each
+            %
+            %Inputs:
+            %   unit - the units text, e.g. "mV", "kOhm" or "mB"
+            %
+            %Outputs:
+            %   mult - the multiplier
+
+            baseUnits = ["K", "V", "A", "W", "%", "Ohm", "O", string(char(937)), string(char(8486)), "mB"];   %char(937) and char(8486) are the two Unicode ohm signs
+            prefixes = dictionary(["n", "u", string(char(181)), "m", "k", "M"], [1e-9, 1e-6, 1e-6, 1e-3, 1e3, 1e6]);   %char(181) is the micro sign
+
+            unit = strip(string(unit));
+            if any(unit == baseUnits)
+                mult = 1;
+            elseif strlength(unit) >= 2 && isKey(prefixes, extractBefore(unit, 2)) && any(extractAfter(unit, 1) == baseUnits)
+                mult = prefixes(extractBefore(unit, 2));
+            else
+                mult = 1;
+                if ~any(unit == this.WarnedUnits)
+                    this.WarnedUnits(end+1) = unit;
+                    Palladium.Logging.Logger.Log("Warning", this.Name + ": units '" + unit + "' in a reply are not recognised - the value is recorded unscaled");
+                end
             end
         end
 

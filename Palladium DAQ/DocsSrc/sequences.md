@@ -101,6 +101,8 @@ A VNA Control (the Instrument Control of the PNA-L, HP 8722ES and PicoVNA) can b
 | `SetFrequencyRange(start_Hz, stop_Hz)`, `SetStartFrequency(freq_Hz)`, `SetStopFrequency(freq_Hz)` | The sweep's frequencies, in Hz |
 | `SetNumberOfPoints(numPoints)`, `SetSweepTime(time_s)`, `SetSweepType(sweepType)` | Points, sweep time (0 for automatic), `Linear` or `Log` |
 | `SetSParameter(sParameter)`, `SetUnits(units)` | e.g. `S21`, and `dB`, `Absolute` or `Real/Imaginary` |
+| `SetChannel(channel)` | The analyser channel to measure, on analysers that have channels (the HP 8722ES: 1 to 4). The panel then shows that channel's settings |
+| `LoadSavedData(register)` | Reads the trace saved in an analyser register (HP 8722ES: 1 to 31) instead of measuring; plotted and saved like a scan |
 | `SetPlotType(plotType)` | `Trace` or `Smith` (a Smith chart sets the units to `Real/Imaginary`, and needs RF Toolbox) |
 | `SetSaveSweepFile(saveToFile)`, `SetSweepName(name)` | Whether each scan is saved to its own file, and its name |
 | `Run()` | Starts a scan, and waits until it has been saved |

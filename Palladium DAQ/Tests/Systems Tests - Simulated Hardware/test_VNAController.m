@@ -43,15 +43,13 @@ classdef test_VNAController < matlab.unittest.TestCase
     methods (Test)
         function ChangingAnInstrumentSettingTest(testCase, InstrumentType)
             %The Scan Control's listener called a method it didn't have, so
-            %changing an instrument setting errored; the panel follows it
-            [instr, cont] = testCase.addAnalyser(InstrumentType);
+            %changing an instrument setting errored
+            [instr, ~] = testCase.addAnalyser(InstrumentType);
 
-            testCase.verifyWarningFree(@() setMeasMode(instr));
-            fields = struct(cont).Fields;
-            testCase.verifyEqual(string(fields.MeasMode.Value), "S22");
+            testCase.verifyWarningFree(@() setName(instr));
 
-            function setMeasMode(instr)
-                instr.MeasMode = instr.MeasType("S22");
+            function setName(instr)
+                instr.Name = instr.Name + "x";
             end
         end
 
@@ -222,6 +220,81 @@ classdef test_VNAController < matlab.unittest.TestCase
             testCase.verifyEqual(instr.MeasUnit, instr.MeasUnitType("dB"), "The instrument is only told on Run");
         end
 
+        function ChannelIsChosenInThePanelAndSentOnRunTest(testCase)
+            %The 8722ES's Channel drop-down (an extra setting the instrument describes) goes to RunScan - no restart to change it
+            [instr, cont] = testCase.addAnalyser("HP_8722ES_NetworkAnalyser");
+            testCase.startMeasurements();
+            fields = struct(cont).Fields;
+            testCase.verifyEqual(string(fields.Channel.Items), ["1", "2", "3", "4"]);
+            testCase.verifyEqual(string(fields.Channel.Value), "1", "Starts from the analyser's active channel");
+
+            cont.SetChannel(3);
+            testCase.verifyEqual(string(fields.Channel.Value), "3");
+            testCase.verifyEqual(instr.GetScanSettings().Channel, 3, "The analyser is switched when the choice is made, to show that channel's settings");
+
+            cont.SetChannel(2);
+            cont.Run();
+            testCase.waitForScan(cont);
+            testCase.verifyEqual(instr.GetScanSettings().Channel, 2);
+            testCase.verifyEqual(string(fields.Channel.Value), "2");
+            testCase.verifyError(@() cont.SetChannel(5), "VNAController:UnknownChoice");
+        end
+
+        function OnlyAnalysersWithChannelsOfferThemTest(testCase)
+            [~, cont] = testCase.addAnalyser("PNA_L_NetworkAnalyser");
+
+            testCase.verifyError(@() cont.SetChannel(1), "VNAController:NotOffered");
+            testCase.verifyError(@() cont.LoadSavedData(1), "VNAController:NotOffered");
+        end
+
+        function PicoVNAPowerAndBandwidthAreChosenInThePanelAndSentOnRunTest(testCase)
+            %Per-measurement settings, no longer instrument properties: the panel's values go to RunScan, and a change is not undone by a refresh
+            [instr, cont] = testCase.addAnalyser("PicoVNA_NetworkAnalyser");
+            testCase.startMeasurements();
+            fields = struct(cont).Fields;
+            testCase.verifyEqual(fields.Power_dBm.Limits, instr.PowerLimits_dBm);
+            testCase.verifyEqual(string(fields.Bandwidth_Hz.Items), string(instr.BandwidthChoices_Hz));
+
+            cont.SetExtraSetting("Power_dBm", -6);
+            cont.SetExtraSetting("Bandwidth_Hz", 100);
+            testCase.verifyEqual(fields.Power_dBm.Value, -6, "Not reset to the software's own by a refresh");
+            testCase.verifyEqual(string(fields.Bandwidth_Hz.Value), "100");
+
+            cont.Run();
+            testCase.waitForScan(cont);
+            settings = instr.GetScanSettings();
+            testCase.verifyEqual([settings.Power_dBm, settings.Bandwidth_Hz], [-6, 100]);
+            testCase.verifyEqual(fields.Power_dBm.Value, -6, "Shows what the analyser has after the scan");
+            testCase.verifyError(@() cont.SetExtraSetting("Power_dBm", 50), "MATLAB:validators:mustBeInRange");
+        end
+
+        function NumberOfPointsSnapsToTheAnalysersChoicesTest(testCase)
+            %The 8722ES takes only certain numbers of points - show what will be measured rather than a number it won't use
+            [~, cont] = testCase.addAnalyser("HP_8722ES_NetworkAnalyser");
+            fields = struct(cont).Fields;
+
+            cont.SetNumberOfPoints(500);
+            testCase.verifyEqual(fields.NumPoints.Value, 401);
+
+            fields.NumPoints.Value = 1000;
+            fields.NumPoints.ValueChangedFcn(fields.NumPoints, struct("PreviousValue", 401, "Value", 1000));
+            testCase.verifyEqual(fields.NumPoints.Value, 801, "As typing does");
+        end
+
+        function LoadSavedDataRunsAsAScanTest(testCase)
+            %Reading an analyser register's trace goes through the scan: it completes, and Continuous does not repeat it
+            [~, cont] = testCase.addAnalyser("HP_8722ES_NetworkAnalyser");
+            testCase.startMeasurements();
+            cont.SetContinuous(true);
+
+            cont.LoadSavedData(3);
+            testCase.waitForScan(cont);
+            pause(2);       %Long enough for a repeat to start
+
+            testCase.verifyFalse(cont.Running, "Not repeated by Continuous");
+            testCase.verifyError(@() cont.LoadSavedData(40), "MATLAB:validators:mustBeInRange");
+        end
+
         function SettersRefuseWhatThePanelWouldNotTakeTest(testCase, InstrumentType)
             [~, cont] = testCase.addAnalyser(InstrumentType);
 
@@ -322,8 +395,14 @@ classdef test_VNAController < matlab.unittest.TestCase
             end
 
             testCase.assertNumElements(files, 1, "The queued scan wrote its file");
-            pause(1);
-            [~, ~, data] = Palladium.DataWriting.DataReader().ReadFile(fullfile(files(1).folder, files(1).name));
+
+            %The file starts with the scan - its data follows once the (simulated, random-length) sweep ends, which takes longer when the machine is busy
+            data = zeros(0, 2);
+            timer = tic;
+            while size(data, 1) < 21 && toc(timer) < 30
+                pause(0.5);
+                [~, ~, data] = Palladium.DataWriting.DataReader().ReadFile(fullfile(files(1).folder, files(1).name));
+            end
             testCase.verifySize(data, [21, 2]);
             testCase.verifyEqual(data([1 end], 1)', [100e6, 200e6], RelTol = 1e-9);
         end

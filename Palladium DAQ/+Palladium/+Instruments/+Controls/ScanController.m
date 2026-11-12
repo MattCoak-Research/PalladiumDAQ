@@ -40,6 +40,7 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
         RestartNextTick = false;
         Aborted = false;
         Starting = false;   %True from Run until the scan's data file is started - completion isn't checked until then (see UpdateData)
+        OneShotScan = false;    %True for a scan a subclass's CollectScanDetails marked as not to be repeated by Continuous (e.g. loading saved data rather than measuring) - reset at each Run
     end
 
     %% Properties (Private)
@@ -163,7 +164,6 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             this.GUIView.DisableRunButton();
         end
 
-
         function OnParametersChanged(this, sweepDetails)
             this.ControlDetailsStruct.SweepDetails = sweepDetails;
             this.GUIView.OnScanDataChanged(this.ControlDetailsStruct.SweepDetails);
@@ -181,6 +181,7 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
         function OnScanRun(this)
             %Reset the current step number
             this.Aborted = false;
+            this.OneShotScan = false;
             this.ClearData();
 
             %Get parameter
@@ -203,6 +204,12 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             %settings the instrument applied
             this.StartScanDataFile(writeToFile);
             this.Starting = false;
+        end
+
+        function RemoveControl(this, ~)
+            %Delete GUI objects
+            delete(this.GUIView);
+            this.GUIView = [];
         end
 
         function Run(this)
@@ -250,7 +257,7 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             this.OnScanComplete();
 
             %Loop the next Scan to start if in Continuous mode
-            if this.GUIView.IsContinuousSelected() && ~this.Aborted
+            if this.GUIView.IsContinuousSelected() && ~this.Aborted && ~this.OneShotScan
                 this.RestartNextTick = true;
             end
         end
@@ -260,12 +267,6 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             sweepDetails = eventData.Value;
             this.ControlDetailsStruct.SweepDetails = sweepDetails;
             this.GUIView.OnScanDataChanged(this.ControlDetailsStruct.SweepDetails);
-        end
-
-        function RemoveControl(this, ~)
-            %Delete GUI objects
-            delete(this.GUIView);
-            this.GUIView = [];
         end
 
         function SetContinuous(this, continuous)
@@ -350,6 +351,32 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             this.OnScanAbort();
         end
 
+        function OnInstrumentPropertyChanged(this) %#ok<MANU>
+            %Called when one of the instrument's settings changes (e.g. in Instrument Options) - override to use it.
+            %Does nothing by default
+        end
+
+        function OnMeasurementsInitialised(this, headers)
+            %The base class has stored the headers and passed them to the GUIView
+            switch(this.PlotterType)
+                case("Default")
+                    if ~isempty(this.Plotter)
+                        this.Plotter.UpdateVariables(headers);
+                    end
+                otherwise
+            end
+        end
+
+        function OnMeasurementsStarted(this)
+            this.UnlockRunButton();
+        end
+
+        function OnMeasurementsStopped(this)
+            this.GUIView.EnableRunButton();
+            this.LockRunButton();
+            this.CachedData = [];
+        end
+
         function OnRunPushed(this, ~, ~)
             %The panel's Run was pressed (or Run called): start the scan.
             %An event handler - sequences and scripts call Run, which comes here through the panel
@@ -407,36 +434,33 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             end
         end
 
-        function OnInstrumentPropertyChanged(this) %#ok<MANU>
-            %Called when one of the instrument's settings changes (e.g. in Instrument Options) - override to use it.
-            %Does nothing by default
-        end
-
-        function OnMeasurementsInitialised(this, headers)
-            %The base class has stored the headers and passed them to the GUIView
-            switch(this.PlotterType)
-                case("Default")
-                    if ~isempty(this.Plotter)
-                        this.Plotter.UpdateVariables(headers);
-                    end
-                otherwise
-            end
-        end
-
-        function OnMeasurementsStarted(this)
-            this.UnlockRunButton();
-        end
-
-        function OnMeasurementsStopped(this)
-            this.GUIView.EnableRunButton();
-            this.LockRunButton();
-            this.CachedData = [];
-        end
-
     end
 
     %% Methods (Private)
     methods (Access = private)
+
+        function stringLine = CreateScanMetaDataLine(this)
+            %The scan's settings as requested (the instrument's own metadata line has those it applied) - leaving out the file settings.
+
+            strct = rmfield(this.ControlDetailsStruct.SweepDetails, intersect(["SaveSweepFile", "FileName"], ...
+                string(fieldnames(this.ControlDetailsStruct.SweepDetails))));
+            if isempty(fieldnames(strct))
+                strct.Settings = "None";
+            end
+
+            %Write the metadata to file
+            stringLine = Palladium.DataWriting.DataWriter.BuildMetadataLineStringFromStruct("", strct);
+        end
+
+         function headersString = GetHeaders(this)
+            headers = this.Instrument.GetScanHeaders();
+
+            %Make a simple string of all these headers, tab seperated
+            headersString = '';
+            for i= 1 : length(headers)
+                headersString = sprintf('%s%s\t', headersString, headers{i});
+            end
+         end
 
         function PlotScanData(this, data)
             %Show a finished scan in the plotter, drawn as PlotKind says.
@@ -461,13 +485,6 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             end
         end
 
-        function tf = ToLogical(~, value, name)
-            %True or false from a logical or a 0/1 - errors for anything else.
-
-            assert((islogical(value) || isnumeric(value)) && isscalar(value), "ScanController:NotTrueOrFalse", "%s", name + " must be true or false.");
-            tf = logical(value);
-        end
-
         function StartScanDataFile(this, writeToFile)
             %Write the new scan data file's metadata and headers, with the DataWriter made in OnScanRun.
 
@@ -489,28 +506,12 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             this.StartNewDataFile(this.DataWriter, headers, extraMetadataLines, writeToFile);
         end
 
-        function stringLine = CreateScanMetaDataLine(this)
-            %The scan's settings as requested (the instrument's own metadata line has those it applied) - leaving out the file settings.
+        function tf = ToLogical(~, value, name)
+            %True or false from a logical or a 0/1 - errors for anything else.
 
-            strct = rmfield(this.ControlDetailsStruct.SweepDetails, intersect(["SaveSweepFile", "FileName"], ...
-                string(fieldnames(this.ControlDetailsStruct.SweepDetails))));
-            if isempty(fieldnames(strct))
-                strct.Settings = "None";
-            end
-
-            %Write the metadata to file
-            stringLine = Palladium.DataWriting.DataWriter.BuildMetadataLineStringFromStruct("", strct);
+            assert((islogical(value) || isnumeric(value)) && isscalar(value), "ScanController:NotTrueOrFalse", "%s", name + " must be true or false.");
+            tf = logical(value);
         end
-
-         function headersString = GetHeaders(this)
-            headers = this.Instrument.GetScanHeaders();
-
-            %Make a simple string of all these headers, tab seperated
-            headersString = '';
-            for i= 1 : length(headers)
-                headersString = sprintf('%s%s\t', headersString, headers{i});
-            end
-         end
 
         function UpdatePlotterSavedPlotTitle(this)
             this.Plotter.TitleForCopiedPlots = this.DataWriter.FileWriteDetails.FileName;

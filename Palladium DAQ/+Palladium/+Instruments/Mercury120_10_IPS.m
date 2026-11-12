@@ -576,6 +576,18 @@ classdef Mercury120_10_IPS < Palladium.Core.Instrument
     %% Methods (Protected)
     methods (Access = protected)
 
+        function CloseConnection(this)
+            %Put the supply back into Local and Unlocked control, then disconnect.
+            %Local control is only set if the connection was opened, so a failed
+            %Connect can still be closed
+
+            if ~isempty(this.DeviceHandle)
+                this.SetLocal();
+            end
+
+            CloseConnection@Palladium.Core.Instrument(this);
+        end
+
         function OpenConnection(this)
             %Open the connection and put the supply into Remote and Unlocked control.
             %The supply only obeys control commands in Remote control
@@ -588,18 +600,6 @@ classdef Mercury120_10_IPS < Palladium.Core.Instrument
             %Remote and Unlocked: commands are accepted, and the front panel
             %LOC/REM button can still return the supply to Local control
             this.SetRemote();
-        end
-
-        function CloseConnection(this)
-            %Put the supply back into Local and Unlocked control, then disconnect.
-            %Local control is only set if the connection was opened, so a failed
-            %Connect can still be closed
-
-            if ~isempty(this.DeviceHandle)
-                this.SetLocal();
-            end
-
-            CloseConnection@Palladium.Core.Instrument(this);
         end
 
     end

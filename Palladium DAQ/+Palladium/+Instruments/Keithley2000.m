@@ -163,6 +163,16 @@ classdef Keithley2000 < Palladium.Core.Instrument
     %% Methods (Protected)
     methods (Access = protected)
 
+        function CloseConnection(this)
+            %Restore continuous readings, then disconnect.
+            %Puts the instrument back to free-running readings, as on the front panel
+
+            if ~this.SimulationMode && ~isempty(this.DeviceHandle)
+                this.WriteCommand(":INIT:CONT ON");
+            end
+            CloseConnection@Palladium.Core.Instrument(this);
+        end
+
         function OpenConnection(this)
             %Open the connection and prepare the instrument for measuring.
             %Sets up triggering for one fresh reading per Measure call, and reads back
@@ -189,16 +199,6 @@ classdef Keithley2000 < Palladium.Core.Instrument
             this.WriteCommand(":SAMP:COUN 1");
 
             [this.MeasMode, this.MeasUnit] = this.GetMeasurementMode();
-        end
-
-        function CloseConnection(this)
-            %Restore continuous readings, then disconnect.
-            %Puts the instrument back to free-running readings, as on the front panel
-
-            if ~this.SimulationMode && ~isempty(this.DeviceHandle)
-                this.WriteCommand(":INIT:CONT ON");
-            end
-            CloseConnection@Palladium.Core.Instrument(this);
         end
 
     end

@@ -230,13 +230,6 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
             this.OnMeasurementsInitialised(headers);
         end
 
-        function MeasurementsStarted(this, src, eventArgs) %#ok<INUSD>
-            %Call OnMeasurementsStarted when the measurement loop starts.
-            %Listener for the TimingLoopController's Started event
-
-            this.OnMeasurementsStarted();
-        end
-
         function MeasurementsPaused(this, src, eventArgs) %#ok<INUSD>
             %Call OnMeasurementsPaused when the measurement loop pauses.
             %Listener for the TimingLoopController's Paused event
@@ -249,6 +242,13 @@ classdef InstrumentControlBase < Palladium.Core.Entity & matlab.mixin.Heterogene
             %Listener for the TimingLoopController's Resumed event
 
             this.OnMeasurementsResumed();
+        end
+
+        function MeasurementsStarted(this, src, eventArgs) %#ok<INUSD>
+            %Call OnMeasurementsStarted when the measurement loop starts.
+            %Listener for the TimingLoopController's Started event
+
+            this.OnMeasurementsStarted();
         end
 
         function MeasurementsStopped(this, src, eventArgs) %#ok<INUSD>

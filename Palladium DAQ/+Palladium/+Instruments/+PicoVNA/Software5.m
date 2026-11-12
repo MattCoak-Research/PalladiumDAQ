@@ -51,6 +51,67 @@ classdef Software5 < Palladium.Instruments.PicoVNA.Backend
     %% Methods (Public)
     methods(Access = public)
 
+        function AbortSweep(this)
+            %Stop a sweep started and not collected, and throw away the reply to its data request.
+            %ABORt on the same connection makes the software answer the data
+            %request with what the sweep had got, then OK
+
+            if ~this.Outstanding
+                return;
+            end
+
+            fprintf(this.Handle, "ABORt");
+            reply = "";
+            while reply ~= "OK"
+                reply = strip(string(fscanf(this.Handle)));
+            end
+            this.Outstanding = false;
+        end
+
+        function Close(this)
+            %Stop a sweep still going, then close the connection.
+
+            if isempty(this.Handle)
+                return;
+            end
+            try
+                this.AbortSweep();
+            catch
+                %Close it anyway
+            end
+            this.Handle = [];
+        end
+
+        function data = CollectSweep(this)
+            %Read the answer to the data request: the values of each point, with frequencies evenly spaced from start to stop.
+            %The software gives only the values. Errors with its message if
+            %it didn't answer with numbers (e.g. no calibration, or it is
+            %sweeping continuously)
+
+            reply = strip(string(fscanf(this.Handle)));
+            this.Outstanding = false;
+            values = str2double(split(reply, ","));
+            if isscalar(values) && isnan(values) && lower(reply) ~= "nan"
+                error("PicoVNA_NetworkAnalyser:MeasureFailed", "%s", "measuring failed - the software replied """ + reply + """.");
+            end
+            %A short reply gets frequencies to match, so the driver can report the shortfall
+            plan = this.Plan;
+            data = [linspace(plan.StartFrequency_Hz, plan.StopFrequency_Hz, numel(values))', values];
+        end
+
+        function done = IsSweepDone(this)
+            %True once the software's answer to the data request has arrived (a check, without waiting).
+
+            done = ~this.Outstanding || this.Handle.NumBytesAvailable > 0;
+        end
+
+        function LoadCalibration(this, fileName)
+            %Load a calibration made in the PicoVNA 5 software and apply it.
+
+            %Quoted, as the software wants for a path with backslashes
+            this.Send("MMEMory:APPLY:CALibration '" + string(fileName) + "'", "applying the calibration file " + string(fileName));
+        end
+
         function Open(this)
             %Connect to the software's SCPI port and check it has a PicoVNA - errors with the reason and a hint if not.
 
@@ -71,20 +132,6 @@ classdef Software5 < Palladium.Instruments.PicoVNA.Backend
                 error("PicoVNA_NetworkAnalyser:PicoVNA5NoAnalyser", "%s", "PicoVNA 5 software at " + this.Address + ":" + this.Port + " has no analyser connected (it replied """ + identity + """ to *IDN?).");
             end
             this.Description = "PicoVNA 5 software at " + this.Address + ":" + this.Port + " (" + identity + ")";
-        end
-
-        function Close(this)
-            %Stop a sweep still going, then close the connection.
-
-            if isempty(this.Handle)
-                return;
-            end
-            try
-                this.AbortSweep();
-            catch
-                %Close it anyway
-            end
-            this.Handle = [];
         end
 
         function plan = ReadPlan(this)
@@ -136,53 +183,6 @@ classdef Software5 < Palladium.Instruments.PicoVNA.Backend
             fprintf(this.Handle, char("CALCulate:DATa " + sParameter + "," + type));
             this.Plan = plan;
             this.Outstanding = true;
-        end
-
-        function done = IsSweepDone(this)
-            %True once the software's answer to the data request has arrived (a check, without waiting).
-
-            done = ~this.Outstanding || this.Handle.NumBytesAvailable > 0;
-        end
-
-        function data = CollectSweep(this)
-            %Read the answer to the data request: the values of each point, with frequencies evenly spaced from start to stop.
-            %The software gives only the values. Errors with its message if
-            %it didn't answer with numbers (e.g. no calibration, or it is
-            %sweeping continuously)
-
-            reply = strip(string(fscanf(this.Handle)));
-            this.Outstanding = false;
-            values = str2double(split(reply, ","));
-            if isscalar(values) && isnan(values) && lower(reply) ~= "nan"
-                error("PicoVNA_NetworkAnalyser:MeasureFailed", "%s", "measuring failed - the software replied """ + reply + """.");
-            end
-            %A short reply gets frequencies to match, so the driver can report the shortfall
-            plan = this.Plan;
-            data = [linspace(plan.StartFrequency_Hz, plan.StopFrequency_Hz, numel(values))', values];
-        end
-
-        function AbortSweep(this)
-            %Stop a sweep started and not collected, and throw away the reply to its data request.
-            %ABORt on the same connection makes the software answer the data
-            %request with what the sweep had got, then OK
-
-            if ~this.Outstanding
-                return;
-            end
-
-            fprintf(this.Handle, "ABORt");
-            reply = "";
-            while reply ~= "OK"
-                reply = strip(string(fscanf(this.Handle)));
-            end
-            this.Outstanding = false;
-        end
-
-        function LoadCalibration(this, fileName)
-            %Load a calibration made in the PicoVNA 5 software and apply it.
-
-            %Quoted, as the software wants for a path with backslashes
-            this.Send("MMEMory:APPLY:CALibration '" + string(fileName) + "'", "applying the calibration file " + string(fileName));
         end
 
     end

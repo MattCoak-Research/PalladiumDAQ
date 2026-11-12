@@ -678,27 +678,6 @@ classdef MercuryIPS < Palladium.Core.Instrument
     %% Methods (Private)
     methods (Access = private)
 
-        function value = GetPSUValue(this, uid, noun)
-            %Read a numeric DEV:<uid>:PSU:<noun> value, e.g. noun = "SIG:FLD" or "CLIM".
-            %
-            %Outputs:
-            %   value - the value, scaled by its SI prefix (so mT is returned in T)
-
-            arguments
-                this;
-                uid {mustBeTextScalar};
-                noun {mustBeTextScalar};
-            end
-
-            if this.SimulationMode
-                value = 0;
-                return;
-            end
-
-            responseString = this.ReadValue("DEV:" + string(uid) + ":PSU:" + string(noun));
-            value = this.ParseSignalResponse(responseString);
-        end
-
         function strVal = GetPSUString(this, uid, noun)
             %Read a text DEV:<uid>:PSU:<noun> value, e.g. noun = "ACTN" or "SIG:SWHT".
             %
@@ -718,6 +697,27 @@ classdef MercuryIPS < Palladium.Core.Instrument
 
             responseString = this.ReadValue("DEV:" + string(uid) + ":PSU:" + string(noun));
             strVal = this.ParseStringResponse(responseString);
+        end
+
+        function value = GetPSUValue(this, uid, noun)
+            %Read a numeric DEV:<uid>:PSU:<noun> value, e.g. noun = "SIG:FLD" or "CLIM".
+            %
+            %Outputs:
+            %   value - the value, scaled by its SI prefix (so mT is returned in T)
+
+            arguments
+                this;
+                uid {mustBeTextScalar};
+                noun {mustBeTextScalar};
+            end
+
+            if this.SimulationMode
+                value = 0;
+                return;
+            end
+
+            responseString = this.ReadValue("DEV:" + string(uid) + ":PSU:" + string(noun));
+            value = this.ParseSignalResponse(responseString);
         end
 
         function mult = GetSIPrefixMultiplier(~, unitToken)
@@ -747,26 +747,6 @@ classdef MercuryIPS < Palladium.Core.Instrument
             else
                 mult = 1;
             end
-        end
-
-        function value = ParseSIPrefixedValue(this, valueString)
-            %Parse a number followed by its unit, e.g. "1.2345mT", into a double scaled by the unit's SI prefix.
-            %Used where the reply has the number and unit in one token (see
-            %ParseSignalResponse). The unit can contain any characters, e.g.
-            %"T/m" for a ramp rate
-            %
-            %Inputs:
-            %   valueString - e.g. "1.2345mT" or "0.2000T/m"
-            %
-            %Outputs:
-            %   value - e.g. 1.2345e-3 or 0.2
-
-            parts = regexp(char(valueString), '^\s*([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)(.*)$', 'tokens', 'once');
-            if isempty(parts)
-                error("MercuryIPS:SIValueParseFailed", "%s", "Could not parse SI-prefixed value: " + string(valueString));
-            end
-
-            value = str2double(parts{1}) * this.GetSIPrefixMultiplier(strtrim(parts{2}));
         end
 
         function value = ParseSignalResponse(this, responseString)
@@ -810,6 +790,26 @@ classdef MercuryIPS < Palladium.Core.Instrument
             value = this.ParseSIPrefixedValue(lastToken);
         end
 
+        function value = ParseSIPrefixedValue(this, valueString)
+            %Parse a number followed by its unit, e.g. "1.2345mT", into a double scaled by the unit's SI prefix.
+            %Used where the reply has the number and unit in one token (see
+            %ParseSignalResponse). The unit can contain any characters, e.g.
+            %"T/m" for a ramp rate
+            %
+            %Inputs:
+            %   valueString - e.g. "1.2345mT" or "0.2000T/m"
+            %
+            %Outputs:
+            %   value - e.g. 1.2345e-3 or 0.2
+
+            parts = regexp(char(valueString), '^\s*([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)(.*)$', 'tokens', 'once');
+            if isempty(parts)
+                error("MercuryIPS:SIValueParseFailed", "%s", "Could not parse SI-prefixed value: " + string(valueString));
+            end
+
+            value = str2double(parts{1}) * this.GetSIPrefixMultiplier(strtrim(parts{2}));
+        end
+
         function strVal = ParseStringResponse(~, responseString)
             %Parse a STAT:...:<value> reply whose value is text, e.g. ON/OFF or HOLD/RTOS/RTOZ/CLMP.
             %Errors on an INVALID reply
@@ -830,34 +830,6 @@ classdef MercuryIPS < Palladium.Core.Instrument
             end
 
             strVal = string(tokens{end});
-        end
-
-        function confirmedValue = SetPSUValue(this, uid, noun, value)
-            %Set a numeric DEV:<uid>:PSU:<noun> value, e.g. noun = "SIG:FSET", and return the value the supply confirms.
-            %
-            %Inputs:
-            %   uid   - power supply UID, e.g. "GRPZ"
-            %   noun  - what to set, e.g. "SIG:FSET"
-            %   value - the value to set
-            %
-            %Outputs:
-            %   confirmedValue - the value echoed in the supply's VALID reply
-
-            arguments
-                this;
-                uid {mustBeTextScalar};
-                noun {mustBeTextScalar};
-                value (1,1) double;
-            end
-
-            if this.SimulationMode
-                confirmedValue = value;
-                return;
-            end
-
-            commandStr = "DEV:" + string(uid) + ":PSU:" + string(noun) + ":" + Palladium.Core.Instrument.NumberToCommandString(value);
-            responseString = this.SetValue(commandStr);
-            confirmedValue = this.ParseSignalResponse(responseString);
         end
 
         function confirmedStr = SetPSUString(this, uid, noun, valueStr)
@@ -886,6 +858,34 @@ classdef MercuryIPS < Palladium.Core.Instrument
             commandStr = "DEV:" + string(uid) + ":PSU:" + string(noun) + ":" + string(valueStr);
             responseString = this.SetValue(commandStr);
             confirmedStr = this.ParseStringResponse(responseString);
+        end
+
+        function confirmedValue = SetPSUValue(this, uid, noun, value)
+            %Set a numeric DEV:<uid>:PSU:<noun> value, e.g. noun = "SIG:FSET", and return the value the supply confirms.
+            %
+            %Inputs:
+            %   uid   - power supply UID, e.g. "GRPZ"
+            %   noun  - what to set, e.g. "SIG:FSET"
+            %   value - the value to set
+            %
+            %Outputs:
+            %   confirmedValue - the value echoed in the supply's VALID reply
+
+            arguments
+                this;
+                uid {mustBeTextScalar};
+                noun {mustBeTextScalar};
+                value (1,1) double;
+            end
+
+            if this.SimulationMode
+                confirmedValue = value;
+                return;
+            end
+
+            commandStr = "DEV:" + string(uid) + ":PSU:" + string(noun) + ":" + Palladium.Core.Instrument.NumberToCommandString(value);
+            responseString = this.SetValue(commandStr);
+            confirmedValue = this.ParseSignalResponse(responseString);
         end
 
     end

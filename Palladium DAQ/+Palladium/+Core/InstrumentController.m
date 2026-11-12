@@ -251,6 +251,66 @@ classdef InstrumentController < handle
             end
         end
 
+        function controlClassRef = AddInstrumentControl(this, tab, instrRef, controlDetailsStruct)
+            %Create an Instrument Control in a GUI tab, register it with its instrument, and subscribe it to events.
+            %Called by the GUI once it has made the tab. The control is
+            %subscribed to the TimingLoopController's Started, Paused,
+            %Resumed, Stopped, MeasurementsInitialised and
+            %TargetUpdateTimeChanged events, and to DataRowCollected, through
+            %ErrorGuard. Errors go to the Controller's error handling
+            %
+            %Inputs:
+            %   tab                  - the GUI tab to build the control in
+            %   instrRef             - the instrument the control belongs to
+            %   controlDetailsStruct - the control's definition, from
+            %                          DefineInstrumentControl
+            %
+            %Outputs:
+            %   controlClassRef - the new Instrument Control
+
+            try
+                %Make an instance of the selected datasource class
+                controlClassRef = Palladium.Utilities.PluginLoading.InstantiateClass(this.ControlsNamespace, controlDetailsStruct.ControlClassFileName);
+                controlClassRef.ControlDetailsStruct = controlDetailsStruct;
+                controlClassRef.Controller = this.Controller;   %Before CreateInstrumentControlGUI, which hooks up guarded listeners
+                controlClassRef.ProgrammeTargetUpdateTime = this.Controller.TimingLoopController.TargetUpdateTime;
+
+                %Tell the control class to create the required GUI etc
+                controlClassRef.CreateInstrumentControlGUI(this.Controller, tab, instrRef);
+
+                %Register the control class with the instrument
+                instrRef.RegisterControlObject(controlClassRef);
+
+                %Subscribe it to Controller events. Store the handle to the
+                %Listener by calling RegisterEventListener, so we can
+                %unsubscribe from events on deletion of the control.
+                %All guarded, so errors in a control's handlers go to the
+                %error handling instead of becoming warnings (see ErrorGuard)
+                ctrlName = string(controlDetailsStruct.Name);
+                tlc = this.Controller.TimingLoopController;
+                ltr = Palladium.Core.ErrorGuard.AddListener(tlc, 'Started', @(src,evnt)controlClassRef.MeasurementsStarted(src, evnt), Controller = this.Controller, Context = "Error in " + ctrlName + " (Started)");
+                controlClassRef.RegisterEventListener(ltr);
+                ltr = Palladium.Core.ErrorGuard.AddListener(tlc, 'Paused', @(src,evnt)controlClassRef.MeasurementsPaused(src, evnt), Controller = this.Controller, Context = "Error in " + ctrlName + " (Paused)");
+                controlClassRef.RegisterEventListener(ltr);
+                ltr = Palladium.Core.ErrorGuard.AddListener(tlc, 'Resumed', @(src,evnt)controlClassRef.MeasurementsResumed(src, evnt), Controller = this.Controller, Context = "Error in " + ctrlName + " (Resumed)");
+                controlClassRef.RegisterEventListener(ltr);
+                ltr = Palladium.Core.ErrorGuard.AddListener(tlc, 'Stopped', @(src,evnt)controlClassRef.MeasurementsStopped(src, evnt), Controller = this.Controller, Context = "Error in " + ctrlName + " (Stopped)");
+                controlClassRef.RegisterEventListener(ltr);
+                ltr = Palladium.Core.ErrorGuard.AddListener(tlc, 'MeasurementsInitialised', @(src,evnt)controlClassRef.MeasurementsInitialised(src, evnt), Controller = this.Controller, Context = "Error in " + ctrlName + " (MeasurementsInitialised)");
+                controlClassRef.RegisterEventListener(ltr);
+                ltr = Palladium.Core.ErrorGuard.AddListener(tlc, 'TargetUpdateTimeChanged', @(src,evnt)controlClassRef.TargetUpdateTimeChanged(src, evnt), Controller = this.Controller, Context = "Error in " + ctrlName + " (TargetUpdateTimeChanged)");
+                controlClassRef.RegisterEventListener(ltr);
+                ltr = Palladium.Core.ErrorGuard.AddListener(this, 'DataRowCollected', @(src,evnt)controlClassRef.DataRowCollected(evnt.DataRow, evnt.Headers), Controller = this.Controller, Context = "Error in " + ctrlName + " (DataRowCollected)");
+                controlClassRef.RegisterEventListener(ltr);
+
+
+                %Verbose/debug message printing
+                this.Controller.Log("Info", "Added Instrument Control: " + controlDetailsStruct.Name, "Green", "Added Instrument Control");
+            catch err
+                this.Controller.HandleError("Error adding instrument Control " + controlDetailsStruct.Name, err);
+            end
+        end
+
         function cont = AddInstrumentControlFromName(this, instrRef, controlName, view, Settings)
             %Have the GUI add one of an instrument's Instrument Controls, by name.
             %For example, add a "Sweep Control" to a Keithley2000 that was
@@ -317,66 +377,6 @@ classdef InstrumentController < handle
 
             %Pass on to the View
             cont = view.AddInstrumentControl(instrRef, controlDetailsStruct);
-        end
-
-        function controlClassRef = AddInstrumentControl(this, tab, instrRef, controlDetailsStruct)
-            %Create an Instrument Control in a GUI tab, register it with its instrument, and subscribe it to events.
-            %Called by the GUI once it has made the tab. The control is
-            %subscribed to the TimingLoopController's Started, Paused,
-            %Resumed, Stopped, MeasurementsInitialised and
-            %TargetUpdateTimeChanged events, and to DataRowCollected, through
-            %ErrorGuard. Errors go to the Controller's error handling
-            %
-            %Inputs:
-            %   tab                  - the GUI tab to build the control in
-            %   instrRef             - the instrument the control belongs to
-            %   controlDetailsStruct - the control's definition, from
-            %                          DefineInstrumentControl
-            %
-            %Outputs:
-            %   controlClassRef - the new Instrument Control
-
-            try
-                %Make an instance of the selected datasource class
-                controlClassRef = Palladium.Utilities.PluginLoading.InstantiateClass(this.ControlsNamespace, controlDetailsStruct.ControlClassFileName);
-                controlClassRef.ControlDetailsStruct = controlDetailsStruct;
-                controlClassRef.Controller = this.Controller;   %Before CreateInstrumentControlGUI, which hooks up guarded listeners
-                controlClassRef.ProgrammeTargetUpdateTime = this.Controller.TimingLoopController.TargetUpdateTime;
-
-                %Tell the control class to create the required GUI etc
-                controlClassRef.CreateInstrumentControlGUI(this.Controller, tab, instrRef);
-
-                %Register the control class with the instrument
-                instrRef.RegisterControlObject(controlClassRef);
-
-                %Subscribe it to Controller events. Store the handle to the
-                %Listener by calling RegisterEventListener, so we can
-                %unsubscribe from events on deletion of the control.
-                %All guarded, so errors in a control's handlers go to the
-                %error handling instead of becoming warnings (see ErrorGuard)
-                ctrlName = string(controlDetailsStruct.Name);
-                tlc = this.Controller.TimingLoopController;
-                ltr = Palladium.Core.ErrorGuard.AddListener(tlc, 'Started', @(src,evnt)controlClassRef.MeasurementsStarted(src, evnt), Controller = this.Controller, Context = "Error in " + ctrlName + " (Started)");
-                controlClassRef.RegisterEventListener(ltr);
-                ltr = Palladium.Core.ErrorGuard.AddListener(tlc, 'Paused', @(src,evnt)controlClassRef.MeasurementsPaused(src, evnt), Controller = this.Controller, Context = "Error in " + ctrlName + " (Paused)");
-                controlClassRef.RegisterEventListener(ltr);
-                ltr = Palladium.Core.ErrorGuard.AddListener(tlc, 'Resumed', @(src,evnt)controlClassRef.MeasurementsResumed(src, evnt), Controller = this.Controller, Context = "Error in " + ctrlName + " (Resumed)");
-                controlClassRef.RegisterEventListener(ltr);
-                ltr = Palladium.Core.ErrorGuard.AddListener(tlc, 'Stopped', @(src,evnt)controlClassRef.MeasurementsStopped(src, evnt), Controller = this.Controller, Context = "Error in " + ctrlName + " (Stopped)");
-                controlClassRef.RegisterEventListener(ltr);
-                ltr = Palladium.Core.ErrorGuard.AddListener(tlc, 'MeasurementsInitialised', @(src,evnt)controlClassRef.MeasurementsInitialised(src, evnt), Controller = this.Controller, Context = "Error in " + ctrlName + " (MeasurementsInitialised)");
-                controlClassRef.RegisterEventListener(ltr);
-                ltr = Palladium.Core.ErrorGuard.AddListener(tlc, 'TargetUpdateTimeChanged', @(src,evnt)controlClassRef.TargetUpdateTimeChanged(src, evnt), Controller = this.Controller, Context = "Error in " + ctrlName + " (TargetUpdateTimeChanged)");
-                controlClassRef.RegisterEventListener(ltr);
-                ltr = Palladium.Core.ErrorGuard.AddListener(this, 'DataRowCollected', @(src,evnt)controlClassRef.DataRowCollected(evnt.DataRow, evnt.Headers), Controller = this.Controller, Context = "Error in " + ctrlName + " (DataRowCollected)");
-                controlClassRef.RegisterEventListener(ltr);
-
-
-                %Verbose/debug message printing
-                this.Controller.Log("Info", "Added Instrument Control: " + controlDetailsStruct.Name, "Green", "Added Instrument Control");
-            catch err
-                this.Controller.HandleError("Error adding instrument Control " + controlDetailsStruct.Name, err);
-            end
         end
 
         function CloseAll(this)
