@@ -59,12 +59,17 @@ classdef (Abstract) Backend < handle
     methods(Access = public)
 
         function SetSweepOptions(~, ~, ~)
-            %Give the backend the driver's power and bandwidth settings - ignored unless the software can't be set by the user itself.
+            %Give the backend the power and bandwidth asked for - ignored unless the software can't be set by the user itself (see CanSetSweepOptions).
             %Called before each sweep's plan is set. Does nothing by default
             %
             %Inputs:
-            %   power_dBm    - test signal power
-            %   bandwidth_Hz - measurement bandwidth
+            %   power_dBm    - test signal power, or empty to keep the software's
+            %   bandwidth_Hz - measurement bandwidth, or empty to keep the software's
+        end
+
+        function can = CanSetSweepOptions(~)
+            %True if SetSweepOptions does something - the software has no way for the user to set the power and bandwidth (PicoVNA 3). False by default: they are set in the software.
+            can = false;
         end
 
         function Calibrate(this) %#ok<MANU>

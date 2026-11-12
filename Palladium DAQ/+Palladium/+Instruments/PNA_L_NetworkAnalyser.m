@@ -9,11 +9,24 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
     %main data file. The sweep settings are recorded in the data-file
     %header.
     %
+    %From a script, with no GUI: create and connect the instrument, then
+    %`RunMeasurement` takes the whole measurement as named arguments, e.g.
+    %`data = pna.RunMeasurement(MeasMode = "S21", NumPoints = 401, Wait = true)`.
+    %Any argument left out keeps what the analyser has. Without `Wait` it
+    %only triggers the sweep: poll `CheckScanComplete`, then read it with
+    %`GetCompletedScanData`. The VNA Control tab does the same through
+    %`RunScan(scanDetails)`, which is `RunMeasurement` with the settings in
+    %a struct. The S-parameter and units are therefore not settings of the
+    %instrument: `MeasMode` and `MeasUnit` only record the last measurement
+    %started, to label its data.
+    %
     %Before each sweep the driver selects a measurement on channel 1 of the
-    %S-parameter in `MeasMode` - if channel 1 has none, its first
+    %S-parameter asked for - if channel 1 has none, its first
     %measurement is changed to that parameter - and sets the display format
-    %for `MeasUnit` (log magnitude for dB, linear magnitude for Absolute, polar
+    %for the units (log magnitude for dB, linear magnitude for Absolute, polar
     %- real and imaginary parts, for a Smith chart - for Real/Imaginary).
+    %Either not asked for is the selected measurement's own, read from the
+    %analyser.
     %The tab starts from the analyser's own settings (`GetScanSettings`).
     %Set the trigger source to Internal on the instrument.
     %
@@ -31,8 +44,12 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
     properties(Access = public, SetObservable)
         Name = 'PNA';                                           %Instrument name, used as the prefix of its scan data column headers
         Connection_Type = Palladium.Enums.ConnectionType.GPIB;  %Type of connection to use to communicate with the instrument. Debug allows testing without a physical instrument.
-        MeasMode;                                               %S-parameter measured: S11, S21, S12 or S22 - a measurement of it is selected on channel 1 before each sweep
-        MeasUnit;                                               %dB (log magnitude), Absolute (linear magnitude) or Real/Imaginary (the complex value, for a Smith chart) - the display format is set to match before each sweep
+    end
+
+    %% Properties (Public, Read Only)
+    properties(SetAccess = private)
+        MeasMode;                                               %S-parameter (S11, S21, S12 or S22) of the last measurement started by RunMeasurement - labels its data. Chosen per measurement (RunMeasurement, or the VNA Control), not an instrument setting
+        MeasUnit;                                               %Units of the last measurement: dB (log magnitude), Absolute (linear magnitude) or Real/Imaginary (the complex value, for a Smith chart)
     end
 
     %% Properties (Private)
@@ -312,20 +329,7 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
             end
             settings.SweepType = this.GetSweepType();
 
-            measMode = string(this.MeasMode);
-            measUnit = string(this.MeasUnit);
-            if ~this.SimulationMode
-                [names, parameters] = this.GetMeasurements();
-                selected = strip(erase(string(this.QueryString("CALC:PAR:SEL?")), [string(char(34)), "'"]));
-                if any(names == selected) && any(parameters(names == selected) == categories(this.MeasMode))
-                    measMode = parameters(find(names == selected, 1));
-                    switch this.GetDisplayFormat()
-                        case "MLOG";    measUnit = "dB";
-                        case "MLIN";    measUnit = "Absolute";
-                        case "POL";     measUnit = "Real/Imaginary";
-                    end
-                end
-            end
+            [measMode, measUnit] = this.ReadSelectedMeasurement();
             settings.MeasMode = measMode;
             settings.MeasUnit = measUnit;
         end
@@ -396,12 +400,67 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
             statusStr = strip(string(result));
         end
 
+        function data = RunMeasurement(this, options)
+            %Start one sweep with the settings given, from a script or the VNA Control tab: apply them, then trigger one sweep on channel 1.
+            %Applies each setting given - leaving the others as the
+            %analyser has them - then selects a measurement of the
+            %S-parameter on channel 1 and sets the display format for the
+            %units. Either of those not given is the selected measurement's
+            %own, read from the analyser (if that isn't one of ours, e.g. a
+            %phase display, the last measurement's is set). Does not wait
+            %for the sweep (see CheckScanComplete, GetCompletedScanData),
+            %unless Wait. MeasMode and MeasUnit then record what was
+            %measured.
+            %Example: data = pna.RunMeasurement(MeasMode = "S21", MeasUnit = "dB", NumPoints = 401, Wait = true);
+            %
+            %Inputs (all optional name-value arguments):
+            %   MeasMode          - "S11", "S21", "S12" or "S22"
+            %   MeasUnit          - "dB", "Absolute" or "Real/Imaginary"
+            %   StartFrequency_Hz - sweep start, in Hz
+            %   StopFrequency_Hz  - sweep stop, in Hz
+            %   NumPoints         - number of points
+            %   SweepTime_s       - sweep time, in seconds; 0 for automatic
+            %   SweepType         - "Linear" or "Log"
+            %   Wait              - true to wait for the sweep (see WaitForSystemReady, which gives up after twice the sweep time plus 10 s) and return its data. Default: false
+            %
+            %Outputs:
+            %   data - with Wait, as GetCompletedScanData; otherwise empty
+
+            arguments
+                this;
+                options.MeasMode = [];
+                options.MeasUnit = [];
+                options.StartFrequency_Hz {mustBeNumeric, mustBeScalarOrEmpty, mustBePositive} = [];
+                options.StopFrequency_Hz {mustBeNumeric, mustBeScalarOrEmpty, mustBePositive} = [];
+                options.NumPoints {mustBeNumeric, mustBeScalarOrEmpty, mustBePositive} = [];
+                options.SweepTime_s {mustBeNumeric, mustBeScalarOrEmpty, mustBeNonnegative} = [];
+                options.SweepType = [];
+                options.Wait (1,1) logical = false;
+            end
+
+            data = [];
+            has = @(name) ~isempty(options.(name));
+
+            %Check what was asked before touching the analyser
+            measMode = [];
+            measUnit = [];
+            if has("MeasMode");     measMode = this.MeasType(string(options.MeasMode));        end
+            if has("MeasUnit");     measUnit = this.MeasUnitType(string(options.MeasUnit));    end
+
+            this.ApplyScanSettings(options, has, measMode, measUnit);
+            this.TriggerSingle(options.Wait);
+            if options.Wait
+                data = this.GetCompletedScanData();
+            end
+        end
+
         function RunScan(this, scanDetails)
             %Start a scan, when Run is pressed on the VNA Control tab: apply its settings, then trigger one sweep.
-            %Applies each setting scanDetails has (see GetScanSettings for
-            %the fields; others, e.g. the file settings, are ignored), then
-            %selects a measurement of MeasMode on channel 1 and sets the
-            %display format for MeasUnit
+            %A wrapper for RunMeasurement: the settings are fields of
+            %scanDetails, named as RunMeasurement's arguments (MeasMode,
+            %MeasUnit, StartFrequency_Hz, StopFrequency_Hz, NumPoints,
+            %SweepTime_s and SweepType); others, e.g. the file settings, are
+            %ignored. One left out or empty keeps the analyser's
             %
             %Inputs:
             %   scanDetails - (optional) struct of settings. Default: none, keeping the analyser's
@@ -411,8 +470,14 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
                 scanDetails (1,1) struct = struct();
             end
 
-            this.ApplyScanSettings(scanDetails);
-            this.TriggerSingle();
+            options = struct();
+            for name = ["MeasMode", "MeasUnit", "StartFrequency_Hz", "StopFrequency_Hz", "NumPoints", "SweepTime_s", "SweepType"]
+                if isfield(scanDetails, name) && ~isempty(scanDetails.(name))
+                    options.(name) = scanDetails.(name);
+                end
+            end
+            args = namedargs2cell(options);
+            this.RunMeasurement(args{:});
         end
 
         function SetFrequencyStartAndStop(this, start_Hz, stop_Hz)
@@ -564,21 +629,78 @@ classdef PNA_L_NetworkAnalyser < Palladium.Core.Instrument
     %% Methods (Private)
     methods(Access = private)
 
-        function ApplyScanSettings(this, scanDetails)
-            %Apply the sweep settings scanDetails has, then select a measurement of MeasMode and set the display format for MeasUnit.
+        function ApplyScanSettings(this, options, has, measMode, measUnit)
+            %Apply the sweep settings RunMeasurement was given, then select the measurement's S-parameter and set its display format.
+            %measMode and measUnit are the categoricals asked for, or empty
 
-            has = @(name) isfield(scanDetails, name) && ~isempty(scanDetails.(name));
-            if has("StartFrequency_Hz") && has("StopFrequency_Hz")
-                this.SetFrequencyStartAndStop(scanDetails.StartFrequency_Hz, scanDetails.StopFrequency_Hz);
+            if has("StartFrequency_Hz") || has("StopFrequency_Hz")
+                %Set together - the one not given stays as it is
+                start_Hz = this.GetFrequencyStart();
+                stop_Hz = this.GetFrequencyStop();
+                if has("StartFrequency_Hz");    start_Hz = options.StartFrequency_Hz;   end
+                if has("StopFrequency_Hz");     stop_Hz = options.StopFrequency_Hz;     end
+                this.SetFrequencyStartAndStop(start_Hz, stop_Hz);
             end
-            if has("NumPoints");    this.SetNumPoints(scanDetails.NumPoints);       end
-            if has("SweepTime_s");  this.SetSweepTime(scanDetails.SweepTime_s);     end
-            if has("SweepType");    this.SetSweepType(string(scanDetails.SweepType)); end
-            if has("MeasMode");     this.MeasMode = this.MeasType(string(scanDetails.MeasMode));       end
-            if has("MeasUnit");     this.MeasUnit = this.MeasUnitType(string(scanDetails.MeasUnit));   end
+            if has("NumPoints");    this.SetNumPoints(options.NumPoints);       end
+            if has("SweepTime_s");  this.SetSweepTime(options.SweepTime_s);     end
+            if has("SweepType");    this.SetSweepType(string(options.SweepType)); end
 
-            this.SelectMeasurementOf(string(this.MeasMode));
-            this.SetDisplayFormat();
+            %The S-parameter: the one asked for, else the selected
+            %measurement's own
+            if ~isempty(measMode)
+                this.MeasMode = measMode;
+                this.SelectMeasurementOf(string(measMode));
+            else
+                [readMode, ~, recognised] = this.ReadSelectedMeasurement();
+                if recognised(1)
+                    this.MeasMode = this.MeasType(readMode);
+                else
+                    this.SelectMeasurementOf(string(this.MeasMode));
+                end
+            end
+
+            %The units of the measurement now selected, which has its own display format
+            if ~isempty(measUnit)
+                this.MeasUnit = measUnit;
+                this.SetDisplayFormat();
+            else
+                [~, readUnit, recognised] = this.ReadSelectedMeasurement();
+                if recognised(2)
+                    this.MeasUnit = this.MeasUnitType(readUnit);
+                else
+                    this.SetDisplayFormat();
+                end
+            end
+        end
+
+        function [measMode, measUnit, recognised] = ReadSelectedMeasurement(this)
+            %The S-parameter and units of the selected measurement on channel 1, as text - each kept as MeasMode or MeasUnit is if the analyser's isn't one of ours.
+            %MeasUnit follows the display format: dB for log magnitude,
+            %Absolute for linear magnitude, Real/Imaginary for polar
+            %
+            %Outputs:
+            %   measMode   - "S11", "S21", "S12" or "S22"
+            %   measUnit   - "dB", "Absolute" or "Real/Imaginary"
+            %   recognised - [mode, unit]: true for each that the analyser's is one of ours. In SimulationMode both false
+
+            measMode = string(this.MeasMode);
+            measUnit = string(this.MeasUnit);
+            recognised = [false, false];
+            if this.SimulationMode
+                return;
+            end
+
+            [names, parameters] = this.GetMeasurements();
+            selected = strip(erase(string(this.QueryString("CALC:PAR:SEL?")), [string(char(34)), "'"]));
+            if any(names == selected) && any(parameters(names == selected) == categories(this.MeasMode))
+                measMode = parameters(find(names == selected, 1));
+                recognised(1) = true;
+                switch this.GetDisplayFormat()
+                    case "MLOG";    measUnit = "dB";                recognised(2) = true;
+                    case "MLIN";    measUnit = "Absolute";          recognised(2) = true;
+                    case "POL";     measUnit = "Real/Imaginary";    recognised(2) = true;
+                end
+            end
         end
 
         function [names, parameters] = GetMeasurements(this)

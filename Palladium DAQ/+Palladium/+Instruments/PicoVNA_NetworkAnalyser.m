@@ -26,11 +26,25 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
     %* PicoVNA 3 has no remote control of its application: the driver uses
     %  the library the software installs, which takes the analyser over -
     %  so the PicoVNA 3 application must be CLOSED. The bandwidth and
-    %  power are the settings `Bandwidth_Hz` and `Power_dBm` here (ignored
-    %  with PicoVNA 5). The calibration must be made with the library -
+    %  power are chosen per measurement here (`Bandwidth_Hz` and
+    %  `Power_dBm` of `RunMeasurement`, and the VNA Control's Power and
+    %  Bandwidth settings; with PicoVNA 5 they are set in its software, and
+    %  these show what it has). The calibration must be made with the library -
     %  `Calibrate` opens its dialogue and `SaveCalibration` keeps it -
     %  as files saved by the PicoVNA application can't be used; load one
     %  with `CalibrationFile` or `LoadCalibration`.
+    %
+    %From a script, with no GUI: create and connect the instrument, then
+    %`RunMeasurement` takes the whole measurement as named arguments, e.g.
+    %`data = vna.RunMeasurement(MeasMode = "S21", NumPoints = 401, Wait = true)`.
+    %Any argument left out keeps what the software has (the S-parameter and
+    %units: the last sweep's, S11 in dB to begin with). Without `Wait` it
+    %only starts the sweep: poll `CheckScanComplete`, then read it with
+    %`GetCompletedScanData`. The VNA Control tab does the same through
+    %`RunScan(scanDetails)`, which is `RunMeasurement` with the settings in
+    %a struct. The S-parameter, units, power and bandwidth are therefore not
+    %settings of the instrument: `MeasMode` and `MeasUnit` only record the
+    %last sweep, and a power or bandwidth left out is the software's own.
     %
     %Either way, running a scan applies the tab's settings (`RunScan`):
     %start and stop frequency and number of points. It starts a sweep and
@@ -64,10 +78,18 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
         Name = 'PicoVNA';                                       %Instrument name, used as the prefix of its scan data column headers
         Connection_Type = Palladium.Enums.ConnectionType.Ethernet;  %Type of connection: Ethernet reaches the PicoVNA software (IP_Address and the port are for PicoVNA 5's SCPI interface; PicoVNA 3 is found on this PC). Debug allows testing without a physical instrument.
         Software;                                               %Which software to use: Auto (the PicoVNA 5 software if it is there, else PicoVNA 3), or PicoVNA 5 or PicoVNA 3 to use only that
-        MeasMode;                                               %S-parameter measured: S11, S21, S12 or S22 - S12 and S22 need a two-port calibration
-        MeasUnit;                                               %dB (log magnitude), Absolute (linear magnitude) or Real/Imaginary (the complex value, for a Smith chart - PicoVNA 3 only)
-        Power_dBm (1,1) double {mustBeBetween(Power_dBm, -20, 10)} = 0;     %PicoVNA 3 only (PicoVNA 5: set in its software): test signal power, -20 to +6 dBm (106) or +10 dBm (108), sent with the frequency plan before each sweep
-        Bandwidth_Hz (1,1) double {mustBeMember(Bandwidth_Hz, [10 50 100 500 1000 5000 10000 15000 35000 70000 140000])} = 1000;  %PicoVNA 3 only (PicoVNA 5: set in its software): measurement (IF) bandwidth, sent with the frequency plan before each sweep - narrower is less noisy but slower
+    end
+
+    %% Properties (Constant)
+    properties(Constant, Access = public)
+        PowerLimits_dBm = [-20, 10];                            %The test signal power that can be asked for, in dBm: -20 to +6 (106) or +10 (108)
+        BandwidthChoices_Hz = [10 50 100 500 1000 5000 10000 15000 35000 70000 140000];     %The measurement (IF) bandwidths, in Hz - narrower is less noisy but slower
+    end
+
+    %% Properties (Public, Read Only)
+    properties(SetAccess = private)
+        MeasMode;                                               %S-parameter (S11, S21, S12 or S22) of the last sweep started - labels its data; the next sweep measures this one unless told otherwise. Chosen per measurement (RunMeasurement, or the VNA Control), not an instrument setting. S12 and S22 need a two-port calibration
+        MeasUnit;                                               %Units of the last sweep: dB (log magnitude), Absolute (linear magnitude) or Real/Imaginary (the complex value, for a Smith chart - PicoVNA 3 only)
     end
 
     %% Properties (Public, Set Observable, Hidden)
@@ -88,7 +110,7 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
         ScanData = [];                                          %The sweep's data (frequency and value of each point), once it has finished
         MeasureError = [];                                      %MException if the sweep failed - raised when its data is collected (GetCompletedScanData). Empty if it didn't
         SweepSettings = [];                                     %Struct of the plan (as GetScanSettings) and Power_dBm, Bandwidth_Hz and CalType read back before the last sweep started - answered from here while it is under way, when the software can't be asked. Empty until the first sweep
-        SimulatedSettings = struct("StartFrequency_Hz", 300e3, "StopFrequency_Hz", 8.5e9, "NumPoints", 201);     %In SimulationMode, the frequency plan last set
+        SimulatedSettings = struct("StartFrequency_Hz", 300e3, "StopFrequency_Hz", 8.5e9, "NumPoints", 201, "Power_dBm", 0, "Bandwidth_Hz", 1000);     %In SimulationMode, the frequency plan, power and bandwidth last set
     end
 
     %% Categoricals
@@ -359,19 +381,44 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
             end
         end
 
-        function settings = GetScanSettings(this)
-            %The software's current frequency plan, for the VNA Control tab to start from - the fields RunScan takes.
-            %While a sweep is under way, the plan read back before it
+        function controls = GetExtraScanControls(this)
+            %Extra settings for the VNA Control tab to offer, beside the sweep settings - the power and the bandwidth.
+            %With PicoVNA 5 these are set in its software, so the tab shows
+            %what it has (GetScanSettings) and a different value is warned
+            %about on Run. Changing one doesn't refresh the tab: the value
+            %is sent on the next Run
+            %
+            %Outputs:
+            %   controls - struct array: Name, Label, Tooltip, Type, Items, Limits, Value, RefreshOnChange
+
+            controls = struct("Name", {"Power_dBm"; "Bandwidth_Hz"}, ...
+                "Label", {"Power (dBm)"; "Bandwidth (Hz)"}, ...
+                "Tooltip", {"Test signal power, " + this.PowerLimits_dBm(1) + " to +6 dBm (PicoVNA 106) or +" + this.PowerLimits_dBm(2) + " dBm (108). PicoVNA 3 only - with PicoVNA 5 set it in the software";
+                    "Measurement (IF) bandwidth - narrower is less noisy but slower. PicoVNA 3 only - with PicoVNA 5 set it in the software"}, ...
+                "Type", {"number"; "dropdown"}, ...
+                "Items", {strings(1, 0); string(this.BandwidthChoices_Hz)}, ...
+                "Limits", {this.PowerLimits_dBm; []}, ...
+                "Value", {0; "1000"}, ...
+                "RefreshOnChange", {false; false});
+        end
+
+        function settings = GetScanSettings(this, ~)
+            %The software's current frequency plan, power and bandwidth, for the VNA Control tab to start from - the fields RunScan takes.
+            %While a sweep is under way, those read back before it
             %started. The sweep time is 0 (automatic) - it follows from the
             %points and bandwidth - and the sweep is always linear.
-            %MeasMode and MeasUnit are this instrument's own
+            %MeasMode and MeasUnit are this instrument's own (the last
+            %sweep's). The selection the tab gives for its extra settings
+            %is not needed: they don't change what the software shows
             %
             %Outputs:
             %   settings - struct: StartFrequency_Hz, StopFrequency_Hz, NumPoints,
-            %              SweepTime_s (0), SweepType ("Linear"), MeasMode and
-            %              MeasUnit (text)
+            %              Power_dBm, Bandwidth_Hz, SweepTime_s (0), SweepType
+            %              ("Linear"), MeasMode and MeasUnit (text)
 
-            settings = this.ReadPlan();
+            current = this.ReadSweepSettings();
+            settings = struct("StartFrequency_Hz", current.StartFrequency_Hz, "StopFrequency_Hz", current.StopFrequency_Hz, ...
+                "NumPoints", current.NumPoints, "Power_dBm", current.Power_dBm, "Bandwidth_Hz", current.Bandwidth_Hz);
             settings.SweepTime_s = 0;
             settings.SweepType = "Linear";
             settings.MeasMode = string(this.MeasMode);
@@ -407,16 +454,126 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
             dataRow = [];
         end
 
+        function data = RunMeasurement(this, options)
+            %Start one sweep with the settings given, from a script or the VNA Control tab - without waiting for it (see CheckScanComplete), unless Wait.
+            %Sets the frequency plan, and with PicoVNA 3 the power and
+            %bandwidth, from the settings given (any it lacks stay as the
+            %software has them), then starts a sweep of
+            %MeasMode's S-parameter in MeasUnit - the ones given, else the
+            %last sweep's (S11 in dB to begin with). The settings are read
+            %back before the sweep starts, for the data file's metadata (the
+            %software can't be asked anything once it is sweeping). If an
+            %abandoned scan's sweep is still going, PicoVNA 5 stops it first
+            %and PicoVNA 3 waits for it. MeasMode and MeasUnit then record
+            %what was measured.
+            %Example: data = vna.RunMeasurement(MeasMode = "S21", NumPoints = 401, Wait = true);
+            %
+            %Inputs (all optional name-value arguments):
+            %   MeasMode          - "S11", "S21", "S12" or "S22" (the last two need a two-port calibration)
+            %   MeasUnit          - "dB", "Absolute" or "Real/Imaginary" (the last, PicoVNA 3 only)
+            %   StartFrequency_Hz - sweep start, in Hz
+            %   StopFrequency_Hz  - sweep stop, in Hz
+            %   NumPoints         - number of points
+            %   Power_dBm         - test signal power, in dBm (PowerLimits_dBm). PicoVNA 3 only: with PicoVNA 5 it is set in the software, and a different value here is warned about
+            %   Bandwidth_Hz      - measurement bandwidth, in Hz (BandwidthChoices_Hz). PicoVNA 3 only, as the power
+            %   SweepTime_s       - ignored, with a warning if above 0: it follows from the points and bandwidth
+            %   SweepType         - only "Linear"
+            %   Wait              - true to wait for the sweep and return its data. Default: false
+            %   Timeout_s         - longest to wait, in seconds, with Wait. Default: 300
+            %
+            %Outputs:
+            %   data - with Wait, as GetCompletedScanData; otherwise empty
+
+            arguments
+                this;
+                options.MeasMode = [];
+                options.MeasUnit = [];
+                options.StartFrequency_Hz {mustBeNumeric, mustBeScalarOrEmpty, mustBePositive} = [];
+                options.StopFrequency_Hz {mustBeNumeric, mustBeScalarOrEmpty, mustBePositive} = [];
+                options.NumPoints {mustBeNumeric, mustBeScalarOrEmpty, mustBePositive} = [];
+                options.Power_dBm = [];
+                options.Bandwidth_Hz = [];
+                options.SweepTime_s {mustBeNumeric, mustBeScalarOrEmpty, mustBeNonnegative} = [];
+                options.SweepType = [];
+                options.Wait (1,1) logical = false;
+                options.Timeout_s (1,1) double {mustBePositive} = 300;
+            end
+
+            data = [];
+            has = @(name) ~isempty(options.(name));
+
+            %Check what was asked before touching the software
+            if has("SweepType") && string(options.SweepType) ~= "Linear"
+                error("PicoVNA_NetworkAnalyser:UnsupportedSweepType", "%s", "The PicoVNA only sweeps linearly in frequency - sweep type must be Linear, received " + string(options.SweepType));
+            end
+            if has("SweepTime_s") && options.SweepTime_s > 0
+                Palladium.Logging.Logger.Log("Warning", this.Name + ": the PicoVNA's sweep time can't be set (it follows from the points and bandwidth) - ignoring " + options.SweepTime_s + " s.");
+            end
+            power_dBm = this.ToNumber(options.Power_dBm, "Power_dBm");          %Empty, or a number: the GUI's drop-down values are text
+            bandwidth_Hz = this.ToNumber(options.Bandwidth_Hz, "Bandwidth_Hz");
+            if ~isempty(power_dBm)
+                assert(power_dBm >= this.PowerLimits_dBm(1) && power_dBm <= this.PowerLimits_dBm(2), "PicoVNA_NetworkAnalyser:PowerOutOfRange", "%s", ...
+                    "The power must be from " + this.PowerLimits_dBm(1) + " to " + this.PowerLimits_dBm(2) + " dBm, received " + power_dBm + ".");
+            end
+            if ~isempty(bandwidth_Hz)
+                assert(any(bandwidth_Hz == this.BandwidthChoices_Hz), "PicoVNA_NetworkAnalyser:BandwidthNotAvailable", "%s", ...
+                    "The bandwidth must be one of " + strjoin(string(this.BandwidthChoices_Hz), ", ") + " Hz, received " + bandwidth_Hz + ".");
+            end
+            measMode = this.MeasMode;
+            measUnit = this.MeasUnit;
+            if has("MeasMode");     measMode = this.MeasType(string(options.MeasMode));        end
+            if has("MeasUnit");     measUnit = this.MeasUnitType(string(options.MeasUnit));    end
+            this.MeasMode = measMode;
+            this.MeasUnit = measUnit;
+
+            this.MeasureError = [];
+            if ~this.SimulationMode
+                this.Backend.AbortSweep();
+                this.ScanComplete = true;
+            end
+
+            %Whatever isn't given stays as the software has it
+            plan = this.ReadPlan();
+            for name = ["StartFrequency_Hz", "StopFrequency_Hz", "NumPoints"]
+                if has(name);   plan.(name) = options.(name);   end
+            end
+            if ~this.SimulationMode
+                this.Backend.SetSweepOptions(power_dBm, bandwidth_Hz);      %Empty keeps the library's
+            end
+            this.SetFrequencyPlan(plan.StartFrequency_Hz, plan.StopFrequency_Hz, plan.NumPoints);
+            if this.SimulationMode
+                if ~isempty(power_dBm);     this.SimulatedSettings.Power_dBm = power_dBm;           end
+                if ~isempty(bandwidth_Hz);  this.SimulatedSettings.Bandwidth_Hz = bandwidth_Hz;     end
+            else     %Simulated sweeps are instant
+                %Read back what was set, then start the sweep
+                this.SweepSettings = this.ReadSweepSettings();
+                if ~this.Backend.CanSetSweepOptions()
+                    this.WarnIfNotSet("power", "dBm", power_dBm, this.SweepSettings.Power_dBm);
+                    this.WarnIfNotSet("bandwidth", "Hz", bandwidth_Hz, this.SweepSettings.Bandwidth_Hz);
+                end
+                this.Backend.StartSweep(string(this.MeasMode), string(this.MeasUnit), this.SweepSettings);
+                this.ScanData = [];
+                this.ScanComplete = false;
+            end
+
+            if options.Wait
+                timer = tic;
+                while ~this.CheckScanComplete()
+                    assert(toc(timer) < options.Timeout_s, "PicoVNA_NetworkAnalyser:Timeout", "%s", ...
+                        this.Name + ": the sweep was not complete after " + options.Timeout_s + " s.");
+                    pause(0.05);
+                end
+                data = this.GetCompletedScanData();
+            end
+        end
+
         function RunScan(this, scanDetails)
             %Start a scan, when Run is pressed on the VNA Control tab: apply its settings, then start one sweep - without waiting for it (see CheckScanComplete).
-            %Sets the frequency plan from the fields scanDetails has (see
-            %GetScanSettings; any it lacks stay as the software has them -
-            %others, e.g. the file settings, are ignored), then starts a
-            %sweep of MeasMode's S-parameter in MeasUnit. The settings are
-            %read back before the sweep starts, for the data file's
-            %metadata (the software can't be asked anything once it is
-            %sweeping). If an abandoned scan's sweep is still going, PicoVNA
-            %5 stops it first and PicoVNA 3 waits for it
+            %A wrapper for RunMeasurement: the settings are fields of
+            %scanDetails, named as RunMeasurement's arguments (MeasMode,
+            %MeasUnit, StartFrequency_Hz, StopFrequency_Hz, NumPoints,
+            %Power_dBm, Bandwidth_Hz, SweepTime_s and SweepType); others, e.g. the file settings, are
+            %ignored. One left out or empty stays as the software has it
             %
             %Inputs:
             %   scanDetails - (optional) struct of settings. Default: none, keeping the software's
@@ -426,40 +583,14 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
                 scanDetails (1,1) struct = struct();
             end
 
-            this.MeasureError = [];
-            has = @(name) isfield(scanDetails, name) && ~isempty(scanDetails.(name));
-            if has("SweepType") && string(scanDetails.SweepType) ~= "Linear"
-                error("PicoVNA_NetworkAnalyser:UnsupportedSweepType", "%s", "The PicoVNA only sweeps linearly in frequency - sweep type must be Linear, received " + string(scanDetails.SweepType));
+            options = struct();
+            for name = ["MeasMode", "MeasUnit", "StartFrequency_Hz", "StopFrequency_Hz", "NumPoints", "Power_dBm", "Bandwidth_Hz", "SweepTime_s", "SweepType"]
+                if isfield(scanDetails, name) && ~isempty(scanDetails.(name))
+                    options.(name) = scanDetails.(name);
+                end
             end
-            if has("SweepTime_s") && scanDetails.SweepTime_s > 0
-                Palladium.Logging.Logger.Log("Warning", this.Name + ": the PicoVNA's sweep time can't be set (it follows from the points and bandwidth) - ignoring " + scanDetails.SweepTime_s + " s.");
-            end
-            if has("MeasMode");     this.MeasMode = this.MeasType(string(scanDetails.MeasMode));       end
-            if has("MeasUnit");     this.MeasUnit = this.MeasUnitType(string(scanDetails.MeasUnit));   end
-
-            if ~this.SimulationMode
-                this.Backend.AbortSweep();
-                this.ScanComplete = true;
-            end
-
-            %Whatever the tab doesn't give stays as the software has it
-            plan = this.ReadPlan();
-            for name = ["StartFrequency_Hz", "StopFrequency_Hz", "NumPoints"]
-                if has(name);   plan.(name) = scanDetails.(name);   end
-            end
-            if ~this.SimulationMode
-                this.Backend.SetSweepOptions(this.Power_dBm, this.Bandwidth_Hz);
-            end
-            this.SetFrequencyPlan(plan.StartFrequency_Hz, plan.StopFrequency_Hz, plan.NumPoints);
-            if this.SimulationMode
-                return;     %Simulated sweeps are instant
-            end
-
-            %Read back what was set, then start the sweep
-            this.SweepSettings = this.ReadSweepSettings();
-            this.Backend.StartSweep(string(this.MeasMode), string(this.MeasUnit), this.SweepSettings);
-            this.ScanData = [];
-            this.ScanComplete = false;
+            args = namedargs2cell(options);
+            this.RunMeasurement(args{:});
         end
 
         function SaveCalibration(this, fileName)
@@ -503,7 +634,9 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
             assert(numPoints >= 2, "PicoVNA_NetworkAnalyser:NumPointsOutOfRange", "%s", "A sweep needs at least 2 points, received " + numPoints + ".");
 
             if this.SimulationMode
-                this.SimulatedSettings = struct("StartFrequency_Hz", start_Hz, "StopFrequency_Hz", stop_Hz, "NumPoints", numPoints);
+                this.SimulatedSettings.StartFrequency_Hz = start_Hz;
+                this.SimulatedSettings.StopFrequency_Hz = stop_Hz;
+                this.SimulatedSettings.NumPoints = numPoints;
                 return;
             end
 
@@ -634,6 +767,26 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
                 "Download and install them from https://www.picotech.com/downloads#t9" + newline + newline + "What happened:" + newline + strjoin(failures, newline));
         end
 
+        function number = ToNumber(~, value, name)
+            %A setting as a number: empty stays empty, text (a drop-down's value) is converted - an error for anything else.
+
+            if isempty(value)
+                number = [];
+                return;
+            end
+            number = str2double(string(value));
+            assert(isscalar(number) && isfinite(number), "PicoVNA_NetworkAnalyser:NotANumber", "%s", name + " must be a single number.");
+        end
+
+        function WarnIfNotSet(this, what, units, asked, actual)
+            %PicoVNA 5's power and bandwidth are set in its software - say so if a different one was asked for.
+
+            if ~isempty(asked) && abs(asked - actual) > 1e-9 * max(1, abs(actual))
+                Palladium.Logging.Logger.Log("Warning", this.Name + ": the " + what + " can't be set from here with this software (set it in the PicoVNA software) - it is " + ...
+                    actual + " " + units + ", not " + asked + " " + units + ".");
+            end
+        end
+
         function plan = ReadPlan(this)
             %The frequency plan: from the last read-back while a sweep is under way, else asked for (or the simulated one).
 
@@ -652,8 +805,6 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
 
             if this.SimulationMode
                 settings = this.SimulatedSettings;
-                settings.Power_dBm = this.Power_dBm;
-                settings.Bandwidth_Hz = this.Bandwidth_Hz;
                 settings.CalType = "Simulated";
             elseif ~this.ScanComplete
                 settings = this.SweepSettings;

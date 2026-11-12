@@ -43,17 +43,13 @@ classdef test_VNAController < matlab.unittest.TestCase
     methods (Test)
         function ChangingAnInstrumentSettingTest(testCase, InstrumentType)
             %The Scan Control's listener called a method it didn't have, so
-            %changing an instrument setting errored; the panel follows it
-            testCase.assumeFalse(InstrumentType == "HP_8722ES_NetworkAnalyser", ...
-                "The 8722ES's S-parameter is chosen per measurement, not an instrument setting");
-            [instr, cont] = testCase.addAnalyser(InstrumentType);
+            %changing an instrument setting errored
+            [instr, ~] = testCase.addAnalyser(InstrumentType);
 
-            testCase.verifyWarningFree(@() setMeasMode(instr));
-            fields = struct(cont).Fields;
-            testCase.verifyEqual(string(fields.MeasMode.Value), "S22");
+            testCase.verifyWarningFree(@() setName(instr));
 
-            function setMeasMode(instr)
-                instr.MeasMode = instr.MeasType("S22");
+            function setName(instr)
+                instr.Name = instr.Name + "x";
             end
         end
 
@@ -249,6 +245,27 @@ classdef test_VNAController < matlab.unittest.TestCase
 
             testCase.verifyError(@() cont.SetChannel(1), "VNAController:NotOffered");
             testCase.verifyError(@() cont.LoadSavedData(1), "VNAController:NotOffered");
+        end
+
+        function PicoVNAPowerAndBandwidthAreChosenInThePanelAndSentOnRunTest(testCase)
+            %Per-measurement settings, no longer instrument properties: the panel's values go to RunScan, and a change is not undone by a refresh
+            [instr, cont] = testCase.addAnalyser("PicoVNA_NetworkAnalyser");
+            testCase.startMeasurements();
+            fields = struct(cont).Fields;
+            testCase.verifyEqual(fields.Power_dBm.Limits, instr.PowerLimits_dBm);
+            testCase.verifyEqual(string(fields.Bandwidth_Hz.Items), string(instr.BandwidthChoices_Hz));
+
+            cont.SetExtraSetting("Power_dBm", -6);
+            cont.SetExtraSetting("Bandwidth_Hz", 100);
+            testCase.verifyEqual(fields.Power_dBm.Value, -6, "Not reset to the software's own by a refresh");
+            testCase.verifyEqual(string(fields.Bandwidth_Hz.Value), "100");
+
+            cont.Run();
+            testCase.waitForScan(cont);
+            settings = instr.GetScanSettings();
+            testCase.verifyEqual([settings.Power_dBm, settings.Bandwidth_Hz], [-6, 100]);
+            testCase.verifyEqual(fields.Power_dBm.Value, -6, "Shows what the analyser has after the scan");
+            testCase.verifyError(@() cont.SetExtraSetting("Power_dBm", 50), "MATLAB:validators:mustBeInRange");
         end
 
         function NumberOfPointsSnapsToTheAnalysersChoicesTest(testCase)

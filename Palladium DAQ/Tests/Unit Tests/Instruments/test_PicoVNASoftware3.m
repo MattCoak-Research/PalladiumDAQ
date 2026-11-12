@@ -27,20 +27,45 @@ classdef test_PicoVNASoftware3 < matlab.unittest.TestCase
 
             instr.RunScan(settings);
 
-            testCase.verifyEqual(server.Calls, ["GetInfo(FreqPlan)", "SetFreqPlan(10, 9.9, 101, 0, 1000)", ...
+            %(The power and bandwidth not given are read from the library, to be sent again with the plan)
+            testCase.verifyEqual(server.Calls, ["GetInfo(FreqPlan)", "GetInfo(FreqPlan)", "GetInfo(BWSet)", "SetFreqPlan(10, 9.9, 101, 0, 1000)", ...
                 "GetInfo(FreqPlan)", "GetInfo(FreqPlan)", "GetInfo(BWSet)", "GetInfo(CalType)", "GetInfo(CalType)", "Measure(S21) [background]"]);
             testCase.verifyEqual(string(instr.MeasMode), "S21");
         end
 
         function PowerAndBandwidthAreSentWithThePlanTest(testCase)
-            %The application can't be used to set them, so they are the driver's settings
+            %The application can't be used to set them, so they are sent from here - per measurement, as RunMeasurement's arguments
             [instr, server] = testCase.makeInstrument();
-            instr.Power_dBm = -10;
-            instr.Bandwidth_Hz = 100;
 
-            instr.RunScan(struct("StartFrequency_Hz", 1e6, "StopFrequency_Hz", 2e6, "NumPoints", 11));
+            instr.RunScan(struct("StartFrequency_Hz", 1e6, "StopFrequency_Hz", 2e6, "NumPoints", 11, "Power_dBm", -10, "Bandwidth_Hz", 100));
 
             testCase.verifyTrue(any(server.Calls == "SetFreqPlan(1, 0.1, 11, -10, 100)"));
+        end
+
+        function PowerOrBandwidthNotGivenStaysAsTheLibraryHasItTest(testCase)
+            %Not reset to a default: the library's own is read and sent again with the plan
+            [instr, server] = testCase.makeInstrument();
+            server.Replies("GetInfo|BWSet") = "500";
+            server.Replies("GetInfo|FreqPlan") = "1E6,2E6,1E5,11,-4";
+
+            instr.RunMeasurement(Power_dBm = -5);
+            testCase.verifyTrue(any(server.Calls == "SetFreqPlan(1, 0.1, 11, -5, 500)"), "Bandwidth kept");
+        end
+
+        function BandwidthGivenAsTextIsAcceptedTest(testCase)
+            %How the VNA Control's drop-down passes it
+            [instr, server] = testCase.makeInstrument();
+
+            instr.RunScan(struct("StartFrequency_Hz", 1e6, "StopFrequency_Hz", 2e6, "NumPoints", 11, "Bandwidth_Hz", "5000"));
+
+            testCase.verifyTrue(any(contains(server.Calls, ", 5000)")));
+        end
+
+        function PowerAndBandwidthOutOfRangeAreRefusedTest(testCase)
+            [instr, server] = testCase.makeInstrument();
+            testCase.verifyError(@() instr.RunMeasurement(Power_dBm = 20), "PicoVNA_NetworkAnalyser:PowerOutOfRange");
+            testCase.verifyError(@() instr.RunMeasurement(Bandwidth_Hz = 123), "PicoVNA_NetworkAnalyser:BandwidthNotAvailable");
+            testCase.verifyEmpty(server.Calls, "Nothing sent");
         end
 
         function SettingsNotGivenStayAsTheLibraryHasThemTest(testCase)
@@ -49,7 +74,7 @@ classdef test_PicoVNASoftware3 < matlab.unittest.TestCase
 
             instr.RunScan(struct("StopFrequency_Hz", 1e9));
 
-            testCase.verifyEqual(server.Calls(2), "SetFreqPlan(0.3, " + string((1e9 - 3e5) / 200 / 1e6) + ", 201, 0, 1000)");
+            testCase.verifyTrue(any(server.Calls == "SetFreqPlan(0.3, " + string((1e9 - 3e5) / 200 / 1e6) + ", 201, 0, 1000)"));
         end
 
         function ReverseParametersNeedAFullMeasurementTest(testCase)
@@ -223,13 +248,13 @@ classdef test_PicoVNASoftware3 < matlab.unittest.TestCase
 
         function GetScanSettingsReadsTheFrequencyPlanTest(testCase)
             [instr, server] = testCase.makeInstrument();
-            server.Replies("GetInfo|FreqPlan") = "3E5,2E9,1E7,201,0";
-            instr.MeasMode = instr.MeasType("S21");
+            server.Replies("GetInfo|FreqPlan") = "3E5,2E9,1E7,201,-4";
+            server.Replies("GetInfo|BWSet") = "500";
 
             settings = instr.GetScanSettings();
 
             testCase.verifyEqual(settings, struct("StartFrequency_Hz", 3e5, "StopFrequency_Hz", 2e9, "NumPoints", 201, ...
-                "SweepTime_s", 0, "SweepType", "Linear", "MeasMode", "S21", "MeasUnit", "dB"));
+                "Power_dBm", -4, "Bandwidth_Hz", 500, "SweepTime_s", 0, "SweepType", "Linear", "MeasMode", "S11", "MeasUnit", "dB"));
         end
 
         function CWSweepIsNotAFrequencyPlanTest(testCase)

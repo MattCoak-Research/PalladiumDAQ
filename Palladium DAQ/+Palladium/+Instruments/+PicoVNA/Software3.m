@@ -145,10 +145,22 @@ classdef Software3 < Palladium.Instruments.PicoVNA.Backend
         end
 
         function SetSweepOptions(this, power_dBm, bandwidth_Hz)
-            %Remember the power and bandwidth to send with the frequency plan.
+            %Remember the power and bandwidth to send with the frequency plan - one that is empty is the library's present one, read from it.
 
+            if isempty(power_dBm)           %The plan's test level
+                power_dBm = this.ParseNumbers(this.Ask("GetInfo", "FreqPlan"));
+                power_dBm = power_dBm(end);
+            end
+            if isempty(bandwidth_Hz)
+                bandwidth_Hz = str2double(strip(string(this.Ask("GetInfo", "BWSet"))));
+            end
             this.Power_dBm = power_dBm;
             this.Bandwidth_Hz = bandwidth_Hz;
+        end
+
+        function can = CanSetSweepOptions(~)
+            %True: the application can't be used to set them, so the driver sends them with the frequency plan.
+            can = true;
         end
 
         function SetFrequencyPlan(this, start_Hz, stop_Hz, numPoints)

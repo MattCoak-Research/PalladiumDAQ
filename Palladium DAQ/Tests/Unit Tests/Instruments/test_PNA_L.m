@@ -24,9 +24,8 @@ classdef test_PNA_L < matlab.unittest.TestCase
             %selected, the analyser showed error -420 "Query UNTERMINATED"
             [instr, connection] = testCase.makeInstrument();
             connection.QueryResponses("CALC1:PAR:CAT?") = """CH1_S11_1,S11,CH1_S21_2,S21""";
-            instr.MeasMode = instr.MeasType("S21");
 
-            instr.RunScan();
+            instr.RunScan(struct("MeasMode", "S21"));
 
             testCase.verifyEqual(connection.WrittenCommands, ["CALC:PAR:SEL ""CH1_S21_2""", "CALC1:FORM MLOG", "SENS1:SWE:MODE SINGle"]);
         end
@@ -35,9 +34,8 @@ classdef test_PNA_L < matlab.unittest.TestCase
             %The user's choice: change the first measurement on channel 1, rather than create one
             [instr, connection] = testCase.makeInstrument();
             connection.QueryResponses("CALC1:PAR:CAT?") = """CH1_S11_1,S11""";
-            instr.MeasMode = instr.MeasType("S22");
 
-            instr.RunScan();
+            instr.RunScan(struct("MeasMode", "S22"));
 
             testCase.verifyEqual(connection.WrittenCommands(1:2), ["CALC:PAR:SEL ""CH1_S11_1""", "CALC1:PAR:MOD S22"]);
         end
@@ -63,6 +61,82 @@ classdef test_PNA_L < matlab.unittest.TestCase
                 "SENS:SWE:POIN 401", "SENS1:SWE:TIME 0.5", "SENS:SWE:TYPE LOG", "CALC:PAR:SEL ""CH1_S11_1""", "CALC1:FORM MLIN", ...
                 "SENS1:SWE:MODE SINGle"]);
             testCase.verifyEqual(string(instr.MeasUnit), "Absolute");
+        end
+
+        function RunMeasurementTakesNamedArgumentsTest(testCase)
+            %From a script: no scanDetails struct, no GUI
+            [instr, connection] = testCase.makeInstrument();
+            connection.QueryResponses("CALC1:PAR:CAT?") = """CH1_S11_1,S11,CH1_S21_2,S21""";
+
+            instr.RunMeasurement(MeasMode = "S21", MeasUnit = "Absolute", NumPoints = 401, SweepType = "Log");
+
+            testCase.verifyEqual(connection.WrittenCommands, ["SENS:SWE:POIN 401", "SENS:SWE:TYPE LOG", ...
+                "CALC:PAR:SEL ""CH1_S21_2""", "CALC1:FORM MLIN", "SENS1:SWE:MODE SINGle"]);
+            testCase.verifyEqual(string(instr.MeasMode), "S21");
+        end
+
+        function RunMeasurementWithNothingGivenMeasuresTheSelectedMeasurementTest(testCase)
+            %No S11/dB forced onto whatever the analyser is showing - and the data is labelled to match
+            [instr, connection] = testCase.makeInstrument();
+            connection.QueryResponses("CALC1:PAR:CAT?") = """CH1_S11_1,S11,CH1_S21_2,S21""";
+            connection.QueryResponses("CALC:PAR:SEL?") = """CH1_S21_2""";
+            connection.QueryResponses("CALCulate1:FORMat?") = "MLIN";
+
+            instr.RunMeasurement();
+
+            testCase.verifyEqual(connection.WrittenCommands, "SENS1:SWE:MODE SINGle", "Nothing is changed on the analyser");
+            testCase.verifyEqual(string(instr.MeasMode), "S21");
+            testCase.verifyEqual(string(instr.MeasUnit), "Absolute");
+        end
+
+        function OnlyOneFrequencyGivenKeepsTheOtherTest(testCase)
+            [instr, connection] = testCase.makeInstrument();
+            connection.QueryResponses("CALC1:PAR:CAT?") = """CH1_S11_1,S11""";
+            connection.QueryResponses("SENSe1:FREQuency:STOP?") = "2E10";
+            connection.QueryResponses("SENSe1:FREQuency:STARt?") = "3E5";
+
+            instr.RunMeasurement(StartFrequency_Hz = 1e6);
+
+            testCase.verifyEqual(connection.WrittenCommands(1:2), ["SENSe1:FREQuency:STARt 1000000", "SENSe1:FREQuency:STOP 20000000000"]);
+        end
+
+        function RunMeasurementCanWaitAndReturnTheDataTest(testCase)
+            instr = Palladium.Instruments.PNA_L_NetworkAnalyser();
+            instr.Connection_Type = Palladium.Enums.ConnectionType.Debug;
+            evalc("instr.Connect()");
+
+            data = instr.RunMeasurement(NumPoints = 20, MeasMode = "S21", Wait = true);
+
+            testCase.verifySize(data, [20, 2]);
+            testCase.verifyEqual(string(instr.MeasMode), "S21");
+        end
+
+        function BadArgumentsAreRejectedBeforeTheAnalyserIsTouchedTest(testCase)
+            [instr, connection] = testCase.makeInstrument();
+
+            testCase.verifyError(@() instr.RunMeasurement(NumPoints = -1), "MATLAB:validators:mustBePositive");
+            threw = false;
+            try
+                instr.RunMeasurement(MeasMode = "S33");
+            catch
+                threw = true;
+            end
+            testCase.verifyTrue(threw, "An unknown S-parameter is an error");
+            testCase.verifyEmpty(connection.WrittenCommands);
+        end
+
+        function MeasModeAndUnitAreNotInstrumentSettingsTest(testCase)
+            %They are chosen per measurement (RunMeasurement, the VNA Control), so a setting would only fight those
+            instr = Palladium.Instruments.PNA_L_NetworkAnalyser();
+            properties = metaclass(instr).PropertyList;
+            testCase.verifyFalse(properties(string({properties.Name}) == "MeasMode").SetObservable, "Not shown in the Instrument Settings");
+            try
+                instr.MeasMode = instr.MeasType("S22");
+                threw = false;
+            catch
+                threw = true;
+            end
+            testCase.verifyTrue(threw);
         end
 
         function ZeroSweepTimeIsAutomaticTest(testCase)
@@ -143,9 +217,8 @@ classdef test_PNA_L < matlab.unittest.TestCase
             %A Smith chart needs the real and imaginary parts - polar format gives them
             [instr, connection] = testCase.makeInstrument();
             connection.QueryResponses("CALC1:PAR:CAT?") = """CH1_S11_1,S11""";
-            instr.MeasUnit = instr.MeasUnitType("Real/Imaginary");
 
-            instr.RunScan();
+            instr.RunScan(struct("MeasUnit", "Real/Imaginary"));
 
             testCase.verifyEqual(connection.WrittenCommands(2), "CALC1:FORM POL");
         end
@@ -154,10 +227,9 @@ classdef test_PNA_L < matlab.unittest.TestCase
             %In Debug mode: three columns (frequency, real, imaginary) inside the Smith chart, with headers to match
             instr = Palladium.Instruments.PNA_L_NetworkAnalyser();
             instr.Connection_Type = Palladium.Enums.ConnectionType.Debug;
-            instr.MeasUnit = instr.MeasUnitType("Real/Imaginary");
             evalc("instr.Connect()");
 
-            instr.RunScan();
+            instr.RunScan(struct("MeasUnit", "Real/Imaginary"));
             pause(0.3);
             data = instr.GetCompletedScanData();
             headers = instr.GetScanHeaders();

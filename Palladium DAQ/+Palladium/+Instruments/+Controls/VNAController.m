@@ -20,13 +20,16 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
     %chosen; choosing the trace again puts the units back.
     %
     %Extra settings: an instrument with a `GetExtraScanControls` method
-    %(see HP_8722ES_NetworkAnalyser) gets a control for each it describes -
-    %e.g. the 8722ES's Channel drop-down - above the sweep settings. Each
-    %is passed to `RunScan` in the scan details under its Name, and to
-    %`GetScanSettings(selection)`; changing one refreshes the panel from
-    %the instrument, so it shows that selection's own settings (an
-    %unavailable choice is refused with a warning, and the control goes
-    %back). `SetExtraSetting` sets one from a script.
+    %(see HP_8722ES_NetworkAnalyser, PicoVNA_NetworkAnalyser) gets a control
+    %for each it describes - e.g. the 8722ES's Channel drop-down, the
+    %PicoVNA's Power and Bandwidth - above the sweep settings. Each
+    %is passed to `RunScan` in the scan details under its Name, and shown
+    %from the field of that name in `GetScanSettings`. Changing one
+    %refreshes the panel from the instrument (`GetScanSettings(selection)`),
+    %so it shows that selection's own settings - an unavailable choice is
+    %refused with a warning, and the control goes back - unless the
+    %control's RefreshOnChange is false, when its value is just sent on the
+    %next Run. `SetExtraSetting` sets one from a script.
     %
     %An instrument with a `RecallRegister` method also gets a Load row:
     %choose an analyser register and press Load to read its saved trace
@@ -45,6 +48,7 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
     properties (Access = private)
         Fields = struct();      %The settings panel's components, by setting: StartFrequency, StartFrequencyUnit, StopFrequency, StopFrequencyUnit, NumPoints, SweepTime, SweepType, MeasMode, MeasUnit, PlotType
         ExtraNames = strings(1, 0);     %The names of the instrument's extra settings (GetExtraScanControls), each also a field of Fields
+        ExtraRefreshing = strings(1, 0);    %Those of them that refresh the panel from the instrument when changed (the others are just sent on the next Run)
         PendingRegister = [];           %The analyser register LoadSavedData is loading - taken into the next scan's details, which then load it instead of sweeping
         UnitsBeforeSmith = "";  %The Units chosen before the Smith chart was (which needs Real/Imaginary), to go back to when it is not
     end
@@ -129,7 +133,7 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
             elseif isa(component, "matlab.ui.control.CheckBox")
                 component.Value = logical(value);
             else
-                this.CheckNumber(value, name);
+                this.CheckNumber(value, name, @(v) mustBeInRange(v, component.Limits(1), component.Limits(2)));
                 component.Value = value;
             end
             try
@@ -347,9 +351,13 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
             grid = uigridlayout(panel, [numRows, 3], "ColumnWidth", {200, 160, 70}, "RowHeight", repmat({26}, 1, numRows), "RowSpacing", 6);
 
             this.ExtraNames = strings(1, 0);
+            this.ExtraRefreshing = strings(1, 0);
             for k = 1:numExtra
                 f.(extras(k).Name) = this.AddExtraSetting(grid, k, extras(k));
                 this.ExtraNames(end + 1) = string(extras(k).Name);
+                if this.RefreshesOnChange(extras(k))
+                    this.ExtraRefreshing(end + 1) = string(extras(k).Name);
+                end
             end
 
             r = numExtra;       %The rows above the sweep settings
@@ -580,10 +588,11 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
 
         function component = AddExtraSetting(this, grid, row, control)
             %A labelled control in a row of the settings grid, for one of the instrument's extra settings (see GetExtraScanControls).
-            %Changing it refreshes the panel from the instrument
+            %Changing it refreshes the panel from the instrument, unless
+            %the control's RefreshOnChange is false
             %
             %Inputs:
-            %   control - struct with Name, Label, Tooltip, Type ("dropdown", "number" or "checkbox"), Items (a drop-down's) and Value
+            %   control - struct with Name, Label, Tooltip, Type ("dropdown", "number" or "checkbox"), Items (a drop-down's), Limits (a number's, [minimum, maximum]), Value and RefreshOnChange (default true)
 
             switch string(control.Type)
                 case "dropdown"
@@ -592,7 +601,11 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
                         component.Value = string(control.Value);
                     end
                 case "number"
-                    component = this.AddNumberField(grid, row, control.Label, control.Tooltip, [-Inf, Inf], "%.6g");
+                    limits = [-Inf, Inf];
+                    if isfield(control, "Limits") && numel(control.Limits) == 2
+                        limits = control.Limits;
+                    end
+                    component = this.AddNumberField(grid, row, control.Label, control.Tooltip, limits, "%.6g");
                     component.Value = control.Value;
                 case "checkbox"
                     label = uilabel(grid, "Text", control.Label, "Tooltip", control.Tooltip);
@@ -605,7 +618,15 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
                     error("VNAController:UnknownControlType", "%s", "The instrument's extra setting " + string(control.Name) + " has an unknown type """ + string(control.Type) + """ - use dropdown, number or checkbox.");
             end
             name = string(control.Name);
-            component.ValueChangedFcn = @(~, event) this.OnExtraSettingChanged(name, event);
+            if this.RefreshesOnChange(control)
+                component.ValueChangedFcn = @(~, event) this.OnExtraSettingChanged(name, event);
+            end
+        end
+
+        function refreshes = RefreshesOnChange(~, control)
+            %True unless an extra setting says (RefreshOnChange false) that changing it needs no look at the instrument - its value is just sent on the next Run.
+
+            refreshes = ~isfield(control, "RefreshOnChange") || isempty(control.RefreshOnChange) || logical(control.RefreshOnChange);
         end
 
         function OnExtraSettingChanged(this, name, event)
@@ -624,6 +645,10 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
             %Have the instrument switch to the extra settings' values and refresh the panel to show what it reports - errors if it refuses one.
             %(Nothing happens if the instrument is not connected yet: the
             %value is sent on the next Run)
+
+            if ~any(this.ExtraRefreshing == name)
+                return;     %Nothing to show: its value goes with the next Run
+            end
 
             selection = struct();
             for each = this.ExtraNames

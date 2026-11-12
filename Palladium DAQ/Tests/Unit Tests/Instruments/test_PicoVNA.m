@@ -40,10 +40,9 @@ classdef test_PicoVNA < matlab.unittest.TestCase
         function RealImaginaryScanHasThreeColumnsInSimulationTest(testCase)
             instr = Palladium.Instruments.PicoVNA_NetworkAnalyser();
             instr.Connection_Type = Palladium.Enums.ConnectionType.Debug;
-            instr.MeasUnit = instr.MeasUnitType("Real/Imaginary");
             evalc("instr.Connect()");
 
-            instr.RunScan(struct("StartFrequency_Hz", 1e6, "StopFrequency_Hz", 1e9, "NumPoints", 51));
+            instr.RunScan(struct("StartFrequency_Hz", 1e6, "StopFrequency_Hz", 1e9, "NumPoints", 51, "MeasUnit", "Real/Imaginary"));
             data = instr.GetCompletedScanData();
             [headers, units] = instr.GetScanHeaders();
 
@@ -56,9 +55,8 @@ classdef test_PicoVNA < matlab.unittest.TestCase
         function PicoVNA5CannotGiveRealImaginaryTest(testCase)
             %Not known to the SCPI interface here - says so, rather than sending a made-up command
             [instr, ~] = testCase.makeInstrument();
-            instr.MeasUnit = instr.MeasUnitType("Real/Imaginary");
 
-            testCase.verifyError(@() instr.RunScan(struct("StartFrequency_Hz", 1e6, "StopFrequency_Hz", 1e9, "NumPoints", 101)), "PicoVNA_NetworkAnalyser:UnitNotSupported");
+            testCase.verifyError(@() instr.RunScan(struct("StartFrequency_Hz", 1e6, "StopFrequency_Hz", 1e9, "NumPoints", 101, "MeasUnit", "Real/Imaginary")), "PicoVNA_NetworkAnalyser:UnitNotSupported");
         end
 
         function CalibrationFileIsNotInTheSettingsListTest(testCase)
@@ -68,7 +66,9 @@ classdef test_PicoVNA < matlab.unittest.TestCase
             settings = Palladium.Utilities.GUIUtils.ComputePropertyList(instr, true);
 
             testCase.verifyFalse(any(settings == "CalibrationFile"));
-            testCase.verifyTrue(any(settings == "MeasMode"), "The others are still there");
+            testCase.verifyTrue(any(settings == "Software"), "The others are still there");
+            testCase.verifyFalse(any(ismember(settings, ["MeasMode", "MeasUnit", "Power_dBm", "Bandwidth_Hz"])), ...
+                "The S-parameter, units, power and bandwidth are chosen per measurement, not instrument settings");
             names = string({metaclass(instr).PropertyList.Name});
             testCase.verifyEqual(sum(names == "CalibrationFile"), 1, "Defined once");
             testCase.verifyTrue(findprop(instr, "CalibrationFile").SetObservable);
@@ -233,6 +233,88 @@ classdef test_PicoVNA < matlab.unittest.TestCase
             testCase.verifyEqual(fake.WrittenCommands, "CALCulate:DATa S12,MAG");
         end
 
+        function RunMeasurementTakesNamedArgumentsTest(testCase)
+            %From a script: no scanDetails struct, no GUI
+            [instr, fake] = testCase.makeInstrument();
+
+            instr.RunMeasurement(StartFrequency_Hz = 1e6, StopFrequency_Hz = 1e9, NumPoints = 101, MeasMode = "S12", MeasUnit = "Absolute");
+
+            testCase.verifyEqual(fake.WrittenCommands, "CALCulate:DATa S12,MAG");
+            testCase.verifyTrue(any(fake.QueriedCommands == "SENSe:SWEep:POINts 101"));
+            testCase.verifyEqual(string(instr.MeasMode), "S12");
+        end
+
+        function RunMeasurementStartsFromS11InDBTest(testCase)
+            %The software holds no S-parameter, so what isn't given is the last sweep's - S11 in dB to begin with
+            [instr, fake] = testCase.makeInstrument();
+
+            instr.RunMeasurement(NumPoints = 51);
+
+            testCase.verifyEqual(fake.WrittenCommands, "CALCulate:DATa S11,LOGMAG");
+            testCase.verifyEqual(string(instr.MeasMode), "S11");
+            testCase.verifyEqual(string(instr.MeasUnit), "dB");
+        end
+
+        function RunMeasurementCanWaitAndReturnTheDataTest(testCase)
+            instr = Palladium.Instruments.PicoVNA_NetworkAnalyser();
+            instr.Connection_Type = Palladium.Enums.ConnectionType.Debug;
+            evalc("instr.Connect()");
+
+            data = instr.RunMeasurement(StartFrequency_Hz = 1e6, StopFrequency_Hz = 1e9, NumPoints = 51, Wait = true);
+
+            testCase.verifySize(data, [51, 2]);
+        end
+
+        function ExtraControlsOfferPowerAndBandwidthTest(testCase)
+            %Added to the VNA Control by its extra-settings hook; changing them needs no look at the software
+            instr = Palladium.Instruments.PicoVNA_NetworkAnalyser();
+
+            controls = instr.GetExtraScanControls();
+
+            testCase.verifyEqual(string({controls.Name}), ["Power_dBm", "Bandwidth_Hz"]);
+            testCase.verifyEqual(string({controls.Type}), ["number", "dropdown"]);
+            testCase.verifyEqual(string(controls(2).Items), string(instr.BandwidthChoices_Hz));
+            testCase.verifyEqual(controls(1).Limits, instr.PowerLimits_dBm);
+            testCase.verifyFalse(any([controls.RefreshOnChange]));
+        end
+
+        function SimulatedPowerAndBandwidthAreKeptAndReportedTest(testCase)
+            instr = Palladium.Instruments.PicoVNA_NetworkAnalyser();
+            instr.Connection_Type = Palladium.Enums.ConnectionType.Debug;
+            evalc("instr.Connect()");
+
+            instr.RunMeasurement(Power_dBm = -7, Bandwidth_Hz = 100, NumPoints = 11);
+            settings = instr.GetScanSettings();
+            metadata = instr.CollectMetaData();
+
+            testCase.verifyEqual([settings.Power_dBm, settings.Bandwidth_Hz, settings.NumPoints], [-7, 100, 11]);
+            testCase.verifyEqual([metadata.Power_dBm, metadata.Bandwidth_Hz], [-7, 100]);
+        end
+
+        function PicoVNA5PowerSetInTheSoftwareIsWarnedAboutTest(testCase)
+            %PicoVNA 5 is set up in its own software - a different value asked for here can't be applied, so say so rather than quietly ignoring it
+            Palladium.Logging.Logger.ResetForTest();
+            testCase.addTeardown(@() Palladium.Logging.Logger.ResetForTest());
+            [instr, fake] = testCase.makeInstrument();
+            fake.QueryResponses("SENSe:LEVel?") = "0";
+            fake.QueryResponses("SENSe:BANDwidth?") = "1000";
+            output = evalc("instr.RunMeasurement(Power_dBm = -5, Bandwidth_Hz = 1000);");
+            testCase.verifySubstring(output, "the power can't be set from here");
+            testCase.verifyFalse(contains(output, "the bandwidth can't be set"), "The software's bandwidth is what was asked for");
+        end
+
+        function MeasModeAndUnitAreNotInstrumentSettingsTest(testCase)
+            %They are chosen per measurement (RunMeasurement, the VNA Control), so a setting would only fight those
+            instr = Palladium.Instruments.PicoVNA_NetworkAnalyser();
+            try
+                instr.MeasMode = instr.MeasType("S22");
+                threw = false;
+            catch
+                threw = true;
+            end
+            testCase.verifyTrue(threw);
+        end
+
         function LogSweepIsRefusedTest(testCase)
             [instr, fake] = testCase.makeInstrument();
             testCase.verifyError(@() instr.RunScan(struct("StartFrequency_Hz", 1e6, "StopFrequency_Hz", 2e6, "NumPoints", 11, "SweepType", "Log")), ...
@@ -354,11 +436,13 @@ classdef test_PicoVNA < matlab.unittest.TestCase
             fake.QueryResponses("SENSe:FREQuency:STARt?") = "0.300000 MHz";
             fake.QueryResponses("SENSe:FREQuency:STOP?") = "8.5 GHz";
             fake.QueryResponses("SENSe:SWEep:POINts?") = "51";
+            fake.QueryResponses("SENSe:LEVel?") = "-3 dBm";
+            fake.QueryResponses("SENSe:BANDwidth?") = "500 Hz";
 
             settings = instr.GetScanSettings();
 
             testCase.verifyEqual(settings, struct("StartFrequency_Hz", 3e5, "StopFrequency_Hz", 8.5e9, "NumPoints", 51, ...
-                "SweepTime_s", 0, "SweepType", "Linear", "MeasMode", "S11", "MeasUnit", "dB"));
+                "Power_dBm", -3, "Bandwidth_Hz", 500, "SweepTime_s", 0, "SweepType", "Linear", "MeasMode", "S11", "MeasUnit", "dB"));
         end
 
         function MetadataTest(testCase)
@@ -376,8 +460,7 @@ classdef test_PicoVNA < matlab.unittest.TestCase
             testCase.verifyEqual(headers, "PicoVNA - " + ["Frequency_Hz", "S11 (dB)"]);
             testCase.verifyEqual(units, ["Hz", "dB"]);
 
-            instr.MeasUnit = instr.MeasUnitType("Absolute");
-            instr.MeasMode = instr.MeasType("S22");
+            instr.RunScan(struct("MeasUnit", "Absolute", "MeasMode", "S22"));
             [headers, units] = instr.GetScanHeaders();
             testCase.verifyEqual(headers, "PicoVNA - " + ["Frequency_Hz", "S22 (Absolute)"]);
             testCase.verifyEqual(units, ["Hz", ""]);
