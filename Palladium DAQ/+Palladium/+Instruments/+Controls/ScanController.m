@@ -50,6 +50,8 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
         PlotKind = "Scatter";       %How the Simple plotter draws a finished scan: Scatter (the values against frequency) or Smith (a Smith chart of data with real and imaginary columns) - see SetPlotKind
         DataWriter;
         CachedData = [];            %CachedData for the last iteration, ready to be written (need to wait until data fomr other instruments come in)
+        ScanHeaders = strings(1, 0);    %The instrument's scan data column headers (GetScanHeaders), as when the last scan started - label the plot
+        ScanUnits = strings(1, 0);      %Their units
     end
 
     %% Constructor
@@ -198,7 +200,11 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
 
             %Tell the Instrument to run the scan with these settings - it
             %must have a RunScan(scanDetails) method defined or this will error
+            %A progress bar appears if setting the analyser up takes more than a moment
+            progress = Palladium.Utilities.DelayedProgress(this.Controller, "Setting up the analyser and starting the scan...", Title = "Starting scan");
+            clearProgress = onCleanup(@() delete(progress));
             this.Instrument.RunScan(this.ControlDetailsStruct.SweepDetails);
+            clear clearProgress;
 
             %Write the file's metadata and headers now, so they show the
             %settings the instrument applied
@@ -240,7 +246,13 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
 
             %Grab the data from the Instrument (will need to define a
             %GetCompletedScanData function)
-            this.DataArray = this.Instrument.GetCompletedScanData();
+            try
+                this.DataArray = this.Instrument.GetCompletedScanData();
+            catch err
+                %The scan failed: put the panel back to ready, as for an abort, before the error is shown
+                this.OnAbortPushed([], []);
+                rethrow(err);
+            end
 
             if this.ControlDetailsStruct.SweepDetails.SaveSweepFile
                 %Write data to file
@@ -348,6 +360,7 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
             this.Running = false;
             this.Starting = false;
             this.TimeElapsed_s = 0;
+            this.AbortInstrumentScan();
             this.OnScanAbort();
         end
 
@@ -439,6 +452,19 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
     %% Methods (Private)
     methods (Access = private)
 
+        function AbortInstrumentScan(this)
+            %Tell the instrument its scan was aborted, if it has an AbortScan - e.g. for it to stop a sweep that would otherwise go on.
+
+            if isempty(this.Instrument) || ~ismethod(this.Instrument, "AbortScan")
+                return;
+            end
+            try
+                this.Instrument.AbortScan();
+            catch err
+                Palladium.Logging.Logger.Log("Warning", "Could not stop the instrument's sweep: " + string(err.message));
+            end
+        end
+
         function stringLine = CreateScanMetaDataLine(this)
             %The scan's settings as requested (the instrument's own metadata line has those it applied) - leaving out the file settings.
 
@@ -453,7 +479,9 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
         end
 
          function headersString = GetHeaders(this)
-            headers = this.Instrument.GetScanHeaders();
+            [headers, units] = this.Instrument.GetScanHeaders();
+            this.ScanHeaders = string(headers);
+            this.ScanUnits = string(units);
 
             %Make a simple string of all these headers, tab seperated
             headersString = '';
@@ -478,10 +506,74 @@ classdef ScanController < Palladium.Core.InstrumentControlBase
                             Palladium.Logging.Logger.Log("Warning", "The Smith chart needs the scan's real and imaginary parts, but its data has only " + size(data, 2) + " columns - choose Real/Imaginary units.");
                         end
                     else
-                        this.Plotter.PlotData(data(:,1), data(:,2:min(end, 5)));
+                        numSeries = min(size(data, 2) - 1, 4);
+                        [xLabel, yLabel, seriesNames] = this.ScanLabels(numSeries);
+                        this.Plotter.ShowLegends = numSeries > 1;       %A legend tells the series (e.g. real and imaginary) apart
+                        this.Plotter.PlotData(data(:,1), data(:,2:1 + numSeries));
+                        if numel(seriesNames) == numSeries
+                            this.Plotter.LabelDataSeries(cellstr(seriesNames));
+                        end
+                        if strlength(xLabel) > 0
+                            this.Plotter.LabelAxes(xLabel, yLabel);
+                        end
                     end
                 case("Default")
                     this.Plotter.PlotData(data);
+            end
+        end
+
+        function [xLabel, yLabel, seriesNames] = ScanLabels(this, numSeries)
+            %The plot's axis labels and the name of each series, from the instrument's scan data headers and units.
+            %The headers are the instrument's name, " - " and the column, e.g.
+            %"PicoVNA - Frequency_Hz" and "PicoVNA - S11 (dB)" - the name
+            %is left off. The x label shows the unit, e.g. "Frequency (Hz)";
+            %a y column's header carries its own, e.g. "S11 (dB)". Several
+            %y columns (e.g. "S11 Real" and "S11 Imaginary") share the start
+            %of their names. Nothing is known (empty) before a scan has
+            %been started
+            %
+            %Inputs:
+            %   numSeries - the number of y columns plotted
+            %
+            %Outputs:
+            %   xLabel      - x axis label, or "" if there are no headers to go on
+            %   yLabel      - y axis label
+            %   seriesNames - the name of each y column, or empty
+
+            xLabel = "";
+            yLabel = "";
+            seriesNames = strings(1, 0);
+            headers = regexprep(this.ScanHeaders, "^.*? - ", "");
+            if numel(headers) < 1 + numSeries
+                return;
+            end
+
+            xName = headers(1);
+            if ~isempty(this.ScanUnits) && strlength(this.ScanUnits(1)) > 0
+                xName = erase(xName, "_" + this.ScanUnits(1));
+                xLabel = strrep(xName, "_", " ") + " (" + this.ScanUnits(1) + ")";
+            else
+                xLabel = strrep(xName, "_", " ");
+            end
+
+            seriesNames = headers(2:1 + numSeries);
+            if numSeries == 1
+                yLabel = seriesNames(1);
+            else
+                %What the names have in common, e.g. "S11"
+                common = seriesNames(1);
+                for name = seriesNames(2:end)
+                    k = 0;
+                    while k < min(strlength(common), strlength(name)) && extractBetween(common, k + 1, k + 1) == extractBetween(name, k + 1, k + 1)
+                        k = k + 1;
+                    end
+                    common = extractBefore(common, k + 1);
+                end
+                common = strip(common);
+                if strlength(common) == 0
+                    common = "Value";
+                end
+                yLabel = common;
             end
         end
 

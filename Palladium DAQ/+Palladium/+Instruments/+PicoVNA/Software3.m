@@ -67,8 +67,18 @@ classdef Software3 < Palladium.Instruments.PicoVNA.Backend
     methods(Access = public)
 
         function AbortSweep(this)
-            %Give up on a sweep not collected - the library can't stop it, so the next call waits for it to end.
+            %Give up on a sweep not collected. The library can't stop a sweep, so if it is still going its process is stopped, cutting it off - and started again, with the calibration loaded again, when next needed (see NeedsReopen and Reopen).
 
+            if this.Outstanding && ~isempty(this.Server)
+                try
+                    busy = this.Server.IsBusy();
+                catch
+                    busy = true;        %Died, or can't be asked: start again
+                end
+                if busy
+                    this.ReleaseServer(true);
+                end
+            end
             this.Outstanding = false;
         end
 
@@ -77,6 +87,11 @@ classdef Software3 < Palladium.Instruments.PicoVNA.Backend
             %The dialogue measures the standards you connect, and applies the
             %calibration when you finish. Keep it with SaveCalibration
 
+            this.RequireOpen();
+
+            %The dialogue waits for the user, as long as they take
+            this.Server.CallTimeout_s = Inf;
+            restore = onCleanup(@() this.RestoreCallTimeout()); %#ok<NASGU>
             this.ExpectOK(this.Server.Call("SelectCal", "?"), "calibrating");
         end
 
@@ -93,7 +108,9 @@ classdef Software3 < Palladium.Instruments.PicoVNA.Backend
             end
             try
                 %A sweep still under way is cut off with the process, not waited for
-                if ~this.Server.IsBusy()
+                if this.Server.IsBusy()
+                    this.Server.Terminate();
+                else
                     this.Ask("CloseVNA");
                 end
             catch
@@ -140,6 +157,21 @@ classdef Software3 < Palladium.Instruments.PicoVNA.Backend
 
             assert(isfile(fileName), "PicoVNA_NetworkAnalyser:CalibrationFileMissing", "%s", "The calibration file `" + string(fileName) + "` does not exist.");
             this.ExpectOK(this.Ask("LoadCal", char(fileName)), "loading the calibration file " + string(fileName));
+        end
+
+        function tf = LoadingCalibrationSetsPlan(~)
+            %True: loading a calibration makes the library take on the frequency plan it was made with.
+            tf = true;
+        end
+
+        function tf = NeedsReopen(this)
+            %True if the library's process has been stopped (by AbortSweep, or a call that was not answered) - call Reopen before the next call.
+            tf = isempty(this.Server);
+        end
+
+        function choices = NumPointsChoices(~)
+            %The numbers of points the library takes in VNA mode (PicoVNA 3 user guide, specifications).
+            choices = [51 101 201 401 801 1001 2001 4001 5001 6001 7001 8001 9001 10001];
         end
 
         function Open(this)
@@ -203,6 +235,12 @@ classdef Software3 < Palladium.Instruments.PicoVNA.Backend
             settings.CalType = strip(string(this.Ask("GetInfo", "CalType")));
         end
 
+        function Reopen(this)
+            %Start the library's process again and find the analyser, after AbortSweep stopped it - the calibration has to be loaded again, as it went with the process.
+
+            this.Open();
+        end
+
         function SaveCalibration(this, fileName)
             %Save the calibration and frequency plan, to load again with LoadCalibration or the CalibrationFile setting (SaveCal).
 
@@ -240,6 +278,7 @@ classdef Software3 < Palladium.Instruments.PicoVNA.Backend
             %Start a sweep in the background (Measure) and return at once. S11 and S21 are measured alone; S12 and S22 only with a full two-port measurement, "All".
             %First checks the calibration covers the S-parameter (see CheckCalibrationCovers)
 
+            this.RequireOpen();
             this.CheckCalibrationCovers(sParameter);
             switch sParameter
                 case "S11";     para = "S11";
@@ -264,6 +303,7 @@ classdef Software3 < Palladium.Instruments.PicoVNA.Backend
             %will be restored" - the function carries on after it. Not for
             %SelectCal, whose dialogue is the point
 
+            this.RequireOpen();
             reply = this.Server.CallDismissingDialogs(functionName, varargin{:});
             this.ReportDialogs(functionName);
         end
@@ -341,9 +381,12 @@ classdef Software3 < Palladium.Instruments.PicoVNA.Backend
             numbers = str2double(split(strip(string(reply)), ","))';
         end
 
-        function ReleaseServer(this)
-            %Stop the library's process.
+        function ReleaseServer(this, terminate)
+            %Stop the library's process - at once, without waiting for it to stop itself, if terminate.
 
+            if nargin > 1 && terminate && ~isempty(this.Server)
+                this.Server.Terminate();
+            end
             delete(this.Server);
             this.Server = [];
         end
@@ -353,6 +396,22 @@ classdef Software3 < Palladium.Instruments.PicoVNA.Backend
 
             for text = this.Server.DialogsDismissed
                 Palladium.Logging.Logger.Log("Warning", "The PicoVNA library said, in " + functionName + ": " + text);
+            end
+        end
+
+        function RequireOpen(this)
+            %Error, saying what to do, if the library's process is not running.
+
+            if isempty(this.Server)
+                error("PicoVNA_NetworkAnalyser:LibraryNotOpen", "%s", "The PicoVNA library's process is not running - a sweep was cut off, or a call was not answered. It starts again with the next scan (or Stop and Start Palladium).");
+            end
+        end
+
+        function RestoreCallTimeout(this)
+            %Go back to the usual limit on how long a call may take, after one that waits for the user.
+
+            if ~isempty(this.Server)
+                this.Server.CallTimeout_s = 60;
             end
         end
 

@@ -68,6 +68,25 @@ classdef (Abstract) Backend < handle
             can = false;
         end
 
+        function tf = LoadingCalibrationSetsPlan(~)
+            %True if loading a calibration makes the software take on the frequency plan it was made with (PicoVNA 3's library) - so the plan read after loading one is the calibration's. False by default.
+            tf = false;
+        end
+
+        function tf = NeedsReopen(~)
+            %True if the connection has been cut off (e.g. by AbortSweep, for software that can't stop a sweep any other way) and Reopen must be called before the next use. False by default.
+            tf = false;
+        end
+
+        function choices = NumPointsChoices(~)
+            %The numbers of points the software takes, if it has set choices (PicoVNA 3's library) - else empty, meaning any.
+            choices = [];
+        end
+
+        function Reopen(this) %#ok<MANU>
+            %Connect again after the connection was cut off (see NeedsReopen). The calibration has to be loaded again. Does nothing by default.
+        end
+
         function SaveCalibration(this, ~) %#ok<MANU>
             %Save the calibration, if the software can do it from here - by default it can't, and says where it is done.
             error("PicoVNA_NetworkAnalyser:CalibrateInTheSoftware", "%s", "Save calibrations in the PicoVNA software.");

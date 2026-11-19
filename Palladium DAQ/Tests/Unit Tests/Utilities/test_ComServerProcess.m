@@ -7,7 +7,9 @@ classdef test_ComServerProcess < matlab.unittest.TestCase
     %% Properties (Constant, Private)
     properties(Constant, Access = private)
         FakeObjectScript = strjoin([
+            "Add-Type -Name Native -Namespace PalladiumTest -MemberDefinition '[DllImport(""user32.dll"", CharSet = CharSet.Unicode)] public static extern int MessageBoxTimeoutW(IntPtr hWnd, string text, string caption, uint type, ushort language, int milliseconds);'"
             "$o = New-Object PSObject"
+            "$o | Add-Member ScriptMethod AskYesNo { [PalladiumTest.Native]::MessageBoxTimeoutW([IntPtr]::Zero, 'Sure?', 'Question', 4, 0, 3000) }"
             "$o | Add-Member ScriptMethod Echo { param($x) $x }"
             "$o | Add-Member ScriptMethod Add { param($a, $b) $a + $b }"
             "$o | Add-Member ScriptMethod Slow { param($s) Start-Sleep -Seconds $s; 'done' }"
@@ -96,6 +98,40 @@ classdef test_ComServerProcess < matlab.unittest.TestCase
 
             server.CallDismissingDialogs("Echo", "x");
             testCase.verifyEmpty(server.DialogsDismissed, "No boxes, none reported");
+        end
+
+        function BoxThatCannotBeClosedIsShownAgainNotHiddenForEverTest(testCase)
+            %A Yes/No box has no close button, so closing it does nothing: hidden for good it would hold the call up for ever. It is shown again, and reported
+            server = testCase.startServer();
+
+            timer = tic();
+            server.CallDismissingDialogs("AskYesNo");     %The test's box answers itself after 3 s
+
+            testCase.verifyLessThan(toc(timer), 20);
+            testCase.verifyTrue(any(startsWith(server.DialogsDismissed, "STILL OPEN")), "Reported as still open");
+            testCase.verifySubstring(strjoin(server.DialogsDismissed, " "), "Sure?");
+        end
+
+        function CallThatDoesNotAnswerTimesOutAndStopsTheProcessTest(testCase)
+            %Not waiting for ever: the library can't be asked to stop, so its process is
+            server = testCase.startServer();
+            server.CallTimeout_s = 1;
+
+            testCase.verifyError(@() server.Call("Slow", 30), "ComServerProcess:Timeout");
+
+            testCase.verifyError(@() server.Call("Echo", "x"), "ComServerProcess:ProcessStopped");
+        end
+
+        function TerminateStopsAHungCallAtOnceTest(testCase)
+            server = testCase.startServer();
+            server.CallAsync("Slow", 30);
+
+            timer = tic();
+            server.Terminate();
+
+            testCase.verifyLessThan(toc(timer), 10, "Doesn't wait for the 30 s call, or ask it to quit");
+            testCase.verifyError(@() server.Call("Echo", "x"), "ComServerProcess:ProcessStopped");
+            testCase.verifyFalse(server.IsBusy(), "Nothing is pending any more");
         end
 
         function ACrashReportsTheExitCodeAndTheRequestTest(testCase)

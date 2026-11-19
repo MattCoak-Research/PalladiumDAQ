@@ -1074,6 +1074,13 @@
                             </Category>
                         </Info>
                     </File>
+                    <File Location="DelayedProgress.m">
+                        <Info>
+                            <Category UUID="FileClassCategory">
+                                <Label UUID="design"/>
+                            </Category>
+                        </Info>
+                    </File>
                 </File>
                 <File Location="+Views">
                     <Info/>
@@ -1620,6 +1627,20 @@
                                         </Category>
                                     </Info>
                                 </File>
+                                <File Location="FakeScanInstrument.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
+                                <File Location="FakeProgressController.m">
+                                    <Info>
+                                        <Category UUID="FileClassCategory">
+                                            <Label UUID="design"/>
+                                        </Category>
+                                    </Info>
+                                </File>
                             </File>
                         </File>
                         <File Location="ZI Testing">
@@ -1691,6 +1712,13 @@
                             </Info>
                         </File>
                         <File Location="test_ComServerProcess.m">
+                            <Info>
+                                <Category UUID="FileClassCategory">
+                                    <Label UUID="test"/>
+                                </Category>
+                            </Info>
+                        </File>
+                        <File Location="test_DelayedProgress.m">
                             <Info>
                                 <Category UUID="FileClassCategory">
                                     <Label UUID="test"/>

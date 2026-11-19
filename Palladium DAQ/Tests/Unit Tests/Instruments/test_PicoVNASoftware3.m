@@ -37,9 +37,9 @@ classdef test_PicoVNASoftware3 < matlab.unittest.TestCase
             %The application can't be used to set them, so they are sent from here - per measurement, as RunMeasurement's arguments
             [instr, server] = testCase.makeInstrument();
 
-            instr.RunScan(struct("StartFrequency_Hz", 1e6, "StopFrequency_Hz", 2e6, "NumPoints", 11, "Power_dBm", -10, "Bandwidth_Hz", 100));
+            instr.RunScan(struct("StartFrequency_Hz", 1e6, "StopFrequency_Hz", 2e6, "NumPoints", 101, "Power_dBm", -10, "Bandwidth_Hz", 100));
 
-            testCase.verifyTrue(any(server.Calls == "SetFreqPlan(1, 0.1, 11, -10, 100)"));
+            testCase.verifyTrue(any(server.Calls == "SetFreqPlan(1, 0.01, 101, -10, 100)"));
         end
 
         function PowerOrBandwidthNotGivenStaysAsTheLibraryHasItTest(testCase)
@@ -285,7 +285,8 @@ classdef test_PicoVNASoftware3 < matlab.unittest.TestCase
 
             fclose(fopen(file, "w"));
             instr.LoadCalibration(file);
-            testCase.verifyEqual(server.Calls, "LoadCal(" + string(file) + ")");
+            testCase.verifyEqual(server.Calls, ["LoadCal(" + string(file) + ")", "GetInfo(FreqPlan)"], "The plan the library took on with it is the calibration's");
+            testCase.verifyEqual(instr.CalibrationPlan, struct("StartFrequency_Hz", 3e5, "StopFrequency_Hz", 2e9, "NumPoints", 201));
 
             server.Replies("LoadCal") = "Error reading file";
             testCase.verifyError(@() instr.LoadCalibration(file), "PicoVNA_NetworkAnalyser:CommandFailed");
@@ -314,12 +315,12 @@ classdef test_PicoVNASoftware3 < matlab.unittest.TestCase
             [instr, server] = testCase.makeInstrument();
             server.BusyChecks = 100;
             instr.RunScan(struct("StartFrequency_Hz", 1e6, "StopFrequency_Hz", 2e6, "NumPoints", 11));
-            callsBefore = numel(server.Calls);
             shared = server.Shared;
 
             instr.CloseForTest();
 
-            testCase.verifyEqual(numel(shared("Calls")), callsBefore, "No CloseVNA");
+            testCase.verifyFalse(any(contains(shared("Calls"), "CloseVNA")), "No CloseVNA");
+            testCase.verifyTrue(shared("Terminated"), "Stopped at once");
             testCase.verifyTrue(shared("Deleted"));
         end
 
@@ -456,10 +457,117 @@ classdef test_PicoVNASoftware3 < matlab.unittest.TestCase
 
             testCase.verifyLessThan(toc(timer), 10, "Doesn't wait for the 30 s sweep");
         end
+        function AbortingStopsTheLibraryAndTheNextScanStartsItAgainTest(testCase)
+            %A sweep can't be stopped in the library, so its process is - and the next scan starts a new one, with the calibration loaded again
+            first = testCase.planServer();
+            second = testCase.planServer();
+            second.Replies("FND") = "9905";
+            second.Replies("GetInfo|Model") = "PicoVNA 106";
+            instr = InstrumentTestingInstruments.RecordingPicoVNA();
+            instr.SetBackendForTest(Palladium.Instruments.PicoVNA.Software3(Server = first, ServerFactory = @(~) second, ProgIds = "Fake.Library"));
+            folder = testCase.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture).Folder;
+            file = fullfile(folder, "cal.pcal");
+            fclose(fopen(file, "w"));
+            instr.CalibrationFile = file;
+            first.BusyChecks = 1000;
+            scan = struct("StartFrequency_Hz", 3e5, "StopFrequency_Hz", 2e9, "NumPoints", 201);
+            instr.RunScan(scan);
+            testCase.assertFalse(instr.CheckScanComplete(), "A sweep is under way");
+            firstShared = first.Shared;     %Outlives the server, which is deleted
+
+            instr.AbortScan();
+
+            testCase.verifyTrue(firstShared("Terminated"), "The library's process was stopped");
+            testCase.verifyTrue(instr.CheckScanComplete(), "No sweep is outstanding any more");
+
+            instr.RunScan(scan);
+
+            testCase.verifyTrue(any(second.Calls == "FND()"), "The library was started again");
+            testCase.verifyTrue(any(startsWith(second.Calls, "LoadCal(")), "with the calibration loaded again");
+            testCase.verifyTrue(any(second.Calls == "Measure(S11) [background]"), "and the sweep run");
+        end
+
+        function AbortScanDoesNothingWhenNoSweepIsUnderWayTest(testCase)
+            [instr, server] = testCase.makeInstrument();
+
+            instr.AbortScan();
+
+            testCase.verifyEmpty(server.Calls);
+            testCase.verifyFalse(server.Shared("Terminated"));
+        end
+
+        function HungSweepIsEndedAndReportedTest(testCase)
+            %A sweep taking far longer than it should - the library stuck, e.g. behind a dialogue box - doesn't leave the scan running for ever
+            [instr, server] = testCase.makeInstrument();
+            server.BusyChecks = 1e9;
+            shared = server.Shared;
+            instr.RunScan(struct("StartFrequency_Hz", 3e5, "StopFrequency_Hz", 2e9, "NumPoints", 201));
+            instr.SetSweepTimeLimitForTest(0.05);
+            pause(0.2);
+
+            testCase.verifyTrue(instr.CheckScanComplete(), "The scan ends");
+
+            testCase.verifyTrue(shared("Terminated"), "The library was stopped");
+            testCase.verifyError(@() instr.GetCompletedScanData(), "PicoVNA_NetworkAnalyser:SweepTimeout");
+        end
+
+        function CalibrationWarningIsAboutASweepOutsideItsSpanOnlyTest(testCase)
+            %The library can't extrapolate a calibration, and replaces such a sweep with the calibration's own plan
+            [instr, ~] = testCase.makeInstrument();     %The library's plan, once a calibration is loaded: 300 kHz to 2 GHz, 201 points
+            folder = testCase.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture).Folder;
+            file = fullfile(folder, "cal.pcal");
+            fclose(fopen(file, "w"));
+            sweep = @(start, stop) struct("StartFrequency_Hz", start, "StopFrequency_Hz", stop);
+            testCase.verifyEqual(instr.CalibrationWarning(sweep(1e5, 1e9)), "", "No calibration loaded: nothing known");
+
+            instr.LoadCalibration(file);
+
+            testCase.verifyEqual(instr.CalibrationWarning(sweep(1e6, 1e9)), "", "Inside the span");
+            testCase.verifyEqual(instr.CalibrationWarning(sweep(3e5, 2e9)), "", "The whole span");
+            message = instr.CalibrationWarning(sweep(1e5, 1e9));
+            testCase.verifySubstring(message, "not inside the span");
+            testCase.verifySubstring(message, "201 points");
+            testCase.verifyNotEmpty(instr.CalibrationWarning(sweep(1e6, 3e9)), "Above the span");
+        end
+
+        function NumberOfPointsTheLibraryDoesNotTakeIsRoundedWithAWarningTest(testCase)
+            %The library takes only 51, 101, 201, 401... - anything else is rounded to the nearest, and the user told
+            Palladium.Logging.Logger.ResetForTest();
+            testCase.addTeardown(@() Palladium.Logging.Logger.ResetForTest());
+            [instr, server] = testCase.makeInstrument();
+            testCase.verifyEqual(instr.NumPointsChoices(1:3), [51 101 201]);
+
+            output = evalc("instr.RunScan(struct(""StartFrequency_Hz"", 1e6, ""StopFrequency_Hz"", 2e6, ""NumPoints"", 150));");
+
+            testCase.verifySubstring(output, "takes only");
+            testCase.verifyTrue(any(server.Calls == "SetFreqPlan(1, 0.01, 101, 0, 1000)"), "101, the nearest to 150");
+        end
+
+        function CallsToAStoppedLibraryErrorClearlyTest(testCase)
+            %Not "Dot indexing is not supported for variables of type double"
+            server = testCase.planServer();
+            server.BusyChecks = 1000;
+            backend = Palladium.Instruments.PicoVNA.Software3(Server = server);
+            backend.StartSweep("S11", "dB", struct());
+            backend.AbortSweep();
+
+            testCase.verifyTrue(backend.NeedsReopen());
+            testCase.verifyError(@() backend.StartSweep("S11", "dB", struct()), "PicoVNA_NetworkAnalyser:LibraryNotOpen");
+            testCase.verifyError(@() backend.ReadPlan(), "PicoVNA_NetworkAnalyser:LibraryNotOpen");
+        end
+
     end
 
     %% Methods (Private)
     methods (Access = private)
+        function server = planServer(~)
+            %A fake library with a frequency plan, bandwidth and calibration to read back (as makeInstrument gives)
+            server = InstrumentTestingInstruments.FakeComServer();
+            server.Replies("GetInfo|FreqPlan") = "3E5,2E9,1E7,201,0";
+            server.Replies("GetInfo|BWSet") = "1000";
+            server.Replies("GetInfo|CalType") = "S11+S21";
+        end
+
         function [instr, server] = makeInstrument(~)
             %The driver, given a fake connection to the library as if connected - with a frequency plan, bandwidth and calibration to read back
             instr = InstrumentTestingInstruments.RecordingPicoVNA();

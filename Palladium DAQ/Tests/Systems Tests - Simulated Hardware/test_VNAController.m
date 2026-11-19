@@ -200,16 +200,23 @@ classdef test_VNAController < matlab.unittest.TestCase
 
             cont.SetFrequencyRange(100e6, 2e9);
             cont.SetNumberOfPoints(51);
-            cont.SetSweepTime(0.5);
-            cont.SetSweepType("log");
             cont.SetSParameter("s21");
             cont.SetUnits("absolute");
+
+            %Sweep time and a log sweep only where the analyser has them (a PicoVNA has neither)
+            if InstrumentType == "PicoVNA_NetworkAnalyser"
+                testCase.verifyError(@() cont.SetSweepTime(0.5), "VNAController:SweepTimeNotSettable");
+                testCase.verifyError(@() cont.SetSweepType("log"), "VNAController:UnknownChoice");
+            else
+                cont.SetSweepTime(0.5);
+                cont.SetSweepType("log");
+                testCase.verifyEqual(fields.SweepTime.Value, 0.5);
+                testCase.verifyEqual(string(fields.SweepType.Value), "Log", "Case is ignored");
+            end
 
             testCase.verifyEqual(fields.StartFrequency.Value, 100, RelTol = 1e-12);
             testCase.verifyEqual(fields.StopFrequency.Value, 2000, RelTol = 1e-12);
             testCase.verifyEqual(fields.NumPoints.Value, 51);
-            testCase.verifyEqual(fields.SweepTime.Value, 0.5);
-            testCase.verifyEqual(string(fields.SweepType.Value), "Log", "Case is ignored");
             testCase.verifyEqual(string(fields.MeasMode.Value), "S21");
             testCase.verifyEqual(string(fields.MeasUnit.Value), "Absolute");
 
@@ -218,6 +225,90 @@ classdef test_VNAController < matlab.unittest.TestCase
             cont.SetStartFrequency(300e6);
             testCase.verifyEqual(fields.StartFrequency.Value, 0.3, RelTol = 1e-12);
             testCase.verifyEqual(instr.MeasUnit, instr.MeasUnitType("dB"), "The instrument is only told on Run");
+        end
+
+        function OnlyWhatTheAnalyserCanDoIsOfferedTest(testCase, InstrumentType)
+            %A PicoVNA only sweeps linearly, and its sweep time can't be set - so the panel doesn't offer a log sweep, and the sweep time is greyed out for good
+            [~, cont] = testCase.addAnalyser(InstrumentType);
+            fields = struct(cont).Fields;
+            pico = InstrumentType == "PicoVNA_NetworkAnalyser";
+
+            testCase.verifyEqual(string(fields.SweepType.Items), testCase.ifElse(pico, "Linear", ["Linear", "Log"]));
+            testCase.verifyEqual(string(fields.SweepTime.Enable), testCase.ifElse(pico, "off", "on"));
+
+            testCase.startMeasurements();
+            cont.SetSaveSweepFile(false);
+            cont.Run();
+            testCase.waitForScan(cont);
+
+            testCase.verifyEqual(string(fields.SweepTime.Enable), testCase.ifElse(pico, "off", "on"), "Not enabled again after a scan");
+            testCase.verifyEqual(string(fields.NumPoints.Enable), "on");
+        end
+
+        function SettingsStayAcrossStopAndStartTest(testCase, InstrumentType)
+            %The panel takes on the analyser's settings the first time measurements start - not again, which would undo what the user had entered
+            [~, cont] = testCase.addAnalyser(InstrumentType);
+            fields = struct(cont).Fields;
+            pd = testCase.Programme;
+            testCase.addTeardown(@() pd.Stop());
+
+            pd.Start();
+            pause(1);
+            fields.StartFrequency.Value = 150;
+            fields.StopFrequency.Value = 450;
+            fields.NumPoints.Value = 101;
+            pd.Stop();
+            pause(1);
+            pd.Start();
+            pause(1);
+
+            testCase.verifyEqual(fields.StartFrequency.Value, 150);
+            testCase.verifyEqual(fields.StopFrequency.Value, 450);
+            testCase.verifyEqual(fields.NumPoints.Value, 101);
+        end
+
+        function NewCalibrationBringsItsSettingsAtTheNextStartTest(testCase)
+            %A calibration has its own sweep plan, so choosing another file means the panel takes on the analyser's settings again at the next start
+            [instr, cont] = testCase.addAnalyser("PicoVNA_NetworkAnalyser");
+            fields = struct(cont).Fields;
+            pd = testCase.Programme;
+            testCase.addTeardown(@() pd.Stop());
+            pd.Start();
+            pause(1);
+            fields.NumPoints.Value = 101;
+            pd.Stop();
+            pause(1);
+
+            instr.CalibrationFile = fullfile(tempdir, "another.pcal");
+            pd.Start();
+            pause(1);
+
+            testCase.verifyNotEqual(fields.NumPoints.Value, 101, "Taken from the analyser again");
+        end
+
+        function ScanPlotHasUnitsAndALegendTest(testCase, InstrumentType)
+            %The plot of a scan says what is plotted: the axes name their units, and the real and imaginary parts have a legend
+            [~, cont] = testCase.addAnalyser(InstrumentType);
+            testCase.startMeasurements();
+            cont.SetSaveSweepFile(false);
+            ax = struct(struct(cont).Plotter).UIAxes;
+
+            cont.SetUnits("dB");
+            cont.Run();
+            testCase.waitForScan(cont);
+
+            testCase.verifySubstring(string(ax.XLabel.String), "Frequency");
+            testCase.verifySubstring(string(ax.XLabel.String), "(Hz)");
+            testCase.verifySubstring(string(ax.YLabel.String), "(dB)");
+            testCase.verifyEmpty(findobj(ax.Parent, "Type", "legend"), "One series needs no legend");
+
+            cont.SetUnits("Real/Imaginary");
+            cont.Run();
+            testCase.waitForScan(cont);
+
+            legends = findobj(ax.Parent, "Type", "legend");
+            testCase.assertNotEmpty(legends, "A legend for the real and imaginary parts");
+            testCase.verifyEqual(string(legends(1).String), ["S11 Real", "S11 Imaginary"]);
         end
 
         function ChannelIsChosenInThePanelAndSentOnRunTest(testCase)
@@ -438,6 +529,15 @@ classdef test_VNAController < matlab.unittest.TestCase
             pd.Start();
             testCase.addTeardown(@() pd.Stop());
             pause(1);
+        end
+
+        function value = ifElse(~, condition, ifTrue, ifFalse)
+            %One of two values - a one-line choice for the expected value in a parameterised test.
+            if condition
+                value = ifTrue;
+            else
+                value = ifFalse;
+            end
         end
 
         function message = errorMessage(~, fcn)

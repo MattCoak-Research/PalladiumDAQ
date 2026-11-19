@@ -26,9 +26,15 @@ classdef ComServerProcess < handle
         DialogsDismissed = strings(1, 0);   %What the dialogue boxes the last CallDismissingDialogs closed said, as "title: text" each - empty if there were none
     end
 
+    %% Properties (Public)
+    properties(Access = public)
+        CallTimeout_s = 60;         %How long Call and CallDismissingDialogs wait for a reply before the process is stopped and an error raised - set Inf for a function that waits for the user (a calibration dialogue)
+    end
+
     %% Properties (Private)
     properties(Access = private)
         Process = [];               %The PowerShell process (System.Diagnostics.Process)
+        ProcessId = [];             %Its Windows process id, to stop it by if the object won't
         Folder = "";                %Temporary folder the requests and replies pass through
         NextId = 1;                 %Id of the next request
         PendingId = [];             %Id of the background call in progress, or empty for none
@@ -75,6 +81,7 @@ classdef ComServerProcess < handle
                 startInfo.CreateNoWindow = true;
                 startInfo.UseShellExecute = false;
                 this.Process = System.Diagnostics.Process.Start(startInfo);
+                this.ProcessId = double(this.Process.Id);
             catch err
                 this.Cleanup();
                 error("ComServerProcess:StartFailed", "%s", "Could not start PowerShell for " + progId + ": " + err.message);
@@ -116,7 +123,7 @@ classdef ComServerProcess < handle
             %   reply - what the method returned (text as char, or a number, [] for none)
 
             id = this.SendRequest(functionName, varargin);
-            result = this.WaitForReply(id, Inf);
+            result = this.WaitForReply(id, this.CallTimeout_s);
             reply = Palladium.Utilities.ComServerProcess.ReplyOrError(result, functionName);
         end
 
@@ -131,7 +138,7 @@ classdef ComServerProcess < handle
             %Inputs and outputs: as for Call
 
             id = this.SendRequest(functionName, varargin, true);
-            result = this.WaitForReply(id, Inf);
+            result = this.WaitForReply(id, this.CallTimeout_s);
             this.DialogsDismissed = result.dialogs;
             reply = Palladium.Utilities.ComServerProcess.ReplyOrError(result, functionName);
         end
@@ -195,6 +202,23 @@ classdef ComServerProcess < handle
             this.PendingId = [];
         end
 
+        function Terminate(this)
+            %Stop the process at once, without asking it to, and delete its folder - the only way to cut off a library function that doesn't return (a sweep under way, or a call stuck behind a dialogue box).
+            %Any call made afterwards errors (ComServerProcess:ProcessStopped)
+
+            try
+                if ~isempty(this.Process) && ~this.Process.HasExited
+                    this.Process.Kill();
+                    this.Process.WaitForExit(int32(3000));
+                end
+            catch
+                this.KillById();
+            end
+            this.PendingId = [];
+            this.AsyncResult = [];
+            this.Cleanup();
+        end
+
     end
 
     %% Methods (Private)
@@ -206,6 +230,9 @@ classdef ComServerProcess < handle
             %memory access violation, 0xC0000409 a security check failure),
             %and the last request is the call that was being made
 
+            if isempty(this.Process)
+                error("ComServerProcess:ProcessStopped", "%s", "The process running " + this.ProgId + " has been stopped.");
+            end
             if ~this.Process.HasExited
                 return;
             end
@@ -236,7 +263,7 @@ classdef ComServerProcess < handle
                     end
                     this.Process.Dispose();
                 catch
-                    %Nothing more can be done
+                    this.KillById();    %As far as it can be done
                 end
                 this.Process = [];
             end
@@ -245,6 +272,18 @@ classdef ComServerProcess < handle
                     rmdir(this.Folder, "s");
                 catch
                     %Left in the temp folder
+                end
+            end
+        end
+
+        function KillById(this)
+            %Stop the process, and any it started, by its id with Windows' taskkill - for when the process object can't.
+
+            if ~isempty(this.ProcessId)
+                try
+                    system("taskkill /PID " + this.ProcessId + " /T /F >nul 2>&1");
+                catch
+                    %Nothing more can be done
                 end
             end
         end
@@ -258,7 +297,12 @@ classdef ComServerProcess < handle
                 return;
             end
 
-            decoded = jsondecode(fileread(file, Encoding = "UTF-8"));
+            %The file can be locked for a moment (by the process finishing with it, or something scanning it): try again next time rather than fail
+            try
+                decoded = jsondecode(fileread(file, Encoding = "UTF-8"));
+            catch
+                return;
+            end
             if decoded.id ~= id
                 return;
             end
@@ -297,7 +341,11 @@ classdef ComServerProcess < handle
             result = this.ReadReply(id);
             while isempty(result)
                 this.AssertProcessRunning();
-                assert(toc(timer) < timeout_s, "ComServerProcess:Timeout", "%s", "No reply from " + this.ProgId + " within " + timeout_s + " s.");
+                if toc(timer) >= timeout_s
+                    %What the library is doing isn't known, and it can't be asked to stop: end it
+                    this.Terminate();
+                    error("ComServerProcess:Timeout", "%s", "No reply from " + this.ProgId + " within " + timeout_s + " s - its process was stopped. Is the library waiting for a dialogue box to be answered?");
+                end
                 pause(0.01);
                 result = this.ReadReply(id);
             end
@@ -381,7 +429,11 @@ classdef ComServerProcess < handle
             %sees it) and closes it with WM_CLOSE (so an OK box takes it as
             %OK); a thread also looks for visible windows of this process
             %every 50 ms while a call runs, for any the hook missed. What
-            %each said (its title and text) is noted
+            %each said (its title and text) is noted. A box that does not
+            %close (e.g. Yes/No, which has no close button) is shown again
+            %after 0.7 s, for the user to answer - hidden for good it would
+            %hold up the library's call for ever, and is reported as
+            %"STILL OPEN"
 
             source = strjoin([
                 "using System;"
@@ -397,7 +449,10 @@ classdef ComServerProcess < handle
                 "    [DllImport(""user32.dll"", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr hwnd, StringBuilder text, int max);"
                 "    [DllImport(""user32.dll"", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr hwnd, StringBuilder text, int max);"
                 "    [DllImport(""user32.dll"")] static extern bool IsWindowVisible(IntPtr hwnd);"
+                "    [DllImport(""user32.dll"")] static extern bool IsWindow(IntPtr hwnd);"
                 "    [DllImport(""user32.dll"")] static extern bool PostMessage(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);"
+                "    [DllImport(""user32.dll"")] static extern bool ShowWindow(IntPtr hwnd, int command);"
+                "    [DllImport(""user32.dll"")] static extern bool SetForegroundWindow(IntPtr hwnd);"
                 "    [DllImport(""user32.dll"")] static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);"
                 "    [DllImport(""user32.dll"")] static extern IntPtr SetWindowsHookEx(int hookType, HookProc proc, IntPtr module, uint threadId);"
                 "    [DllImport(""user32.dll"")] static extern bool UnhookWindowsHookEx(IntPtr hook);"
@@ -409,10 +464,11 @@ classdef ComServerProcess < handle
                 "    static readonly object gate = new object();"
                 "    static List<string> closed = new List<string>();"
                 "    static HashSet<IntPtr> handled = new HashSet<IntPtr>();"
+                "    static Dictionary<IntPtr, DateTime> hiddenSince = new Dictionary<IntPtr, DateTime>();"
                 "    static volatile bool running;"
                 "    static Thread worker;"
                 "    public static void Start() {"
-                "        lock (gate) { closed.Clear(); handled.Clear(); }"
+                "        lock (gate) { closed.Clear(); handled.Clear(); hiddenSince.Clear(); }"
                 "        hookProc = new HookProc(OnCbt);"
                 "        hook = SetWindowsHookEx(5, hookProc, IntPtr.Zero, GetCurrentThreadId());"
                 "        running = true;"
@@ -424,25 +480,47 @@ classdef ComServerProcess < handle
                 "        running = false;"
                 "        if (hook != IntPtr.Zero) { UnhookWindowsHookEx(hook); hook = IntPtr.Zero; }"
                 "        if (worker != null) { worker.Join(2000); worker = null; }"
+                "        RevealStuck(0);"
                 "        lock (gate) { return closed.ToArray(); }"
                 "    }"
                 "    static string TextOf(IntPtr hwnd) { StringBuilder text = new StringBuilder(512); GetWindowText(hwnd, text, 512); return text.ToString(); }"
                 "    static string ClassOf(IntPtr hwnd) { StringBuilder text = new StringBuilder(64); GetClassName(hwnd, text, 64); return text.ToString(); }"
+                "    static string BodyOf(IntPtr hwnd) {"
+                "        string body = """";"
+                "        EnumChildWindows(hwnd, delegate(IntPtr child, IntPtr unused) {"
+                "            string text = TextOf(child);"
+                "            if (text.Length > 0 && ClassOf(child) == ""Static"") { body += (body.Length > 0 ? "" "" : """") + text; }"
+                "            return true;"
+                "        }, IntPtr.Zero);"
+                "        return body;"
+                "    }"
                 "    static IntPtr OnCbt(int code, IntPtr wParam, IntPtr lParam) {"
                 "        if (code == 5 && ClassOf(wParam) == ""#32770"") { Dismiss(wParam); }"
                 "        return CallNextHookEx(hook, code, wParam, lParam);"
                 "    }"
                 "    static void Dismiss(IntPtr hwnd) {"
                 "        lock (gate) { if (handled.Contains(hwnd)) { return; } handled.Add(hwnd); }"
-                "        string body = """";"
-                "        EnumChildWindows(hwnd, delegate(IntPtr child, IntPtr unused2) {"
-                "            string text = TextOf(child);"
-                "            if (text.Length > 0 && ClassOf(child) == ""Static"") { body += (body.Length > 0 ? "" "" : """") + text; }"
-                "            return true;"
-                "        }, IntPtr.Zero);"
-                "        lock (gate) { closed.Add(TextOf(hwnd) + "": "" + body); }"
+                "        string said = TextOf(hwnd) + "": "" + BodyOf(hwnd);"
+                "        lock (gate) { closed.Add(said); hiddenSince[hwnd] = DateTime.UtcNow; }"
                 "        SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0004 | 0x0010 | 0x0080);"
                 "        PostMessage(hwnd, 0x0010, IntPtr.Zero, IntPtr.Zero);"
+                "    }"
+                "    static void RevealStuck(double milliseconds) {"
+                "        List<IntPtr> stuck = new List<IntPtr>();"
+                "        lock (gate) {"
+                "            List<IntPtr> finished = new List<IntPtr>();"
+                "            foreach (KeyValuePair<IntPtr, DateTime> item in hiddenSince) {"
+                "                if (!IsWindow(item.Key)) { finished.Add(item.Key); }"
+                "                else if ((DateTime.UtcNow - item.Value).TotalMilliseconds >= milliseconds) { stuck.Add(item.Key); finished.Add(item.Key); }"
+                "            }"
+                "            foreach (IntPtr hwnd in finished) { hiddenSince.Remove(hwnd); }"
+                "        }"
+                "        foreach (IntPtr hwnd in stuck) {"
+                "            ShowWindow(hwnd, 5);"
+                "            SetForegroundWindow(hwnd);"
+                "            string said = ""STILL OPEN - it needs a click: "" + TextOf(hwnd) + "": "" + BodyOf(hwnd);"
+                "            lock (gate) { closed.Add(said); }"
+                "        }"
                 "    }"
                 "    static void Loop() {"
                 "        uint me = (uint)System.Diagnostics.Process.GetCurrentProcess().Id;"
@@ -454,6 +532,7 @@ classdef ComServerProcess < handle
                 "                Dismiss(hwnd);"
                 "                return true;"
                 "            }, IntPtr.Zero);"
+                "            RevealStuck(700);"
                 "            Thread.Sleep(50);"
                 "        }"
                 "    }"

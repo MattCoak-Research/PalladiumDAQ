@@ -18,6 +18,11 @@ classdef RecordingPicoVNA < Palladium.Instruments.PicoVNA_NetworkAnalyser
             this.Backend = backend;
         end
 
+        function SetSweepTimeLimitForTest(this, limit_s)
+            %Shorten how long the sweep under way may take before it is treated as hung - set after RunScan, which works the limit out
+            this.SweepTimeLimit_s = limit_s;
+        end
+
         function CloseForTest(this)
             %Close the connection, as Disconnect does (CloseConnection is protected)
             this.CloseConnection();
