@@ -135,6 +135,38 @@ classdef test_ScanController < matlab.unittest.TestCase
             testCase.verifyEqual(testCase.View.AbortCount, 0);
         end
 
+        function test_Abort_TellsTheInstrumentSoItCanStopItsSweepTest(testCase)
+            instrument = InstrumentTestingInstruments.FakeScanInstrument();
+            testCase.Controller.AttachForTest(testCase.View, instrument);
+
+            testCase.Controller.PressAbortForTest();
+
+            testCase.verifyEqual(instrument.AbortCount, 1);
+            testCase.verifyEqual(testCase.View.ReadyCount, 1, "The panel is ready again");
+        end
+
+        function test_Abort_AnInstrumentThatCannotStopItsSweepStillLetsThePanelResetTest(testCase)
+            instrument = InstrumentTestingInstruments.FakeScanInstrument();
+            instrument.AbortError = true;
+            testCase.Controller.AttachForTest(testCase.View, instrument);
+
+            testCase.verifyWarningFree(@() testCase.Controller.PressAbortForTest());
+
+            testCase.verifyEqual(testCase.View.ReadyCount, 1);
+        end
+
+        function test_ScanComplete_DataThatCannotBeCollectedPutsThePanelBackToReadyTest(testCase)
+            %A failed scan (e.g. no data from the analyser) left the panel showing Abort and its settings locked
+            instrument = InstrumentTestingInstruments.FakeScanInstrument();
+            instrument.CollectError = true;
+            testCase.Controller.AttachForTest(testCase.View, instrument);
+
+            testCase.verifyError(@() testCase.Controller.ScanComplete(), "FakeScanInstrument:CollectFailed");
+
+            testCase.verifyEqual(testCase.View.ReadyCount, 1);
+            testCase.verifyFalse(testCase.Controller.Running);
+        end
+
         function test_SettersGoThroughThePanelTest(testCase)
             testCase.Controller.SetSweepName("T_300K");
             testCase.Controller.SetSaveSweepFile(false);

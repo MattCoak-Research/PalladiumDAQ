@@ -36,10 +36,12 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
     %instead of measuring (`RunScan` with the field LoadRegister) - plotted
     %and saved like a scan, and never repeated by Continuous.
     %
-    %The panel is filled in from the instrument when measurements start,
-    %and again after each scan (showing what the analyser actually set),
-    %if the instrument has a `GetScanSettings` method returning a struct
-    %with those fields. The S-parameter and units lists are the
+    %The panel is filled in from the instrument the first time measurements
+    %start (and again at the next start after the instrument's CalibrationFile
+    %changes, as a calibration brings its own sweep plan) - never on later
+    %starts, so what the user has entered stays - and after each scan
+    %(showing what the analyser actually set), if the instrument has a
+    %`GetScanSettings` method returning a struct with those fields. The S-parameter and units lists are the
     %instrument's own (the categories of its MeasMode and MeasUnit).
     %
     %Used by PNA_L_NetworkAnalyser, HP_8722ES_NetworkAnalyser and PicoVNA_NetworkAnalyser.
@@ -51,6 +53,9 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
         ExtraRefreshing = strings(1, 0);    %Those of them that refresh the panel from the instrument when changed (the others are just sent on the next Run)
         PendingRegister = [];           %The analyser register LoadSavedData is loading - taken into the next scan's details, which then load it instead of sweeping
         UnitsBeforeSmith = "";  %The Units chosen before the Smith chart was (which needs Real/Imaginary), to go back to when it is not
+        FixedDisabled = strings(1, 0);  %Fields the analyser can't use (e.g. the sweep time of one that sets it from the points and bandwidth) - they stay disabled
+        FilledFromInstrument = false;   %True once the panel has taken on the instrument's settings (when first connected) - later starts leave it as the user has it
+        LastCalibrationFile = "";       %The instrument's CalibrationFile when the panel last looked - a change means a new sweep plan to take on at the next start
     end
 
     %% Properties (Constant, Private)
@@ -251,11 +256,14 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
 
             this.CheckNumber(time_s, "time_s", @mustBeNonnegative, @mustBeFinite);
             f = this.EditableFields();
+            assert(~any(this.FixedDisabled == "SweepTime"), "VNAController:SweepTimeNotSettable", "%s", ...
+                "This analyser's sweep time follows from the number of points and the bandwidth - it can't be set.");
             f.SweepTime.Value = time_s;
         end
 
         function SetSweepType(this, sweepType)
             %Choose linear or logarithmic frequency steps, as the Sweep type drop-down does - for sequences and scripts.
+            %Only the types the analyser offers (a PicoVNA sweeps linearly only)
             %
             %Inputs:
             %   sweepType - "Linear" or "Log"
@@ -326,6 +334,14 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
                 end
                 scanDetails.(name) = value;
             end
+
+            %Warn, and carry on, about a sweep the calibration loaded can't cover
+            if ismethod(this.Instrument, "CalibrationWarning")
+                message = this.Instrument.CalibrationWarning(scanDetails);
+                if strlength(message) > 0
+                    Palladium.Utilities.GUIUtils.ShowWarning(this.GUIView, message, "Outside the calibration");
+                end
+            end
         end
 
         function CreateSettingsPanel(this, parentGrid, row)
@@ -374,7 +390,23 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
             f.NumPoints.RoundFractionalValues = "on";
             f.NumPoints.ValueChangedFcn = @(src, ~) this.SnapNumPoints(src);
             f.SweepTime = this.AddNumberField(grid, r + 4, "Sweep time (s, 0 = automatic)", "Time for one sweep, in seconds - 0 for the fastest the analyser can (automatic)", [0, Inf], "%.6g");
-            f.SweepType = this.AddDropDown(grid, r + 5, "Sweep type", "Linear or logarithmic frequency steps", ["Linear", "Log"]);
+            sweepTypes = ["Linear", "Log"];
+            if isprop(instr, "SweepTypes")
+                sweepTypes = string(instr.SweepTypes);
+            end
+            sweepTypeTooltip = "Linear or logarithmic frequency steps";
+            if isscalar(sweepTypes)
+                sweepTypeTooltip = "This analyser sweeps " + lower(sweepTypes) + " only";
+            end
+            f.SweepType = this.AddDropDown(grid, r + 5, "Sweep type", sweepTypeTooltip, sweepTypes);
+            this.FixedDisabled = strings(1, 0);
+            if isscalar(sweepTypes)
+                this.FixedDisabled(end + 1) = "SweepType";
+            end
+            if isprop(instr, "CanSetSweepTime") && ~instr.CanSetSweepTime
+                this.FixedDisabled(end + 1) = "SweepTime";
+                f.SweepTime.Tooltip = "This analyser's sweep time follows from the number of points and the bandwidth - it can't be set";
+            end
 
             %The S-parameters and units are the instrument's own lists
             if isprop(instr, "MeasMode") && iscategorical(instr.MeasMode)
@@ -406,15 +438,23 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
                 f.LoadButton.Layout.Column = 3;
             end
             this.Fields = f;
+            this.SetFieldsEnabled(true);        %Leaves disabled any the analyser can't use
 
             %Start from the instrument's settings, if it is already connected
-            this.RefreshFromInstrument();
+            if isprop(instr, "CalibrationFile")
+                this.LastCalibrationFile = string(instr.CalibrationFile);
+            end
+            this.FilledFromInstrument = this.RefreshFromInstrument();
         end
 
         function OnInstrumentPropertyChanged(this)
-            %Keep the S-parameter and units in step with the instrument's (e.g. changed in Instrument Options).
+            %Keep the S-parameter and units in step with the instrument's (e.g. changed in Instrument Options), and take on a new calibration's sweep plan at the next start.
 
             f = this.Fields;
+            if isprop(this.Instrument, "CalibrationFile") && string(this.Instrument.CalibrationFile) ~= this.LastCalibrationFile
+                this.LastCalibrationFile = string(this.Instrument.CalibrationFile);
+                this.FilledFromInstrument = false;
+            end
             if isfield(f, "MeasMode") && isvalid(f.MeasMode)
                 f.MeasMode.Value = string(this.Instrument.MeasMode);
             end
@@ -426,7 +466,9 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
         function OnMeasurementsInitialised(this, headers)
             %The analyser is connected now, so the panel can start from its settings.
             OnMeasurementsInitialised@Palladium.Instruments.Controls.ScanController(this, headers);
-            this.RefreshFromInstrument();
+            if ~this.FilledFromInstrument
+                this.FilledFromInstrument = this.RefreshFromInstrument();
+            end
         end
 
     end
@@ -630,8 +672,8 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
             refreshes = ~isfield(control, "RefreshOnChange") || isempty(control.RefreshOnChange) || logical(control.RefreshOnChange);
         end
 
-        function RefreshFromInstrument(this, selection)
-            %Fill the panel in from the instrument's GetScanSettings, if it has one and is connected.
+        function filled = RefreshFromInstrument(this, selection)
+            %Fill the panel in from the instrument's GetScanSettings, if it has one and is connected - true if it did.
             %Without a selection, a failure is logged rather than raised -
             %the panel just keeps its values. With one (the extra settings'
             %values, so the instrument gives those choices' settings) it
@@ -645,6 +687,7 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
                 selection = [];
             end
 
+            filled = false;
             f = this.Fields;
             instr = this.Instrument;
             if isempty(fieldnames(f)) || isempty(instr) || ~ismethod(instr, "GetScanSettings") || ~instr.IsConnected()
@@ -687,6 +730,8 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
                 end
             end
 
+            filled = true;
+
             function setIf(name, field, scale)
                 %A number field, if the setting is there and a number
                 if isfield(settings, name) && isnumeric(settings.(name)) && isscalar(settings.(name)) && isfinite(settings.(name))
@@ -712,6 +757,9 @@ classdef VNAController < Palladium.Instruments.Controls.ScanController
             end
             if enabled && this.SmithChosen()
                 this.Fields.MeasUnit.Enable = false;
+            end
+            for name = this.FixedDisabled
+                this.Fields.(name).Enable = false;
             end
         end
 

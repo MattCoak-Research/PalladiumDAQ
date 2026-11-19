@@ -61,6 +61,33 @@ classdef test_SimplePlotterPanel < matlab.unittest.TestCase
             testCase.verifyEqual([trace(1).XData(1), trace(1).YData(1)], [0.8, 0], AbsTol = 1e-12);
         end
 
+        function SavePlotGivesTheSaveCodeTheCopysAxesNotTheGUIsTest(testCase)
+            %The save code titles untitled axes and names the file after a title: given the live axes in the window, it titled those, and the stale title was
+            %then used for every later save
+            plotter = testCase.makePlotter();
+            plotter.TitleForCopiedPlots = "2026-11-19_Sweep";
+            x = linspace(1, 10, 20)';
+            plotter.PlotData(x, x);
+            warning("off", "MATLAB:structOnObject");
+            testCase.addTeardown(@() warning("on", "MATLAB:structOnObject"));
+            liveAxes = struct(plotter).UIAxes;
+            sent = struct("AxesInTheCopy", false, "Title", "", "FigureIsTheCopysOwn", false);
+            listener = addlistener(plotter, "SavePlot", @(~, event) capture(event));
+            testCase.addTeardown(@() delete(listener));
+
+            button = struct(plotter).SavePlotButton;
+            button.ButtonPushedFcn(button, []);
+
+            testCase.verifyTrue(sent.AxesInTheCopy, "The axes sent are in the copied figure, not the window");
+            testCase.verifyEqual(sent.Title, "2026-11-19_Sweep", "and carry its title, which the file is named after");
+            testCase.verifyEqual(strlength(strjoin(string(liveAxes.Title.String), "")), 0, "The window's axes are left untitled");
+
+            function capture(event)
+                sent.AxesInTheCopy = ancestor(event.Axes, "figure") == event.Figure;
+                sent.Title = string(event.Axes.Title.String);
+            end
+        end
+
         function SmithKindWithoutRFToolboxIsRefusedTest(testCase)
             %Palladium works without RF Toolbox: asking its plotter for a Smith chart errors, and it stays a scatter plot
             testCase.assumeTrue(Palladium.Utilities.GUIUtils.IsSmithPlotAvailable(), "Needs RF Toolbox, to take away");

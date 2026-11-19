@@ -84,12 +84,15 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
     properties(Constant, Access = public)
         PowerLimits_dBm = [-20, 10];                            %The test signal power that can be asked for, in dBm: -20 to +6 (106) or +10 (108)
         BandwidthChoices_Hz = [10 50 100 500 1000 5000 10000 15000 35000 70000 140000];     %The measurement (IF) bandwidths, in Hz - narrower is less noisy but slower
+        CanSetSweepTime = false;                                %The sweep time follows from the points and bandwidth, so the VNA Control doesn't offer it
+        SweepTypes = "Linear";                                  %The sweep types the VNA Control offers: the library sets a start frequency and a step, so only linear
     end
 
     %% Properties (Public, Read Only)
     properties(SetAccess = private)
         MeasMode;                                               %S-parameter (S11, S21, S12 or S22) of the last sweep started - labels its data; the next sweep measures this one unless told otherwise. Chosen per measurement (RunMeasurement, or the VNA Control), not an instrument setting. S12 and S22 need a two-port calibration
         MeasUnit;                                               %Units of the last sweep: dB (log magnitude), Absolute (linear magnitude) or Real/Imaginary (the complex value, for a Smith chart - PicoVNA 3 only)
+        CalibrationPlan = [];                                   %The frequency plan of the calibration loaded when the analyser connected, as a struct (StartFrequency_Hz, StopFrequency_Hz, NumPoints) - empty if there is none, or the software doesn't say. A sweep outside its span can't use it (CalibrationWarning)
     end
 
     %% Properties (Public, Set Observable, Hidden)
@@ -101,16 +104,33 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
     %% Properties (Protected)
     properties(Access = protected)
         Backend = [];                                           %The Palladium.Instruments.PicoVNA.Backend talking to the software, found by OpenConnection - empty when not connected, or in SimulationMode
+        SweepTimeLimit_s = Inf;                                 %How long the sweep under way may take before it is treated as hung (TimeLimitForSweep) - protected so a test can shorten it
     end
 
     %% Properties (Private)
     properties(Access = private)
         SkipCalibrationFile = false;                            %True while RunCalibrationFromGUI has the analyser connected, so a stale CalibrationFile isn't loaded over the new calibration
         ScanComplete = true;                                    %False from RunScan starting a sweep until it has finished (or been abandoned)
+        SweepStartedAt = [];                                    %tic of the sweep under way's start - a sweep that takes far longer than it should is treated as hung (see CheckScanComplete)
         ScanData = [];                                          %The sweep's data (frequency and value of each point), once it has finished
         MeasureError = [];                                      %MException if the sweep failed - raised when its data is collected (GetCompletedScanData). Empty if it didn't
         SweepSettings = [];                                     %Struct of the plan (as GetScanSettings) and Power_dBm, Bandwidth_Hz and CalType read back before the last sweep started - answered from here while it is under way, when the software can't be asked. Empty until the first sweep
         SimulatedSettings = struct("StartFrequency_Hz", 300e3, "StopFrequency_Hz", 8.5e9, "NumPoints", 201, "Power_dBm", 0, "Bandwidth_Hz", 1000);     %In SimulationMode, the frequency plan, power and bandwidth last set
+    end
+
+    %% Properties (Dependent, Public, Private Set)
+    properties(Dependent, GetAccess = public, SetAccess = private)
+        NumPointsChoices;                                       %The numbers of points the software it is connected to takes, if it has set choices (PicoVNA 3's library) - else empty. The VNA Control snaps its Number of points to these, and a sweep rounds to the nearest
+    end
+
+    %% Get and Set Accessors
+    methods
+        function choices = get.NumPointsChoices(this)
+            choices = [];
+            if ~this.SimulationMode && ~isempty(this.Backend)
+                choices = this.Backend.NumPointsChoices();
+            end
+        end
     end
 
     %% Categoricals
@@ -144,6 +164,20 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
     %% Methods (Public)
     methods (Access = public)
 
+        function AbortScan(this)
+            %Give up on the sweep under way, when its scan is aborted - the VNA Control calls this.
+            %PicoVNA 3's library can't stop a sweep, so its process is stopped
+            %(cutting the sweep off); it starts again, with the calibration
+            %loaded again, when the next scan needs it. Does nothing if no
+            %sweep is under way
+
+            if this.SimulationMode || this.ScanComplete || isempty(this.Backend)
+                return;
+            end
+            this.Backend.AbortSweep();
+            this.ScanComplete = true;
+        end
+
         function BrowseForCalibration(this, owner)
             %Ask for a calibration file and set CalibrationFile to it - the Browse button in the Instrument Options panel.
             %Does nothing if cancelled
@@ -170,6 +204,34 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
             this.Backend.Calibrate();
         end
 
+        function message = CalibrationWarning(this, scanDetails)
+            %What to warn about when a scan with these settings runs under the calibration loaded - or "" for nothing.
+            %The library can't extrapolate a calibration: a sweep that isn't
+            %inside the span it was made over gets the calibration's own
+            %plan instead (and the library says so only in a box that is
+            %closed). A different number of points inside the span is fine -
+            %the calibration is interpolated - and so is no warning
+            %
+            %Inputs:
+            %   scanDetails - the scan's settings (a struct with StartFrequency_Hz and StopFrequency_Hz)
+            %
+            %Outputs:
+            %   message - the warning, or ""
+
+            message = "";
+            plan = this.CalibrationPlan;
+            if isempty(plan) || ~isstruct(scanDetails) || ~all(isfield(scanDetails, ["StartFrequency_Hz", "StopFrequency_Hz"]))
+                return;
+            end
+
+            tolerance = 1e-6 * plan.StopFrequency_Hz;
+            if scanDetails.StartFrequency_Hz < plan.StartFrequency_Hz - tolerance || scanDetails.StopFrequency_Hz > plan.StopFrequency_Hz + tolerance
+                message = "The sweep (" + scanDetails.StartFrequency_Hz / 1e6 + " to " + scanDetails.StopFrequency_Hz / 1e6 + " MHz) is not inside the span the calibration was made over (" + ...
+                    plan.StartFrequency_Hz / 1e6 + " to " + plan.StopFrequency_Hz / 1e6 + " MHz, " + plan.NumPoints + " points)." + newline + newline + ...
+                    "A calibration can't be extrapolated, so the scan will use the calibration's own frequency plan instead. For another range, choose one inside the calibration's, or calibrate over the range you want.";
+            end
+        end
+
         function complete = CheckScanComplete(this)
             %Check, without waiting, whether the sweep started by RunScan has finished - for the Scan Control tab.
             %If the sweep failed (e.g. no calibration covers it) this is
@@ -188,6 +250,13 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
                     end
                     this.MeasureError = MException(identifier, "%s", this.Name + ": " + err.message);
                 end
+                this.ScanComplete = true;
+            elseif ~this.ScanComplete && ~isempty(this.SweepStartedAt) && toc(this.SweepStartedAt) > this.SweepTimeLimit_s
+                %Far longer than a sweep takes: the library is stuck (e.g. waiting behind a dialogue box). End it, and say so when the data is collected
+                taken_s = round(toc(this.SweepStartedAt));
+                this.Backend.AbortSweep();
+                this.MeasureError = MException("PicoVNA_NetworkAnalyser:SweepTimeout", "%s", this.Name + ": the sweep was not finished after " + taken_s + " s (it should take under " + ...
+                    round(this.SweepTimeLimit_s) + " s), so the analyser's library was stopped. It starts again with the next scan.");
                 this.ScanComplete = true;
             end
             complete = this.ScanComplete;
@@ -397,6 +466,10 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
             end
 
             this.Backend.LoadCalibration(fileName);
+            this.CalibrationPlan = [];
+            if this.Backend.LoadingCalibrationSetsPlan()
+                this.CalibrationPlan = this.Backend.ReadPlan();     %The calibration's own plan
+            end
         end
 
         function [dataRow] = Measure(~)
@@ -473,7 +546,7 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
             %   MeasUnit          - "dB", "Absolute" or "Real/Imaginary" (the last, PicoVNA 3 only)
             %   StartFrequency_Hz - sweep start, in Hz
             %   StopFrequency_Hz  - sweep stop, in Hz
-            %   NumPoints         - number of points
+            %   NumPoints         - number of points; with PicoVNA 3 the nearest of NumPointsChoices is used, with a warning
             %   Power_dBm         - test signal power, in dBm (PowerLimits_dBm). PicoVNA 3 only: with PicoVNA 5 it is set in the software, and a different value here is warned about
             %   Bandwidth_Hz      - measurement bandwidth, in Hz (BandwidthChoices_Hz). PicoVNA 3 only, as the power
             %   SweepTime_s       - ignored, with a warning if above 0: it follows from the points and bandwidth
@@ -509,6 +582,14 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
             if has("SweepTime_s") && options.SweepTime_s > 0
                 Palladium.Logging.Logger.Log("Warning", this.Name + ": the PicoVNA's sweep time can't be set (it follows from the points and bandwidth) - ignoring " + options.SweepTime_s + " s.");
             end
+            choices = this.NumPointsChoices;
+            if has("NumPoints") && ~isempty(choices)
+                [~, nearest] = min(abs(choices - options.NumPoints));
+                if choices(nearest) ~= options.NumPoints
+                    Palladium.Logging.Logger.Log("Warning", this.Name + ": the PicoVNA takes only " + strjoin(string(choices), ", ") + " points - using " + choices(nearest) + ", the nearest to " + options.NumPoints + ".");
+                end
+                options.NumPoints = choices(nearest);
+            end
             power_dBm = this.ToNumber(options.Power_dBm, "Power_dBm");          %Empty, or a number: the GUI's drop-down values are text
             bandwidth_Hz = this.ToNumber(options.Bandwidth_Hz, "Bandwidth_Hz");
             if ~isempty(power_dBm)
@@ -530,6 +611,7 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
             if ~this.SimulationMode
                 this.Backend.AbortSweep();
                 this.ScanComplete = true;
+                this.EnsureBackendOpen();
             end
 
             %Whatever isn't given stays as the software has it
@@ -554,6 +636,8 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
                 this.Backend.StartSweep(string(this.MeasMode), string(this.MeasUnit), this.SweepSettings);
                 this.ScanData = [];
                 this.ScanComplete = false;
+                this.SweepStartedAt = tic;
+                this.SweepTimeLimit_s = this.TimeLimitForSweep(this.SweepSettings);
             end
 
             if options.Wait
@@ -686,9 +770,7 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
             end
 
             disp("Connected to " + this.Name + " instrument: " + this.Backend.Description + ".");
-            if strlength(string(this.CalibrationFile)) > 0 && ~this.SkipCalibrationFile
-                this.LoadCalibration(this.CalibrationFile);
-            end
+            this.ApplyCalibrationFile();
         end
 
         function OpenConnection(this)
@@ -716,6 +798,15 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
     %% Methods (Private)
     methods(Access = private)
 
+        function ApplyCalibrationFile(this)
+            %Load the CalibrationFile, if one is set, and note its frequency plan - after connecting, or connecting again.
+
+            this.CalibrationPlan = [];
+            if strlength(string(this.CalibrationFile)) > 0 && ~this.SkipCalibrationFile
+                this.LoadCalibration(this.CalibrationFile);
+            end
+        end
+
         function EndGUICalibration(this)
             %Disconnect the analyser after RunCalibrationFromGUI, and go back to applying CalibrationFile when connecting.
 
@@ -727,6 +818,16 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
                     Palladium.Logging.Logger.Log("Warning", this.Name + ": could not disconnect after calibrating: " + string(err.message));
                 end
             end
+        end
+
+        function EnsureBackendOpen(this)
+            %Start the software's connection again, with the calibration loaded again, if a cut-off sweep (AbortScan, or one that hung) stopped it.
+
+            if this.SimulationMode || isempty(this.Backend) || ~this.Backend.NeedsReopen()
+                return;
+            end
+            this.Backend.Reopen();
+            this.ApplyCalibrationFile();
         end
 
         function backend = FindSoftware(this)
@@ -776,6 +877,7 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
                 plan = struct("StartFrequency_Hz", this.SweepSettings.StartFrequency_Hz, "StopFrequency_Hz", this.SweepSettings.StopFrequency_Hz, ...
                     "NumPoints", this.SweepSettings.NumPoints);
             else
+                this.EnsureBackendOpen();
                 plan = this.Backend.ReadPlan();
             end
         end
@@ -789,8 +891,16 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
             elseif ~this.ScanComplete
                 settings = this.SweepSettings;
             else
+                this.EnsureBackendOpen();
                 settings = this.Backend.ReadSweepSettings();
             end
+        end
+
+        function limit_s = TimeLimitForSweep(~, settings)
+            %How long a sweep may take before it is treated as hung: far more than the time the PicoVNA 3 guide gives (points x (167 us + 1.91 / bandwidth), two-port), and never less than half a minute.
+
+            expected_s = settings.NumPoints * (167e-6 + 1.91 / settings.Bandwidth_Hz);
+            limit_s = max(30, 20 * expected_s + 10);
         end
 
         function number = ToNumber(~, value, name)
