@@ -258,6 +258,16 @@ classdef Software3 < Palladium.Instruments.PicoVNA.Backend
             reply = this.Ask("SetFreqPlan", start_Hz / 1e6, step_MHz, numPoints, this.Power_dBm, this.Bandwidth_Hz);
             this.ExpectOK(reply, "setting the frequency plan (" + start_Hz / 1e6 + " to " + stop_Hz / 1e6 + " MHz, " + numPoints + " points, " + ...
                 this.Power_dBm + " dBm, " + this.Bandwidth_Hz + " Hz bandwidth)");
+
+            %With a calibration loaded the library works out new error terms for the plan, and may keep the calibration's power and bandwidth rather
+            %than the ones just sent - so check, and ask for them with SetEnhance, which the guide says applies at the next sweep
+            numbers = this.ParseNumbers(this.Ask("GetInfo", "FreqPlan"));
+            if numel(numbers) == 5 && abs(numbers(5) - this.Power_dBm) > 0.05
+                this.ExpectOK(this.Ask("SetEnhance", "Powr", this.Power_dBm), "setting the power to " + this.Power_dBm + " dBm");
+            end
+            if str2double(strip(string(this.Ask("GetInfo", "BWSet")))) ~= this.Bandwidth_Hz
+                this.ExpectOK(this.Ask("SetEnhance", "BW", this.Bandwidth_Hz), "setting the bandwidth to " + this.Bandwidth_Hz + " Hz");
+            end
         end
 
         function SetSweepOptions(this, power_dBm, bandwidth_Hz)

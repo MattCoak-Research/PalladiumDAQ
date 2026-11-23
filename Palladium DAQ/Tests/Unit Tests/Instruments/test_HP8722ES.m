@@ -140,6 +140,22 @@ classdef test_HP8722ES < matlab.unittest.TestCase
             testCase.verifyError(@() instr.GetCompletedScanData(), "HP_8722ES_NetworkAnalyser:DataSizeMismatch");
         end
 
+        function MetadataRecordsEverySweepSettingAskedForTest(testCase)
+            %The data file's header says what the analyser was set to - sweep time and type as well as the range and points
+            instr = Palladium.Instruments.HP_8722ES_NetworkAnalyser();
+            instr.Connection_Type = Palladium.Enums.ConnectionType.Debug;
+            evalc("instr.Connect()");
+            instr.RunScan(struct("StartFrequency_Hz", 2e6, "StopFrequency_Hz", 3e9, "NumPoints", 401, "SweepTime_s", 0.5, "SweepType", "Log"));
+
+            metadata = instr.CollectMetaData();
+
+            testCase.verifyEqual(metadata.Freq_Start_Hz, 2e6);
+            testCase.verifyEqual(metadata.Freq_Stop_Hz, 3e9);
+            testCase.verifyEqual(metadata.NumPoints, 401);
+            testCase.verifyEqual(metadata.SweepTime_s, 0.5);
+            testCase.verifyEqual(string(metadata.SweepType), "Log");
+        end
+
         function ScanHeadersTest(testCase)
             instr = Palladium.Instruments.HP_8722ES_NetworkAnalyser();
             instr.Connection_Type = Palladium.Enums.ConnectionType.Debug;
