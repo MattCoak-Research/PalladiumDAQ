@@ -156,14 +156,22 @@ classdef HP_8722ES_NetworkAnalyser < Palladium.Core.Instrument
             %Sweep settings, recorded in the data-file header.
             %
             %Outputs:
-            %   metadataStruct - struct with fields Channel (if known), Freq_Start_Hz, Freq_Stop_Hz and NumPoints
+            %   metadataStruct - struct with fields Channel (if known), Freq_Start_Hz, Freq_Stop_Hz,
+            %   NumPoints, SweepTime_s and SweepType
 
             if this.ScanChannel > 0
                 metadataStruct.Channel = this.ScanChannel;
             end
-            metadataStruct.Freq_Start_Hz = this.GetStartFrequency();
-            metadataStruct.Freq_Stop_Hz = this.GetStopFrequency();
-            metadataStruct.NumPoints = this.GetNumPoints();
+            if this.SimulationMode || ~this.ScanComplete
+                settings = this.SweepSettings;      %Read back before the sweep started - no queries can be answered during it
+            else
+                settings = this.ReadSweepSettings();
+            end
+            metadataStruct.Freq_Start_Hz = settings.StartFrequency_Hz;
+            metadataStruct.Freq_Stop_Hz = settings.StopFrequency_Hz;
+            metadataStruct.NumPoints = settings.NumPoints;
+            metadataStruct.SweepTime_s = settings.SweepTime_s;
+            metadataStruct.SweepType = settings.SweepType;
         end
 
         function channel = GetActiveChannel(this)

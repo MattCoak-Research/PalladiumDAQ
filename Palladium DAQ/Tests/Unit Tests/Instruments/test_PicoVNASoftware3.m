@@ -29,7 +29,7 @@ classdef test_PicoVNASoftware3 < matlab.unittest.TestCase
 
             %(The power and bandwidth not given are read from the library, to be sent again with the plan)
             testCase.verifyEqual(server.Calls, ["GetInfo(FreqPlan)", "GetInfo(FreqPlan)", "GetInfo(BWSet)", "SetFreqPlan(10, 9.9, 101, 0, 1000)", ...
-                "GetInfo(FreqPlan)", "GetInfo(FreqPlan)", "GetInfo(BWSet)", "GetInfo(CalType)", "GetInfo(CalType)", "Measure(S21) [background]"]);
+                "GetInfo(FreqPlan)", "GetInfo(BWSet)", "GetInfo(FreqPlan)", "GetInfo(FreqPlan)", "GetInfo(BWSet)", "GetInfo(CalType)", "GetInfo(CalType)", "Measure(S21) [background]"]);
             testCase.verifyEqual(string(instr.MeasMode), "S21");
         end
 
@@ -40,6 +40,33 @@ classdef test_PicoVNASoftware3 < matlab.unittest.TestCase
             instr.RunScan(struct("StartFrequency_Hz", 1e6, "StopFrequency_Hz", 2e6, "NumPoints", 101, "Power_dBm", -10, "Bandwidth_Hz", 100));
 
             testCase.verifyTrue(any(server.Calls == "SetFreqPlan(1, 0.01, 101, -10, 100)"));
+        end
+
+        function PowerAndBandwidthTheLibraryDidNotApplyAreSetAgainAndWarnedAboutTest(testCase)
+            %With a calibration loaded the library may keep the calibration's power and bandwidth: the plan's reply here keeps 0 dBm and 1000 Hz
+            Palladium.Logging.Logger.ResetForTest();
+            testCase.addTeardown(@() Palladium.Logging.Logger.ResetForTest());
+            [instr, server] = testCase.makeInstrument();
+
+            output = evalc("instr.RunScan(struct(""StartFrequency_Hz"", 1e6, ""StopFrequency_Hz"", 2e6, ""NumPoints"", 101, ""Power_dBm"", -10, ""Bandwidth_Hz"", 5000));");
+
+            testCase.verifyTrue(any(server.Calls == "SetEnhance(Powr, -10)"), "Power asked for again");
+            testCase.verifyTrue(any(server.Calls == "SetEnhance(BW, 5000)"), "Bandwidth asked for again");
+            testCase.verifySubstring(output, "bandwidth is 1000 Hz, not the 5000 Hz asked for");
+            testCase.verifySubstring(output, "power is 0 dBm, not the -10 dBm asked for");
+        end
+
+        function PowerAndBandwidthTheLibraryAppliedAreNotSetAgainTest(testCase)
+            [instr, server] = testCase.makeInstrument();
+            server.Replies("GetInfo|BWSet") = "5000";
+            server.Replies("GetInfo|FreqPlan") = "3E5,2E9,1E7,201,-10";
+
+            instr.RunScan(struct("StartFrequency_Hz", 1e6, "StopFrequency_Hz", 2e6, "NumPoints", 101, "Power_dBm", -10, "Bandwidth_Hz", 5000));
+
+            testCase.verifyFalse(any(startsWith(server.Calls, "SetEnhance")));
+            metadata = instr.CollectMetaData();
+            testCase.verifyEqual(metadata.Bandwidth_Hz, 5000);
+            testCase.verifyEqual(metadata.Power_dBm, -10);
         end
 
         function PowerOrBandwidthNotGivenStaysAsTheLibraryHasItTest(testCase)

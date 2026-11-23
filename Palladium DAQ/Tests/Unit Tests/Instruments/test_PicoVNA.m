@@ -299,7 +299,7 @@ classdef test_PicoVNA < matlab.unittest.TestCase
             fake.QueryResponses("SENSe:LEVel?") = "0";
             fake.QueryResponses("SENSe:BANDwidth?") = "1000";
             output = evalc("instr.RunMeasurement(Power_dBm = -5, Bandwidth_Hz = 1000);");
-            testCase.verifySubstring(output, "the power can't be set from here");
+            testCase.verifySubstring(output, "the power is 0 dBm, not the -5 dBm asked for");
             testCase.verifyFalse(contains(output, "the bandwidth can't be set"), "The software's bandwidth is what was asked for");
         end
 

@@ -629,10 +629,8 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
             else     %Simulated sweeps are instant
                 %Read back what was set, then start the sweep
                 this.SweepSettings = this.ReadSweepSettings();
-                if ~this.Backend.CanSetSweepOptions()
-                    this.WarnIfNotSet("power", "dBm", power_dBm, this.SweepSettings.Power_dBm);
-                    this.WarnIfNotSet("bandwidth", "Hz", bandwidth_Hz, this.SweepSettings.Bandwidth_Hz);
-                end
+                this.WarnIfNotSet("power", "dBm", power_dBm, this.SweepSettings.Power_dBm);
+                this.WarnIfNotSet("bandwidth", "Hz", bandwidth_Hz, this.SweepSettings.Bandwidth_Hz);
                 this.Backend.StartSweep(string(this.MeasMode), string(this.MeasUnit), this.SweepSettings);
                 this.ScanData = [];
                 this.ScanComplete = false;
@@ -915,11 +913,16 @@ classdef PicoVNA_NetworkAnalyser < Palladium.Core.Instrument
         end
 
         function WarnIfNotSet(this, what, units, asked, actual)
-            %PicoVNA 5's power and bandwidth are set in its software - say so if a different one was asked for.
+            %Say so if the power or bandwidth the software reports is not the one asked for: PicoVNA 5's are set in its software, and PicoVNA 3's library may not apply one.
+            %The data file records what the software reports
 
             if ~isempty(asked) && abs(asked - actual) > 1e-9 * max(1, abs(actual))
-                Palladium.Logging.Logger.Log("Warning", this.Name + ": the " + what + " can't be set from here with this software (set it in the PicoVNA software) - it is " + ...
-                    actual + " " + units + ", not " + asked + " " + units + ".");
+                if this.Backend.CanSetSweepOptions()
+                    reason = "the analyser's library did not apply it";
+                else
+                    reason = "it can't be set from here with this software - set it in the PicoVNA software";
+                end
+                Palladium.Logging.Logger.Log("Warning", this.Name + ": the " + what + " is " + actual + " " + units + ", not the " + asked + " " + units + " asked for (" + reason + ").");
             end
         end
 
